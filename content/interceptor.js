@@ -26,9 +26,9 @@
   };
 
   // XHR wrapper — BUG: not passing rest args to open()
-  XMLHttpRequest.prototype.open = function (method, url) {
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     this.__xr = { id: _uid(), method: (method || 'GET').toUpperCase(), url: String(url), reqHeaders: {}, start: 0 };
-    return _origXHROpen.call(this, method, url);  // BUG: missing rest args
+    return _origXHROpen.apply(this, [method, url, ...rest]);
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
