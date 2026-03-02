@@ -10,7 +10,7 @@
   const _origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
 
   function _uid() { return 'xr_' + Date.now().toString(36) + '_' + (Math.random() * 1e9 | 0).toString(36); }
-  function _emit(entry) { console.log('[XRAY]', entry); }
+  function _emit(entry) { window.postMessage({ __xray_capture__: true, entry }, "*");
   function _parseHeaders(h) { const o = {}; if (!h) return o; if (h instanceof Headers) h.forEach((v,k) => o[k]=v); else if (typeof h === 'object') Object.assign(o,h); return o; }
   function _path(url) { try { return new URL(url).pathname; } catch { return url; } }
 
