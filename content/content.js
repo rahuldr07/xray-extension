@@ -1,17 +1,14 @@
 // content/content.js — ISOLATED world entry point
-// Listens for capture events from MAIN world scripts
 (function () {
   'use strict';
-  // NOTE: We use postMessage instead of CustomEvent because Chrome nullifies
-  // CustomEvent.detail when crossing MAIN→ISOLATED world boundary.
-  // Wasted 2 hours debugging this. Thanks Chrome.
+  let _panelReady = false;
+  function _initPanel() { if (_panelReady) return; _panelReady = true; XRAY_Panel.init(); }
   window.addEventListener('message', (e) => {
     if (!e.data?.__xray_capture__) return;
-    const entry = e.data.entry;
-    if (!entry) return;
-    console.log('[XRAY content.js]', entry);
+    const entry = e.data.entry; if (!entry) return;
+    _initPanel(); XRAY_Panel.add(entry);
   });
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'xray:toggle') console.log('[XRAY] toggle');
+    if (msg.type === 'xray:toggle') { _initPanel(); XRAY_Panel.toggle(); }
   });
 })();
