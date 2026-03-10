@@ -81,57 +81,79 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 44px;
-  padding: 0 10px 0 12px;
-  background: var(--xr-bg2);
+  height: 46px;
+  padding: 0 10px 0 14px;
+  background: linear-gradient(180deg, var(--xr-bg2) 0%, var(--xr-bg) 100%);
   border-bottom: 1px solid var(--xr-border);
   flex-shrink: 0;
   user-select: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* Wordmark */
 .xr-wordmark {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-right: 6px;
+  gap: 7px;
+  margin-right: 8px;
   flex-shrink: 0;
 }
 .xr-logo-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 18px;
-  background: var(--xr-accent);
+  width: 24px;
+  height: 20px;
+  background: linear-gradient(135deg, var(--xr-accent) 0%, var(--xr-purple) 100%);
   color: var(--xr-bg);
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   flex-shrink: 0;
   line-height: 1;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
 .xr-logo-text {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: .5px;
   color: var(--xr-text);
   text-transform: uppercase;
 }
 
+/* Live capture dot */
+.xr-capture-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--xr-muted);
+  flex-shrink: 0;
+  transition: background .3s;
+  margin-left: -2px;
+}
+.xr-capture-dot.xr-live {
+  background: var(--xr-green);
+  animation: xr-pulse 1.8s ease-in-out infinite;
+}
+@keyframes xr-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,.5); }
+  50%       { opacity: .7; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+}
+
 /* Tabs */
-.xr-tabs { display: flex; gap: 2px; }
+.xr-tabs { display: flex; gap: 1px; }
 .xr-tab {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: 5px;
+  padding: 5px 11px;
+  border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--xr-subtext);
+  color: var(--xr-muted);
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
@@ -140,11 +162,12 @@ window.XRAY_Panel = (() => {
   white-space: nowrap;
   line-height: 1;
 }
-.xr-tab:hover { background: var(--xr-bg3); color: var(--xr-text); }
+.xr-tab:hover { background: var(--xr-bg3); color: var(--xr-subtext); }
 .xr-tab.xr-active {
   background: var(--xr-bg3);
   border-color: var(--xr-border);
   color: var(--xr-text);
+  font-weight: 600;
 }
 .xr-tab-badge {
   display: inline-flex;
@@ -154,11 +177,12 @@ window.XRAY_Panel = (() => {
   height: 16px;
   padding: 0 4px;
   background: var(--xr-surface);
-  color: var(--xr-subtext);
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 600;
+  color: var(--xr-muted);
+  border-radius: 10px;
+  font-size: 9.5px;
+  font-weight: 700;
   transition: background .12s, color .12s;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 .xr-tab.xr-active .xr-tab-badge {
   background: var(--xr-accent);
@@ -168,39 +192,49 @@ window.XRAY_Panel = (() => {
 .xr-hspacer { flex: 1; }
 
 /* Theme dots */
-.xr-dots { display: flex; align-items: center; gap: 5px; margin-right: 2px; }
+.xr-dots { display: flex; align-items: center; gap: 6px; margin-right: 4px; }
 .xr-dot {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;
-  opacity: .5;
-  transition: opacity .12s, transform .12s, border-color .12s;
+  opacity: .45;
+  transition: opacity .15s, transform .15s, border-color .15s, box-shadow .15s;
   flex-shrink: 0;
+  outline: 2px solid transparent;
 }
-.xr-dot:hover { opacity: 1; transform: scale(1.35); }
-.xr-dot.xr-active { opacity: 1; border-color: var(--xr-text); transform: scale(1.15); }
+.xr-dot:hover { opacity: 1; transform: scale(1.4); }
+.xr-dot.xr-active {
+  opacity: 1;
+  border-color: rgba(255,255,255,.25);
+  box-shadow: 0 0 0 2px var(--xr-bg2), 0 0 0 3.5px currentColor;
+  transform: scale(1.15);
+}
 
 /* Icon buttons */
 .xr-ibtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 5px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
-  color: var(--xr-overlay);
+  color: var(--xr-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
-  transition: background .12s, color .12s;
+  transition: background .12s, color .12s, border-color .12s;
   flex-shrink: 0;
   line-height: 1;
 }
-.xr-ibtn:hover { background: var(--xr-bg3); color: var(--xr-text); }
+.xr-ibtn:hover {
+  background: var(--xr-bg3);
+  border-color: var(--xr-border);
+  color: var(--xr-text);
+}
 
 /* ─── Body ───────────────────────────────────────────────────────────────── */
 .xr-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
@@ -715,6 +749,7 @@ window.XRAY_Panel = (() => {
   <div class="xr-wordmark">
     <span class="xr-logo-icon">&gt;_</span>
     <span class="xr-logo-text">Console</span>
+    <span class="xr-capture-dot" id="xr-capture-dot"></span>
   </div>
   <div class="xr-tabs">
     <button class="xr-tab xr-active" data-tab="api">
@@ -1313,10 +1348,20 @@ window.XRAY_Panel = (() => {
       if (!entry.id) entry.id = window.XRAY_Utils.uid();
       _state.entries.push(entry);
 
+      // Flash the live capture dot
+      const dot = _root?.getElementById('xr-capture-dot');
+      if (dot) {
+        dot.classList.add('xr-live');
+        clearTimeout(dot._fadeTimer);
+        dot._fadeTimer = setTimeout(() => dot.classList.remove('xr-live'), 2200);
+      }
+
       if (_entryMatchesCurrentTab(entry) && _entryMatchesFilter(entry)) {
         const emptyEl = _dom.listPane?.querySelector('.xr-empty-state');
         if (emptyEl) emptyEl.remove();
-        _dom.listPane?.appendChild(_renderEntry(entry));
+        const el = _renderEntry(entry);
+        el.classList.add('xr-entry-new');
+        _dom.listPane?.appendChild(el);
       }
       _updateCounts();
     },
