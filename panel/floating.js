@@ -626,23 +626,24 @@ window.XRAY_Panel = (() => {
   background: var(--xr-bg2);
   border-bottom: 1px solid var(--xr-border);
   flex-shrink: 0;
-  gap: 2px;
+  gap: 0;
 }
 .xr-dtab {
-  padding: 8px 12px;
+  padding: 9px 13px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--xr-muted);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: color .12s, border-color .12s;
+  transition: color .12s, border-color .12s, background .12s;
   margin-bottom: -1px;
   line-height: 1.4;
+  border-radius: 4px 4px 0 0;
 }
-.xr-dtab:hover { color: var(--xr-subtext); }
+.xr-dtab:hover { color: var(--xr-subtext); background: rgba(255,255,255,.02); }
 .xr-dtab.xr-active {
   color: var(--xr-text);
   border-bottom-color: var(--xr-accent);
