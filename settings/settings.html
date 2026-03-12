@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>XRAY Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', system-ui, sans-serif;
+           font-size: 13px; min-width: 320px; padding: 20px; }
+    h1 { color: #cba6f7; font-size: 15px; font-weight: 700; letter-spacing: 1px;
+         margin-bottom: 18px; }
+    .setting { border-bottom: 1px solid #313244; padding: 12px 0; }
+    .setting label { color: #a6adc8; display: block; font-size: 11px;
+                     margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    select, input[type="text"] {
+      background: #313244; border: 1px solid #45475a; border-radius: 5px;
+      color: #cdd6f4; font-family: inherit; font-size: 13px;
+      padding: 6px 10px; width: 100%;
+    }
+    .hint { color: #6c7086; font-size: 11px; margin-top: 5px; }
+    .save-btn {
+      background: #cba6f7; border: none; border-radius: 6px; color: #1e1e2e;
+      cursor: pointer; font-weight: 700; margin-top: 18px;
+      padding: 8px 20px; width: 100%;
+    }
+    .save-btn:hover { opacity: .9; }
+  </style>
+</head>
+<body>
+  <h1>⬡ XRAY Settings</h1>
+
+  <div class="setting">
+    <label>Default Theme</label>
+    <select id="theme">
+      <option value="catppuccin-mocha">Catppuccin Mocha (default)</option>
+      <option value="catppuccin-latte">Catppuccin Latte</option>
+      <option value="dracula">Dracula</option>
+      <option value="nord">Nord</option>
+    </select>
+  </div>
+
+  <div class="setting">
+    <label>Max Stored Entries</label>
+    <input type="text" id="maxEntries" value="500" placeholder="500">
+    <div class="hint">Older entries are dropped when this limit is reached.</div>
+  </div>
+
+  <div class="setting">
+    <label>Auto-open panel on API capture</label>
+    <select id="autoOpen">
+      <option value="false">Off (default)</option>
+      <option value="true">On</option>
+    </select>
+  </div>
+
+  <button class="save-btn" id="save">Save Settings</button>
+  <script src="settings.js"></script>
+</body>
+</html>

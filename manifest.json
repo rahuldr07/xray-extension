@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "XRAY — Encrypted API Visualizer",
+  "version": "0.1.0",
+  "description": "Auto-intercepts API calls, decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel.",
+
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/interceptor.js", "content/console-capture.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "shared/utils.js",
+        "shared/decrypt.js",
+        "shared/store.js",
+        "panel/themes.js",
+        "panel/renderer.js",
+        "panel/search.js",
+        "panel/shortcuts.js",
+        "panel/floating.js",
+        "content/content.js"
+      ],
+      "world": "ISOLATED",
+      "run_at": "document_start"
+    }
+  ],
+
+  "commands": {
+    "toggle-xray": {
+      "suggested_key": { "default": "Ctrl+Shift+X", "mac": "Command+Shift+X" },
+      "description": "Toggle XRAY panel"
+    }
+  },
+
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Toggle XRAY panel"
+  },
+
+  "devtools_page": "devtools/devtools.html",
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
