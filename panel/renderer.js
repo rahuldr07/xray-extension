@@ -70,6 +70,8 @@ window.XRAY_Renderer = (() => {
       const children = document.createElement('div');
       children.className = 'xr-children';
       children.style.display = autoExpand ? 'block' : 'none';
+      // connector line — offset = indent + tog width/2
+      children.style.setProperty('--xr-connector-left', `${indent + 7}px`);
 
       let rendered = false;
       function renderChildren() {
@@ -169,14 +171,31 @@ window.XRAY_Renderer = (() => {
   // ── Raw ───────────────────────────────────────────────────────────────────
 
   function buildRaw(data) {
-    const pre = document.createElement('pre');
-    pre.className = 'xr-raw';
+    const wrap = document.createElement('div');
+    wrap.className = 'xr-raw-wrap';
     try {
-      pre.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      const lines = text.split('\n');
+      const gutter = document.createElement('div');
+      gutter.className = 'xr-raw-gutter';
+      const code = document.createElement('pre');
+      code.className = 'xr-raw';
+      lines.forEach((ln, i) => {
+        const num = document.createElement('div');
+        num.className = 'xr-raw-ln';
+        num.textContent = i + 1;
+        gutter.appendChild(num);
+      });
+      code.textContent = text;
+      wrap.appendChild(gutter);
+      wrap.appendChild(code);
     } catch {
+      const pre = document.createElement('pre');
+      pre.className = 'xr-raw';
       pre.textContent = String(data);
+      wrap.appendChild(pre);
     }
-    return pre;
+    return wrap;
   }
 
   // ── Headers ───────────────────────────────────────────────────────────────

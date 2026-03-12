@@ -661,6 +661,20 @@ window.XRAY_Panel = (() => {
   border-radius: 3px;
 }
 .xr-line:hover { background: rgba(255,255,255,.03); }
+/* Connector guide lines */
+.xr-children {
+  position: relative;
+}
+.xr-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 11px;
+  left: var(--xr-connector-left, 7px);
+  width: 1px;
+  background: var(--xr-border);
+  pointer-events: none;
+}
 .xr-tog {
   display: inline-flex;
   align-items: center;
@@ -673,13 +687,13 @@ window.XRAY_Panel = (() => {
   font-size: 7px;
   margin-right: 2px;
   border-radius: 2px;
-  transition: color .1s;
+  transition: color .1s, background .1s;
   align-self: center;
 }
 .xr-tog::before { content: '▶'; }
 .xr-tog.xr-open::before { content: '▼'; }
 .xr-tog.xr-leaf::before { content: ''; cursor: default; }
-.xr-tog:not(.xr-leaf):hover { color: var(--xr-text); }
+.xr-tog:not(.xr-leaf):hover { color: var(--xr-text); background: rgba(255,255,255,.05); }
 .xr-key   { color: var(--xr-blue); }
 .xr-punct { color: var(--xr-muted); }
 .xr-brack { color: var(--xr-subtext); font-weight: 600; }
@@ -703,21 +717,49 @@ window.XRAY_Panel = (() => {
 }
 .xr-flash { animation: xr-flash .65s ease-out forwards; }
 
-/* ─── Raw view ───────────────────────────────────────────────────────────── */
-.xr-raw {
-  display: block;
-  padding: 12px 14px;
+/* ─── Raw view with line numbers ─────────────────────────────────────────── */
+.xr-raw-wrap {
+  display: flex;
   background: var(--xr-bg2);
   border: 1px solid var(--xr-border);
   border-radius: var(--xr-radius);
+  overflow: auto;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 11px;
+  line-height: 1.7;
+}
+.xr-raw-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px 12px 14px;
+  background: var(--xr-bg3);
+  border-right: 1px solid var(--xr-border);
+  text-align: right;
+  user-select: none;
+  flex-shrink: 0;
+}
+.xr-raw-ln {
+  color: var(--xr-muted);
+  font-size: 10px;
+  line-height: 1.7;
+  min-width: 2ch;
+}
+.xr-raw {
+  display: block;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: inherit;
   line-height: 1.7;
   color: var(--xr-text);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
   tab-size: 2;
+  flex: 1;
+  margin: 0;
 }
 
 /* ─── Headers view ───────────────────────────────────────────────────────── */
