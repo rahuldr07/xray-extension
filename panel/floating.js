@@ -1,877 +1,1297 @@
-// panel/floating.js — Shadow DOM floating sidebar
+// panel/floating.js — World-class redesign (shadcn/Linear/Vercel-inspired)
 window.XRAY_Panel = (() => {
   'use strict';
 
   const HOST_ID   = '__xray_root__';
-  const STORE_KEY = 'panel_state';
+  const STORE_KEY = 'panel_v2';
 
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
     open:       false,
-    activeTab:  'api',       // 'api' | 'logs'
-    activeView: 'tree',      // 'tree' | 'raw'
-    activeDTab: 'response',  // 'response' | 'request' | 'headers'
+    activeTab:  'api',        // 'api' | 'logs'
+    activeView: 'tree',       // 'tree' | 'raw'
+    activeDTab: 'response',   // 'response' | 'request' | 'headers'
     selectedId: null,
-    theme:      'catppuccin-mocha',
+    theme:      'zinc',
     filter:     '',
-    listWidth:  165,
-    entries:    [],          // CapturedEntry[]
+    listWidth:  220,
+    entries:    [],
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
-  let _root = null;   // shadow root
-  let _dom  = {};     // keyed element refs
+  let _root = null;
+  let _host = null;
+  let _dom  = {};
 
-  // ── CSS ───────────────────────────────────────────────────────────────────
-  function _css(vars) {
-    const v = Object.entries(vars).map(([k, val]) => `${k}:${val}`).join(';');
+  // ══════════════════════════════════════════════════════════════════════════
+  // CSS
+  // ══════════════════════════════════════════════════════════════════════════
+  function _buildCSS() {
     return `
-:host { all: initial; }
+/* ─── Reset ─────────────────────────────────────────────────────────────── */
+:host { all: initial; display: block; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── Panel shell ────────────────────────────────────────────────────────── */
 #xr-panel {
-  ${v};
-  position: fixed; top: 0; right: 0;
-  width: 460px; height: 100vh;
+  position: fixed;
+  top: 0; right: 0;
+  width: 520px;
+  height: 100vh;
   z-index: 2147483647;
-  display: flex; flex-direction: column;
-  background: var(--xr-bg); color: var(--xr-text);
+  display: flex;
+  flex-direction: column;
+  background: var(--xr-bg);
+  color: var(--xr-text);
   border-left: 1px solid var(--xr-border);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 12px; line-height: 1.5;
-  box-shadow: -6px 0 40px rgba(0,0,0,.55);
-  transition: transform .22s cubic-bezier(.4,0,.2,1);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: -8px 0 56px rgba(0,0,0,.65), -1px 0 0 rgba(255,255,255,.04);
+  transform: translateX(102%);
+  transition: transform .24s cubic-bezier(.16,1,.3,1);
   overflow: hidden;
 }
-#xr-panel.xr-hidden { transform: translateX(102%); }
+#xr-panel.xr-open { transform: translateX(0); }
 
-/* ── Header ── */
+/* ─── Header ─────────────────────────────────────────────────────────────── */
 .xr-header {
-  display: flex; align-items: center; gap: 5px;
-  padding: 7px 10px; background: var(--xr-bg2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 10px 0 12px;
+  background: var(--xr-bg2);
   border-bottom: 1px solid var(--xr-border);
-  flex-shrink: 0; user-select: none;
+  flex-shrink: 0;
+  user-select: none;
 }
-.xr-logo {
-  font-weight: 800; font-size: 12px; letter-spacing: 1px;
-  color: var(--xr-accent); margin-right: 4px; flex-shrink: 0;
+
+/* Wordmark */
+.xr-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  flex-shrink: 0;
 }
+.xr-logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: var(--xr-accent);
+  color: var(--xr-bg);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.xr-logo-text {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--xr-text);
+  text-transform: uppercase;
+}
+
+/* Tabs */
 .xr-tabs { display: flex; gap: 2px; }
 .xr-tab {
-  background: transparent; border: 1px solid transparent;
-  border-radius: 5px; color: var(--xr-subtext); cursor: pointer;
-  font-size: 11px; font-weight: 600; padding: 3px 9px;
-  display: flex; align-items: center; gap: 5px; transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--xr-subtext);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap;
+  line-height: 1;
 }
 .xr-tab:hover { background: var(--xr-bg3); color: var(--xr-text); }
 .xr-tab.xr-active {
-  background: var(--xr-bg3); border-color: var(--xr-border); color: var(--xr-accent);
+  background: var(--xr-bg3);
+  border-color: var(--xr-border);
+  color: var(--xr-text);
 }
-.xr-badge {
-  background: var(--xr-bg3); border-radius: 10px;
-  color: var(--xr-subtext); font-size: 10px;
-  min-width: 18px; padding: 0 4px; text-align: center;
+.xr-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--xr-surface);
+  color: var(--xr-subtext);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  transition: background .12s, color .12s;
 }
-.xr-tab.xr-active .xr-badge { background: var(--xr-accent); color: var(--xr-bg); }
-.xr-spacer { flex: 1; }
-.xr-dots { display: flex; align-items: center; gap: 5px; }
+.xr-tab.xr-active .xr-tab-badge {
+  background: var(--xr-accent);
+  color: var(--xr-bg);
+}
+
+.xr-hspacer { flex: 1; }
+
+/* Theme dots */
+.xr-dots { display: flex; align-items: center; gap: 5px; margin-right: 2px; }
 .xr-dot {
-  border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-  height: 11px; width: 11px; opacity: .55; transition: all .15s;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  opacity: .5;
+  transition: opacity .12s, transform .12s, border-color .12s;
+  flex-shrink: 0;
 }
-.xr-dot:hover { opacity: 1; transform: scale(1.25); }
-.xr-dot.xr-active { opacity: 1; border-color: var(--xr-text); }
+.xr-dot:hover { opacity: 1; transform: scale(1.35); }
+.xr-dot.xr-active { opacity: 1; border-color: var(--xr-text); transform: scale(1.15); }
+
+/* Icon buttons */
 .xr-ibtn {
-  background: transparent; border: none; border-radius: 4px;
-  color: var(--xr-overlay); cursor: pointer; font-size: 15px;
-  height: 22px; line-height: 1; padding: 0 6px; transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--xr-overlay);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+  line-height: 1;
 }
 .xr-ibtn:hover { background: var(--xr-bg3); color: var(--xr-text); }
 
-/* ── Body ── */
-.xr-body {
-  display: flex; flex: 1; min-height: 0; overflow: hidden;
+/* ─── Body ───────────────────────────────────────────────────────────────── */
+.xr-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ─── List pane ──────────────────────────────────────────────────────────── */
+.xr-list-pane {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--xr-border);
+  min-width: 130px;
+  max-width: 300px;
 }
 
-/* ── List pane ── */
-.xr-list {
-  display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden;
-  flex-shrink: 0; border-right: 1px solid var(--xr-border);
+/* ─── Drag handle ────────────────────────────────────────────────────────── */
+.xr-drag-handle {
+  width: 3px;
+  background: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background .15s;
 }
-.xr-list-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px; padding: 32px 12px;
-  color: var(--xr-overlay); text-align: center; flex: 1;
+.xr-drag-handle:hover,
+.xr-drag-handle.xr-dragging {
+  background: var(--xr-accent);
+  opacity: .35;
 }
-.xr-list-empty-icon { font-size: 26px; opacity: .4; }
-.xr-list-empty-text { font-size: 11px; line-height: 1.6; }
+
+/* ─── Empty states ───────────────────────────────────────────────────────── */
+.xr-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--xr-muted);
+  flex: 1;
+  width: 100%;
+}
+.xr-empty-icon { font-size: 26px; line-height: 1; }
+.xr-empty-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--xr-subtext);
+}
+.xr-empty-desc {
+  font-size: 11px;
+  color: var(--xr-muted);
+  line-height: 1.55;
+  max-width: 180px;
+}
+
+/* ─── Entry rows ─────────────────────────────────────────────────────────── */
 .xr-entry {
+  padding: 7px 10px 7px 12px;
   border-bottom: 1px solid var(--xr-border);
-  cursor: pointer; padding: 7px 9px 6px;
-  transition: background .1s; position: relative; flex-shrink: 0;
+  cursor: pointer;
+  transition: background .1s;
+  border-left: 2px solid transparent;
+  user-select: none;
+  flex-shrink: 0;
 }
-.xr-entry:hover { background: var(--xr-bg3); }
-.xr-entry.xr-sel {
-  background: var(--xr-bg3);
-  border-left: 2px solid var(--xr-accent); padding-left: 7px;
+.xr-entry:hover { background: var(--xr-bg2); }
+.xr-entry.xr-selected {
+  background: var(--xr-bg2);
+  border-left-color: var(--xr-accent);
 }
-.xr-entry-top {
-  display: flex; align-items: center; gap: 4px; margin-bottom: 2px;
+.xr-entry-row1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
 }
-.xr-meth {
-  border-radius: 3px; font-size: 9px; font-weight: 700;
-  padding: 1px 4px; text-transform: uppercase; flex-shrink: 0;
+.xr-entry-row2 {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 10.5px;
+  color: var(--xr-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 2px;
 }
-.xr-m-get    { background: rgba(137,180,250,.18); color: #89b4fa; }
-.xr-m-post   { background: rgba(166,227,161,.18); color: #a6e3a1; }
-.xr-m-put    { background: rgba(250,179,135,.18); color: #fab387; }
-.xr-m-delete { background: rgba(243,139,168,.18); color: #f38ba8; }
-.xr-m-patch  { background: rgba(249,226,175,.18); color: #f9e2af; }
-.xr-m-log    { background: rgba(148,226,213,.18); color: #94e2d5; }
-.xr-m-warn   { background: rgba(249,226,175,.18); color: #f9e2af; }
-.xr-m-error  { background: rgba(243,139,168,.18); color: #f38ba8; }
-.xr-stat {
-  font-size: 10px; font-weight: 700; margin-left: auto; flex-shrink: 0;
+.xr-entry-row3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--xr-muted);
 }
-.xr-s2 { color: #a6e3a1; } .xr-s3 { color: #89b4fa; }
-.xr-s4 { color: #f9e2af; } .xr-s5 { color: #f38ba8; } .xr-s0 { color: #6c7086; }
-.xr-entry-path {
-  color: var(--xr-subtext); font-size: 11px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.xr-entry-meta {
-  display: flex; align-items: center;
-  color: var(--xr-overlay); font-size: 10px; gap: 5px; margin-top: 2px;
-}
-.xr-dec-ok   { color: #a6e3a1; font-weight: 700; }
-.xr-dec-fail { color: #f38ba8; }
-.xr-pin-icon {
-  position: absolute; right: 7px; top: 6px;
-  font-size: 10px; color: var(--xr-yellow);
-}
+.xr-entry-row3 span { white-space: nowrap; }
+.xr-entry-row3 .xr-sep { color: var(--xr-surface); }
 
-/* ── Resize handle ── */
-.xr-resize {
-  background: transparent; cursor: col-resize;
-  flex-shrink: 0; width: 4px; transition: background .15s;
+/* ─── Method / level badges ──────────────────────────────────────────────── */
+.xr-method-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 30px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  line-height: 1;
 }
-.xr-resize:hover, .xr-resize.xr-dragging { background: var(--xr-accent); }
+/* HTTP methods */
+.xr-m-get     { background: rgba(96,165,250,.14); color: var(--xr-blue);   }
+.xr-m-post    { background: rgba(74,222,128,.14); color: var(--xr-green);  }
+.xr-m-put     { background: rgba(251,191,36,.14); color: var(--xr-yellow); }
+.xr-m-delete  { background: rgba(248,113,113,.14); color: var(--xr-red);   }
+.xr-m-patch   { background: rgba(192,132,252,.14); color: var(--xr-purple);}
+.xr-m-head    { background: rgba(96,165,250,.10); color: var(--xr-blue);   }
+.xr-m-options { background: rgba(251,146,60,.10); color: var(--xr-orange); }
+/* Log levels */
+.xr-m-log     { background: rgba(45,212,191,.14); color: #2dd4bf; }
+.xr-m-warn    { background: rgba(251,191,36,.14); color: var(--xr-yellow); }
+.xr-m-error   { background: rgba(248,113,113,.14); color: var(--xr-red);   }
+.xr-m-info    { background: rgba(96,165,250,.14); color: var(--xr-blue);   }
+.xr-m-debug   { background: rgba(192,132,252,.14); color: var(--xr-purple);}
 
-/* ── Detail pane ── */
-.xr-detail {
-  display: flex; flex: 1; flex-direction: column; min-width: 0; overflow: hidden;
+/* ─── Status codes ───────────────────────────────────────────────────────── */
+.xr-status {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: .2px;
+}
+.xr-s0 { color: var(--xr-muted); }
+.xr-s2 { color: var(--xr-green); }
+.xr-s3 { color: var(--xr-blue);  }
+.xr-s4 { color: var(--xr-yellow);}
+.xr-s5 { color: var(--xr-red);   }
+
+/* ─── Detail pane ────────────────────────────────────────────────────────── */
+.xr-detail-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 .xr-detail-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  flex: 1; gap: 8px; color: var(--xr-overlay); user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
 }
-.xr-detail-empty-icon { font-size: 34px; opacity: .3; }
-.xr-detail-empty-text { font-size: 12px; }
-.xr-dhead {
-  background: var(--xr-bg2); border-bottom: 1px solid var(--xr-border);
-  flex-shrink: 0; padding: 8px 12px;
+.xr-detail-empty .xr-empty-icon { font-size: 30px; }
+.xr-detail-empty .xr-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--xr-subtext);
 }
-.xr-dhead-url {
-  color: var(--xr-text); font-family: 'Consolas','Fira Code',monospace;
-  font-size: 11px; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; margin-bottom: 5px;
+.xr-detail-empty .xr-empty-desc {
+  font-size: 11px;
+  color: var(--xr-muted);
+  max-width: 220px;
+  line-height: 1.6;
 }
-.xr-dhead-meta { display: flex; align-items: center; gap: 14px; }
-.xr-dstat { display: flex; flex-direction: column; gap: 1px; }
-.xr-dstat-lbl {
-  color: var(--xr-overlay); font-size: 9px;
-  text-transform: uppercase; letter-spacing: .5px;
-}
-.xr-dstat-val { color: var(--xr-text); font-size: 12px; font-weight: 600; }
-.xr-dhead-actions { display: flex; gap: 4px; margin-left: auto; align-items: center; }
-.xr-vbtn {
-  background: transparent; border: 1px solid var(--xr-border);
-  border-radius: 4px; color: var(--xr-subtext);
-  cursor: pointer; font-size: 10px; font-weight: 700;
-  padding: 2px 7px; transition: all .15s;
-}
-.xr-vbtn:hover { background: var(--xr-bg3); color: var(--xr-text); }
-.xr-vbtn.xr-active { background: var(--xr-accent); border-color: var(--xr-accent); color: var(--xr-bg); }
-.xr-copy-btn {
-  background: transparent; border: 1px solid var(--xr-border);
-  border-radius: 4px; color: var(--xr-subtext);
-  cursor: pointer; font-size: 10px; padding: 2px 7px; transition: all .15s;
-}
-.xr-copy-btn:hover { background: var(--xr-accent); border-color: var(--xr-accent); color: var(--xr-bg); }
 
-/* ── Detail sub-tabs ── */
-.xr-dtabs {
+/* Detail header */
+.xr-detail-header {
+  background: var(--xr-bg2);
   border-bottom: 1px solid var(--xr-border);
-  display: flex; flex-shrink: 0; padding: 0 12px;
+  flex-shrink: 0;
+}
+.xr-detail-url-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px 6px;
+}
+.xr-detail-url {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--xr-text);
+  word-break: break-all;
+  line-height: 1.55;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Pills */
+.xr-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.xr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 20px;
+  font-size: 10px;
+  line-height: 1;
+}
+.xr-pill-label { color: var(--xr-muted); }
+.xr-pill-val   { color: var(--xr-text); font-weight: 600; }
+.xr-pill-val.xr-s2 { color: var(--xr-green);  }
+.xr-pill-val.xr-s3 { color: var(--xr-blue);   }
+.xr-pill-val.xr-s4 { color: var(--xr-yellow); }
+.xr-pill-val.xr-s5 { color: var(--xr-red);    }
+.xr-pill-val.xr-decrypted { color: var(--xr-green); }
+.xr-pill-val.xr-plain     { color: var(--xr-muted);  }
+
+/* Toolbar */
+.xr-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 8px;
+}
+.xr-view-toggle {
+  display: flex;
+  gap: 1px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  padding: 2px;
+}
+.xr-toggle-btn {
+  padding: 3px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  line-height: 1.4;
+}
+.xr-toggle-btn:hover { color: var(--xr-text); }
+.xr-toggle-btn.xr-active {
+  background: var(--xr-surface);
+  color: var(--xr-text);
+}
+.xr-toolbar-spacer { flex: 1; }
+.xr-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+  line-height: 1.4;
+}
+.xr-copy-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); }
+.xr-copy-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); }
+
+/* Sub-tabs */
+.xr-dtabs {
+  display: flex;
+  padding: 0 12px;
+  background: var(--xr-bg2);
+  border-bottom: 1px solid var(--xr-border);
+  flex-shrink: 0;
 }
 .xr-dtab {
-  background: transparent; border: none;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
   border-bottom: 2px solid transparent;
-  color: var(--xr-subtext); cursor: pointer;
-  font-size: 11px; font-weight: 500;
-  padding: 6px 12px; transition: all .15s;
+  color: var(--xr-subtext);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+  margin-bottom: -1px;
+  line-height: 1.4;
 }
 .xr-dtab:hover { color: var(--xr-text); }
-.xr-dtab.xr-active { border-bottom-color: var(--xr-accent); color: var(--xr-accent); }
-
-/* ── Detail content ── */
-.xr-dcont {
-  flex: 1; overflow-y: auto; padding: 10px 12px;
-  font-family: 'Consolas','Fira Code',monospace; font-size: 12px;
+.xr-dtab.xr-active {
+  color: var(--xr-text);
+  border-bottom-color: var(--xr-accent);
+  font-weight: 600;
 }
 
-/* ── Tree view ── */
-.xr-tree-root { line-height: 1.75; }
+/* Content area */
+.xr-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 12px;
+  min-height: 0;
+}
+
+/* ─── Tree ───────────────────────────────────────────────────────────────── */
+.xr-tree-root {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.75;
+}
 .xr-line {
-  display: flex; align-items: baseline;
-  min-height: 21px; border-radius: 3px; padding: 0 2px;
+  display: flex;
+  align-items: baseline;
+  min-height: 22px;
+  border-radius: 3px;
 }
-.xr-line:hover { background: rgba(255,255,255,.04); }
+.xr-line:hover { background: rgba(255,255,255,.03); }
 .xr-tog {
-  cursor: pointer; display: inline-flex;
-  align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: 7px; margin-right: 3px;
-  opacity: .55; user-select: none; width: 10px; transition: color .1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--xr-muted);
+  font-size: 7px;
+  margin-right: 2px;
+  border-radius: 2px;
+  transition: color .1s;
+  align-self: center;
 }
 .xr-tog::before { content: '▶'; }
 .xr-tog.xr-open::before { content: '▼'; }
-.xr-tog.xr-leaf { opacity: 0; pointer-events: none; }
-.xr-tog:not(.xr-leaf):hover { opacity: 1; color: var(--xr-accent); }
-.xr-key { color: var(--xr-blue); }
-.xr-punct, .xr-brack { color: var(--xr-overlay); }
-.xr-prev { color: var(--xr-overlay); font-style: italic; }
+.xr-tog.xr-leaf::before { content: ''; cursor: default; }
+.xr-tog:not(.xr-leaf):hover { color: var(--xr-text); }
+.xr-key   { color: var(--xr-blue); }
+.xr-punct { color: var(--xr-muted); }
+.xr-brack { color: var(--xr-subtext); font-weight: 600; }
+.xr-prev  { color: var(--xr-muted); font-style: italic; }
+/* Value types */
 .xr-val {
-  cursor: pointer; border-radius: 2px; padding: 0 1px; transition: background .1s;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+  transition: background .1s;
 }
-.xr-val:hover { background: rgba(255,255,255,.1); }
-.xr-val.xr-flash { background: var(--xr-accent) !important; color: var(--xr-bg); border-radius: 2px; }
-.xr-string   { color: var(--xr-green); }
-.xr-number   { color: var(--xr-blue); }
-.xr-boolean  { color: var(--xr-orange); }
-.xr-null, .xr-undefined { color: var(--xr-overlay); font-style: italic; }
+.xr-val:hover { background: rgba(255,255,255,.07); }
+.xr-string  { color: var(--xr-green);  }
+.xr-number  { color: var(--xr-blue);   }
+.xr-boolean { color: var(--xr-orange); }
+.xr-null    { color: var(--xr-muted); font-style: italic; }
+/* Copy flash */
+@keyframes xr-flash {
+  0%   { background: rgba(74,222,128,.35); }
+  100% { background: transparent; }
+}
+.xr-flash { animation: xr-flash .65s ease-out forwards; }
 
-/* ── Raw view ── */
+/* ─── Raw view ───────────────────────────────────────────────────────────── */
 .xr-raw {
-  background: var(--xr-bg2); border: 1px solid var(--xr-border);
-  border-radius: 6px; color: var(--xr-text);
-  font-family: 'Consolas','Fira Code',monospace;
-  font-size: 11px; line-height: 1.6; margin: 0;
-  overflow: auto; padding: 12px; white-space: pre;
+  display: block;
+  padding: 12px 14px;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: var(--xr-radius);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--xr-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  tab-size: 2;
 }
 
-/* ── Headers ── */
-.xr-htable { border-collapse: collapse; font-size: 11px; width: 100%; }
+/* ─── Headers view ───────────────────────────────────────────────────────── */
+.xr-hsec {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: var(--xr-muted);
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--xr-border);
+  margin-bottom: 4px;
+}
+.xr-hsec:first-child { padding-top: 0; }
+.xr-htable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 14px;
+}
+.xr-htable tr { border-bottom: 1px solid var(--xr-border); }
+.xr-htable tr:last-child { border-bottom: none; }
 .xr-htable td {
-  padding: 4px 8px; vertical-align: top;
-  border-bottom: 1px solid rgba(255,255,255,.05);
+  padding: 5px 0;
+  vertical-align: top;
+  line-height: 1.5;
 }
 .xr-htable td:first-child {
-  color: var(--xr-blue); font-weight: 500; width: 38%;
-  white-space: nowrap; font-family: 'Consolas','Fira Code',monospace;
+  color: var(--xr-blue);
+  font-weight: 600;
+  width: 38%;
+  padding-right: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10.5px;
+  word-break: break-all;
 }
-.xr-htable td:last-child { color: var(--xr-subtext); word-break: break-all; }
-.xr-hsec {
-  color: var(--xr-accent); font-size: 10px; font-weight: 700;
-  margin: 10px 0 3px; text-transform: uppercase; letter-spacing: .5px;
+.xr-htable td:last-child {
+  color: var(--xr-subtext);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10.5px;
+  word-break: break-all;
 }
-.xr-empty { color: var(--xr-overlay); padding: 20px; text-align: center; }
 
-/* ── Footer ── */
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
 .xr-footer {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--xr-bg2); border-top: 1px solid var(--xr-border);
-  flex-shrink: 0; padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  background: var(--xr-bg2);
+  border-top: 1px solid var(--xr-border);
+  flex-shrink: 0;
 }
-.xr-srchwrap {
-  display: flex; align-items: center;
-  background: var(--xr-bg3); border: 1px solid var(--xr-border);
-  border-radius: 5px; flex: 1; gap: 5px; padding: 4px 8px;
+.xr-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  transition: border-color .12s;
+  min-width: 0;
 }
-.xr-srchwrap:focus-within { border-color: var(--xr-accent); }
-.xr-srch-icon { color: var(--xr-overlay); font-size: 11px; flex-shrink: 0; }
-.xr-srch {
-  background: transparent; border: none;
-  color: var(--xr-text); flex: 1; font-family: inherit;
-  font-size: 12px; outline: none; width: 100%;
+.xr-search-wrap:focus-within { border-color: var(--xr-ring); }
+.xr-search-icon { color: var(--xr-muted); font-size: 12px; flex-shrink: 0; }
+.xr-search {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--xr-text);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 0;
 }
-.xr-srch::placeholder { color: var(--xr-overlay); }
-.xr-count { color: var(--xr-overlay); font-size: 11px; white-space: nowrap; }
-.xr-clearbtn {
-  background: transparent; border: none; border-radius: 4px;
-  color: var(--xr-subtext); cursor: pointer; font-size: 11px;
-  padding: 3px 8px; transition: all .15s;
+.xr-search::placeholder { color: var(--xr-muted); }
+.xr-count {
+  font-size: 10px;
+  color: var(--xr-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.xr-clearbtn:hover { background: var(--xr-red); color: var(--xr-bg); }
+.xr-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.xr-clear-btn:hover {
+  background: rgba(248,113,113,.1);
+  border-color: var(--xr-red);
+  color: var(--xr-red);
+}
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--xr-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--xr-surface); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--xr-overlay); }
-`;
+    `;
   }
 
-  // ── Build HTML scaffold ───────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // HTML template
+  // ══════════════════════════════════════════════════════════════════════════
   function _buildHTML() {
-    const dots = Object.entries(window.XRAY_Themes)
-      .map(([id, t]) =>
-        `<span class="xr-dot${id === _state.theme ? ' xr-active' : ''}"
-               data-theme="${id}" style="background:${t.dot}"
-               title="${t.name}"></span>`
-      ).join('');
-
-    return `
-<div class="xr-header">
-  <span class="xr-logo">⬡ XRAY</span>
-  <div class="xr-tabs">
-    <button class="xr-tab xr-active" data-tab="api">
-      API <span class="xr-badge" id="xr-api-cnt">0</span>
-    </button>
-    <button class="xr-tab" data-tab="logs">
-      LOGS <span class="xr-badge" id="xr-log-cnt">0</span>
-    </button>
-  </div>
-  <div class="xr-spacer"></div>
-  <div class="xr-dots">${dots}</div>
-  <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
-</div>
-<div class="xr-body" id="xr-body">
-  <div class="xr-list" id="xr-list" style="width:${_state.listWidth}px">
-    <div class="xr-list-empty">
-      <div class="xr-list-empty-icon">⬡</div>
-      <div class="xr-list-empty-text">Waiting for API calls…<br>Navigate the page to capture requests.</div>
-    </div>
-  </div>
-  <div class="xr-resize" id="xr-resize"></div>
-  <div class="xr-detail" id="xr-detail">
-    <div class="xr-detail-empty">
-      <div class="xr-detail-empty-icon">←</div>
-      <div class="xr-detail-empty-text">Select a request to inspect</div>
-    </div>
-  </div>
-</div>
-<div class="xr-footer">
-  <div class="xr-srchwrap">
-    <span class="xr-srch-icon">⌕</span>
-    <input type="text" class="xr-srch" id="xr-srch" placeholder="Filter… (Ctrl+F)" autocomplete="off">
-  </div>
-  <span class="xr-count" id="xr-count">0 entries</span>
-  <button class="xr-clearbtn" id="xr-clear">Clear</button>
-</div>`;
-  }
-
-  // ── Init ──────────────────────────────────────────────────────────────────
-  async function init() {
-    if (document.getElementById(HOST_ID)) return;
-
-    const theme = window.XRAY_Themes[_state.theme];
-
-    const host = document.createElement('div');
-    host.id = HOST_ID;
-    _root = host.attachShadow({ mode: 'open' });
-
-    const styleEl = document.createElement('style');
-    styleEl.textContent = _css(theme.vars);
-    _root.appendChild(styleEl);
-
     const panel = document.createElement('div');
     panel.id = 'xr-panel';
-    panel.className = 'xr-hidden';
-    panel.innerHTML = _buildHTML();
-    _root.appendChild(panel);
-
-    document.body.appendChild(host);
-
-    // Cache DOM refs
-    _dom = {
-      panel,
-      styleEl,
-      list:    _root.getElementById('xr-list'),
-      detail:  _root.getElementById('xr-detail'),
-      resize:  _root.getElementById('xr-resize'),
-      apiCnt:  _root.getElementById('xr-api-cnt'),
-      logCnt:  _root.getElementById('xr-log-cnt'),
-      count:   _root.getElementById('xr-count'),
-      srch:    _root.getElementById('xr-srch'),
-      clear:   _root.getElementById('xr-clear'),
-      close:   _root.getElementById('xr-close'),
-    };
-
-    _bindEvents();
-    await _loadState();
-    XRAY_Shortcuts.init(_public);
+    panel.innerHTML = `
+<div class="xr-header">
+  <div class="xr-wordmark">
+    <span class="xr-logo-icon">X</span>
+    <span class="xr-logo-text">XRAY</span>
+  </div>
+  <div class="xr-tabs">
+    <button class="xr-tab xr-active" data-tab="api">
+      API <span class="xr-tab-badge" id="xr-api-count">0</span>
+    </button>
+    <button class="xr-tab" data-tab="logs">
+      Logs <span class="xr-tab-badge" id="xr-log-count">0</span>
+    </button>
+  </div>
+  <div class="xr-hspacer"></div>
+  <div class="xr-dots" id="xr-dots"></div>
+  <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
+</div>
+<div class="xr-body">
+  <div class="xr-list-pane" id="xr-list-pane"></div>
+  <div class="xr-drag-handle" id="xr-drag-handle"></div>
+  <div class="xr-detail-pane" id="xr-detail-pane"></div>
+</div>
+<div class="xr-footer">
+  <div class="xr-search-wrap">
+    <span class="xr-search-icon">⌕</span>
+    <input
+      class="xr-search" id="xr-search" type="text"
+      placeholder="Filter requests… (Ctrl+F)"
+      autocomplete="off" spellcheck="false"
+    />
+  </div>
+  <span class="xr-count" id="xr-count">0 entries</span>
+  <button class="xr-clear-btn" id="xr-clear">Clear</button>
+</div>
+    `.trim();
+    return panel;
   }
 
-  // ── Event binding ─────────────────────────────────────────────────────────
-  function _bindEvents() {
-    // Close
-    _dom.close.addEventListener('click', () => hide());
-
-    // Tab switch
-    _root.querySelectorAll('.xr-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        _state.activeTab = btn.dataset.tab;
-        _state.selectedId = null;
-        _root.querySelectorAll('.xr-tab').forEach(t => t.classList.remove('xr-active'));
-        btn.classList.add('xr-active');
-        _renderList();
-        _renderDetail();
-      });
-    });
-
-    // Theme dots
-    _root.querySelectorAll('.xr-dot').forEach(dot => {
-      dot.addEventListener('click', () => {
-        _applyTheme(dot.dataset.theme);
-        _root.querySelectorAll('.xr-dot').forEach(d => d.classList.remove('xr-active'));
-        dot.classList.add('xr-active');
-        XRAY_Store.set('theme', dot.dataset.theme);
-      });
-    });
-
-    // Search / filter
-    _dom.srch.addEventListener('input', () => {
-      _state.filter = _dom.srch.value;
-      _renderList();
-    });
-
-    // Clear
-    _dom.clear.addEventListener('click', () => {
-      _state.entries = [];
-      _state.selectedId = null;
-      _renderList();
-      _renderDetail();
-      _updateCounts();
-    });
-
-    // List resize drag
-    let resizing = false, startX = 0, startW = 0;
-    _dom.resize.addEventListener('pointerdown', (e) => {
-      resizing = true; startX = e.clientX; startW = _state.listWidth;
-      _dom.resize.classList.add('xr-dragging');
-      _dom.resize.setPointerCapture(e.pointerId);
-    });
-    _dom.resize.addEventListener('pointermove', (e) => {
-      if (!resizing) return;
-      const w = Math.max(120, Math.min(280, startW + (e.clientX - startX)));
-      _state.listWidth = w;
-      _dom.list.style.width = `${w}px`;
-    });
-    _dom.resize.addEventListener('pointerup', () => {
-      resizing = false;
-      _dom.resize.classList.remove('xr-dragging');
-    });
-  }
-
-  // ── State persistence ─────────────────────────────────────────────────────
-  async function _loadState() {
-    const saved = await XRAY_Store.get(STORE_KEY, {});
-    if (saved.theme && XRAY_Themes[saved.theme]) {
-      _state.theme = saved.theme;
-      _applyTheme(_state.theme);
-      _root.querySelectorAll('.xr-dot').forEach(d => {
-        d.classList.toggle('xr-active', d.dataset.theme === _state.theme);
-      });
-    }
-    if (saved.open) show();
-  }
-
-  // ── Theme ─────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // Theme management
+  // ══════════════════════════════════════════════════════════════════════════
   function _applyTheme(name) {
-    const t = window.XRAY_Themes[name];
-    if (!t) return;
+    const themes = window.XRAY_Themes || {};
+    const theme  = themes[name] || themes['zinc'];
+    if (!theme || !_dom.panel) return;
+    Object.entries(theme.vars).forEach(([k, v]) => _dom.panel.style.setProperty(k, v));
     _state.theme = name;
-    // Rebuild CSS with new vars
-    _dom.styleEl.textContent = _css(t.vars);
+    _root.querySelectorAll('.xr-dot').forEach(d =>
+      d.classList.toggle('xr-active', d.dataset.theme === name)
+    );
   }
 
-  // ── List rendering ────────────────────────────────────────────────────────
-  function _renderList() {
-    const list = _dom.list;
-    list.innerHTML = '';
-
-    const all = _state.entries.filter(e => e.type === _state.activeTab);
-    const filtered = XRAY_Search.filter(all, _state.filter);
-
-    if (filtered.length === 0) {
-      list.innerHTML = `
-        <div class="xr-list-empty">
-          <div class="xr-list-empty-icon">⬡</div>
-          <div class="xr-list-empty-text">${
-            _state.filter
-              ? 'No matches for <em>' + _esc(_state.filter) + '</em>'
-              : _state.activeTab === 'api'
-                ? 'Waiting for API calls…<br>Navigate the page to capture requests.'
-                : 'No console output captured yet.'
-          }</div>
-        </div>`;
-      return;
-    }
-
-    filtered.forEach(e => list.appendChild(_makeEntryEl(e)));
+  function _buildDots() {
+    const container = _dom.dots;
+    if (!container) return;
+    container.innerHTML = '';
+    Object.entries(window.XRAY_Themes || {}).forEach(([key, th]) => {
+      const dot = document.createElement('div');
+      dot.className = 'xr-dot' + (key === _state.theme ? ' xr-active' : '');
+      dot.dataset.theme = key;
+      dot.style.background = th.dot;
+      dot.title = th.name;
+      dot.addEventListener('click', () => { _applyTheme(key); _saveState(); });
+      container.appendChild(dot);
+    });
   }
 
-  function _appendEntry(entry) {
-    if (entry.type !== _state.activeTab) {
-      _updateCounts();
-      return;
-    }
-    if (_state.filter && !XRAY_Search.filter([entry], _state.filter).length) {
-      _updateCounts();
-      return;
-    }
-    // Remove empty state if present
-    const empty = _dom.list.querySelector('.xr-list-empty');
-    if (empty) empty.remove();
-
-    _dom.list.appendChild(_makeEntryEl(entry));
-    _updateCounts();
+  // ══════════════════════════════════════════════════════════════════════════
+  // State persistence
+  // ══════════════════════════════════════════════════════════════════════════
+  function _saveState() {
+    window.XRAY_Store.set(STORE_KEY, {
+      open:      _state.open,
+      theme:     _state.theme,
+      listWidth: _state.listWidth,
+    });
   }
 
-  function _makeEntryEl(entry) {
+  async function _loadState() {
+    const saved = await window.XRAY_Store.get(STORE_KEY, {});
+    if (saved.theme && window.XRAY_Themes?.[saved.theme]) {
+      _state.theme = saved.theme;
+    }
+    if (typeof saved.listWidth === 'number') {
+      _state.listWidth = Math.min(300, Math.max(130, saved.listWidth));
+    }
+    if (typeof saved.open === 'boolean') {
+      _state.open = saved.open;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Entry helpers
+  // ══════════════════════════════════════════════════════════════════════════
+  function _filteredEntries() {
+    const byTab = _state.entries.filter(e =>
+      (_state.activeTab === 'api'  && e.type === 'api') ||
+      (_state.activeTab === 'logs' && e.type === 'log')
+    );
+    return window.XRAY_Search.filter(byTab, _state.filter);
+  }
+
+  function _entryMatchesCurrentTab(entry) {
+    return (_state.activeTab === 'api'  && entry.type === 'api') ||
+           (_state.activeTab === 'logs' && entry.type === 'log');
+  }
+
+  function _entryMatchesFilter(entry) {
+    return window.XRAY_Search.filter([entry], _state.filter).length > 0;
+  }
+
+  function _updateCounts() {
+    const api  = _state.entries.filter(e => e.type === 'api').length;
+    const logs = _state.entries.filter(e => e.type === 'log').length;
+    if (_dom.apiCount)   _dom.apiCount.textContent   = api;
+    if (_dom.logCount)   _dom.logCount.textContent   = logs;
+    const shown = _filteredEntries().length;
+    if (_dom.footerCount)
+      _dom.footerCount.textContent = `${shown} entr${shown === 1 ? 'y' : 'ies'}`;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // List rendering
+  // ══════════════════════════════════════════════════════════════════════════
+  function _renderEntry(entry) {
+    const { formatTime, formatDuration, formatSize, statusClass, methodClass, shortPath, previewJSON } =
+      window.XRAY_Utils;
+
     const el = document.createElement('div');
-    el.className = 'xr-entry' + (entry.id === _state.selectedId ? ' xr-sel' : '');
+    el.className = 'xr-entry' + (entry.id === _state.selectedId ? ' xr-selected' : '');
     el.dataset.id = entry.id;
 
     if (entry.type === 'api') {
-      const u = XRAY_Utils;
-      const sc = u.statusClass(entry.status);
-      const mc = u.methodClass(entry.method);
-      const dec = entry.decryptStatus === 'ok'
-        ? '<span class="xr-dec-ok" title="Decrypted">⬡</span>'
-        : entry.decryptStatus === 'failed'
-          ? '<span class="xr-dec-fail" title="Decrypt failed">✗</span>'
-          : '';
+      const method = (entry.method || 'GET').toUpperCase();
+      const mClass = methodClass(entry.method || 'GET');
+      const sClass = statusClass(entry.status);
+      const path   = shortPath(entry.url || '');
       el.innerHTML = `
-        ${entry.pinned ? '<span class="xr-pin-icon">★</span>' : ''}
-        <div class="xr-entry-top">
-          <span class="xr-meth ${mc}">${_esc(entry.method)}</span>
-          <span class="xr-stat ${sc}">${entry.status || 'ERR'}</span>
+        <div class="xr-entry-row1">
+          <span class="xr-method-badge ${mClass}">${method}</span>
+          <span class="xr-status ${sClass}">${entry.status || '—'}</span>
         </div>
-        <div class="xr-entry-path">${_esc(u.shortPath(entry.url || ''))}</div>
-        <div class="xr-entry-meta">
-          <span>${u.formatDuration(entry.duration)}</span>
-          <span>·</span>
-          <span>${u.formatSize(entry.size)}</span>
-          ${dec ? '<span>·</span>' + dec : ''}
-        </div>`;
+        <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
+        <div class="xr-entry-row3">
+          <span>${formatDuration(entry.duration)}</span>
+          <span class="xr-sep">·</span>
+          <span>${formatSize(entry.size)}</span>
+          <span class="xr-sep">·</span>
+          <span>${formatTime(entry.timestamp || Date.now())}</span>
+        </div>
+      `;
     } else {
-      // LOG entry
-      const levelClass = `xr-m-${entry.logLevel || 'log'}`;
-      const preview = XRAY_Utils.previewJSON(entry.logData, 70);
+      const level   = (entry.logLevel || 'log').toLowerCase();
+      const preview = previewJSON(entry.logData, 64);
       el.innerHTML = `
-        <div class="xr-entry-top">
-          <span class="xr-meth ${levelClass}">${(entry.logLevel || 'log').toUpperCase()}</span>
+        <div class="xr-entry-row1">
+          <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
         </div>
-        <div class="xr-entry-path">${_esc(preview)}</div>
-        <div class="xr-entry-meta">${XRAY_Utils.formatTime(entry.timestamp)}</div>`;
+        <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
+        <div class="xr-entry-row3">
+          <span>${formatTime(entry.timestamp || Date.now())}</span>
+        </div>
+      `;
     }
 
     el.addEventListener('click', () => _selectEntry(entry.id));
     return el;
   }
 
-  // ── Detail rendering ──────────────────────────────────────────────────────
-  function _selectEntry(id) {
-    _state.selectedId = id;
-    // Update selected highlight in list
-    _dom.list.querySelectorAll('.xr-entry').forEach(el => {
-      el.classList.toggle('xr-sel', el.dataset.id === id);
-    });
-    _renderDetail();
+  function _rebuildList() {
+    const pane = _dom.listPane;
+    if (!pane) return;
+    pane.innerHTML = '';
+    const filtered = _filteredEntries();
+
+    if (filtered.length === 0) {
+      const icon  = _state.activeTab === 'api' ? '🌐' : '📋';
+      const title = _state.filter
+        ? 'No matches'
+        : `No ${_state.activeTab === 'api' ? 'requests' : 'logs'} yet`;
+      const desc  = _state.filter
+        ? 'Try a different search term.'
+        : 'Intercepted entries will appear here automatically.';
+      pane.innerHTML = `
+        <div class="xr-empty-state">
+          <div class="xr-empty-icon">${icon}</div>
+          <div class="xr-empty-title">${title}</div>
+          <div class="xr-empty-desc">${desc}</div>
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach(entry => pane.appendChild(_renderEntry(entry)));
   }
 
-  function _renderDetail() {
-    const detail = _dom.detail;
-    detail.innerHTML = '';
+  // ══════════════════════════════════════════════════════════════════════════
+  // Selection
+  // ══════════════════════════════════════════════════════════════════════════
+  function _selectEntry(id) {
+    _state.selectedId = id;
+    _dom.listPane.querySelectorAll('.xr-entry').forEach(el =>
+      el.classList.toggle('xr-selected', el.dataset.id === id)
+    );
+    const entry = _state.entries.find(e => e.id === id) || null;
+    _renderDetail(entry);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Detail pane
+  // ══════════════════════════════════════════════════════════════════════════
+  function _renderDetail(entry) {
+    const pane = _dom.detailPane;
+    if (!pane) return;
+    pane.innerHTML = '';
+    _dom.content = null;
+
+    if (!entry) {
+      pane.innerHTML = `
+        <div class="xr-detail-empty">
+          <div class="xr-empty-icon">◈</div>
+          <div class="xr-empty-title">No request selected</div>
+          <div class="xr-empty-desc">Select an entry from the list to inspect its details.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const { formatDuration, formatSize, statusClass, methodClass } = window.XRAY_Utils;
+    const isApi  = entry.type === 'api';
+    const method = isApi
+      ? (entry.method || 'GET').toUpperCase()
+      : (entry.logLevel || 'log').toUpperCase();
+    const mClass = isApi
+      ? methodClass(entry.method || 'GET')
+      : `xr-m-${(entry.logLevel || 'log').toLowerCase()}`;
+
+    // ── Header block ──────────────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.className = 'xr-detail-header';
+
+    // URL row
+    const urlRow = document.createElement('div');
+    urlRow.className = 'xr-detail-url-row';
+    const urlText = isApi
+      ? (entry.url || '—')
+      : window.XRAY_Utils.previewJSON(entry.logData, 140);
+    urlRow.innerHTML = `
+      <span class="xr-method-badge ${mClass}" style="margin-top:2px;flex-shrink:0">${method}</span>
+      <span class="xr-detail-url">${urlText}</span>
+    `;
+    header.appendChild(urlRow);
+
+    // Pills (API only)
+    if (isApi) {
+      const sClass = statusClass(entry.status);
+      const hasDecrypted = entry.responseDecrypted !== undefined && entry.responseDecrypted !== null;
+      const pillsRow = document.createElement('div');
+      pillsRow.className = 'xr-pills-row';
+      pillsRow.innerHTML = `
+        <div class="xr-pill">
+          <span class="xr-pill-label">Status</span>
+          <span class="xr-pill-val ${sClass}">${entry.status || '—'}</span>
+        </div>
+        <div class="xr-pill">
+          <span class="xr-pill-label">Time</span>
+          <span class="xr-pill-val">${formatDuration(entry.duration)}</span>
+        </div>
+        <div class="xr-pill">
+          <span class="xr-pill-label">Size</span>
+          <span class="xr-pill-val">${formatSize(entry.size)}</span>
+        </div>
+        <div class="xr-pill">
+          <span class="xr-pill-label">Body</span>
+          <span class="xr-pill-val ${hasDecrypted ? 'xr-decrypted' : 'xr-plain'}">
+            ${hasDecrypted ? '🔓 Decrypted' : 'Plain'}
+          </span>
+        </div>
+      `;
+      header.appendChild(pillsRow);
+    }
+
+    // Toolbar
+    const toolbar = document.createElement('div');
+    toolbar.className = 'xr-toolbar-row';
+    toolbar.innerHTML = `
+      <div class="xr-view-toggle">
+        <button class="xr-toggle-btn ${_state.activeView === 'tree' ? 'xr-active' : ''}" data-view="tree">Tree</button>
+        <button class="xr-toggle-btn ${_state.activeView === 'raw'  ? 'xr-active' : ''}" data-view="raw">Raw</button>
+      </div>
+      <div class="xr-toolbar-spacer"></div>
+      <button class="xr-copy-btn" id="xr-copy-btn">
+        <span>⎘</span><span>Copy</span>
+      </button>
+    `;
+    toolbar.querySelectorAll('.xr-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _state.activeView = btn.dataset.view;
+        toolbar.querySelectorAll('.xr-toggle-btn').forEach(b =>
+          b.classList.toggle('xr-active', b.dataset.view === _state.activeView)
+        );
+        _renderContent();
+      });
+    });
+    toolbar.querySelector('#xr-copy-btn').addEventListener('click', () => _copySelected());
+    header.appendChild(toolbar);
+
+    pane.appendChild(header);
+
+    // ── Sub-tabs (API only) ───────────────────────────────────────────────
+    if (isApi) {
+      const dtabs = document.createElement('div');
+      dtabs.className = 'xr-dtabs';
+      dtabs.innerHTML = `
+        <button class="xr-dtab ${_state.activeDTab === 'response' ? 'xr-active' : ''}" data-dtab="response">Response</button>
+        <button class="xr-dtab ${_state.activeDTab === 'request'  ? 'xr-active' : ''}" data-dtab="request">Request</button>
+        <button class="xr-dtab ${_state.activeDTab === 'headers'  ? 'xr-active' : ''}" data-dtab="headers">Headers</button>
+      `;
+      dtabs.querySelectorAll('.xr-dtab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          _state.activeDTab = btn.dataset.dtab;
+          dtabs.querySelectorAll('.xr-dtab').forEach(b =>
+            b.classList.toggle('xr-active', b.dataset.dtab === _state.activeDTab)
+          );
+          _renderContent();
+        });
+      });
+      pane.appendChild(dtabs);
+    }
+
+    // ── Content area ──────────────────────────────────────────────────────
+    const content = document.createElement('div');
+    content.className = 'xr-content';
+    pane.appendChild(content);
+    _dom.content = content;
+
+    _renderContent();
+  }
+
+  function _renderContent() {
+    const content = _dom.content;
+    if (!content) return;
+    content.innerHTML = '';
 
     const entry = _state.selectedId
       ? _state.entries.find(e => e.id === _state.selectedId)
       : null;
-
-    if (!entry) {
-      detail.innerHTML = `
-        <div class="xr-detail-empty">
-          <div class="xr-detail-empty-icon">←</div>
-          <div class="xr-detail-empty-text">Select a request to inspect</div>
-        </div>`;
-      return;
-    }
-
-    if (entry.type === 'log') {
-      _renderLogDetail(detail, entry);
-    } else {
-      _renderAPIDetail(detail, entry);
-    }
-  }
-
-  function _renderAPIDetail(detail, entry) {
-    const u = XRAY_Utils;
-    const sc = u.statusClass(entry.status);
-    const mc = u.methodClass(entry.method);
-
-    // Header
-    const dhead = document.createElement('div');
-    dhead.className = 'xr-dhead';
-    dhead.innerHTML = `
-      <div class="xr-dhead-url">
-        <span class="xr-meth ${mc}" style="margin-right:6px">${_esc(entry.method)}</span>${_esc(entry.url || '')}
-      </div>
-      <div class="xr-dhead-meta">
-        <div class="xr-dstat">
-          <span class="xr-dstat-lbl">Status</span>
-          <span class="xr-dstat-val ${sc}">${entry.status || 'ERR'}</span>
-        </div>
-        <div class="xr-dstat">
-          <span class="xr-dstat-lbl">Duration</span>
-          <span class="xr-dstat-val">${u.formatDuration(entry.duration)}</span>
-        </div>
-        <div class="xr-dstat">
-          <span class="xr-dstat-lbl">Size</span>
-          <span class="xr-dstat-val">${u.formatSize(entry.size)}</span>
-        </div>
-        ${entry.decryptStatus === 'ok' ? `
-        <div class="xr-dstat">
-          <span class="xr-dstat-lbl">Decrypt</span>
-          <span class="xr-dstat-val xr-dec-ok">✓ OK</span>
-        </div>` : entry.decryptStatus === 'failed' ? `
-        <div class="xr-dstat">
-          <span class="xr-dstat-lbl">Decrypt</span>
-          <span class="xr-dstat-val xr-dec-fail">✗ Failed</span>
-        </div>` : ''}
-        <div class="xr-dhead-actions">
-          <button class="xr-vbtn${_state.activeView === 'tree' ? ' xr-active' : ''}" data-view="tree" title="Tree view (T)">T</button>
-          <button class="xr-vbtn${_state.activeView === 'raw'  ? ' xr-active' : ''}" data-view="raw"  title="Raw view (R)">R</button>
-          <button class="xr-copy-btn" id="xr-copybtn" title="Copy JSON (C)">Copy</button>
-        </div>
-      </div>`;
-    detail.appendChild(dhead);
-
-    // View buttons
-    dhead.querySelectorAll('.xr-vbtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        _state.activeView = btn.dataset.view;
-        dhead.querySelectorAll('.xr-vbtn').forEach(b => b.classList.toggle('xr-active', b.dataset.view === _state.activeView));
-        _refreshDetailContent(detail, entry);
-      });
-    });
-
-    // Copy button
-    dhead.getElementById('xr-copybtn').addEventListener('click', () => _copyEntry(entry));
-
-    // Sub-tabs
-    const dtabs = document.createElement('div');
-    dtabs.className = 'xr-dtabs';
-    ['response', 'request', 'headers'].forEach(tab => {
-      const btn = document.createElement('button');
-      btn.className = 'xr-dtab' + (tab === _state.activeDTab ? ' xr-active' : '');
-      btn.textContent = tab.charAt(0).toUpperCase() + tab.slice(1);
-      btn.addEventListener('click', () => {
-        _state.activeDTab = tab;
-        dtabs.querySelectorAll('.xr-dtab').forEach(b => b.classList.toggle('xr-active', b.textContent.toLowerCase() === tab));
-        _refreshDetailContent(detail, entry);
-      });
-      dtabs.appendChild(btn);
-    });
-    detail.appendChild(dtabs);
-
-    // Content area
-    const dcont = document.createElement('div');
-    dcont.className = 'xr-dcont';
-    dcont.id = 'xr-dcont';
-    detail.appendChild(dcont);
-
-    _refreshDetailContent(detail, entry);
-  }
-
-  function _refreshDetailContent(detail, entry) {
-    const dcont = detail.querySelector('#xr-dcont');
-    if (!dcont) return;
-    dcont.innerHTML = '';
-
-    if (_state.activeDTab === 'headers') {
-      dcont.appendChild(XRAY_Renderer.buildHeaders(entry.requestHeaders, entry.responseHeaders));
-      return;
-    }
+    if (!entry) return;
 
     let data;
-    if (_state.activeDTab === 'response') {
-      data = entry.responseDecrypted !== null && entry.responseDecrypted !== undefined
-        ? entry.responseDecrypted
-        : _tryParse(entry.responseRaw);
+
+    if (entry.type === 'log') {
+      data = entry.logData;
     } else {
-      data = entry.requestBody;
+      if (_state.activeDTab === 'headers') {
+        content.appendChild(
+          window.XRAY_Renderer.buildHeaders(entry.requestHeaders, entry.responseHeaders)
+        );
+        return;
+      }
+      data = _state.activeDTab === 'response'
+        ? (entry.responseDecrypted ?? entry.responseBody ?? null)
+        : (entry.requestBody ?? null);
     }
 
     if (data === null || data === undefined) {
-      if (_state.activeDTab === 'response' && entry.responseRaw) {
-        // Show raw text if JSON parse failed
-        dcont.appendChild(XRAY_Renderer.buildRaw(entry.responseRaw));
-        return;
+      content.innerHTML = `<div style="color:var(--xr-muted);font-size:11px;padding:4px 0">No data</div>`;
+      return;
+    }
+
+    if (_state.activeView === 'tree') {
+      try {
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        content.appendChild(window.XRAY_Renderer.buildTree(parsed));
+      } catch {
+        content.appendChild(window.XRAY_Renderer.buildRaw(data));
       }
-      const empty = document.createElement('div');
-      empty.className = 'xr-empty';
-      empty.textContent = 'No data';
-      dcont.appendChild(empty);
-      return;
-    }
-
-    if (_state.activeView === 'raw') {
-      dcont.appendChild(XRAY_Renderer.buildRaw(data));
     } else {
-      dcont.appendChild(XRAY_Renderer.buildTree(data));
+      content.appendChild(window.XRAY_Renderer.buildRaw(data));
     }
   }
 
-  function _renderLogDetail(detail, entry) {
-    const dhead = document.createElement('div');
-    dhead.className = 'xr-dhead';
-    const levelClass = `xr-m-${entry.logLevel || 'log'}`;
-    dhead.innerHTML = `
-      <div class="xr-dhead-url">
-        <span class="xr-meth ${levelClass}" style="margin-right:6px">${(entry.logLevel || 'log').toUpperCase()}</span>
-        ${XRAY_Utils.formatTime(entry.timestamp)}
-      </div>
-      <div class="xr-dhead-meta">
-        <div class="xr-dhead-actions">
-          <button class="xr-vbtn${_state.activeView === 'tree' ? ' xr-active' : ''}" data-view="tree">T</button>
-          <button class="xr-vbtn${_state.activeView === 'raw'  ? ' xr-active' : ''}" data-view="raw">R</button>
-          <button class="xr-copy-btn" id="xr-copybtn">Copy</button>
-        </div>
-      </div>`;
-    detail.appendChild(dhead);
-
-    dhead.querySelectorAll('.xr-vbtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        _state.activeView = btn.dataset.view;
-        dhead.querySelectorAll('.xr-vbtn').forEach(b => b.classList.toggle('xr-active', b.dataset.view === _state.activeView));
-        const dc = detail.querySelector('#xr-log-dcont');
-        if (dc) { dc.innerHTML = ''; _fillLogContent(dc, entry); }
-      });
-    });
-
-    dhead.getElementById('xr-copybtn').addEventListener('click', () => {
-      const text = JSON.stringify(entry.logData, null, 2);
-      navigator.clipboard.writeText(text).catch(() => {});
-    });
-
-    const dcont = document.createElement('div');
-    dcont.className = 'xr-dcont';
-    dcont.id = 'xr-log-dcont';
-    detail.appendChild(dcont);
-    _fillLogContent(dcont, entry);
-  }
-
-  function _fillLogContent(dcont, entry) {
-    if (entry.logData === null || entry.logData === undefined) {
-      dcont.textContent = 'null';
-      return;
-    }
-    if (_state.activeView === 'raw') {
-      dcont.appendChild(XRAY_Renderer.buildRaw(entry.logData));
-    } else {
-      dcont.appendChild(XRAY_Renderer.buildTree(entry.logData));
-    }
-  }
-
-  // ── Counts ────────────────────────────────────────────────────────────────
-  function _updateCounts() {
-    const api  = _state.entries.filter(e => e.type === 'api').length;
-    const logs = _state.entries.filter(e => e.type === 'log').length;
-    _dom.apiCnt.textContent  = api;
-    _dom.logCnt.textContent  = logs;
-    _dom.count.textContent   = `${api + logs} entr${api + logs === 1 ? 'y' : 'ies'}`;
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  function _esc(s) {
-    return String(s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function _tryParse(str) {
-    if (str == null) return null;
-    try { return JSON.parse(str); } catch { return null; }
-  }
-
-  function _copyEntry(entry) {
-    let data = entry.responseDecrypted ?? _tryParse(entry.responseRaw) ?? entry.responseRaw;
-    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-    navigator.clipboard.writeText(text || '').catch(() => {});
-  }
-
-  // ── Public API ────────────────────────────────────────────────────────────
-  function show() {
-    _state.open = true;
-    _dom.panel.classList.remove('xr-hidden');
-    XRAY_Store.set(STORE_KEY, { open: true, theme: _state.theme });
-  }
-
-  function hide() {
-    _state.open = false;
-    _dom.panel.classList.add('xr-hidden');
-    XRAY_Store.set(STORE_KEY, { open: false, theme: _state.theme });
-  }
-
-  function toggle() { _state.open ? hide() : show(); }
-  function isOpen() { return _state.open; }
-
-  function add(entry) {
-    _state.entries.push(entry);
-    _appendEntry(entry);
-    _updateCounts();
-  }
-
-  function setView(v) {
-    if (!['tree', 'raw', 'grid', 'diff'].includes(v)) return;
-    _state.activeView = v === 'grid' || v === 'diff' ? 'raw' : v; // Phase 2/3 stubs
-    _renderDetail();
-  }
-
-  function focusSearch() {
-    if (_dom.srch) _dom.srch.focus();
-  }
-
-  function copySelected() {
+  // ══════════════════════════════════════════════════════════════════════════
+  // Copy
+  // ══════════════════════════════════════════════════════════════════════════
+  function _copySelected() {
     const entry = _state.selectedId
       ? _state.entries.find(e => e.id === _state.selectedId)
       : null;
-    if (entry) {
-      if (entry.type === 'api') _copyEntry(entry);
-      else navigator.clipboard.writeText(JSON.stringify(entry.logData, null, 2)).catch(() => {});
+    if (!entry) return;
+
+    let data;
+    if (entry.type === 'log') {
+      data = entry.logData;
+    } else {
+      if (_state.activeDTab === 'response')  data = entry.responseDecrypted ?? entry.responseBody;
+      else if (_state.activeDTab === 'request') data = entry.requestBody;
+      else data = { request: entry.requestHeaders, response: entry.responseHeaders };
+    }
+
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    navigator.clipboard.writeText(text || '').catch(() => {});
+
+    const btn = _dom.detailPane?.querySelector('#xr-copy-btn');
+    if (btn) {
+      btn.classList.add('xr-copied');
+      const label = btn.querySelector('span:last-child');
+      if (label) label.textContent = 'Copied!';
+      setTimeout(() => {
+        btn.classList.remove('xr-copied');
+        if (label) label.textContent = 'Copy';
+      }, 1500);
     }
   }
 
-  function pinSelected() {
-    const entry = _state.entries.find(e => e.id === _state.selectedId);
-    if (entry) {
-      entry.pinned = !entry.pinned;
-      _renderList();
-      if (_state.selectedId) _selectEntry(_state.selectedId);
-    }
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // Drag resize
+  // ══════════════════════════════════════════════════════════════════════════
+  function _initDrag() {
+    const handle = _dom.dragHandle;
+    if (!handle) return;
 
-  function expandAll(expand) {
-    const dcont = _root && _root.querySelector('#xr-dcont, #xr-log-dcont');
-    if (dcont) XRAY_Renderer.expandAll(dcont, expand);
-  }
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = _state.listWidth;
+      handle.classList.add('xr-dragging');
 
-  function selectNext(dir) {
-    const visible = _state.entries.filter(e => {
-      if (e.type !== _state.activeTab) return false;
-      return !_state.filter || XRAY_Search.filter([e], _state.filter).length > 0;
+      const onMove = (ev) => {
+        const w = Math.min(300, Math.max(130, startW + (ev.clientX - startX)));
+        _state.listWidth = w;
+        _dom.listPane.style.width = `${w}px`;
+      };
+      const onUp = () => {
+        handle.classList.remove('xr-dragging');
+        document.removeEventListener('mousemove', onMove, true);
+        document.removeEventListener('mouseup',   onUp,   true);
+        _saveState();
+      };
+      document.addEventListener('mousemove', onMove, true);
+      document.addEventListener('mouseup',   onUp,   true);
     });
-    if (!visible.length) return;
-    const idx = visible.findIndex(e => e.id === _state.selectedId);
-    const next = visible[Math.max(0, Math.min(visible.length - 1, idx + dir))];
-    if (next) _selectEntry(next.id);
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Event binding
+  // ══════════════════════════════════════════════════════════════════════════
+  function _bindEvents() {
+    _dom.closeBtn.addEventListener('click', () => _public.hide());
+
+    _root.querySelectorAll('.xr-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _state.activeTab = btn.dataset.tab;
+        _root.querySelectorAll('.xr-tab').forEach(b =>
+          b.classList.toggle('xr-active', b.dataset.tab === _state.activeTab)
+        );
+        _state.selectedId = null;
+        _rebuildList();
+        _renderDetail(null);
+        _updateCounts();
+      });
+    });
+
+    _dom.search.addEventListener('input', (e) => {
+      _state.filter = e.target.value;
+      _rebuildList();
+      _updateCounts();
+      if (_state.selectedId && !_filteredEntries().find(e => e.id === _state.selectedId)) {
+        _state.selectedId = null;
+        _renderDetail(null);
+      }
+    });
+
+    _dom.clearBtn.addEventListener('click', () => {
+      _state.entries    = [];
+      _state.selectedId = null;
+      _rebuildList();
+      _renderDetail(null);
+      _updateCounts();
+    });
+
+    _initDrag();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Public API
+  // ══════════════════════════════════════════════════════════════════════════
   const _public = {
-    init, show, hide, toggle, isOpen, add, setView,
-    focusSearch, copySelected, pinSelected, expandAll, selectNext,
+
+    async init() {
+      await _loadState();
+
+      let host = document.getElementById(HOST_ID);
+      if (!host) {
+        host = document.createElement('div');
+        host.id = HOST_ID;
+        document.documentElement.appendChild(host);
+      }
+      _host = host;
+
+      // Attach Shadow DOM
+      _root = host.attachShadow({ mode: 'open' });
+
+      const style = document.createElement('style');
+      style.textContent = _buildCSS();
+      _root.appendChild(style);
+
+      const panel = _buildHTML();
+      _root.appendChild(panel);
+
+      // Collect refs
+      _dom.panel       = _root.getElementById('xr-panel');
+      _dom.dots        = _root.getElementById('xr-dots');
+      _dom.closeBtn    = _root.getElementById('xr-close');
+      _dom.listPane    = _root.getElementById('xr-list-pane');
+      _dom.dragHandle  = _root.getElementById('xr-drag-handle');
+      _dom.detailPane  = _root.getElementById('xr-detail-pane');
+      _dom.search      = _root.getElementById('xr-search');
+      _dom.footerCount = _root.getElementById('xr-count');
+      _dom.apiCount    = _root.getElementById('xr-api-count');
+      _dom.logCount    = _root.getElementById('xr-log-count');
+      _dom.clearBtn    = _root.getElementById('xr-clear');
+
+      // Apply persisted state
+      _dom.listPane.style.width = `${_state.listWidth}px`;
+      _buildDots();
+      _applyTheme(_state.theme);
+
+      // Initial render
+      _rebuildList();
+      _renderDetail(null);
+      _updateCounts();
+
+      // Events + shortcuts
+      _bindEvents();
+      if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
+
+      // Restore open state
+      if (_state.open) _dom.panel.classList.add('xr-open');
+    },
+
+    show() {
+      if (!_dom.panel) return;
+      _state.open = true;
+      _dom.panel.classList.add('xr-open');
+      _saveState();
+    },
+
+    hide() {
+      if (!_dom.panel) return;
+      _state.open = false;
+      _dom.panel.classList.remove('xr-open');
+      _saveState();
+    },
+
+    toggle() { _state.open ? _public.hide() : _public.show(); },
+
+    isOpen() { return _state.open; },
+
+    add(entry) {
+      if (!entry) return;
+      if (!entry.id) entry.id = window.XRAY_Utils.uid();
+      _state.entries.push(entry);
+
+      if (_entryMatchesCurrentTab(entry) && _entryMatchesFilter(entry)) {
+        const emptyEl = _dom.listPane?.querySelector('.xr-empty-state');
+        if (emptyEl) emptyEl.remove();
+        _dom.listPane?.appendChild(_renderEntry(entry));
+      }
+      _updateCounts();
+    },
+
+    setView(v) {
+      const mapped = (v === 'grid' || v === 'diff') ? 'raw' : v;
+      if (mapped !== 'tree' && mapped !== 'raw') return;
+      _state.activeView = mapped;
+      _dom.detailPane?.querySelectorAll('.xr-toggle-btn').forEach(btn =>
+        btn.classList.toggle('xr-active', btn.dataset.view === mapped)
+      );
+      _renderContent();
+    },
+
+    focusSearch() { _dom.search?.focus(); _dom.search?.select(); },
+
+    copySelected() { _copySelected(); },
+
+    pinSelected() { /* stub — reserved for pin/star feature */ },
+
+    expandAll(expand) {
+      const treeRoot = _dom.content?.querySelector('.xr-tree-root');
+      if (treeRoot) window.XRAY_Renderer.expandAll(treeRoot, expand);
+    },
+
+    selectNext(dir) {
+      const filtered = _filteredEntries();
+      if (!filtered.length) return;
+      const idx  = filtered.findIndex(e => e.id === _state.selectedId);
+      let   next = idx === -1
+        ? (dir > 0 ? 0 : filtered.length - 1)
+        : (idx + dir + filtered.length) % filtered.length;
+      const target = filtered[next];
+      _selectEntry(target.id);
+      _dom.listPane?.querySelector(`[data-id="${target.id}"]`)?.scrollIntoView({ block: 'nearest' });
+    },
+
   };
 
   return _public;
