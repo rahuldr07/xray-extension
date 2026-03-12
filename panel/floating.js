@@ -246,9 +246,30 @@ window.XRAY_Panel = (() => {
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid var(--xr-border);
   min-width: 130px;
   max-width: 300px;
+  flex: 1;
+}
+
+/* ─── List wrap (holds pane + fade mask) ──────────────────────────────────── */
+.xr-list-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--xr-border);
+}
+.xr-list-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(transparent, var(--xr-bg));
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ─── Drag handle ────────────────────────────────────────────────────────── */
@@ -745,9 +766,9 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 40px;
+  height: 42px;
   padding: 0 10px;
-  background: var(--xr-bg2);
+  background: linear-gradient(0deg, var(--xr-bg) 0%, var(--xr-bg2) 100%);
   border-top: 1px solid var(--xr-border);
   flex-shrink: 0;
 }
@@ -756,15 +777,18 @@ window.XRAY_Panel = (() => {
   align-items: center;
   gap: 6px;
   flex: 1;
-  height: 26px;
-  padding: 0 8px;
+  height: 28px;
+  padding: 0 9px;
   background: var(--xr-bg3);
   border: 1px solid var(--xr-border);
-  border-radius: 5px;
-  transition: border-color .12s;
+  border-radius: 6px;
+  transition: border-color .15s, box-shadow .15s;
   min-width: 0;
 }
-.xr-search-wrap:focus-within { border-color: var(--xr-ring); }
+.xr-search-wrap:focus-within {
+  border-color: var(--xr-ring);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.12), 0 0 12px rgba(99,102,241,.06);
+}
 .xr-search-icon { color: var(--xr-muted); font-size: 12px; flex-shrink: 0; }
 .xr-search {
   flex: 1;
@@ -773,26 +797,48 @@ window.XRAY_Panel = (() => {
   border: none;
   outline: none;
   color: var(--xr-text);
-  font-size: 11px;
+  font-size: 11.5px;
   font-family: inherit;
   padding: 0;
 }
-.xr-search::placeholder { color: var(--xr-muted); }
-.xr-count {
-  font-size: 10px;
+.xr-search::placeholder { color: var(--xr-muted); letter-spacing: .02em; }
+.xr-search-kbd {
+  font-size: 9.5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
   color: var(--xr-muted);
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.xr-search-wrap:focus-within .xr-search-kbd { opacity: 0; }
+.xr-count {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--xr-subtext);
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 20px;
+  padding: 2px 7px;
   white-space: nowrap;
   flex-shrink: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: .02em;
 }
 .xr-clear-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   background: var(--xr-bg3);
   border: 1px solid var(--xr-border);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--xr-subtext);
   font-size: 10px;
   font-weight: 600;
@@ -808,6 +854,7 @@ window.XRAY_Panel = (() => {
   border-color: var(--xr-red);
   color: var(--xr-red);
 }
+
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -844,7 +891,9 @@ window.XRAY_Panel = (() => {
   <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
 </div>
 <div class="xr-body">
-  <div class="xr-list-pane" id="xr-list-pane"></div>
+  <div class="xr-list-wrap">
+    <div class="xr-list-pane" id="xr-list-pane"></div>
+  </div>
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
   <div class="xr-detail-pane" id="xr-detail-pane"></div>
 </div>
@@ -853,11 +902,12 @@ window.XRAY_Panel = (() => {
     <span class="xr-search-icon">⌕</span>
     <input
       class="xr-search" id="xr-search" type="text"
-      placeholder="Filter requests… (Ctrl+F)"
+      placeholder="Filter requests…"
       autocomplete="off" spellcheck="false"
     />
+    <span class="xr-search-kbd">Ctrl+F</span>
   </div>
-  <span class="xr-count" id="xr-count">0 entries</span>
+  <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
 </div>
     `.trim();
@@ -948,7 +998,7 @@ window.XRAY_Panel = (() => {
     if (_dom.logCount)   _dom.logCount.textContent   = logs;
     const shown = _filteredEntries().length;
     if (_dom.footerCount)
-      _dom.footerCount.textContent = `${shown} entr${shown === 1 ? 'y' : 'ies'}`;
+      _dom.footerCount.textContent = shown;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
