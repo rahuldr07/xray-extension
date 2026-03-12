@@ -7,21 +7,24 @@ window.XRAY_Panel = (() => {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
-    open:       false,
-    activeTab:  'api',        // 'api' | 'logs'
-    activeView: 'tree',       // 'tree' | 'raw'
-    activeDTab: 'response',   // 'response' | 'request' | 'headers'
-    selectedId: null,
-    theme:      'zinc',
-    filter:     '',
-    listWidth:  220,
-    entries:    [],
+    open:        false,
+    activeTab:   'api',        // 'api' | 'logs'
+    activeView:  'tree',       // 'tree' | 'raw'
+    activeDTab:  'response',   // 'response' | 'request' | 'headers'
+    selectedId:  null,
+    theme:       'zinc',
+    filter:      '',
+    listWidth:   220,
+    panelWidth:  520,
+    entries:     [],
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
   let _root = null;
   let _host = null;
   let _dom  = {};
+  const MIN_PANEL_W = 360;
+  const MAX_PANEL_W = Math.round(window.screen.width * 0.92) || 1400;
 
   // ══════════════════════════════════════════════════════════════════════════
   // CSS
@@ -37,6 +40,8 @@ window.XRAY_Panel = (() => {
   position: fixed;
   top: 0; right: 0;
   width: 520px;
+  min-width: 360px;
+  max-width: 92vw;
   height: 100vh;
   z-index: 2147483647;
   display: flex;
@@ -53,6 +58,23 @@ window.XRAY_Panel = (() => {
   overflow: hidden;
 }
 #xr-panel.xr-open { transform: translateX(0); }
+
+/* ─── Panel resize edge ───────────────────────────────────────────────────── */
+#xr-panel-resize {
+  position: absolute;
+  top: 0; left: 0;
+  width: 5px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background .15s;
+}
+#xr-panel-resize:hover,
+#xr-panel-resize.xr-dragging {
+  background: var(--xr-accent);
+  opacity: .4;
+}
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
 .xr-header {
@@ -79,21 +101,22 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  width: 22px;
   height: 18px;
   background: var(--xr-accent);
   color: var(--xr-bg);
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: -.5px;
+  letter-spacing: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
   flex-shrink: 0;
   line-height: 1;
 }
 .xr-logo-text {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   color: var(--xr-text);
   text-transform: uppercase;
 }
@@ -687,10 +710,11 @@ window.XRAY_Panel = (() => {
     const panel = document.createElement('div');
     panel.id = 'xr-panel';
     panel.innerHTML = `
+<div id="xr-panel-resize" title="Drag to resize panel"></div>
 <div class="xr-header">
   <div class="xr-wordmark">
-    <span class="xr-logo-icon">X</span>
-    <span class="xr-logo-text">XRAY</span>
+    <span class="xr-logo-icon">&gt;_</span>
+    <span class="xr-logo-text">Console</span>
   </div>
   <div class="xr-tabs">
     <button class="xr-tab xr-active" data-tab="api">
@@ -759,9 +783,10 @@ window.XRAY_Panel = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _saveState() {
     window.XRAY_Store.set(STORE_KEY, {
-      open:      _state.open,
-      theme:     _state.theme,
-      listWidth: _state.listWidth,
+      open:       _state.open,
+      theme:      _state.theme,
+      listWidth:  _state.listWidth,
+      panelWidth: _state.panelWidth,
     });
   }
 
@@ -772,6 +797,9 @@ window.XRAY_Panel = (() => {
     }
     if (typeof saved.listWidth === 'number') {
       _state.listWidth = Math.min(300, Math.max(130, saved.listWidth));
+    }
+    if (typeof saved.panelWidth === 'number') {
+      _state.panelWidth = Math.min(MAX_PANEL_W, Math.max(MIN_PANEL_W, saved.panelWidth));
     }
     if (typeof saved.open === 'boolean') {
       _state.open = saved.open;
@@ -1103,32 +1131,64 @@ window.XRAY_Panel = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Drag resize
+  // Drag resize — list pane + panel width
   // ══════════════════════════════════════════════════════════════════════════
   function _initDrag() {
+    // ── Internal list-pane divider ──
     const handle = _dom.dragHandle;
-    if (!handle) return;
+    if (handle) {
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startW = _state.listWidth;
+        handle.classList.add('xr-dragging');
 
-    handle.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startW = _state.listWidth;
-      handle.classList.add('xr-dragging');
+        const onMove = (ev) => {
+          const w = Math.min(300, Math.max(130, startW + (ev.clientX - startX)));
+          _state.listWidth = w;
+          _dom.listPane.style.width = `${w}px`;
+        };
+        const onUp = () => {
+          handle.classList.remove('xr-dragging');
+          document.removeEventListener('mousemove', onMove, true);
+          document.removeEventListener('mouseup',   onUp,   true);
+          _saveState();
+        };
+        document.addEventListener('mousemove', onMove, true);
+        document.addEventListener('mouseup',   onUp,   true);
+      });
+    }
 
-      const onMove = (ev) => {
-        const w = Math.min(300, Math.max(130, startW + (ev.clientX - startX)));
-        _state.listWidth = w;
-        _dom.listPane.style.width = `${w}px`;
-      };
-      const onUp = () => {
-        handle.classList.remove('xr-dragging');
-        document.removeEventListener('mousemove', onMove, true);
-        document.removeEventListener('mouseup',   onUp,   true);
-        _saveState();
-      };
-      document.addEventListener('mousemove', onMove, true);
-      document.addEventListener('mouseup',   onUp,   true);
-    });
+    // ── Panel width resize (left edge) ──
+    const panelEdge = _dom.panelResize;
+    if (panelEdge) {
+      panelEdge.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX    = e.clientX;
+        const startW    = _state.panelWidth;
+        // disable transition during drag for instant feedback
+        _dom.panel.style.transition = 'none';
+        panelEdge.classList.add('xr-dragging');
+
+        const onMove = (ev) => {
+          // panel is anchored to right edge — dragging left makes it wider
+          const delta = startX - ev.clientX;
+          const w = Math.min(MAX_PANEL_W, Math.max(MIN_PANEL_W, startW + delta));
+          _state.panelWidth = w;
+          _dom.panel.style.width = `${w}px`;
+        };
+        const onUp = () => {
+          panelEdge.classList.remove('xr-dragging');
+          _dom.panel.style.transition = '';
+          document.removeEventListener('mousemove', onMove, true);
+          document.removeEventListener('mouseup',   onUp,   true);
+          _saveState();
+        };
+        document.addEventListener('mousemove', onMove, true);
+        document.addEventListener('mouseup',   onUp,   true);
+      });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1199,6 +1259,7 @@ window.XRAY_Panel = (() => {
 
       // Collect refs
       _dom.panel       = _root.getElementById('xr-panel');
+      _dom.panelResize = _root.getElementById('xr-panel-resize');
       _dom.dots        = _root.getElementById('xr-dots');
       _dom.closeBtn    = _root.getElementById('xr-close');
       _dom.listPane    = _root.getElementById('xr-list-pane');
@@ -1211,6 +1272,7 @@ window.XRAY_Panel = (() => {
       _dom.clearBtn    = _root.getElementById('xr-clear');
 
       // Apply persisted state
+      _dom.panel.style.width = `${_state.panelWidth}px`;
       _dom.listPane.style.width = `${_state.listWidth}px`;
       _buildDots();
       _applyTheme(_state.theme);
