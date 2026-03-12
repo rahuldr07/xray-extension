@@ -382,31 +382,32 @@ window.XRAY_Panel = (() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 16px;
-  min-width: 30px;
-  padding: 0 5px;
+  height: 17px;
+  min-width: 32px;
+  padding: 0 6px;
   border-radius: 4px;
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .5px;
+  font-weight: 800;
+  letter-spacing: .6px;
   text-transform: uppercase;
   flex-shrink: 0;
   line-height: 1;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
-/* HTTP methods */
-.xr-m-get     { background: rgba(96,165,250,.14); color: var(--xr-blue);   }
-.xr-m-post    { background: rgba(74,222,128,.14); color: var(--xr-green);  }
-.xr-m-put     { background: rgba(251,191,36,.14); color: var(--xr-yellow); }
-.xr-m-delete  { background: rgba(248,113,113,.14); color: var(--xr-red);   }
-.xr-m-patch   { background: rgba(192,132,252,.14); color: var(--xr-purple);}
-.xr-m-head    { background: rgba(96,165,250,.10); color: var(--xr-blue);   }
-.xr-m-options { background: rgba(251,146,60,.10); color: var(--xr-orange); }
+/* HTTP methods — solid look */
+.xr-m-get     { background: rgba(96,165,250,.18);  color: var(--xr-blue);   border: 1px solid rgba(96,165,250,.2);  }
+.xr-m-post    { background: rgba(74,222,128,.18);  color: var(--xr-green);  border: 1px solid rgba(74,222,128,.2);  }
+.xr-m-put     { background: rgba(251,191,36,.18);  color: var(--xr-yellow); border: 1px solid rgba(251,191,36,.2);  }
+.xr-m-delete  { background: rgba(248,113,113,.18); color: var(--xr-red);    border: 1px solid rgba(248,113,113,.2); }
+.xr-m-patch   { background: rgba(192,132,252,.18); color: var(--xr-purple); border: 1px solid rgba(192,132,252,.2); }
+.xr-m-head    { background: rgba(96,165,250,.11);  color: var(--xr-blue);   border: 1px solid rgba(96,165,250,.15); }
+.xr-m-options { background: rgba(251,146,60,.11);  color: var(--xr-orange); border: 1px solid rgba(251,146,60,.15); }
 /* Log levels */
-.xr-m-log     { background: rgba(45,212,191,.14); color: #2dd4bf; }
-.xr-m-warn    { background: rgba(251,191,36,.14); color: var(--xr-yellow); }
-.xr-m-error   { background: rgba(248,113,113,.14); color: var(--xr-red);   }
-.xr-m-info    { background: rgba(96,165,250,.14); color: var(--xr-blue);   }
-.xr-m-debug   { background: rgba(192,132,252,.14); color: var(--xr-purple);}
+.xr-m-log     { background: rgba(45,212,191,.15);  color: #2dd4bf;          border: 1px solid rgba(45,212,191,.2);  }
+.xr-m-warn    { background: rgba(251,191,36,.15);  color: var(--xr-yellow); border: 1px solid rgba(251,191,36,.2);  }
+.xr-m-error   { background: rgba(248,113,113,.15); color: var(--xr-red);    border: 1px solid rgba(248,113,113,.2); }
+.xr-m-info    { background: rgba(96,165,250,.15);  color: var(--xr-blue);   border: 1px solid rgba(96,165,250,.2);  }
+.xr-m-debug   { background: rgba(192,132,252,.15); color: var(--xr-purple); border: 1px solid rgba(192,132,252,.2); }
 
 /* ─── Status codes ───────────────────────────────────────────────────────── */
 .xr-status {
@@ -414,12 +415,14 @@ window.XRAY_Panel = (() => {
   font-weight: 700;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   letter-spacing: .2px;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
-.xr-s0 { color: var(--xr-muted); }
-.xr-s2 { color: var(--xr-green); }
-.xr-s3 { color: var(--xr-blue);  }
-.xr-s4 { color: var(--xr-yellow);}
-.xr-s5 { color: var(--xr-red);   }
+.xr-s0 { color: var(--xr-muted);  background: rgba(255,255,255,.04); }
+.xr-s2 { color: var(--xr-green);  background: rgba(74,222,128,.1);   }
+.xr-s3 { color: var(--xr-blue);   background: rgba(96,165,250,.1);   }
+.xr-s4 { color: var(--xr-yellow); background: rgba(251,191,36,.1);   }
+.xr-s5 { color: var(--xr-red);    background: rgba(248,113,113,.1);  }
 
 /* ─── Detail pane ────────────────────────────────────────────────────────── */
 .xr-detail-pane {
@@ -435,11 +438,15 @@ window.XRAY_Panel = (() => {
   align-items: center;
   justify-content: center;
   flex: 1;
-  gap: 10px;
+  gap: 12px;
   padding: 24px;
   text-align: center;
 }
-.xr-detail-empty .xr-empty-icon { font-size: 30px; }
+.xr-detail-empty .xr-empty-icon {
+  font-size: 32px;
+  opacity: .35;
+  filter: grayscale(1);
+}
 .xr-detail-empty .xr-empty-title {
   font-size: 13px;
   font-weight: 600;
@@ -449,12 +456,31 @@ window.XRAY_Panel = (() => {
   font-size: 11px;
   color: var(--xr-muted);
   max-width: 220px;
-  line-height: 1.6;
+  line-height: 1.65;
+}
+.xr-detail-empty .xr-kbd-hint {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+.xr-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+  font-size: 9.5px;
+  color: var(--xr-muted);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 /* Detail header */
 .xr-detail-header {
-  background: var(--xr-bg2);
+  background: linear-gradient(180deg, var(--xr-bg2) 0%, var(--xr-bg) 100%);
   border-bottom: 1px solid var(--xr-border);
   flex-shrink: 0;
 }
@@ -462,39 +488,45 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px 12px 6px;
+  padding: 11px 12px 6px;
 }
 .xr-detail-url {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 11px;
   color: var(--xr-text);
   word-break: break-all;
-  line-height: 1.55;
+  line-height: 1.6;
   flex: 1;
   min-width: 0;
 }
+/* highlight the path part */
+.xr-detail-url .xr-url-host { color: var(--xr-muted); }
+.xr-detail-url .xr-url-path { color: var(--xr-text); }
+.xr-detail-url .xr-url-qs   { color: var(--xr-subtext); }
 
 /* Pills */
 .xr-pills-row {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 12px 8px;
+  padding: 2px 12px 10px;
   flex-wrap: wrap;
 }
 .xr-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
+  padding: 3px 8px;
   background: var(--xr-bg3);
   border: 1px solid var(--xr-border);
   border-radius: 20px;
   font-size: 10px;
   line-height: 1;
+  transition: border-color .12s;
 }
+.xr-pill:hover { border-color: var(--xr-ring); }
 .xr-pill-label { color: var(--xr-muted); }
-.xr-pill-val   { color: var(--xr-text); font-weight: 600; }
+.xr-pill-val   { color: var(--xr-text); font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; }
 .xr-pill-val.xr-s2 { color: var(--xr-green);  }
 .xr-pill-val.xr-s3 { color: var(--xr-blue);   }
 .xr-pill-val.xr-s4 { color: var(--xr-yellow); }
@@ -507,22 +539,22 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 10px 8px;
+  padding: 6px 10px;
 }
 .xr-view-toggle {
   display: flex;
   gap: 1px;
   background: var(--xr-bg3);
   border: 1px solid var(--xr-border);
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 2px;
 }
 .xr-toggle-btn {
-  padding: 3px 10px;
+  padding: 3px 11px;
   background: transparent;
   border: none;
-  border-radius: 3px;
-  color: var(--xr-subtext);
+  border-radius: 4px;
+  color: var(--xr-muted);
   font-size: 10px;
   font-weight: 600;
   font-family: inherit;
@@ -530,30 +562,31 @@ window.XRAY_Panel = (() => {
   transition: background .12s, color .12s;
   line-height: 1.4;
 }
-.xr-toggle-btn:hover { color: var(--xr-text); }
+.xr-toggle-btn:hover { color: var(--xr-subtext); }
 .xr-toggle-btn.xr-active {
   background: var(--xr-surface);
   color: var(--xr-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .xr-toolbar-spacer { flex: 1; }
 .xr-copy-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 4px 11px;
   background: var(--xr-bg3);
   border: 1px solid var(--xr-border);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--xr-subtext);
   font-size: 10px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .12s, color .12s;
+  transition: border-color .12s, color .12s, background .12s;
   line-height: 1.4;
 }
-.xr-copy-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); }
-.xr-copy-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); }
+.xr-copy-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); background: var(--xr-surface); }
+.xr-copy-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); background: rgba(74,222,128,.06); }
 
 /* Sub-tabs */
 .xr-dtabs {
@@ -562,13 +595,14 @@ window.XRAY_Panel = (() => {
   background: var(--xr-bg2);
   border-bottom: 1px solid var(--xr-border);
   flex-shrink: 0;
+  gap: 2px;
 }
 .xr-dtab {
-  padding: 7px 12px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--xr-subtext);
+  color: var(--xr-muted);
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
@@ -577,7 +611,7 @@ window.XRAY_Panel = (() => {
   margin-bottom: -1px;
   line-height: 1.4;
 }
-.xr-dtab:hover { color: var(--xr-text); }
+.xr-dtab:hover { color: var(--xr-subtext); }
 .xr-dtab.xr-active {
   color: var(--xr-text);
   border-bottom-color: var(--xr-accent);
@@ -1025,7 +1059,13 @@ window.XRAY_Panel = (() => {
         <div class="xr-detail-empty">
           <div class="xr-empty-icon">◈</div>
           <div class="xr-empty-title">No request selected</div>
-          <div class="xr-empty-desc">Select an entry from the list to inspect its details.</div>
+          <div class="xr-empty-desc">Select an entry from the list to inspect its response, headers and body.</div>
+          <div class="xr-kbd-hint">
+            <span class="xr-kbd">↑↓ navigate</span>
+            <span class="xr-kbd">T tree</span>
+            <span class="xr-kbd">R raw</span>
+            <span class="xr-kbd">C copy</span>
+          </div>
         </div>
       `;
       return;
@@ -1044,15 +1084,23 @@ window.XRAY_Panel = (() => {
     const header = document.createElement('div');
     header.className = 'xr-detail-header';
 
-    // URL row
+    // URL row — colorize host/path/qs
     const urlRow = document.createElement('div');
     urlRow.className = 'xr-detail-url-row';
-    const urlText = isApi
-      ? (entry.url || '—')
-      : window.XRAY_Utils.previewJSON(entry.logData, 140);
+    let urlDisplay = '';
+    if (isApi && entry.url) {
+      try {
+        const u = new URL(entry.url);
+        urlDisplay = `<span class="xr-url-host">${u.origin}</span>` +
+                     `<span class="xr-url-path">${u.pathname}</span>` +
+                     (u.search ? `<span class="xr-url-qs">${u.search}</span>` : '');
+      } catch { urlDisplay = entry.url; }
+    } else {
+      urlDisplay = isApi ? (entry.url || '—') : window.XRAY_Utils.previewJSON(entry.logData, 140);
+    }
     urlRow.innerHTML = `
       <span class="xr-method-badge ${mClass}" style="margin-top:2px;flex-shrink:0">${method}</span>
-      <span class="xr-detail-url">${urlText}</span>
+      <span class="xr-detail-url">${urlDisplay}</span>
     `;
     header.appendChild(urlRow);
 
