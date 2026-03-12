@@ -293,24 +293,42 @@ window.XRAY_Panel = (() => {
 
 /* ─── Entry rows ─────────────────────────────────────────────────────────── */
 .xr-entry {
-  padding: 7px 10px 7px 12px;
+  padding: 8px 10px 8px 12px;
   border-bottom: 1px solid var(--xr-border);
   cursor: pointer;
   transition: background .1s;
-  border-left: 2px solid transparent;
+  border-left: 3px solid transparent;
   user-select: none;
   flex-shrink: 0;
+  position: relative;
 }
-.xr-entry:hover { background: var(--xr-bg2); }
+.xr-entry:hover {
+  background: linear-gradient(90deg, rgba(255,255,255,.025) 0%, transparent 100%);
+}
 .xr-entry.xr-selected {
-  background: var(--xr-bg2);
+  background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, transparent 100%);
   border-left-color: var(--xr-accent);
 }
+/* Color the left stripe by method */
+.xr-entry[data-method="GET"]    { --xr-stripe: var(--xr-blue);   }
+.xr-entry[data-method="POST"]   { --xr-stripe: var(--xr-green);  }
+.xr-entry[data-method="PUT"]    { --xr-stripe: var(--xr-yellow); }
+.xr-entry[data-method="DELETE"] { --xr-stripe: var(--xr-red);    }
+.xr-entry[data-method="PATCH"]  { --xr-stripe: var(--xr-purple); }
+.xr-entry.xr-selected { border-left-color: var(--xr-stripe, var(--xr-accent)); }
+
+/* New entry slide-in */
+@keyframes xr-slide-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.xr-entry-new { animation: xr-slide-in .18s ease-out both; }
+
 .xr-entry-row1 {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 .xr-entry-row2 {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
@@ -319,17 +337,45 @@ window.XRAY_Panel = (() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  line-height: 1.4;
 }
 .xr-entry-row3 {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 10px;
   color: var(--xr-muted);
 }
 .xr-entry-row3 span { white-space: nowrap; }
-.xr-entry-row3 .xr-sep { color: var(--xr-surface); }
+.xr-entry-row3 .xr-sep {
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: var(--xr-surface);
+  flex-shrink: 0;
+}
+
+/* Timing bar */
+.xr-timing-bar-wrap {
+  flex: 1;
+  height: 3px;
+  background: var(--xr-bg3);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 20px;
+  max-width: 60px;
+  align-self: center;
+}
+.xr-timing-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--xr-accent);
+  opacity: .5;
+  max-width: 100%;
+  transition: width .3s ease-out;
+}
+.xr-timing-bar.xr-slow  { background: var(--xr-yellow); }
+.xr-timing-bar.xr-vslow { background: var(--xr-red);    }
 
 /* ─── Method / level badges ──────────────────────────────────────────────── */
 .xr-method-badge {
@@ -883,22 +929,30 @@ window.XRAY_Panel = (() => {
     el.dataset.id = entry.id;
 
     if (entry.type === 'api') {
-      const method = (entry.method || 'GET').toUpperCase();
-      const mClass = methodClass(entry.method || 'GET');
-      const sClass = statusClass(entry.status);
-      const path   = shortPath(entry.url || '');
+      const method  = (entry.method || 'GET').toUpperCase();
+      const mClass  = methodClass(entry.method || 'GET');
+      const sClass  = statusClass(entry.status);
+      const path    = shortPath(entry.url || '');
+      const dur     = entry.duration ?? 0;
+      // timing bar: 0-200ms=fast, 200-1000ms=slow, 1000+ms=very slow
+      const barPct  = Math.min(100, dur <= 0 ? 0 : dur < 200 ? (dur / 200) * 50 : dur < 1000 ? 50 + ((dur-200)/800)*40 : 90 + Math.min(10, (dur-1000)/500));
+      const barCls  = dur > 1000 ? 'xr-vslow' : dur > 300 ? 'xr-slow' : '';
+      el.dataset.method = method;
       el.innerHTML = `
         <div class="xr-entry-row1">
           <span class="xr-method-badge ${mClass}">${method}</span>
           <span class="xr-status ${sClass}">${entry.status || '—'}</span>
+          <span style="flex:1"></span>
+          <span style="font-size:9.5px;color:var(--xr-muted);font-family:'JetBrains Mono',monospace">${formatDuration(entry.duration)}</span>
         </div>
         <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
         <div class="xr-entry-row3">
-          <span>${formatDuration(entry.duration)}</span>
-          <span class="xr-sep">·</span>
           <span>${formatSize(entry.size)}</span>
-          <span class="xr-sep">·</span>
+          <span class="xr-sep"></span>
           <span>${formatTime(entry.timestamp || Date.now())}</span>
+          <div class="xr-timing-bar-wrap" title="${dur}ms">
+            <div class="xr-timing-bar ${barCls}" style="width:${barPct}%"></div>
+          </div>
         </div>
       `;
     } else {
@@ -907,11 +961,10 @@ window.XRAY_Panel = (() => {
       el.innerHTML = `
         <div class="xr-entry-row1">
           <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
+          <span style="flex:1"></span>
+          <span style="font-size:9.5px;color:var(--xr-muted)">${formatTime(entry.timestamp || Date.now())}</span>
         </div>
         <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
-        <div class="xr-entry-row3">
-          <span>${formatTime(entry.timestamp || Date.now())}</span>
-        </div>
       `;
     }
 
