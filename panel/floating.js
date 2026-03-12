@@ -158,9 +158,10 @@ window.XRAY_Panel = (() => {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
+  transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
   white-space: nowrap;
   line-height: 1;
+  position: relative;
 }
 .xr-tab:hover { background: var(--xr-bg3); color: var(--xr-subtext); }
 .xr-tab.xr-active {
@@ -168,6 +169,7 @@ window.XRAY_Panel = (() => {
   border-color: var(--xr-border);
   color: var(--xr-text);
   font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--xr-accent);
 }
 .xr-tab-badge {
   display: inline-flex;
@@ -299,7 +301,12 @@ window.XRAY_Panel = (() => {
   flex: 1;
   width: 100%;
 }
-.xr-empty-icon { font-size: 26px; line-height: 1; }
+.xr-empty-icon {
+  font-size: 28px;
+  line-height: 1;
+  opacity: .4;
+  filter: grayscale(1);
+}
 .xr-empty-title {
   font-size: 12px;
   font-weight: 600;
@@ -309,7 +316,28 @@ window.XRAY_Panel = (() => {
   font-size: 11px;
   color: var(--xr-muted);
   line-height: 1.55;
-  max-width: 180px;
+  max-width: 190px;
+}
+.xr-kbd-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.xr-kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 9.5px;
+  color: var(--xr-subtext);
+  white-space: nowrap;
 }
 
 /* ─── Entry rows ─────────────────────────────────────────────────────────── */
@@ -317,17 +345,18 @@ window.XRAY_Panel = (() => {
   padding: 8px 10px 8px 12px;
   border-bottom: 1px solid var(--xr-border);
   cursor: pointer;
-  transition: background .1s;
+  transition: background .1s, transform .1s;
   border-left: 3px solid transparent;
   user-select: none;
   flex-shrink: 0;
   position: relative;
 }
 .xr-entry:hover {
-  background: linear-gradient(90deg, rgba(255,255,255,.025) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(255,255,255,.03) 0%, transparent 100%);
+  transform: translateX(1px);
 }
 .xr-entry.xr-selected {
-  background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(255,255,255,.05) 0%, transparent 100%);
   border-left-color: var(--xr-accent);
 }
 /* Color the left stripe by method */
@@ -478,25 +507,6 @@ window.XRAY_Panel = (() => {
   color: var(--xr-muted);
   max-width: 220px;
   line-height: 1.65;
-}
-.xr-detail-empty .xr-kbd-hint {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 4px;
-}
-.xr-kbd {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  background: var(--xr-bg3);
-  border: 1px solid var(--xr-border);
-  border-radius: 4px;
-  font-size: 9.5px;
-  color: var(--xr-muted);
-  font-family: 'JetBrains Mono', monospace;
 }
 
 /* Detail header */
@@ -1105,18 +1115,24 @@ window.XRAY_Panel = (() => {
     const filtered = _filteredEntries();
 
     if (filtered.length === 0) {
-      const icon  = _state.activeTab === 'api' ? '🌐' : '📋';
+      const icon  = _state.activeTab === 'api' ? '◈' : '◉';
       const title = _state.filter
         ? 'No matches'
         : `No ${_state.activeTab === 'api' ? 'requests' : 'logs'} yet`;
       const desc  = _state.filter
         ? 'Try a different search term.'
-        : 'Intercepted entries will appear here automatically.';
+        : _state.activeTab === 'api'
+          ? 'Make a fetch/XHR call on the page and it will appear here.'
+          : 'Use console.log() on the page or call jv(data) to inspect any object.';
+      const hint = !_state.filter && _state.activeTab === 'api'
+        ? `<div class="xr-kbd-hint"><span class="xr-kbd">Ctrl+Shift+X</span> toggle panel</div>`
+        : '';
       pane.innerHTML = `
         <div class="xr-empty-state">
           <div class="xr-empty-icon">${icon}</div>
           <div class="xr-empty-title">${title}</div>
           <div class="xr-empty-desc">${desc}</div>
+          ${hint}
         </div>
       `;
       return;
