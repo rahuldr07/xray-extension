@@ -819,55 +819,180 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 42px;
+  height: 36px;
   padding: 0 10px;
   background: linear-gradient(0deg, var(--xr-bg) 0%, var(--xr-bg2) 100%);
   border-top: 1px solid var(--xr-border);
   flex-shrink: 0;
 }
-.xr-search-wrap {
+.xr-footer-hint {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  height: 28px;
-  padding: 0 9px;
-  background: var(--xr-bg3);
+  gap: 5px;
+  font-size: 10px;
+  color: var(--xr-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  user-select: none;
+}
+.xr-footer-hint .xr-kbd {
+  font-size: 9px;
+  background: var(--xr-surface);
   border: 1px solid var(--xr-border);
-  border-radius: 6px;
-  transition: border-color .15s, box-shadow .15s;
-  min-width: 0;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--xr-subtext);
 }
-.xr-search-wrap:focus-within {
-  border-color: var(--xr-ring);
-  box-shadow: 0 0 0 3px rgba(99,102,241,.12), 0 0 12px rgba(99,102,241,.06);
+
+/* ─── Fuzzy overlay ──────────────────────────────────────────────────────── */
+.xr-fuzzy-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 48px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
 }
-.xr-search-icon { color: var(--xr-muted); font-size: 12px; flex-shrink: 0; }
-.xr-search {
+.xr-fuzzy-backdrop.xr-open {
+  opacity: 1;
+  pointer-events: all;
+}
+.xr-fuzzy-modal {
+  width: calc(100% - 40px);
+  max-width: 560px;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-ring);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(99,102,241,.15);
+  overflow: hidden;
+  transform: translateY(-6px) scale(.98);
+  transition: transform .12s;
+}
+.xr-fuzzy-backdrop.xr-open .xr-fuzzy-modal {
+  transform: translateY(0) scale(1);
+}
+.xr-fuzzy-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--xr-border);
+}
+.xr-fuzzy-icon {
+  color: var(--xr-ring);
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: .8;
+}
+.xr-fuzzy-input {
   flex: 1;
-  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
   color: var(--xr-text);
-  font-size: 11.5px;
-  font-family: inherit;
-  padding: 0;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  caret-color: var(--xr-ring);
 }
-.xr-search::placeholder { color: var(--xr-muted); letter-spacing: .02em; }
-.xr-search-kbd {
-  font-size: 9.5px;
+.xr-fuzzy-input::placeholder { color: var(--xr-muted); }
+.xr-fuzzy-esc {
+  font-size: 9px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   color: var(--xr-muted);
   background: var(--xr-surface);
   border: 1px solid var(--xr-border);
   border-radius: 3px;
-  padding: 1px 4px;
+  padding: 2px 5px;
   flex-shrink: 0;
-  pointer-events: none;
-  transition: opacity .15s;
 }
-.xr-search-wrap:focus-within .xr-search-kbd { opacity: 0; }
+.xr-fuzzy-results {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.xr-fuzzy-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--xr-muted);
+  font-size: 11.5px;
+}
+.xr-fuzzy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background .08s;
+  border-radius: 0;
+}
+.xr-fuzzy-row:hover, .xr-fuzzy-row.xr-fuzzy-sel {
+  background: var(--xr-surface);
+}
+.xr-fuzzy-row.xr-fuzzy-sel {
+  background: rgba(99,102,241,.13);
+  border-left: 2px solid var(--xr-ring);
+  padding-left: 12px;
+}
+.xr-fuzzy-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.xr-fuzzy-url {
+  flex: 1;
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--xr-subtext);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.xr-fuzzy-url mark {
+  background: transparent;
+  color: var(--xr-text);
+  font-weight: 700;
+}
+.xr-fuzzy-status {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  flex-shrink: 0;
+  opacity: .7;
+}
+.xr-fuzzy-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--xr-border);
+  background: var(--xr-bg);
+}
+.xr-fuzzy-footer span {
+  font-size: 9.5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--xr-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.xr-fuzzy-footer .xr-kbd {
+  font-size: 8.5px;
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
 .xr-count {
   display: inline-flex;
   align-items: center;
@@ -924,6 +1049,21 @@ window.XRAY_Panel = (() => {
     const panel = document.createElement('div');
     panel.id = 'xr-panel';
     panel.innerHTML = `
+<div class="xr-fuzzy-backdrop" id="xr-fuzzy-backdrop">
+  <div class="xr-fuzzy-modal">
+    <div class="xr-fuzzy-input-row">
+      <span class="xr-fuzzy-icon">⌕</span>
+      <input class="xr-fuzzy-input" id="xr-fuzzy-input" type="text" placeholder="Search requests…" autocomplete="off" spellcheck="false" />
+      <span class="xr-fuzzy-esc">esc</span>
+    </div>
+    <div class="xr-fuzzy-results" id="xr-fuzzy-results"></div>
+    <div class="xr-fuzzy-footer">
+      <span><span class="xr-kbd">↑↓</span> navigate</span>
+      <span><span class="xr-kbd">↵</span> select</span>
+      <span><span class="xr-kbd">esc</span> close</span>
+    </div>
+  </div>
+</div>
 <div id="xr-panel-resize" title="Drag to resize panel"></div>
 <div class="xr-header">
   <div class="xr-wordmark">
@@ -951,14 +1091,8 @@ window.XRAY_Panel = (() => {
   <div class="xr-detail-pane" id="xr-detail-pane"></div>
 </div>
 <div class="xr-footer">
-  <div class="xr-search-wrap">
-    <span class="xr-search-icon">⌕</span>
-    <input
-      class="xr-search" id="xr-search" type="text"
-      placeholder="Filter requests…"
-      autocomplete="off" spellcheck="false"
-    />
-    <span class="xr-search-kbd">Ctrl+F</span>
+  <div class="xr-footer-hint">
+    <span class="xr-kbd">Ctrl+K</span> search
   </div>
   <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
@@ -1442,6 +1576,146 @@ window.XRAY_Panel = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Fuzzy search overlay
+  // ══════════════════════════════════════════════════════════════════════════
+  let _fuzzyIdx = -1;
+
+  function _fuzzyOpen() {
+    if (!_dom.fuzzyBackdrop) return;
+    _dom.fuzzyBackdrop.classList.add('xr-open');
+    _dom.fuzzyInput.value = '';
+    _fuzzyIdx = -1;
+    _fuzzyRender('');
+    setTimeout(() => _dom.fuzzyInput.focus(), 30);
+  }
+
+  function _fuzzyClose() {
+    _dom.fuzzyBackdrop?.classList.remove('xr-open');
+  }
+
+  function _fuzzyScore(query, text) {
+    // simple consecutive-chars fuzzy match, returns score > 0 if match
+    query = query.toLowerCase();
+    text  = text.toLowerCase();
+    let qi = 0, score = 0, lastIdx = -1;
+    for (let i = 0; i < text.length && qi < query.length; i++) {
+      if (text[i] === query[qi]) {
+        score += lastIdx >= 0 ? (10 - Math.min(9, i - lastIdx)) : 5;
+        lastIdx = i;
+        qi++;
+      }
+    }
+    return qi === query.length ? score : 0;
+  }
+
+  function _fuzzyHighlight(query, text) {
+    if (!query) return _escHtml(text);
+    const q = query.toLowerCase();
+    let out = '', qi = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (qi < q.length && text[i].toLowerCase() === q[qi]) {
+        out += `<mark>${_escHtml(text[i])}</mark>`;
+        qi++;
+      } else {
+        out += _escHtml(text[i]);
+      }
+    }
+    return out;
+  }
+
+  function _escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function _fuzzyRender(query) {
+    const results = _dom.fuzzyResults;
+    results.innerHTML = '';
+    _fuzzyIdx = -1;
+
+    const entries = _state.entries.filter(e => _state.activeTab === 'all' || e.type === (_state.activeTab === 'api' ? 'api' : 'log'));
+
+    let scored = entries.map(e => {
+      const label = e.type === 'api' ? (e.url || '') : (window.XRAY_Utils.previewJSON(e.logData, 80) || '');
+      const score = query ? _fuzzyScore(query, label) : 1;
+      return { entry: e, label, score };
+    }).filter(r => r.score > 0);
+
+    if (query) scored.sort((a, b) => b.score - a.score);
+    scored = scored.slice(0, 60);
+
+    if (!scored.length) {
+      results.innerHTML = `<div class="xr-fuzzy-empty">${query ? 'No matches for <b>' + _escHtml(query) + '</b>' : 'No requests captured yet'}</div>`;
+      return;
+    }
+
+    const { methodClass, statusClass } = window.XRAY_Utils;
+    scored.forEach(({ entry, label }, i) => {
+      const row = document.createElement('div');
+      row.className = 'xr-fuzzy-row';
+      row.dataset.id = entry.id;
+
+      if (entry.type === 'api') {
+        const mClass = methodClass(entry.method || 'GET');
+        const sClass = statusClass(entry.status);
+        row.innerHTML = `
+          <span class="xr-fuzzy-badge xr-method-badge ${mClass}">${(entry.method || 'GET').toUpperCase()}</span>
+          <span class="xr-fuzzy-url">${_fuzzyHighlight(query, label)}</span>
+          <span class="xr-fuzzy-status ${sClass}">${entry.status || ''}</span>
+        `;
+      } else {
+        row.innerHTML = `
+          <span class="xr-fuzzy-badge" style="background:rgba(99,102,241,.15);color:var(--xr-ring)">LOG</span>
+          <span class="xr-fuzzy-url">${_fuzzyHighlight(query, label)}</span>
+        `;
+      }
+
+      row.addEventListener('mouseenter', () => {
+        _fuzzyIdx = i;
+        _fuzzySetSel();
+      });
+      row.addEventListener('click', () => _fuzzySelect(entry.id));
+      results.appendChild(row);
+    });
+
+    _fuzzyIdx = 0;
+    _fuzzySetSel();
+  }
+
+  function _fuzzySetSel() {
+    const rows = _dom.fuzzyResults.querySelectorAll('.xr-fuzzy-row');
+    rows.forEach((r, i) => r.classList.toggle('xr-fuzzy-sel', i === _fuzzyIdx));
+    const sel = rows[_fuzzyIdx];
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+
+  function _fuzzySelect(id) {
+    _fuzzyClose();
+    _state.selectedId = id;
+    _state.filter = '';
+    // Ensure the entry's tab is active
+    const entry = _state.entries.find(e => e.id === id);
+    if (entry) {
+      const targetTab = entry.type === 'api' ? 'api' : 'logs';
+      if (_state.activeTab !== targetTab) {
+        _state.activeTab = targetTab;
+        _root.querySelectorAll('.xr-tab').forEach(b =>
+          b.classList.toggle('xr-active', b.dataset.tab === targetTab)
+        );
+      }
+    }
+    _rebuildList();
+    _updateCounts();
+    // Highlight + render
+    _dom.listPane.querySelectorAll('.xr-entry').forEach(el =>
+      el.classList.toggle('xr-selected', el.dataset.id === id)
+    );
+    if (entry) _renderDetail(entry);
+    // Scroll selected into view
+    const selEl = _dom.listPane.querySelector(`.xr-entry[data-id="${id}"]`);
+    if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Event binding
   // ══════════════════════════════════════════════════════════════════════════
   function _bindEvents() {
@@ -1460,22 +1734,41 @@ window.XRAY_Panel = (() => {
       });
     });
 
-    _dom.search.addEventListener('input', (e) => {
-      _state.filter = e.target.value;
-      _rebuildList();
-      _updateCounts();
-      if (_state.selectedId && !_filteredEntries().find(e => e.id === _state.selectedId)) {
-        _state.selectedId = null;
-        _renderDetail(null);
-      }
-    });
-
     _dom.clearBtn.addEventListener('click', () => {
       _state.entries    = [];
       _state.selectedId = null;
       _rebuildList();
       _renderDetail(null);
       _updateCounts();
+    });
+
+    // Fuzzy overlay events
+    _dom.fuzzyBackdrop.addEventListener('click', (e) => {
+      if (e.target === _dom.fuzzyBackdrop) _fuzzyClose();
+    });
+
+    _dom.fuzzyInput.addEventListener('input', (e) => {
+      _fuzzyRender(e.target.value.trim());
+    });
+
+    _dom.fuzzyInput.addEventListener('keydown', (e) => {
+      const rows = _dom.fuzzyResults.querySelectorAll('.xr-fuzzy-row');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        _fuzzyIdx = Math.min(_fuzzyIdx + 1, rows.length - 1);
+        _fuzzySetSel();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        _fuzzyIdx = Math.max(_fuzzyIdx - 1, 0);
+        _fuzzySetSel();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const sel = rows[_fuzzyIdx];
+        if (sel) _fuzzySelect(sel.dataset.id);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        _fuzzyClose();
+      }
     });
 
     _initDrag();
@@ -1508,18 +1801,20 @@ window.XRAY_Panel = (() => {
       _root.appendChild(panel);
 
       // Collect refs
-      _dom.panel       = _root.getElementById('xr-panel');
-      _dom.panelResize = _root.getElementById('xr-panel-resize');
-      _dom.dots        = _root.getElementById('xr-dots');
-      _dom.closeBtn    = _root.getElementById('xr-close');
-      _dom.listPane    = _root.getElementById('xr-list-pane');
-      _dom.dragHandle  = _root.getElementById('xr-drag-handle');
-      _dom.detailPane  = _root.getElementById('xr-detail-pane');
-      _dom.search      = _root.getElementById('xr-search');
-      _dom.footerCount = _root.getElementById('xr-count');
-      _dom.apiCount    = _root.getElementById('xr-api-count');
-      _dom.logCount    = _root.getElementById('xr-log-count');
-      _dom.clearBtn    = _root.getElementById('xr-clear');
+      _dom.panel        = _root.getElementById('xr-panel');
+      _dom.panelResize  = _root.getElementById('xr-panel-resize');
+      _dom.dots         = _root.getElementById('xr-dots');
+      _dom.closeBtn     = _root.getElementById('xr-close');
+      _dom.listPane     = _root.getElementById('xr-list-pane');
+      _dom.dragHandle   = _root.getElementById('xr-drag-handle');
+      _dom.detailPane   = _root.getElementById('xr-detail-pane');
+      _dom.footerCount  = _root.getElementById('xr-count');
+      _dom.apiCount     = _root.getElementById('xr-api-count');
+      _dom.logCount     = _root.getElementById('xr-log-count');
+      _dom.clearBtn     = _root.getElementById('xr-clear');
+      _dom.fuzzyBackdrop = _root.getElementById('xr-fuzzy-backdrop');
+      _dom.fuzzyInput   = _root.getElementById('xr-fuzzy-input');
+      _dom.fuzzyResults = _root.getElementById('xr-fuzzy-results');
 
       // Apply persisted state
       _dom.panel.style.width = `${_state.panelWidth}px`;
@@ -1591,7 +1886,7 @@ window.XRAY_Panel = (() => {
       _renderContent();
     },
 
-    focusSearch() { _dom.search?.focus(); _dom.search?.select(); },
+    focusSearch() { _fuzzyOpen(); },
 
     copySelected() { _copySelected(); },
 
