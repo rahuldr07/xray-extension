@@ -1576,9 +1576,143 @@ window.XRAY_Panel = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Fuzzy search overlay
+  // Fuzzy search — fzf-grade algorithm
   // ══════════════════════════════════════════════════════════════════════════
   let _fuzzyIdx = -1;
+
+  // Scoring constants (tuned to match fzf v2 feel)
+  const FZ = {
+    MATCH:        16,
+    CONSECUTIVE:  32,   // per consecutive char after first
+    WORD_START:   48,   // char after / . - _ space
+    CAMEL:        24,   // uppercase after lowercase
+    STR_START:    72,   // very first char of string
+    GAP_PENALTY: - 2,   // per skipped char between matches
+    FIELD_METHOD: 1.4,  // multiplier when matching method token
+    FIELD_STATUS: 1.3,  // multiplier when matching status
+    FIELD_PATH:   1.1,  // multiplier for path segment vs full url
+  };
+
+  // Returns { score, positions } or null if no match
+  function _fzScore(query, text) {
+    if (!query) return { score: 1, positions: [] };
+    const q  = query.toLowerCase();
+    const t  = text.toLowerCase();
+    const m  = q.length;
+    const n  = t.length;
+
+    // Quick reject — all query chars must appear in order
+    let qi = 0;
+    for (let i = 0; i < n && qi < m; i++) if (t[i] === q[qi]) qi++;
+    if (qi < m) return null;
+
+    // Per-position boundary bonus
+    const bonus = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const p = i > 0 ? text[i - 1] : '';
+      if (i === 0)                                    bonus[i] = FZ.STR_START;
+      else if ('/._- ?&=#'.includes(p))              bonus[i] = FZ.WORD_START;
+      else if (p === p.toLowerCase() && p !== p.toUpperCase() &&
+               text[i] !== text[i].toLowerCase())    bonus[i] = FZ.CAMEL;
+    }
+
+    // Greedy forward pass — find first valid match set
+    const pos = [];
+    qi = 0;
+    for (let i = 0; i < n && qi < m; i++) {
+      if (t[i] === q[qi]) { pos.push(i); qi++; }
+    }
+
+    // Backward refinement — slide each match as late as possible to prefer
+    // word boundaries further right (mirrors fzf's backwards pass)
+    for (let k = pos.length - 1; k >= 0; k--) {
+      const charToFind = q[k];
+      const limit = k < pos.length - 1 ? pos[k + 1] - 1 : n - 1;
+      let best = pos[k], bestBonus = bonus[pos[k]];
+      for (let i = pos[k] + 1; i <= limit; i++) {
+        if (t[i] === charToFind && bonus[i] > bestBonus) {
+          best = i; bestBonus = bonus[i];
+        }
+      }
+      pos[k] = best;
+    }
+
+    // Final scoring over chosen positions
+    let score = 0, streak = 0;
+    for (let k = 0; k < pos.length; k++) {
+      const i = pos[k];
+      score += FZ.MATCH + bonus[i];
+      if (k > 0) {
+        const gap = pos[k] - pos[k - 1] - 1;
+        if (gap === 0) {
+          streak++;
+          score += FZ.CONSECUTIVE * streak;
+        } else {
+          streak = 0;
+          score += FZ.GAP_PENALTY * gap;
+        }
+      }
+    }
+
+    return { score, positions: pos };
+  }
+
+  // Build a search target string + remember field offsets for multi-field search
+  function _entryTarget(entry) {
+    if (entry.type !== 'api') {
+      const s = window.XRAY_Utils.previewJSON(entry.logData, 120) || '';
+      return { display: s, fields: [{ text: s, multiplier: 1 }] };
+    }
+    const method = (entry.method || 'GET').toUpperCase();
+    const status = String(entry.status || '');
+    let path = '';
+    try { path = new URL(entry.url || '').pathname; } catch { path = entry.url || ''; }
+    const full = entry.url || '';
+    return {
+      display: full,
+      fields: [
+        { text: method, multiplier: FZ.FIELD_METHOD },
+        { text: status, multiplier: FZ.FIELD_STATUS },
+        { text: path,   multiplier: FZ.FIELD_PATH   },
+        { text: full,   multiplier: 1               },
+      ]
+    };
+  }
+
+  // Score an entry against a query — returns best (score, positions, fieldText)
+  function _scoreEntry(query, entry) {
+    const { display, fields } = _entryTarget(entry);
+    let best = null;
+    for (const { text, multiplier } of fields) {
+      const r = _fzScore(query, text);
+      if (!r) continue;
+      const adj = r.score * multiplier;
+      if (!best || adj > best.score) {
+        best = { score: adj, positions: r.positions, matchText: text };
+      }
+    }
+    if (!best) return null;
+    return { entry, display, matchText: best.matchText, positions: best.positions, score: best.score };
+  }
+
+  // Render match text with highlighted positions
+  function _fzHighlight(text, positions) {
+    if (!positions || !positions.length) return _escHtml(text);
+    const set = new Set(positions);
+    let out = '', inMark = false;
+    for (let i = 0; i < text.length; i++) {
+      const hi = set.has(i);
+      if (hi && !inMark)  { out += '<mark>'; inMark = true; }
+      if (!hi && inMark)  { out += '</mark>'; inMark = false; }
+      out += _escHtml(text[i]);
+    }
+    if (inMark) out += '</mark>';
+    return out;
+  }
+
+  function _escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
   function _fuzzyOpen() {
     if (!_dom.fuzzyBackdrop) return;
@@ -1593,86 +1727,72 @@ window.XRAY_Panel = (() => {
     _dom.fuzzyBackdrop?.classList.remove('xr-open');
   }
 
-  function _fuzzyScore(query, text) {
-    // simple consecutive-chars fuzzy match, returns score > 0 if match
-    query = query.toLowerCase();
-    text  = text.toLowerCase();
-    let qi = 0, score = 0, lastIdx = -1;
-    for (let i = 0; i < text.length && qi < query.length; i++) {
-      if (text[i] === query[qi]) {
-        score += lastIdx >= 0 ? (10 - Math.min(9, i - lastIdx)) : 5;
-        lastIdx = i;
-        qi++;
-      }
-    }
-    return qi === query.length ? score : 0;
-  }
-
-  function _fuzzyHighlight(query, text) {
-    if (!query) return _escHtml(text);
-    const q = query.toLowerCase();
-    let out = '', qi = 0;
-    for (let i = 0; i < text.length; i++) {
-      if (qi < q.length && text[i].toLowerCase() === q[qi]) {
-        out += `<mark>${_escHtml(text[i])}</mark>`;
-        qi++;
-      } else {
-        out += _escHtml(text[i]);
-      }
-    }
-    return out;
-  }
-
-  function _escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
   function _fuzzyRender(query) {
     const results = _dom.fuzzyResults;
     results.innerHTML = '';
     _fuzzyIdx = -1;
 
-    const entries = _state.entries.filter(e => _state.activeTab === 'all' || e.type === (_state.activeTab === 'api' ? 'api' : 'log'));
+    const q = query.trim();
+    const entries = _state.entries.filter(e =>
+      _state.activeTab === 'all' || e.type === (_state.activeTab === 'api' ? 'api' : 'log')
+    );
 
-    let scored = entries.map(e => {
-      const label = e.type === 'api' ? (e.url || '') : (window.XRAY_Utils.previewJSON(e.logData, 80) || '');
-      const score = query ? _fuzzyScore(query, label) : 1;
-      return { entry: e, label, score };
-    }).filter(r => r.score > 0);
-
-    if (query) scored.sort((a, b) => b.score - a.score);
-    scored = scored.slice(0, 60);
+    let scored;
+    if (!q) {
+      // No query — show all, most recent first
+      scored = entries.slice().reverse().slice(0, 80).map(entry => ({
+        entry,
+        display: _entryTarget(entry).display,
+        matchText: _entryTarget(entry).display,
+        positions: [],
+        score: 0,
+      }));
+    } else {
+      scored = [];
+      for (const entry of entries) {
+        const r = _scoreEntry(q, entry);
+        if (r) scored.push(r);
+      }
+      scored.sort((a, b) => b.score - a.score);
+      scored = scored.slice(0, 80);
+    }
 
     if (!scored.length) {
-      results.innerHTML = `<div class="xr-fuzzy-empty">${query ? 'No matches for <b>' + _escHtml(query) + '</b>' : 'No requests captured yet'}</div>`;
+      results.innerHTML = `<div class="xr-fuzzy-empty">${q ? 'No matches for <b>' + _escHtml(q) + '</b>' : 'No requests captured yet'}</div>`;
       return;
     }
 
     const { methodClass, statusClass } = window.XRAY_Utils;
-    scored.forEach(({ entry, label }, i) => {
+    scored.forEach(({ entry, display, matchText, positions }, i) => {
       const row = document.createElement('div');
       row.className = 'xr-fuzzy-row';
       row.dataset.id = entry.id;
 
+      // Decide what label to show: if best match was on path/method/status, show full URL
+      // but highlight within the matched field shown separately
+      const showUrl = display !== matchText
+        ? `${_escHtml(display)}`   // full url undecorated, match was on a sub-field
+        : _fzHighlight(display, positions);
+
       if (entry.type === 'api') {
         const mClass = methodClass(entry.method || 'GET');
         const sClass = statusClass(entry.status);
+        const methodHtml = matchText === (entry.method || 'GET').toUpperCase()
+          ? _fzHighlight(matchText, positions)
+          : _escHtml((entry.method || 'GET').toUpperCase());
         row.innerHTML = `
-          <span class="xr-fuzzy-badge xr-method-badge ${mClass}">${(entry.method || 'GET').toUpperCase()}</span>
-          <span class="xr-fuzzy-url">${_fuzzyHighlight(query, label)}</span>
+          <span class="xr-fuzzy-badge xr-method-badge ${mClass}">${methodHtml}</span>
+          <span class="xr-fuzzy-url">${showUrl}</span>
           <span class="xr-fuzzy-status ${sClass}">${entry.status || ''}</span>
         `;
       } else {
         row.innerHTML = `
           <span class="xr-fuzzy-badge" style="background:rgba(99,102,241,.15);color:var(--xr-ring)">LOG</span>
-          <span class="xr-fuzzy-url">${_fuzzyHighlight(query, label)}</span>
+          <span class="xr-fuzzy-url">${_fzHighlight(display, positions)}</span>
         `;
       }
 
-      row.addEventListener('mouseenter', () => {
-        _fuzzyIdx = i;
-        _fuzzySetSel();
-      });
+      row.addEventListener('mouseenter', () => { _fuzzyIdx = i; _fuzzySetSel(); });
       row.addEventListener('click', () => _fuzzySelect(entry.id));
       results.appendChild(row);
     });
@@ -1692,7 +1812,6 @@ window.XRAY_Panel = (() => {
     _fuzzyClose();
     _state.selectedId = id;
     _state.filter = '';
-    // Ensure the entry's tab is active
     const entry = _state.entries.find(e => e.id === id);
     if (entry) {
       const targetTab = entry.type === 'api' ? 'api' : 'logs';
