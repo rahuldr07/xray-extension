@@ -17,7 +17,7 @@
   }
 
   function _emit(entry) {
-    window.dispatchEvent(new CustomEvent('__xray_capture__', { detail: entry }));
+    window.postMessage({ __xray_capture__: true, entry }, '*');
   }
 
   function _tryDecrypt(token, data) {

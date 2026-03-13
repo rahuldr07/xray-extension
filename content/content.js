@@ -12,9 +12,11 @@
     await XRAY_Panel.init();
   }
 
-  // Receive captured entries from MAIN world via CustomEvent
-  window.addEventListener('__xray_capture__', async (e) => {
-    const entry = e.detail;
+  // Receive captured entries from MAIN world via postMessage
+  // (CustomEvent.detail is nullified by Chrome when crossing MAIN→ISOLATED worlds)
+  window.addEventListener('message', async (e) => {
+    if (!e.data?.__xray_capture__) return;
+    const entry = e.data.entry;
     if (!entry) return;
     await _initPanel();
     XRAY_Panel.add(entry);

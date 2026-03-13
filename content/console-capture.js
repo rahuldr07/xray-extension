@@ -24,8 +24,7 @@
       });
     }
 
-    window.dispatchEvent(new CustomEvent('__xray_capture__', {
-      detail: {
+    window.postMessage({ __xray_capture__: true, entry: {
         id: _uid(),
         type: 'log',
         timestamp: Date.now(),
@@ -33,7 +32,7 @@
         logData: data,
         pinned: false,
       }
-    }));
+    }, '*');
   }
 
   ['log', 'warn', 'error'].forEach(level => {
