@@ -7,16 +7,19 @@ window.XRAY_Panel = (() => {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
-    open:        false,
-    activeTab:   'api',        // 'api' | 'logs'
-    activeView:  'tree',       // 'tree' | 'raw'
-    activeDTab:  'response',   // 'response' | 'request' | 'headers'
-    selectedId:  null,
-    theme:       'zinc',
-    filter:      '',
-    listWidth:   220,
-    panelWidth:  520,
-    entries:     [],
+    open:          false,
+    activeTab:     'api',        // 'api' | 'logs'
+    activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff'
+    activeDTab:    'response',   // 'response' | 'request' | 'headers'
+    selectedId:    null,
+    theme:         'zinc',
+    filter:        '',
+    listWidth:     220,
+    panelWidth:    520,
+    entries:       [],
+    diffCompareId: null,         // ID of entry to diff against
+    gridDrillRow:  null,         // drilled-in row data from grid view
+    paneSearch:    { active: false, query: '', hits: [], current: -1 },
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -844,6 +847,123 @@ window.XRAY_Panel = (() => {
   color: var(--xr-subtext);
 }
 
+/* ─── Grid view ──────────────────────────────────────────────────────────── */
+.xr-grid-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.xr-grid-info {
+  font-size: 10px; color: var(--xr-muted); padding: 4px 10px;
+  flex-shrink: 0; border-bottom: 1px solid var(--xr-border);
+}
+.xr-grid-table-wrap { flex: 1; overflow: auto; }
+.xr-grid-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.xr-grid-table thead { position: sticky; top: 0; z-index: 1; }
+.xr-grid-th {
+  background: var(--xr-bg2); padding: 6px 10px; text-align: left;
+  font-weight: 600; font-size: 10px; color: var(--xr-subtext);
+  border-bottom: 1px solid var(--xr-border);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.xr-grid-th:hover { color: var(--xr-text); }
+.xr-grid-col-num { text-align: right; }
+.xr-grid-idx { color: var(--xr-muted); width: 36px; min-width: 36px; text-align: right; cursor: default; }
+.xr-grid-sort-ico { color: var(--xr-accent); font-size: 10px; }
+.xr-grid-row { cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.03); }
+.xr-grid-row:hover td { background: var(--xr-bg3); }
+.xr-grid-row.xr-grid-sel td { background: rgba(99,102,241,.1); }
+.xr-grid-td {
+  padding: 5px 10px; font-size: 11px; color: var(--xr-text);
+  white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}
+.xr-gc-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; }
+.xr-gc-null { color: var(--xr-muted); font-style: italic; }
+.xr-gc-true { color: var(--xr-green); }
+.xr-gc-false { color: var(--xr-red); }
+.xr-gc-num { font-family: 'JetBrains Mono','Fira Code',monospace; color: var(--xr-blue); }
+.xr-gc-chip {
+  background: var(--xr-bg3); color: var(--xr-subtext);
+  border: 1px solid var(--xr-border); cursor: help;
+}
+.xr-grid-drill-back {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; font-size: 11px; color: var(--xr-subtext);
+  border-bottom: 1px solid var(--xr-border); cursor: pointer; flex-shrink: 0;
+}
+.xr-grid-drill-back:hover { color: var(--xr-text); }
+
+/* ─── Diff view ──────────────────────────────────────────────────────────── */
+.xr-diff-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.xr-diff-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 10px; border-bottom: 1px solid var(--xr-border);
+  flex-shrink: 0; font-size: 10px;
+}
+.xr-diff-compare-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-bottom: 1px solid var(--xr-border);
+  flex-shrink: 0; font-size: 10px;
+}
+.xr-diff-compare-label { color: var(--xr-subtext); white-space: nowrap; }
+.xr-diff-compare-row select {
+  flex: 1; background: var(--xr-bg3); border: 1px solid var(--xr-border);
+  color: var(--xr-text); border-radius: 4px; padding: 3px 8px; font-size: 11px;
+}
+.xr-diff-toggle { display: flex; align-items: center; gap: 5px; color: var(--xr-subtext); cursor: pointer; }
+.xr-diff-toggle input { cursor: pointer; accent-color: var(--xr-accent); }
+.xr-diff-legend { display: flex; gap: 8px; margin-left: auto; }
+.xr-diff-dot { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+.xr-diff-dot-added  { color: var(--xr-green); background: rgba(74,222,128,.1); }
+.xr-diff-dot-removed{ color: var(--xr-red);   background: rgba(248,113,113,.1); }
+.xr-diff-dot-changed{ color: var(--xr-yellow);background: rgba(251,191,36,.1); }
+.xr-diff-content { flex: 1; overflow: auto; padding: 4px 0; }
+.xr-diff-line { position: relative; }
+.xr-diff-added   { background: rgba(74,222,128,.08);  border-left: 2px solid var(--xr-green); }
+.xr-diff-removed { background: rgba(248,113,113,.08); border-left: 2px solid var(--xr-red); }
+.xr-diff-changed { background: rgba(251,191,36,.08);  border-left: 2px solid var(--xr-yellow); }
+.xr-diff-modified { }
+.xr-diff-same { }
+.xr-diff-old-val { color: var(--xr-red) !important; text-decoration: line-through; opacity: .8; }
+.xr-diff-new-val { color: var(--xr-green) !important; }
+.xr-diff-arrow  { color: var(--xr-muted); margin: 0 4px; font-size: 10px; }
+
+/* ─── Pane search bar ────────────────────────────────────────────────────── */
+.xr-pane-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; background: var(--xr-bg2);
+  border-bottom: 1px solid var(--xr-border); flex-shrink: 0;
+}
+.xr-pane-search input {
+  flex: 1; background: var(--xr-bg3); border: 1px solid var(--xr-border);
+  color: var(--xr-text); border-radius: 4px; padding: 3px 8px;
+  font-size: 11px; outline: none; font-family: inherit;
+}
+.xr-pane-search input:focus { border-color: var(--xr-ring); }
+.xr-ps-count { font-size: 10px; color: var(--xr-muted); white-space: nowrap; min-width: 48px; text-align: right; }
+.xr-ps-nav { display: flex; gap: 2px; }
+.xr-ps-nav button, .xr-ps-close {
+  background: var(--xr-bg3); border: 1px solid var(--xr-border);
+  color: var(--xr-subtext); border-radius: 3px; padding: 2px 6px;
+  font-size: 10px; cursor: pointer; font-family: inherit;
+}
+.xr-ps-nav button:hover, .xr-ps-close:hover { color: var(--xr-text); }
+.xr-search-hit     { background: rgba(251,191,36,.25) !important; border-radius: 2px; outline: 1px solid rgba(251,191,36,.4); }
+.xr-search-current { background: rgba(251,191,36,.6)  !important; outline: 1px solid rgba(251,191,36,.9); }
+
+/* ─── Copy dropdown ──────────────────────────────────────────────────────── */
+.xr-copy-wrap { position: relative; }
+.xr-copy-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  background: var(--xr-bg2); border: 1px solid var(--xr-border);
+  border-radius: 6px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
+  z-index: 999; min-width: 170px; overflow: hidden;
+}
+.xr-copy-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; color: var(--xr-text);
+  padding: 8px 14px; text-align: left; font-size: 11px;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.xr-copy-menu button:hover { background: var(--xr-bg3); }
+.xr-copy-menu-icon { font-size: 12px; opacity: .7; }
+
 /* ─── Fuzzy overlay ──────────────────────────────────────────────────────── */
 .xr-fuzzy-backdrop {
   position: absolute;
@@ -1379,26 +1499,79 @@ window.XRAY_Panel = (() => {
     // Toolbar
     const toolbar = document.createElement('div');
     toolbar.className = 'xr-toolbar-row';
-    toolbar.innerHTML = `
-      <div class="xr-view-toggle">
-        <button class="xr-toggle-btn ${_state.activeView === 'tree' ? 'xr-active' : ''}" data-view="tree">Tree</button>
-        <button class="xr-toggle-btn ${_state.activeView === 'raw'  ? 'xr-active' : ''}" data-view="raw">Raw</button>
-      </div>
-      <div class="xr-toolbar-spacer"></div>
-      <button class="xr-copy-btn" id="xr-copy-btn">
-        <span>⎘</span><span>Copy</span>
-      </button>
-    `;
-    toolbar.querySelectorAll('.xr-toggle-btn').forEach(btn => {
+
+    // View toggle
+    const viewToggle = document.createElement('div');
+    viewToggle.className = 'xr-view-toggle';
+    viewToggle.id = 'xr-view-toggle';
+    const views = [
+      { id: 'tree', label: 'Tree' },
+      { id: 'grid', label: 'Grid' },
+      { id: 'raw',  label: 'Raw'  },
+      { id: 'diff', label: 'Diff' },
+    ];
+    views.forEach(({ id, label }) => {
+      const btn = document.createElement('button');
+      btn.className = `xr-toggle-btn${_state.activeView === id ? ' xr-active' : ''}`;
+      btn.dataset.view = id;
+      btn.textContent = label;
       btn.addEventListener('click', () => {
-        _state.activeView = btn.dataset.view;
-        toolbar.querySelectorAll('.xr-toggle-btn').forEach(b =>
+        _state.activeView = id;
+        _state.gridDrillRow = null;
+        viewToggle.querySelectorAll('.xr-toggle-btn').forEach(b =>
           b.classList.toggle('xr-active', b.dataset.view === _state.activeView)
         );
         _renderContent();
       });
+      viewToggle.appendChild(btn);
     });
-    toolbar.querySelector('#xr-copy-btn').addEventListener('click', () => _copySelected());
+    toolbar.appendChild(viewToggle);
+
+    const spacer = document.createElement('div');
+    spacer.className = 'xr-toolbar-spacer';
+    toolbar.appendChild(spacer);
+
+    // Copy dropdown
+    const copyWrap = document.createElement('div');
+    copyWrap.className = 'xr-copy-wrap';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'xr-copy-btn';
+    copyBtn.id = 'xr-copy-btn';
+    copyBtn.innerHTML = `<span>⎘</span><span>Copy ▾</span>`;
+
+    const copyMenu = document.createElement('div');
+    copyMenu.className = 'xr-copy-menu';
+    copyMenu.id = 'xr-copy-menu';
+    copyMenu.style.display = 'none';
+    [
+      { id: 'json',  icon: '{ }', label: 'Copy JSON'       },
+      { id: 'curl',  icon: '⌘',  label: 'Copy as cURL'    },
+      { id: 'fetch', icon: '⚡',  label: 'Copy as fetch()' },
+    ].forEach(({ id, icon, label }) => {
+      const item = document.createElement('button');
+      item.dataset.copyAs = id;
+      item.innerHTML = `<span class="xr-copy-menu-icon">${icon}</span>${label}`;
+      item.addEventListener('click', () => {
+        copyMenu.style.display = 'none';
+        _copySelected(id);
+      });
+      copyMenu.appendChild(item);
+    });
+
+    copyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = copyMenu.style.display !== 'none';
+      copyMenu.style.display = open ? 'none' : 'block';
+    });
+
+    // Close dropdown when clicking outside
+    _root.addEventListener('click', () => { copyMenu.style.display = 'none'; }, true);
+
+    copyWrap.appendChild(copyBtn);
+    copyWrap.appendChild(copyMenu);
+    toolbar.appendChild(copyWrap);
+    _dom.viewToggle = viewToggle;
     header.appendChild(toolbar);
 
     pane.appendChild(header);
@@ -1415,6 +1588,7 @@ window.XRAY_Panel = (() => {
       dtabs.querySelectorAll('.xr-dtab').forEach(btn => {
         btn.addEventListener('click', () => {
           _state.activeDTab = btn.dataset.dtab;
+          _state.gridDrillRow = null;
           dtabs.querySelectorAll('.xr-dtab').forEach(b =>
             b.classList.toggle('xr-active', b.dataset.dtab === _state.activeDTab)
           );
@@ -1423,6 +1597,57 @@ window.XRAY_Panel = (() => {
       });
       pane.appendChild(dtabs);
     }
+
+    // ── Pane search bar ───────────────────────────────────────────────────
+    const psBar = document.createElement('div');
+    psBar.className = 'xr-pane-search';
+    psBar.style.display = 'none';
+
+    const psInput = document.createElement('input');
+    psInput.type = 'text';
+    psInput.placeholder = 'Search in response…';
+    psInput.value = _state.paneSearch.query;
+
+    const psCount = document.createElement('span');
+    psCount.className = 'xr-ps-count';
+
+    const psNav = document.createElement('div');
+    psNav.className = 'xr-ps-nav';
+    const psPrev = document.createElement('button');
+    psPrev.textContent = '↑';
+    psPrev.title = 'Previous match (Shift+Enter)';
+    const psNext = document.createElement('button');
+    psNext.textContent = '↓';
+    psNext.title = 'Next match (Enter)';
+    psNav.appendChild(psPrev);
+    psNav.appendChild(psNext);
+
+    const psClose = document.createElement('button');
+    psClose.className = 'xr-ps-close';
+    psClose.textContent = '✕';
+
+    psBar.appendChild(psInput);
+    psBar.appendChild(psCount);
+    psBar.appendChild(psNav);
+    psBar.appendChild(psClose);
+    pane.appendChild(psBar);
+
+    _dom.paneSearchBar   = psBar;
+    _dom.paneSearchInput = psInput;
+    _dom.paneSearchCount = psCount;
+
+    psInput.addEventListener('input', () => {
+      _state.paneSearch.query = psInput.value;
+      _state.paneSearch.current = 0;
+      _paneSearchUpdate();
+    });
+    psInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? _paneSearchNav(-1) : _paneSearchNav(1); }
+      if (e.key === 'Escape') { e.stopPropagation(); _paneSearchClose(); }
+    });
+    psPrev.addEventListener('click', () => _paneSearchNav(-1));
+    psNext.addEventListener('click', () => _paneSearchNav(1));
+    psClose.addEventListener('click', () => _paneSearchClose());
 
     // ── Content area ──────────────────────────────────────────────────────
     const content = document.createElement('div');
@@ -1438,6 +1663,30 @@ window.XRAY_Panel = (() => {
     try { return JSON.parse(raw); } catch { return null; }
   }
 
+  function _getEntryData(entry) {
+    if (!entry) return null;
+    if (entry.type === 'log') return entry.logData ?? null;
+    if (_state.activeDTab === 'request') return entry.requestBody ?? null;
+    return entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null;
+  }
+
+  function _findPrevSameUrl(entry) {
+    if (!entry?.urlPath) return null;
+    const idx = _state.entries.findIndex(e => e.id === entry.id);
+    for (let i = idx - 1; i >= 0; i--) {
+      if (_state.entries[i].urlPath === entry.urlPath) return _state.entries[i];
+    }
+    return null;
+  }
+
+  function _updateGridBtn(data) {
+    const gridBtn = _dom.viewToggle?.querySelector('[data-view="grid"]');
+    if (!gridBtn) return;
+    const isArray = Array.isArray(data) || (data && typeof data === 'object' && !Array.isArray(data));
+    gridBtn.disabled = false; // always allow — buildGrid handles non-array gracefully
+    gridBtn.title = Array.isArray(data) ? '' : 'Works best with array responses';
+  }
+
   function _renderContent() {
     const content = _dom.content;
     if (!content) return;
@@ -1448,70 +1697,235 @@ window.XRAY_Panel = (() => {
       : null;
     if (!entry) return;
 
-    let data;
-
-    if (entry.type === 'log') {
-      data = entry.logData;
-    } else {
-      if (_state.activeDTab === 'headers') {
-        content.appendChild(
-          window.XRAY_Renderer.buildHeaders(entry.requestHeaders, entry.responseHeaders)
-        );
-        return;
-      }
-      data = _state.activeDTab === 'response'
-        ? (entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null)
-        : (entry.requestBody ?? null);
+    // Headers tab — same for all views
+    if (entry.type !== 'log' && _state.activeDTab === 'headers') {
+      content.appendChild(
+        window.XRAY_Renderer.buildHeaders(entry.requestHeaders, entry.responseHeaders)
+      );
+      return;
     }
+
+    const data = _getEntryData(entry);
 
     if (data === null || data === undefined) {
       content.innerHTML = `<div style="color:var(--xr-muted);font-size:11px;padding:4px 0">No data</div>`;
       return;
     }
 
-    if (_state.activeView === 'tree') {
+    const parsed = typeof data === 'string' ? (_tryParseRaw(data) ?? data) : data;
+    _updateGridBtn(parsed);
+
+    if (_state.activeView === 'grid') {
+      // Grid view — if we've drilled into a row, show tree with back button
+      if (_state.gridDrillRow !== null) {
+        const backBar = document.createElement('div');
+        backBar.className = 'xr-grid-drill-back';
+        backBar.innerHTML = `← Back to grid`;
+        backBar.addEventListener('click', () => {
+          _state.gridDrillRow = null;
+          _renderContent();
+        });
+        content.appendChild(backBar);
+        const tree = document.createElement('div');
+        tree.style.flex = '1';
+        tree.style.overflow = 'auto';
+        tree.appendChild(window.XRAY_Renderer.buildTree(_state.gridDrillRow));
+        content.appendChild(tree);
+      } else {
+        content.appendChild(window.XRAY_Renderer.buildGrid(parsed, (row) => {
+          _state.gridDrillRow = row;
+          _renderContent();
+        }));
+      }
+
+    } else if (_state.activeView === 'diff') {
+      _renderDiffView(entry, parsed, content);
+
+    } else if (_state.activeView === 'tree') {
       try {
-        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
         content.appendChild(window.XRAY_Renderer.buildTree(parsed));
       } catch {
         content.appendChild(window.XRAY_Renderer.buildRaw(data));
       }
+
     } else {
       content.appendChild(window.XRAY_Renderer.buildRaw(data));
     }
+
+    // Re-apply pane search highlights after render
+    if (_state.paneSearch.active && _state.paneSearch.query) {
+      _paneSearchUpdate(false);
+    }
+  }
+
+  function _renderDiffView(entry, data, content) {
+    const prev = _state.diffCompareId
+      ? _state.entries.find(e => e.id === _state.diffCompareId)
+      : _findPrevSameUrl(entry);
+
+    // Compare selector bar
+    const compareRow = document.createElement('div');
+    compareRow.className = 'xr-diff-compare-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'xr-diff-compare-label';
+    lbl.textContent = 'vs:';
+    const sel = document.createElement('select');
+    sel.innerHTML = `<option value="">— auto (previous ${entry.urlPath || 'call'}) —</option>`;
+    _state.entries
+      .filter(e => e.id !== entry.id && e.type === 'api')
+      .slice().reverse()
+      .forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id;
+        const { formatTime } = window.XRAY_Utils;
+        opt.textContent = `${e.method || '?'} ${e.urlPath || e.url || '?'} — ${formatTime(e.timestamp)}`;
+        if (_state.diffCompareId === e.id) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    sel.addEventListener('change', () => {
+      _state.diffCompareId = sel.value || null;
+      _renderContent();
+    });
+    compareRow.appendChild(lbl);
+    compareRow.appendChild(sel);
+    content.appendChild(compareRow);
+
+    const prevData = prev ? _getEntryData(prev) : undefined;
+    const prevParsed = prevData
+      ? (typeof prevData === 'string' ? (_tryParseRaw(prevData) ?? prevData) : prevData)
+      : undefined;
+
+    if (prevParsed === undefined) {
+      const msg = document.createElement('div');
+      msg.className = 'xr-empty';
+      msg.style.padding = '24px';
+      msg.textContent = 'No previous call to this URL found. Select an entry above to compare.';
+      content.appendChild(msg);
+      return;
+    }
+
+    content.appendChild(window.XRAY_Renderer.buildDiff(prevParsed, data));
+  }
+
+  // ── Pane search ───────────────────────────────────────────────────────────
+
+  function _paneSearchOpen() {
+    if (!_dom.paneSearchBar) return;
+    _state.paneSearch.active = true;
+    _dom.paneSearchBar.style.display = 'flex';
+    _dom.paneSearchInput.focus();
+    _dom.paneSearchInput.select();
+    _paneSearchUpdate(true);
+  }
+
+  function _paneSearchClose() {
+    if (!_dom.paneSearchBar) return;
+    _state.paneSearch.active = false;
+    _state.paneSearch.hits = [];
+    _state.paneSearch.current = -1;
+    _dom.paneSearchBar.style.display = 'none';
+    if (_dom.content) window.XRAY_Renderer.clearSearch(_dom.content);
+    if (_dom.paneSearchCount) _dom.paneSearchCount.textContent = '';
+  }
+
+  function _paneSearchUpdate(resetCurrent = true) {
+    if (!_dom.content) return;
+    const q = _state.paneSearch.query;
+    const { total, els } = window.XRAY_Renderer.markSearch(_dom.content, q);
+    _state.paneSearch.hits = els;
+    if (resetCurrent) _state.paneSearch.current = total > 0 ? 0 : -1;
+    _paneSearchHighlightCurrent();
+    const c = _state.paneSearch.current;
+    _dom.paneSearchCount.textContent = total > 0 ? `${c + 1}/${total}` : (q ? '0/0' : '');
+  }
+
+  function _paneSearchNav(dir) {
+    const { hits } = _state.paneSearch;
+    if (!hits.length) return;
+    _state.paneSearch.current = (_state.paneSearch.current + dir + hits.length) % hits.length;
+    _paneSearchHighlightCurrent();
+    const c = _state.paneSearch.current;
+    _dom.paneSearchCount.textContent = `${c + 1}/${hits.length}`;
+  }
+
+  function _paneSearchHighlightCurrent() {
+    const { hits, current } = _state.paneSearch;
+    hits.forEach((el, i) => el.classList.toggle('xr-search-current', i === current));
+    if (hits[current]) hits[current].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Copy
   // ══════════════════════════════════════════════════════════════════════════
-  function _copySelected() {
+  function _copySelected(as = 'json') {
     const entry = _state.selectedId
       ? _state.entries.find(e => e.id === _state.selectedId)
       : null;
     if (!entry) return;
 
-    let data;
-    if (entry.type === 'log') {
-      data = entry.logData;
+    let text;
+
+    if (as === 'curl') {
+      text = _buildCurl(entry);
+    } else if (as === 'fetch') {
+      text = _buildFetch(entry);
     } else {
-      if (_state.activeDTab === 'response')  data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
-      else if (_state.activeDTab === 'request') data = entry.requestBody;
-      else data = { request: entry.requestHeaders, response: entry.responseHeaders };
+      let data;
+      if (entry.type === 'log') {
+        data = entry.logData;
+      } else if (_state.activeDTab === 'request') {
+        data = entry.requestBody;
+      } else if (_state.activeDTab === 'headers') {
+        data = { request: entry.requestHeaders, response: entry.responseHeaders };
+      } else {
+        data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
+      }
+      text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     }
 
-    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     navigator.clipboard.writeText(text || '').catch(() => {});
 
     const btn = _dom.detailPane?.querySelector('#xr-copy-btn');
     if (btn) {
       btn.classList.add('xr-copied');
       const label = btn.querySelector('span:last-child');
+      const orig = label?.textContent;
       if (label) label.textContent = 'Copied!';
       setTimeout(() => {
         btn.classList.remove('xr-copied');
-        if (label) label.textContent = 'Copy';
+        if (label) label.textContent = orig || 'Copy ▾';
       }, 1500);
     }
+  }
+
+  function _buildCurl(entry) {
+    const method = (entry.method || 'GET').toUpperCase();
+    const url = entry.url || '';
+    const headers = entry.requestHeaders || {};
+    const body = entry.requestBody;
+
+    let parts = [`curl -X ${method} '${url}'`];
+    Object.entries(headers).forEach(([k, v]) => {
+      parts.push(`  -H '${k}: ${v}'`);
+    });
+    if (body) {
+      const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+      parts.push(`  --data '${bodyStr.replace(/'/g, "'\\''")}'`);
+    }
+    return parts.join(' \\\n');
+  }
+
+  function _buildFetch(entry) {
+    const method = (entry.method || 'GET').toUpperCase();
+    const url = entry.url || '';
+    const headers = entry.requestHeaders || {};
+    const body = entry.requestBody;
+    const opts = { method };
+    if (Object.keys(headers).length) opts.headers = headers;
+    if (body) opts.body = typeof body === 'string' ? body : JSON.stringify(body);
+
+    const optsStr = JSON.stringify(opts, null, 2);
+    return `const response = await fetch('${url}', ${optsStr});\nconst data = await response.json();`;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1996,16 +2410,20 @@ window.XRAY_Panel = (() => {
     },
 
     setView(v) {
-      const mapped = (v === 'grid' || v === 'diff') ? 'raw' : v;
-      if (mapped !== 'tree' && mapped !== 'raw') return;
-      _state.activeView = mapped;
-      _dom.detailPane?.querySelectorAll('.xr-toggle-btn').forEach(btn =>
-        btn.classList.toggle('xr-active', btn.dataset.view === mapped)
+      const views = ['tree', 'grid', 'raw', 'diff'];
+      if (!views.includes(v)) return;
+      _state.activeView = v;
+      _state.gridDrillRow = null;
+      _dom.viewToggle?.querySelectorAll('.xr-toggle-btn').forEach(btn =>
+        btn.classList.toggle('xr-active', btn.dataset.view === v)
       );
       _renderContent();
     },
 
     focusSearch() { _fuzzyOpen(); },
+
+    hasSelection()      { return !!_state.selectedId; },
+    paneSearchFocus()   { _paneSearchOpen(); },
 
     copySelected() { _copySelected(); },
 

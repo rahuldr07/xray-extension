@@ -37,10 +37,21 @@ window.XRAY_Shortcuts = (() => {
 
     if (!_panel.isOpen()) return;
 
-    // Ctrl+K or Ctrl+F — open fuzzy search
-    if ((e.ctrlKey && (e.key === 'k' || e.key === 'f')) && !inInput) {
+    // Ctrl+K — fuzzy search over all entries
+    if (e.ctrlKey && e.key === 'k' && !inInput) {
       e.preventDefault();
       _panel.focusSearch();
+      return;
+    }
+
+    // Ctrl+F — pane search if entry selected, else fuzzy search
+    if (e.ctrlKey && e.key === 'f' && !inInput) {
+      e.preventDefault();
+      if (_panel.hasSelection()) {
+        _panel.paneSearchFocus();
+      } else {
+        _panel.focusSearch();
+      }
       return;
     }
 
