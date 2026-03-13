@@ -1299,6 +1299,11 @@ window.XRAY_Panel = (() => {
     _renderContent();
   }
 
+  function _tryParseRaw(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+
   function _renderContent() {
     const content = _dom.content;
     if (!content) return;
@@ -1321,7 +1326,7 @@ window.XRAY_Panel = (() => {
         return;
       }
       data = _state.activeDTab === 'response'
-        ? (entry.responseDecrypted ?? entry.responseBody ?? null)
+        ? (entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null)
         : (entry.requestBody ?? null);
     }
 
@@ -1355,7 +1360,7 @@ window.XRAY_Panel = (() => {
     if (entry.type === 'log') {
       data = entry.logData;
     } else {
-      if (_state.activeDTab === 'response')  data = entry.responseDecrypted ?? entry.responseBody;
+      if (_state.activeDTab === 'response')  data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
       else if (_state.activeDTab === 'request') data = entry.requestBody;
       else data = { request: entry.requestHeaders, response: entry.responseHeaders };
     }
