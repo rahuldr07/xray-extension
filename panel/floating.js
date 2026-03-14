@@ -2108,8 +2108,7 @@ window.XRAY_Panel = (() => {
           if (entry.url) window.open(entry.url, '_blank');
         }},
         { label: '🔄 Replay', action: () => {
-          // TODO: implement replay
-          console.log('Replay:', entry.id);
+          _replayRequest(entry);
         }},
         null, // separator
         { label: '📋 Copy & Export', action: () => {
@@ -3362,6 +3361,73 @@ func main() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Replay Request
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function _replayRequest(entry) {
+    if (entry.type !== 'api' || !entry.url) {
+      alert('Cannot replay: Not an API call');
+      return;
+    }
+
+    try {
+      const headers = { ...entry.requestHeaders };
+      delete headers['host'];
+      delete headers['origin'];
+      delete headers['referer'];
+
+      const fetchOpts = {
+        method: entry.method || 'GET',
+        headers,
+        mode: 'cors',
+        credentials: 'include',
+      };
+
+      if (entry.requestBody && (entry.method === 'POST' || entry.method === 'PUT' || entry.method === 'PATCH')) {
+        fetchOpts.body = typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody);
+      }
+
+      const response = await fetch(entry.url, fetchOpts);
+      const contentType = response.headers.get('content-type');
+      let data;
+
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+
+      const replayEntry = {
+        id: window.XRAY_Utils.uid(),
+        type: 'api',
+        timestamp: Date.now(),
+        method: entry.method,
+        url: entry.url,
+        urlPath: entry.urlPath,
+        status: response.status,
+        duration: 0,
+        size: JSON.stringify(data).length,
+        requestHeaders: headers,
+        requestBody: entry.requestBody,
+        responseHeaders: Object.fromEntries(response.headers),
+        responseRaw: typeof data === 'string' ? data : JSON.stringify(data),
+        responseDecrypted: typeof data === 'string' ? null : data,
+        decryptStatus: 'none',
+        pinned: false,
+      };
+
+      _state.entries.push(replayEntry);
+      _state.selectedId = replayEntry.id;
+      _rebuildList();
+      _renderDetail(replayEntry);
+      _updateCounts();
+    } catch (err) {
+      alert(`Replay failed: ${err.message}`);
+      console.error('Replay error:', err);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Settings Modal
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -3683,7 +3749,18 @@ func main() {
 
     copySelected() { _copySelected(); },
 
-    pinSelected() { /* stub — reserved for pin/star feature */ },
+    pinSelected() {
+      if (!_state.selectedId) return;
+      const entry = _state.entries.find(e => e.id === _state.selectedId);
+      if (!entry) return;
+      if (_state.pinned.has(entry.id)) {
+        _state.pinned.delete(entry.id);
+      } else {
+        _state.pinned.add(entry.id);
+      }
+      _savePinned();
+      _rebuildList();
+    },
 
     expandAll(expand) {
       const treeRoot = _dom.content?.querySelector('.xr-tree-root');
