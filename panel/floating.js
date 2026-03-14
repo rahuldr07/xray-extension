@@ -456,7 +456,7 @@ window.XRAY_Panel = (() => {
   padding: 8px 6px;
   font-size: 12px;
   opacity: 0.4;
-  transition: opacity .2s;
+  transition: opacity .2s, color .2s, background .2s;
   border-radius: 3px;
   height: 100%;
   align-self: stretch;
@@ -466,6 +466,11 @@ window.XRAY_Panel = (() => {
 .xr-entry-pin:hover {
   opacity: 1;
   background: var(--xr-bg3);
+}
+.xr-entry-pin.xr-active {
+  opacity: 1;
+  color: var(--xr-accent);
+  background: rgba(255, 215, 0, 0.08);
 }
 
 /* Content wrapper */
@@ -1509,7 +1514,7 @@ window.XRAY_Panel = (() => {
       const barCls  = dur > 1000 ? 'xr-vslow' : dur > 300 ? 'xr-slow' : '';
       el.dataset.method = method;
       el.innerHTML = `
-        <div class="xr-entry-pin" title="${isPinned ? 'Unpin' : 'Pin'}">⭐</div>
+        <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
             <span class="xr-method-badge ${mClass}">${method}</span>
@@ -1544,7 +1549,7 @@ window.XRAY_Panel = (() => {
       const level   = (entry.logLevel || 'log').toLowerCase();
       const preview = previewJSON(entry.logData, 64);
       el.innerHTML = `
-        <div class="xr-entry-pin" title="${isPinned ? 'Unpin' : 'Pin'}">⭐</div>
+        <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
             <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
