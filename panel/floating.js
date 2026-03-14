@@ -1313,17 +1313,6 @@ window.XRAY_Panel = (() => {
 </div>
 <div class="xr-body">
   <div class="xr-list-wrap">
-    <div class="xr-filter-bar" id="xr-filter-bar">
-      <button class="xr-filter-btn xr-active" data-filter="all">All</button>
-      <button class="xr-filter-btn" data-filter="2xx">2xx</button>
-      <button class="xr-filter-btn" data-filter="3xx">3xx</button>
-      <button class="xr-filter-btn" data-filter="4xx">4xx</button>
-      <button class="xr-filter-btn" data-filter="5xx">5xx</button>
-      <div class="xr-filter-sep"></div>
-      <button class="xr-filter-btn" data-filter-type="fetch" title="Fetch requests">📡 Fetch</button>
-      <button class="xr-filter-btn" data-filter-type="xhr" title="XHR requests">🔗 XHR</button>
-      <button class="xr-filter-btn" data-filter-type="log" title="Console logs">📋 Logs</button>
-    </div>
     <div class="xr-list-pane" id="xr-list-pane"></div>
   </div>
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
@@ -1388,7 +1377,7 @@ window.XRAY_Panel = (() => {
           _applyTheme(id);
           _saveTheme(id);
           dropdown.classList.remove('xr-open');
-          _populateThemeDots();
+          _buildDots();
         });
         dropdown.appendChild(btn);
       });
@@ -1586,6 +1575,75 @@ window.XRAY_Panel = (() => {
     const pane = _dom.listPane;
     if (!pane) return;
     pane.innerHTML = '';
+
+    // Build filter bar
+    const filterBar = document.createElement('div');
+    filterBar.className = 'xr-filter-bar';
+    filterBar.id = 'xr-filter-bar';
+
+    const filters = [
+      { attr: 'data-filter', val: 'all', label: 'All' },
+      { attr: 'data-filter', val: '2xx', label: '2xx' },
+      { attr: 'data-filter', val: '3xx', label: '3xx' },
+      { attr: 'data-filter', val: '4xx', label: '4xx' },
+      { attr: 'data-filter', val: '5xx', label: '5xx' },
+    ];
+
+    filters.forEach(({ attr, val, label }) => {
+      const btn = document.createElement('button');
+      btn.className = 'xr-filter-btn';
+      btn.setAttribute(attr, val);
+      btn.textContent = label;
+      if ((val === 'all' && _state.filters.statusCodes.length === 0) ||
+          (val !== 'all' && _state.filters.statusCodes.includes(val + 'xx'))) {
+        btn.classList.add('xr-active');
+      }
+      btn.addEventListener('click', () => {
+        if (val === 'all') {
+          _state.filters.statusCodes = [];
+        } else {
+          const range = val + 'xx';
+          if (_state.filters.statusCodes.includes(range)) {
+            _state.filters.statusCodes = _state.filters.statusCodes.filter(f => f !== range);
+          } else {
+            _state.filters.statusCodes.push(range);
+          }
+        }
+        _saveFilters();
+        _rebuildList();
+        _updateCounts();
+      });
+      filterBar.appendChild(btn);
+    });
+
+    // Type toggles
+    const types = [
+      { val: 'fetch', label: '📡 Fetch' },
+      { val: 'xhr', label: '🔗 XHR' },
+      { val: 'log', label: '📋 Log' },
+    ];
+
+    types.forEach(({ val, label }) => {
+      const btn = document.createElement('button');
+      btn.className = 'xr-filter-btn';
+      btn.setAttribute('data-filter-type', val);
+      btn.textContent = label;
+      if (_state.filters.types.includes(val)) btn.classList.add('xr-active');
+      btn.addEventListener('click', () => {
+        if (_state.filters.types.includes(val)) {
+          _state.filters.types = _state.filters.types.filter(t => t !== val);
+        } else {
+          _state.filters.types.push(val);
+        }
+        _saveFilters();
+        _rebuildList();
+        _updateCounts();
+      });
+      filterBar.appendChild(btn);
+    });
+
+    pane.appendChild(filterBar);
+
     const filtered = _filteredEntries();
 
     if (filtered.length === 0) {
@@ -1601,7 +1659,7 @@ window.XRAY_Panel = (() => {
       const hint = !_state.filter && _state.activeTab === 'api'
         ? `<div class="xr-kbd-hint"><span class="xr-kbd">Ctrl+Shift+X</span> toggle panel</div>`
         : '';
-      pane.innerHTML = `
+      pane.innerHTML += `
         <div class="xr-empty-state">
           <div class="xr-empty-icon">${icon}</div>
           <div class="xr-empty-title">${title}</div>
@@ -2543,43 +2601,6 @@ window.XRAY_Panel = (() => {
       });
     });
 
-    // Filter bar status code buttons
-    _root.querySelectorAll('.xr-filter-btn[data-filter]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const filter = btn.dataset.filter;
-        if (filter === 'all') {
-          _state.filters.statusCodes = [];
-        } else {
-          const range = filter + 'xx';
-          if (_state.filters.statusCodes.includes(range)) {
-            _state.filters.statusCodes = _state.filters.statusCodes.filter(f => f !== range);
-          } else {
-            _state.filters.statusCodes.push(range);
-          }
-        }
-        _saveFilters();
-        _updateFilterUI();
-        _rebuildList();
-        _updateCounts();
-      });
-    });
-
-    // Filter bar type buttons
-    _root.querySelectorAll('.xr-filter-btn[data-filter-type]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.filterType;
-        if (_state.filters.types.includes(type)) {
-          _state.filters.types = _state.filters.types.filter(t => t !== type);
-        } else {
-          _state.filters.types.push(type);
-        }
-        _saveFilters();
-        _updateFilterUI();
-        _rebuildList();
-        _updateCounts();
-      });
-    });
-
     _dom.clearBtn.addEventListener('click', () => {
       _state.entries    = [];
       _state.selectedId = null;
@@ -2673,7 +2694,6 @@ window.XRAY_Panel = (() => {
       _rebuildList();
       _renderDetail(null);
       _updateCounts();
-      _updateFilterUI();
 
       // Events + shortcuts
       _bindEvents();
