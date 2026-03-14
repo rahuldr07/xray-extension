@@ -1330,6 +1330,149 @@ window.XRAY_Panel = (() => {
   color: var(--xr-red);
 }
 
+/* ─── Copy & Export Modal ────────────────────────────────────────────────── */
+.xr-copy-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+.xr-copy-backdrop.xr-open {
+  display: flex;
+}
+.xr-copy-modal {
+  background: var(--xr-bg);
+  border: 1px solid var(--xr-border);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 580px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,.3);
+}
+.xr-copy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--xr-border);
+  flex-shrink: 0;
+}
+.xr-copy-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--xr-text);
+  font-family: inherit;
+  flex: 1;
+}
+.xr-copy-close {
+  background: none;
+  border: none;
+  color: var(--xr-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color .12s;
+  flex-shrink: 0;
+}
+.xr-copy-close:hover {
+  color: var(--xr-text);
+}
+.xr-copy-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+.xr-copy-format {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.xr-copy-format-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--xr-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  flex-shrink: 0;
+  width: 60px;
+}
+.xr-copy-format-select {
+  flex: 1;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  color: var(--xr-text);
+  font-size: 11px;
+  padding: 6px 8px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.xr-copy-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.xr-copy-preview-label {
+  font-size: 10px;
+  color: var(--xr-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 600;
+}
+.xr-copy-code {
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--xr-text);
+  padding: 10px;
+  overflow-y: auto;
+  max-height: 320px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.xr-copy-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--xr-border);
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+.xr-copy-btn {
+  background: var(--xr-ring);
+  border: 1px solid var(--xr-ring);
+  color: white;
+  border-radius: 5px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .12s;
+  font-family: inherit;
+}
+.xr-copy-btn:hover {
+  opacity: 0.9;
+}
+.xr-copy-btn-cancel {
+  background: transparent;
+  border: 1px solid var(--xr-border);
+  color: var(--xr-text);
+}
+.xr-copy-btn-cancel:hover {
+  background: var(--xr-surface);
+}
+
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -1393,6 +1536,37 @@ window.XRAY_Panel = (() => {
   </div>
   <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
+</div>
+<div class="xr-copy-backdrop" id="xr-copy-backdrop">
+  <div class="xr-copy-modal">
+    <div class="xr-copy-header">
+      <div class="xr-copy-title" id="xr-copy-title">Copy & Export</div>
+      <button class="xr-copy-close" id="xr-copy-close">✕</button>
+    </div>
+    <div class="xr-copy-body">
+      <div class="xr-copy-format">
+        <label class="xr-copy-format-label">Format:</label>
+        <select class="xr-copy-format-select" id="xr-copy-format">
+          <option value="fetch">JavaScript: fetch()</option>
+          <option value="js-object">JavaScript: Object</option>
+          <option value="ts-object">TypeScript: Object</option>
+          <option value="json">JSON</option>
+          <option value="curl">cURL</option>
+          <option value="python">Python: requests</option>
+          <option value="go">Go: http.Client</option>
+          <option value="jest">Jest: Test case</option>
+        </select>
+      </div>
+      <div class="xr-copy-preview">
+        <div class="xr-copy-preview-label">Preview:</div>
+        <pre class="xr-copy-code" id="xr-copy-code"></pre>
+      </div>
+    </div>
+    <div class="xr-copy-footer">
+      <button class="xr-copy-btn xr-copy-btn-cancel" id="xr-copy-cancel">Cancel</button>
+      <button class="xr-copy-btn" id="xr-copy-btn">Copy</button>
+    </div>
+  </div>
 </div>
     `.trim();
     return panel;
@@ -1661,8 +1835,7 @@ window.XRAY_Panel = (() => {
         }},
         null, // separator
         { label: '📋 Copy & Export', action: () => {
-          // TODO: open copy modal
-          console.log('Export:', entry.id);
+          _openCopyModal(entry);
         }},
       ];
 
@@ -2696,6 +2869,220 @@ window.XRAY_Panel = (() => {
     });
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Copy & Export Modal
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function _openCopyModal(entry) {
+    const backdrop = _dom.copyBackdrop;
+    const title = _dom.copyTitle;
+    const code = _dom.copyCode;
+    const format = _dom.copyFormat;
+
+    if (!backdrop || !title || !code || !format) return;
+
+    title.textContent = `Copy & Export: ${entry.method || 'LOG'} ${entry.urlPath || ''}`;
+    
+    _updateCopyPreview(entry, format.value);
+    
+    format.addEventListener('change', () => _updateCopyPreview(entry, format.value));
+    
+    backdrop.classList.add('xr-open');
+
+    _dom.copyBtn.onclick = () => {
+      navigator.clipboard.writeText(code.textContent).then(() => {
+        _dom.copyBtn.textContent = '✓ Copied';
+        setTimeout(() => { _dom.copyBtn.textContent = 'Copy'; }, 2000);
+      }).catch(err => console.error('Copy failed:', err));
+    };
+
+    _dom.copyCancel.onclick = () => backdrop.classList.remove('xr-open');
+    _dom.copyClose.onclick = () => backdrop.classList.remove('xr-open');
+  }
+
+  function _updateCopyPreview(entry, format) {
+    const code = _dom.copyCode;
+    if (!code) return;
+
+    let preview = '';
+
+    if (entry.type === 'api') {
+      switch(format) {
+        case 'fetch':
+          preview = _buildFetchCall(entry);
+          break;
+        case 'js-object':
+          preview = _buildJSObject(entry);
+          break;
+        case 'ts-object':
+          preview = _buildTSObject(entry);
+          break;
+        case 'json':
+          preview = JSON.stringify(entry.responseDecrypted || entry.responseRaw, null, 2);
+          break;
+        case 'curl':
+          preview = _buildCurlCommand(entry);
+          break;
+        case 'python':
+          preview = _buildPythonRequest(entry);
+          break;
+        case 'go':
+          preview = _buildGoRequest(entry);
+          break;
+        case 'jest':
+          preview = _buildJestTest(entry);
+          break;
+      }
+    } else if (entry.type === 'log') {
+      // For logs, show formats that make sense
+      if (format === 'json') {
+        preview = JSON.stringify(entry.logData, null, 2);
+      } else if (format === 'js-object') {
+        preview = 'const logData = ' + JSON.stringify(entry.logData, null, 2) + ';';
+      } else if (format === 'ts-object') {
+        preview = 'const logData: any = ' + JSON.stringify(entry.logData, null, 2) + ';';
+      } else {
+        preview = JSON.stringify(entry.logData, null, 2);
+      }
+    }
+
+    code.textContent = preview;
+  }
+
+  function _buildFetchCall(entry) {
+    const headers = entry.requestHeaders || {};
+    const body = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2) : null;
+
+    let code = `fetch('${entry.url}', {
+  method: '${entry.method}',
+  headers: {
+${Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n')}
+  }`;
+
+    if (body) {
+      code += `,
+  body: ${body}`;
+    }
+
+    code += '\n}).then(r => r.json()).then(data => console.log(data))';
+    return code;
+  }
+
+  function _buildJSObject(entry) {
+    const data = entry.responseDecrypted || entry.responseRaw || {};
+    return 'const data = ' + JSON.stringify(data, null, 2) + ';';
+  }
+
+  function _buildTSObject(entry) {
+    const data = entry.responseDecrypted || entry.responseRaw || {};
+    return 'const data: any = ' + JSON.stringify(data, null, 2) + ';';
+  }
+
+  function _buildCurlCommand(entry) {
+    const headers = entry.requestHeaders || {};
+    const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
+
+    let cmd = `curl -X ${entry.method} '${entry.url}'`;
+
+    Object.entries(headers).forEach(([k, v]) => {
+      cmd += ` \\\n  -H '${k}: ${v}'`;
+    });
+
+    if (body) {
+      cmd += ` \\\n  -d '${body}'`;
+    }
+
+    return cmd;
+  }
+
+  function _buildPythonRequest(entry) {
+    const headers = entry.requestHeaders || {};
+    const body = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2) : null;
+
+    let code = `import requests
+
+url = '${entry.url}'
+headers = {
+${Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n')}
+}`;
+
+    if (body) {
+      code += `
+data = ${body}
+response = requests.${entry.method.toLowerCase()}(url, headers=headers, json=data)`;
+    } else {
+      code += `
+response = requests.${entry.method.toLowerCase()}(url, headers=headers)`;
+    }
+
+    code += `
+print(response.json())`;
+    return code;
+  }
+
+  function _buildGoRequest(entry) {
+    const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
+    const headers = entry.requestHeaders || {};
+
+    let code = `package main
+
+import (
+  "fmt"
+  "io/ioutil"
+  "net/http"
+  "strings"
+)
+
+func main() {
+  url := "${entry.url}"`;
+
+    if (body) {
+      code += `
+  payload := strings.NewReader(\`${body}\`)
+  req, _ := http.NewRequest("${entry.method}", url, payload)`;
+    } else {
+      code += `
+  req, _ := http.NewRequest("${entry.method}", url, nil)`;
+    }
+
+    code += `
+  
+  client := &http.Client{}`;
+    Object.entries(headers).forEach(([k, v]) => {
+      code += `\n  req.Header.Add("${k}", "${v}")`;
+    });
+
+    code += `
+
+  resp, _ := client.Do(req)
+  defer resp.Body.Close()
+  body, _ := ioutil.ReadAll(resp.Body)
+  fmt.Println(string(body))
+}`;
+
+    return code;
+  }
+
+  function _buildJestTest(entry) {
+    const method = entry.method || 'GET';
+    const url = entry.url || '';
+    const expectedData = entry.responseDecrypted || entry.responseRaw || {};
+
+    let code = `describe('API: ${method} ${entry.urlPath}', () => {
+  it('should return valid response', async () => {
+    const response = await fetch('${url}', {
+      method: '${method}'
+    });
+    const data = await response.json();
+    
+    expect(response.status).toBe(${entry.status});
+    expect(data).toEqual(${JSON.stringify(expectedData, null, 4).split('\n').join('\n    ')});
+  });
+});`;
+
+    return code;
+  }
+
   function _applyFilters(entries) {
     if (_state.filters.statusCodes.length === 0 && _state.filters.types.length === 0) {
       return entries;
@@ -2814,6 +3201,13 @@ window.XRAY_Panel = (() => {
       _dom.fuzzyBackdrop = _root.getElementById('xr-fuzzy-backdrop');
       _dom.fuzzyInput   = _root.getElementById('xr-fuzzy-input');
       _dom.fuzzyResults = _root.getElementById('xr-fuzzy-results');
+      _dom.copyBackdrop = _root.getElementById('xr-copy-backdrop');
+      _dom.copyTitle   = _root.getElementById('xr-copy-title');
+      _dom.copyFormat  = _root.getElementById('xr-copy-format');
+      _dom.copyCode    = _root.getElementById('xr-copy-code');
+      _dom.copyBtn     = _root.getElementById('xr-copy-btn');
+      _dom.copyCancel  = _root.getElementById('xr-copy-cancel');
+      _dom.copyClose   = _root.getElementById('xr-copy-close');
 
       // Apply persisted state
       _dom.panel.style.width = `${_state.panelWidth}px`;
