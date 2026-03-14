@@ -48,6 +48,30 @@ window.XRAY_Themes = {
       '--xr-radius':   '6px',
     }
   },
+  'latte': {
+    name: 'Catppuccin Latte',
+    dot: '#dc8a78',
+    vars: {
+      '--xr-bg':       '#eff1f5',
+      '--xr-bg2':      '#e6e9f0',
+      '--xr-bg3':      '#dce0e8',
+      '--xr-surface':  '#ccd0da',
+      '--xr-overlay':  '#bcc0cc',
+      '--xr-text':     '#4c4f69',
+      '--xr-subtext':  '#5c5f77',
+      '--xr-muted':    '#8c8fa1',
+      '--xr-accent':   '#dc8a78',
+      '--xr-blue':     '#1e66f5',
+      '--xr-green':    '#40a02b',
+      '--xr-red':      '#d20f39',
+      '--xr-yellow':   '#df8e1d',
+      '--xr-orange':   '#fe640b',
+      '--xr-purple':   '#ea76cb',
+      '--xr-border':   '#dce0e8',
+      '--xr-ring':     '#bcc0cc',
+      '--xr-radius':   '6px',
+    }
+  },
   'dracula': {
     name: 'Dracula',
     dot: '#bd93f9',
@@ -97,3 +121,9 @@ window.XRAY_Themes = {
     }
   }
 };
+
+// Export as array for theme picker UI
+window.XRAY_ThemesList = Object.entries(window.XRAY_Themes).map(([id, theme]) => ({
+  id,
+  ...theme
+}));

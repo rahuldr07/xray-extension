@@ -20,6 +20,8 @@ window.XRAY_Panel = (() => {
     diffCompareId: null,         // ID of entry to diff against
     gridDrillRow:  null,         // drilled-in row data from grid view
     paneSearch:    { active: false, query: '', hits: [], current: -1 },
+    pinned:        new Set(),    // pinned entry IDs
+    filters:       { statusCodes: [], types: [] },  // filter state
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -197,7 +199,7 @@ window.XRAY_Panel = (() => {
 .xr-hspacer { flex: 1; }
 
 /* Theme dots */
-.xr-dots { display: flex; align-items: center; gap: 6px; margin-right: 4px; }
+.xr-dots { display: flex; align-items: center; gap: 6px; margin-right: 4px; position: relative; }
 .xr-dot {
   width: 11px;
   height: 11px;
@@ -216,6 +218,80 @@ window.XRAY_Panel = (() => {
   box-shadow: 0 0 0 2px var(--xr-bg2), 0 0 0 3.5px currentColor;
   transform: scale(1.15);
 }
+
+/* Theme dropdown */
+.xr-theme-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 6px;
+  padding: 4px;
+  margin-top: 4px;
+  min-width: 150px;
+  z-index: 10000;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+  display: none;
+}
+.xr-theme-dropdown.xr-open { display: flex; flex-direction: column; }
+.xr-theme-dropdown button {
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--xr-text);
+  border-radius: 4px;
+  transition: background .15s;
+  font-family: inherit;
+}
+.xr-theme-dropdown button:hover { background: var(--xr-bg3); }
+.xr-theme-dropdown button::before {
+  content: '○ ';
+  opacity: .4;
+  margin-right: 4px;
+}
+.xr-theme-dropdown button.xr-active::before {
+  content: '● ';
+  opacity: 1;
+  color: var(--xr-accent);
+}
+
+/* Filter bar */
+.xr-filter-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--xr-bg2);
+  border-bottom: 1px solid var(--xr-border);
+  overflow-x: auto;
+  align-items: center;
+}
+.xr-filter-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--xr-border);
+  background: transparent;
+  color: var(--xr-muted);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.xr-filter-btn:hover {
+  color: var(--xr-text);
+  border-color: var(--xr-accent);
+}
+.xr-filter-btn.xr-active {
+  background: var(--xr-accent);
+  color: var(--xr-bg);
+  border-color: var(--xr-accent);
+}
+.xr-filter-sep { width: 1px; height: 14px; background: var(--xr-border); margin: 0 2px; }
+
 
 /* Icon buttons */
 .xr-ibtn {
@@ -345,7 +421,7 @@ window.XRAY_Panel = (() => {
 
 /* ─── Entry rows ─────────────────────────────────────────────────────────── */
 .xr-entry {
-  padding: 8px 10px 8px 12px;
+  padding: 0;
   border-bottom: 1px solid var(--xr-border);
   cursor: pointer;
   transition: background .1s, transform .1s;
@@ -353,6 +429,9 @@ window.XRAY_Panel = (() => {
   user-select: none;
   flex-shrink: 0;
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
 .xr-entry:hover {
   background: linear-gradient(90deg, rgba(255,255,255,.03) 0%, transparent 100%);
@@ -369,6 +448,35 @@ window.XRAY_Panel = (() => {
 .xr-entry[data-method="DELETE"] { --xr-stripe: var(--xr-red);    }
 .xr-entry[data-method="PATCH"]  { --xr-stripe: var(--xr-purple); }
 .xr-entry.xr-selected { border-left-color: var(--xr-stripe, var(--xr-accent)); }
+
+/* Pin button */
+.xr-entry-pin {
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 8px 6px;
+  font-size: 12px;
+  opacity: 0.4;
+  transition: opacity .2s;
+  border-radius: 3px;
+  height: 100%;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+.xr-entry-pin:hover {
+  opacity: 1;
+  background: var(--xr-bg3);
+}
+
+/* Content wrapper */
+.xr-entry-content {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 
 /* New entry slide-in */
 @keyframes xr-slide-in {
@@ -1205,6 +1313,17 @@ window.XRAY_Panel = (() => {
 </div>
 <div class="xr-body">
   <div class="xr-list-wrap">
+    <div class="xr-filter-bar" id="xr-filter-bar">
+      <button class="xr-filter-btn xr-active" data-filter="all">All</button>
+      <button class="xr-filter-btn" data-filter="2xx">2xx</button>
+      <button class="xr-filter-btn" data-filter="3xx">3xx</button>
+      <button class="xr-filter-btn" data-filter="4xx">4xx</button>
+      <button class="xr-filter-btn" data-filter="5xx">5xx</button>
+      <div class="xr-filter-sep"></div>
+      <button class="xr-filter-btn" data-filter-type="fetch" title="Fetch requests">📡 Fetch</button>
+      <button class="xr-filter-btn" data-filter-type="xhr" title="XHR requests">🔗 XHR</button>
+      <button class="xr-filter-btn" data-filter-type="log" title="Console logs">📋 Logs</button>
+    </div>
     <div class="xr-list-pane" id="xr-list-pane"></div>
   </div>
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
@@ -1239,16 +1358,59 @@ window.XRAY_Panel = (() => {
     const container = _dom.dots;
     if (!container) return;
     container.innerHTML = '';
-    Object.entries(window.XRAY_Themes || {}).forEach(([key, th]) => {
-      const dot = document.createElement('div');
-      dot.className = 'xr-dot' + (key === _state.theme ? ' xr-active' : '');
-      dot.dataset.theme = key;
-      dot.style.background = th.dot;
-      dot.title = th.name;
-      dot.addEventListener('click', () => { _applyTheme(key); _saveState(); });
-      container.appendChild(dot);
-    });
+
+    // Create theme dots with dropdown
+    const dotsWrapper = document.createElement('div');
+    dotsWrapper.style.display = 'flex';
+    dotsWrapper.style.alignItems = 'center';
+    dotsWrapper.style.gap = '6px';
+    dotsWrapper.style.position = 'relative';
+
+    const themeList = window.XRAY_ThemesList || [];
+    
+    // Show first dot as "picker" trigger
+    if (themeList.length > 0) {
+      const triggerDot = document.createElement('div');
+      triggerDot.className = 'xr-dot' + (_state.theme === themeList[0].id ? ' xr-active' : '');
+      triggerDot.style.background = themeList[0].dot;
+      triggerDot.title = 'Change theme';
+      triggerDot.style.cursor = 'pointer';
+
+      const dropdown = document.createElement('div');
+      dropdown.className = 'xr-theme-dropdown';
+
+      themeList.forEach(({ id, name, dot }) => {
+        const btn = document.createElement('button');
+        btn.textContent = name;
+        btn.dataset.theme = id;
+        if (id === _state.theme) btn.classList.add('xr-active');
+        btn.addEventListener('click', () => {
+          _applyTheme(id);
+          _saveTheme(id);
+          dropdown.classList.remove('xr-open');
+          _populateThemeDots();
+        });
+        dropdown.appendChild(btn);
+      });
+
+      triggerDot.addEventListener('click', () => {
+        dropdown.classList.toggle('xr-open');
+      });
+
+      dotsWrapper.appendChild(triggerDot);
+      dotsWrapper.appendChild(dropdown);
+    }
+
+    container.appendChild(dotsWrapper);
   }
+
+  // Close theme dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const dropdown = _dom.dots?.querySelector('.xr-theme-dropdown');
+    if (dropdown && !_dom.dots?.contains(e.target)) {
+      dropdown.classList.remove('xr-open');
+    }
+  });
 
   // ══════════════════════════════════════════════════════════════════════════
   // State persistence
@@ -1286,7 +1448,16 @@ window.XRAY_Panel = (() => {
       (_state.activeTab === 'api'  && e.type === 'api') ||
       (_state.activeTab === 'logs' && e.type === 'log')
     );
-    return window.XRAY_Search.filter(byTab, _state.filter);
+    const searched = window.XRAY_Search.filter(byTab, _state.filter);
+    const filtered = _applyFilters(searched);
+    
+    // Sort: pinned first, then by timestamp desc
+    return filtered.sort((a, b) => {
+      const aPinned = _state.pinned.has(a.id);
+      const bPinned = _state.pinned.has(b.id);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
   }
 
   function _entryMatchesCurrentTab(entry) {
@@ -1308,6 +1479,23 @@ window.XRAY_Panel = (() => {
       _dom.footerCount.textContent = shown;
   }
 
+  function _updateFilterUI() {
+    // Update status code buttons
+    _root.querySelectorAll('.xr-filter-btn[data-filter]').forEach(btn => {
+      const filter = btn.dataset.filter;
+      if (filter === 'all') {
+        btn.classList.toggle('xr-active', _state.filters.statusCodes.length === 0);
+      } else {
+        const range = filter + 'xx';
+        btn.classList.toggle('xr-active', _state.filters.statusCodes.includes(range));
+      }
+    });
+    // Update type buttons
+    _root.querySelectorAll('.xr-filter-btn[data-filter-type]').forEach(btn => {
+      btn.classList.toggle('xr-active', _state.filters.types.includes(btn.dataset.filterType));
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // List rendering
   // ══════════════════════════════════════════════════════════════════════════
@@ -1318,6 +1506,8 @@ window.XRAY_Panel = (() => {
     const el = document.createElement('div');
     el.className = 'xr-entry' + (entry.id === _state.selectedId ? ' xr-selected' : '');
     el.dataset.id = entry.id;
+
+    const isPinned = _state.pinned.has(entry.id);
 
     if (entry.type === 'api') {
       const method  = (entry.method || 'GET').toUpperCase();
@@ -1330,33 +1520,62 @@ window.XRAY_Panel = (() => {
       const barCls  = dur > 1000 ? 'xr-vslow' : dur > 300 ? 'xr-slow' : '';
       el.dataset.method = method;
       el.innerHTML = `
-        <div class="xr-entry-row1">
-          <span class="xr-method-badge ${mClass}">${method}</span>
-          <span class="xr-status ${sClass}">${entry.status || '—'}</span>
-          <span style="flex:1"></span>
-          <span style="font-size:9.5px;color:var(--xr-muted);font-family:'JetBrains Mono',monospace">${formatDuration(entry.duration)}</span>
-        </div>
-        <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
-        <div class="xr-entry-row3">
-          <span>${formatSize(entry.size)}</span>
-          <span class="xr-sep"></span>
-          <span>${formatTime(entry.timestamp || Date.now())}</span>
-          <div class="xr-timing-bar-wrap" title="${dur}ms">
-            <div class="xr-timing-bar ${barCls}" style="width:${barPct}%"></div>
+        <div class="xr-entry-pin" title="${isPinned ? 'Unpin' : 'Pin'}">⭐</div>
+        <div class="xr-entry-content">
+          <div class="xr-entry-row1">
+            <span class="xr-method-badge ${mClass}">${method}</span>
+            <span class="xr-status ${sClass}">${entry.status || '—'}</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9.5px;color:var(--xr-muted);font-family:'JetBrains Mono',monospace">${formatDuration(entry.duration)}</span>
+          </div>
+          <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
+          <div class="xr-entry-row3">
+            <span>${formatSize(entry.size)}</span>
+            <span class="xr-sep"></span>
+            <span>${formatTime(entry.timestamp || Date.now())}</span>
+            <div class="xr-timing-bar-wrap" title="${dur}ms">
+              <div class="xr-timing-bar ${barCls}" style="width:${barPct}%"></div>
+            </div>
           </div>
         </div>
       `;
+      
+      // Pin button click handler
+      el.querySelector('.xr-entry-pin').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (_state.pinned.has(entry.id)) {
+          _state.pinned.delete(entry.id);
+        } else {
+          _state.pinned.add(entry.id);
+        }
+        _savePinned();
+        _rebuildList();
+      });
     } else {
       const level   = (entry.logLevel || 'log').toLowerCase();
       const preview = previewJSON(entry.logData, 64);
       el.innerHTML = `
-        <div class="xr-entry-row1">
-          <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
-          <span style="flex:1"></span>
-          <span style="font-size:9.5px;color:var(--xr-muted)">${formatTime(entry.timestamp || Date.now())}</span>
+        <div class="xr-entry-pin" title="${isPinned ? 'Unpin' : 'Pin'}">⭐</div>
+        <div class="xr-entry-content">
+          <div class="xr-entry-row1">
+            <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9.5px;color:var(--xr-muted)">${formatTime(entry.timestamp || Date.now())}</span>
+          </div>
+          <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
         </div>
-        <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
       `;
+      
+      el.querySelector('.xr-entry-pin').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (_state.pinned.has(entry.id)) {
+          _state.pinned.delete(entry.id);
+        } else {
+          _state.pinned.add(entry.id);
+        }
+        _savePinned();
+        _rebuildList();
+      });
     }
 
     el.addEventListener('click', () => _selectEntry(entry.id));
@@ -2249,6 +2468,63 @@ window.XRAY_Panel = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Storage (Theme, Filters, Pinned)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function _loadState() {
+    // Load theme
+    const themeData = await window.XRAY_Store.get('theme', {});
+    if (themeData.value && window.XRAY_Themes[themeData.value]) {
+      _state.theme = themeData.value;
+    }
+
+    // Load filters
+    const filterData = await window.XRAY_Store.get('filters', {});
+    if (filterData.statusCodes) _state.filters.statusCodes = filterData.statusCodes;
+    if (filterData.types) _state.filters.types = filterData.types;
+
+    // Load pinned
+    const pinnedData = await window.XRAY_Store.get('pinned_entries', {});
+    if (Array.isArray(pinnedData.ids)) {
+      _state.pinned = new Set(pinnedData.ids);
+    }
+  }
+
+  function _saveTheme(themeId) {
+    window.XRAY_Store.set('theme', { value: themeId });
+  }
+
+  function _saveFilters() {
+    window.XRAY_Store.set('filters', {
+      statusCodes: Array.from(_state.filters.statusCodes),
+      types: Array.from(_state.filters.types)
+    });
+  }
+
+  function _savePinned() {
+    window.XRAY_Store.set('pinned_entries', {
+      ids: Array.from(_state.pinned)
+    });
+  }
+
+  function _applyFilters(entries) {
+    if (_state.filters.statusCodes.length === 0 && _state.filters.types.length === 0) {
+      return entries;
+    }
+    return entries.filter(e => {
+      if (_state.filters.statusCodes.length > 0) {
+        const codeRange = String(e.status || '').charAt(0) + 'xx';
+        if (!_state.filters.statusCodes.includes(codeRange)) return false;
+      }
+      if (_state.filters.types.length > 0) {
+        const eType = e.type === 'api' ? (e.method ? 'fetch' : 'doc') : 'log';
+        if (!_state.filters.types.includes(eType)) return false;
+      }
+      return true;
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Event binding
   // ══════════════════════════════════════════════════════════════════════════
   function _bindEvents() {
@@ -2267,9 +2543,47 @@ window.XRAY_Panel = (() => {
       });
     });
 
+    // Filter bar status code buttons
+    _root.querySelectorAll('.xr-filter-btn[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter;
+        if (filter === 'all') {
+          _state.filters.statusCodes = [];
+        } else {
+          const range = filter + 'xx';
+          if (_state.filters.statusCodes.includes(range)) {
+            _state.filters.statusCodes = _state.filters.statusCodes.filter(f => f !== range);
+          } else {
+            _state.filters.statusCodes.push(range);
+          }
+        }
+        _saveFilters();
+        _updateFilterUI();
+        _rebuildList();
+        _updateCounts();
+      });
+    });
+
+    // Filter bar type buttons
+    _root.querySelectorAll('.xr-filter-btn[data-filter-type]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.filterType;
+        if (_state.filters.types.includes(type)) {
+          _state.filters.types = _state.filters.types.filter(t => t !== type);
+        } else {
+          _state.filters.types.push(type);
+        }
+        _saveFilters();
+        _updateFilterUI();
+        _rebuildList();
+        _updateCounts();
+      });
+    });
+
     _dom.clearBtn.addEventListener('click', () => {
       _state.entries    = [];
       _state.selectedId = null;
+      _state.pinned.clear();
       _rebuildList();
       _renderDetail(null);
       _updateCounts();
@@ -2359,6 +2673,7 @@ window.XRAY_Panel = (() => {
       _rebuildList();
       _renderDetail(null);
       _updateCounts();
+      _updateFilterUI();
 
       // Events + shortcuts
       _bindEvents();
