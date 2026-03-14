@@ -473,6 +473,31 @@ window.XRAY_Panel = (() => {
   background: rgba(255, 215, 0, 0.08);
 }
 
+/* Entry menu button */
+.xr-entry-menu {
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 8px 6px;
+  font-size: 14px;
+  opacity: 0.4;
+  transition: opacity .2s, background .2s;
+  border-radius: 3px;
+  height: 100%;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.xr-entry-menu:hover {
+  opacity: 1;
+  background: var(--xr-bg3);
+}
+.xr-entry-menu.xr-open {
+  opacity: 1;
+  background: var(--xr-surface);
+}
+
 /* Content wrapper */
 .xr-entry-content {
   flex: 1;
@@ -489,6 +514,45 @@ window.XRAY_Panel = (() => {
   to   { opacity: 1; transform: translateX(0); }
 }
 .xr-entry-new { animation: xr-slide-in .18s ease-out both; }
+
+/* Entry context menu */
+.xr-entry-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--xr-surface);
+  border: 1px solid var(--xr-border);
+  border-radius: 6px;
+  padding: 4px;
+  margin-top: 4px;
+  min-width: 140px;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  display: none;
+  flex-direction: column;
+}
+.xr-entry-menu-dropdown.xr-open {
+  display: flex;
+}
+.xr-entry-menu-dropdown button {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--xr-text);
+  border-radius: 4px;
+  transition: background .15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.xr-entry-menu-dropdown button:hover { background: var(--xr-bg3); }
+.xr-entry-menu-dropdown-sep {
+  height: 1px;
+  background: var(--xr-border);
+  margin: 2px 0;
+}
 
 .xr-entry-row1 {
   display: flex;
@@ -1532,6 +1596,7 @@ window.XRAY_Panel = (() => {
             </div>
           </div>
         </div>
+        <div class="xr-entry-menu" title="More options">⋯</div>
       `;
       
       // Pin button click handler
@@ -1558,6 +1623,7 @@ window.XRAY_Panel = (() => {
           </div>
           <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
         </div>
+        <div class="xr-entry-menu" title="More options">⋯</div>
       `;
       
       el.querySelector('.xr-entry-pin').addEventListener('click', (e) => {
@@ -1569,6 +1635,66 @@ window.XRAY_Panel = (() => {
         }
         _savePinned();
         _rebuildList();
+      });
+    }
+
+    // Menu button handler
+    const menuBtn = el.querySelector('.xr-entry-menu');
+    if (menuBtn) {
+      // Create dropdown menu
+      const dropdown = document.createElement('div');
+      dropdown.className = 'xr-entry-menu-dropdown';
+
+      const menuItems = [
+        { label: isPinned ? '☆ Unpin' : '⭐ Pin', action: () => {
+          if (_state.pinned.has(entry.id)) _state.pinned.delete(entry.id);
+          else _state.pinned.add(entry.id);
+          _savePinned();
+          _rebuildList();
+        }},
+        { label: '🔗 Open in tab', action: () => {
+          if (entry.url) window.open(entry.url, '_blank');
+        }},
+        { label: '🔄 Replay', action: () => {
+          // TODO: implement replay
+          console.log('Replay:', entry.id);
+        }},
+        null, // separator
+        { label: '📋 Copy & Export', action: () => {
+          // TODO: open copy modal
+          console.log('Export:', entry.id);
+        }},
+      ];
+
+      menuItems.forEach(item => {
+        if (!item) {
+          const sep = document.createElement('div');
+          sep.className = 'xr-entry-menu-dropdown-sep';
+          dropdown.appendChild(sep);
+          return;
+        }
+        const btn = document.createElement('button');
+        btn.textContent = item.label;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          item.action();
+          dropdown.classList.remove('xr-open');
+        });
+        dropdown.appendChild(btn);
+      });
+
+      menuBtn.appendChild(dropdown);
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('xr-open');
+      });
+
+      // Close menu when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!el.contains(e.target)) {
+          dropdown.classList.remove('xr-open');
+        }
       });
     }
 
