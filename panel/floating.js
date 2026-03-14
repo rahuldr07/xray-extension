@@ -1473,6 +1473,179 @@ window.XRAY_Panel = (() => {
   background: var(--xr-surface);
 }
 
+/* ─── Settings Modal ─────────────────────────────────────────────────────── */
+.xr-settings-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 9998;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+.xr-settings-backdrop.xr-open {
+  display: flex;
+}
+.xr-settings-modal {
+  background: var(--xr-bg);
+  border: 1px solid var(--xr-border);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,.3);
+}
+.xr-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--xr-border);
+  flex-shrink: 0;
+}
+.xr-settings-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--xr-text);
+  font-family: inherit;
+}
+.xr-settings-close {
+  background: none;
+  border: none;
+  color: var(--xr-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color .12s;
+}
+.xr-settings-close:hover {
+  color: var(--xr-text);
+}
+.xr-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+.xr-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.xr-settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--xr-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.xr-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+.xr-settings-label {
+  font-size: 11px;
+  color: var(--xr-text);
+  flex: 1;
+}
+.xr-settings-select {
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 5px;
+  color: var(--xr-text);
+  font-size: 11px;
+  padding: 6px 8px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.xr-settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.xr-settings-checkbox:hover {
+  background: var(--xr-surface);
+}
+.xr-settings-checkbox input {
+  cursor: pointer;
+  accent-color: var(--xr-ring);
+}
+.xr-settings-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.xr-settings-stat-label {
+  font-size: 11px;
+  color: var(--xr-muted);
+}
+.xr-settings-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--xr-ring);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.xr-settings-kbd-table {
+  font-size: 10px;
+  width: 100%;
+  border-collapse: collapse;
+}
+.xr-settings-kbd-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--xr-border);
+  color: var(--xr-text);
+}
+.xr-settings-kbd-table td:first-child {
+  color: var(--xr-muted);
+  width: 50%;
+}
+.xr-settings-kbd-table td:last-child {
+  text-align: right;
+}
+.xr-settings-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--xr-border);
+  flex-shrink: 0;
+  justify-content: space-between;
+}
+.xr-settings-btn {
+  background: transparent;
+  border: 1px solid var(--xr-border);
+  color: var(--xr-text);
+  border-radius: 5px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s;
+  font-family: inherit;
+}
+.xr-settings-btn:hover {
+  background: var(--xr-surface);
+}
+.xr-settings-btn-danger {
+  color: var(--xr-red);
+  border-color: var(--xr-red);
+}
+.xr-settings-btn-danger:hover {
+  background: rgba(248,113,113,.1);
+}
+
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -1520,6 +1693,7 @@ window.XRAY_Panel = (() => {
     </button>
   </div>
   <div class="xr-hspacer"></div>
+  <button class="xr-ibtn" id="xr-settings-btn" title="Settings">⚙️</button>
   <div class="xr-dots" id="xr-dots"></div>
   <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
 </div>
@@ -1565,6 +1739,110 @@ window.XRAY_Panel = (() => {
     <div class="xr-copy-footer">
       <button class="xr-copy-btn xr-copy-btn-cancel" id="xr-copy-cancel">Cancel</button>
       <button class="xr-copy-btn" id="xr-copy-btn">Copy</button>
+    </div>
+  </div>
+</div>
+<div class="xr-settings-backdrop" id="xr-settings-backdrop">
+  <div class="xr-settings-modal">
+    <div class="xr-settings-header">
+      <div class="xr-settings-title">Settings</div>
+      <button class="xr-settings-close" id="xr-settings-close">✕</button>
+    </div>
+    <div class="xr-settings-body">
+      <!-- Appearance -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Appearance</div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-label">Theme</label>
+          <select class="xr-settings-select" id="xr-settings-theme">
+            <option value="zinc">Zinc (Dark)</option>
+            <option value="mocha">Mocha (Dark)</option>
+            <option value="latte">Latte (Light)</option>
+            <option value="dracula">Dracula (Dark)</option>
+            <option value="nord">Nord (Dark)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Filters</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-2xx" data-filter="2xx">
+            <span>2xx Success</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-3xx" data-filter="3xx">
+            <span>3xx Redirect</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-4xx" data-filter="4xx">
+            <span>4xx Client Error</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-5xx" data-filter="5xx">
+            <span>5xx Server Error</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-fetch" data-filter="fetch">
+            <span>Fetch requests</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-xhr" data-filter="xhr">
+            <span>XHR requests</span>
+          </label>
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-filter-logs" data-filter="logs">
+            <span>Console logs</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Statistics -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Statistics</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div class="xr-settings-stat">
+            <span class="xr-settings-stat-label">Total API calls:</span>
+            <span class="xr-settings-stat-value" id="xr-stat-api">0</span>
+          </div>
+          <div class="xr-settings-stat">
+            <span class="xr-settings-stat-label">Console logs:</span>
+            <span class="xr-settings-stat-value" id="xr-stat-logs">0</span>
+          </div>
+          <div class="xr-settings-stat">
+            <span class="xr-settings-stat-label">Pinned entries:</span>
+            <span class="xr-settings-stat-value" id="xr-stat-pinned">0</span>
+          </div>
+          <div class="xr-settings-stat">
+            <span class="xr-settings-stat-label">Error responses (4xx/5xx):</span>
+            <span class="xr-settings-stat-value" id="xr-stat-errors">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyboard Shortcuts -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Keyboard Shortcuts</div>
+        <table class="xr-settings-kbd-table">
+          <tr><td><span class="xr-kbd">Ctrl+Shift+X</span></td><td>Toggle panel</td></tr>
+          <tr><td><span class="xr-kbd">Ctrl+K</span></td><td>Fuzzy search</td></tr>
+          <tr><td><span class="xr-kbd">Ctrl+F</span></td><td>Search in JSON</td></tr>
+          <tr><td><span class="xr-kbd">T</span></td><td>Tree view</td></tr>
+          <tr><td><span class="xr-kbd">G</span></td><td>Grid view</td></tr>
+          <tr><td><span class="xr-kbd">R</span></td><td>Raw JSON</td></tr>
+          <tr><td><span class="xr-kbd">D</span></td><td>Diff view</td></tr>
+          <tr><td><span class="xr-kbd">S</span></td><td>Pin/Star</td></tr>
+          <tr><td><span class="xr-kbd">C</span></td><td>Copy JSON</td></tr>
+          <tr><td><span class="xr-kbd">Esc</span></td><td>Close panel</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="xr-settings-footer">
+      <button class="xr-settings-btn xr-settings-btn-danger" id="xr-settings-clear-pins">Clear Pins</button>
+      <button class="xr-settings-btn xr-settings-btn-danger" id="xr-settings-clear-all">Clear All</button>
     </div>
   </div>
 </div>
@@ -3083,6 +3361,111 @@ func main() {
     return code;
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Settings Modal
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function _openSettingsModal() {
+    const backdrop = _dom.settingsBackdrop;
+    if (!backdrop) return;
+
+    _updateSettingsStats();
+    _populateFilterCheckboxes();
+    _dom.settingsTheme.value = _state.theme;
+
+    backdrop.classList.add('xr-open');
+
+    _dom.settingsTheme.addEventListener('change', (e) => {
+      _state.theme = e.target.value;
+      _applyTheme(_state.theme);
+      window.XRAY_Store.set('theme', _state.theme);
+    });
+
+    _dom.settingsClrPins.addEventListener('click', () => {
+      _state.pinned.clear();
+      _savePinned();
+      _rebuildList();
+      _updateSettingsStats();
+    });
+
+    _dom.settingsClrAll.addEventListener('click', () => {
+      if (confirm('Delete all entries? This cannot be undone.')) {
+        _state.entries = [];
+        _state.selectedId = null;
+        _state.pinned.clear();
+        _savePinned();
+        _rebuildList();
+        _renderDetail(null);
+        _updateCounts();
+        _updateSettingsStats();
+      }
+    });
+
+    _dom.settingsClose.addEventListener('click', () => {
+      backdrop.classList.remove('xr-open');
+    });
+
+    // Filter checkboxes
+    _root.querySelectorAll('[data-filter]').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const filter = e.target.dataset.filter;
+        const statusFilters = ['2xx', '3xx', '4xx', '5xx'];
+        const typeFilters = ['fetch', 'xhr', 'logs'];
+
+        if (statusFilters.includes(filter)) {
+          const idx = _state.filters.statusCodes.indexOf(filter);
+          if (e.target.checked && idx === -1) {
+            _state.filters.statusCodes.push(filter);
+          } else if (!e.target.checked && idx !== -1) {
+            _state.filters.statusCodes.splice(idx, 1);
+          }
+        } else if (typeFilters.includes(filter)) {
+          const typeMap = { fetch: 'fetch', xhr: 'xhr', logs: 'log' };
+          const mappedType = typeMap[filter];
+          const idx = _state.filters.types.indexOf(mappedType);
+          if (e.target.checked && idx === -1) {
+            _state.filters.types.push(mappedType);
+          } else if (!e.target.checked && idx !== -1) {
+            _state.filters.types.splice(idx, 1);
+          }
+        }
+
+        window.XRAY_Store.set('filters', _state.filters);
+        _rebuildList();
+      });
+    });
+  }
+
+  function _updateSettingsStats() {
+    const allEntries = _state.entries;
+    const apiEntries = allEntries.filter(e => e.type === 'api');
+    const logEntries = allEntries.filter(e => e.type === 'log');
+    const errors = allEntries.filter(e => {
+      const code = String(e.status || '');
+      return code.startsWith('4') || code.startsWith('5');
+    });
+
+    if (_dom.statApi) _dom.statApi.textContent = apiEntries.length;
+    if (_dom.statLogs) _dom.statLogs.textContent = logEntries.length;
+    if (_dom.statPinned) _dom.statPinned.textContent = _state.pinned.size;
+    if (_dom.statErrors) _dom.statErrors.textContent = errors.length;
+  }
+
+  function _populateFilterCheckboxes() {
+    const statusMap = { '2xx': 'xr-filter-2xx', '3xx': 'xr-filter-3xx', '4xx': 'xr-filter-4xx', '5xx': 'xr-filter-5xx' };
+    const typeMap = { 'fetch': 'xr-filter-fetch', 'xhr': 'xr-filter-xhr', 'log': 'xr-filter-logs' };
+
+    Object.entries(statusMap).forEach(([code, id]) => {
+      const cb = _root.getElementById(id);
+      if (cb) cb.checked = _state.filters.statusCodes.includes(code);
+    });
+
+    Object.entries(typeMap).forEach(([type, id]) => {
+      const cb = _root.getElementById(id);
+      if (cb) cb.checked = _state.filters.types.includes(type);
+    });
+  }
+
   function _applyFilters(entries) {
     if (_state.filters.statusCodes.length === 0 && _state.filters.types.length === 0) {
       return entries;
@@ -3105,6 +3488,8 @@ func main() {
   // ══════════════════════════════════════════════════════════════════════════
   function _bindEvents() {
     _dom.closeBtn.addEventListener('click', () => _public.hide());
+
+    _dom.settingsBtn.addEventListener('click', () => _openSettingsModal());
 
     _root.querySelectorAll('.xr-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3190,6 +3575,7 @@ func main() {
       _dom.panel        = _root.getElementById('xr-panel');
       _dom.panelResize  = _root.getElementById('xr-panel-resize');
       _dom.dots         = _root.getElementById('xr-dots');
+      _dom.settingsBtn  = _root.getElementById('xr-settings-btn');
       _dom.closeBtn     = _root.getElementById('xr-close');
       _dom.listPane     = _root.getElementById('xr-list-pane');
       _dom.dragHandle   = _root.getElementById('xr-drag-handle');
@@ -3208,6 +3594,16 @@ func main() {
       _dom.copyBtn     = _root.getElementById('xr-copy-btn');
       _dom.copyCancel  = _root.getElementById('xr-copy-cancel');
       _dom.copyClose   = _root.getElementById('xr-copy-close');
+      
+      _dom.settingsBackdrop = _root.getElementById('xr-settings-backdrop');
+      _dom.settingsTheme    = _root.getElementById('xr-settings-theme');
+      _dom.settingsClose    = _root.getElementById('xr-settings-close');
+      _dom.settingsClrPins  = _root.getElementById('xr-settings-clear-pins');
+      _dom.settingsClrAll   = _root.getElementById('xr-settings-clear-all');
+      _dom.statApi          = _root.getElementById('xr-stat-api');
+      _dom.statLogs         = _root.getElementById('xr-stat-logs');
+      _dom.statPinned       = _root.getElementById('xr-stat-pinned');
+      _dom.statErrors       = _root.getElementById('xr-stat-errors');
 
       // Apply persisted state
       _dom.panel.style.width = `${_state.panelWidth}px`;
