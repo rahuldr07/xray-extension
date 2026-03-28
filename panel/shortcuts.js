@@ -65,16 +65,23 @@ window.XRAY_Shortcuts = (() => {
     // The remaining shortcuts only fire when not in an input field
     if (inInput) return;
 
+    // Shift+W — collapse all tree nodes
+    if (e.shiftKey && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      _panel.expandAll(false);
+      return;
+    }
+
     switch (e.key.toLowerCase()) {
       case '/':         e.preventDefault(); _panel.focusSearch();   break;
       case 't':         e.preventDefault(); _panel.setView('tree'); break;
       case 'g':         e.preventDefault(); _panel.setView('grid'); break;
       case 'r':         e.preventDefault(); _panel.setView('raw');  break;
       case 'd':         e.preventDefault(); _panel.setView('diff'); break;
+      case 'w':         e.preventDefault(); _panel.setView('waterfall'); break;
       case 'c':         e.preventDefault(); _panel.copySelected();  break;
       case 's':         e.preventDefault(); _panel.pinSelected();   break;
       case 'e':         e.preventDefault(); _panel.expandAll(true); break;
-      case 'w':         e.preventDefault(); _panel.expandAll(false);break;
       case 'arrowdown': e.preventDefault(); _panel.selectNext(1);   break;
       case 'arrowup':   e.preventDefault(); _panel.selectNext(-1);  break;
     }

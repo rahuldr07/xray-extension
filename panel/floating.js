@@ -19,9 +19,13 @@ window.XRAY_Panel = (() => {
     entries:       [],
     diffCompareId: null,         // ID of entry to diff against
     gridDrillRow:  null,         // drilled-in row data from grid view
+    expandedGroups:new Set(),    // expanded endpoint groups
+    treePath:      '',
     paneSearch:    { active: false, query: '', hits: [], current: -1 },
     pinned:        new Set(),    // pinned entry IDs
     filters:       { statusCodes: [], types: [] },  // filter state
+    maxEntries:    500,
+    autoOpen:      false,
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -61,6 +65,7 @@ window.XRAY_Panel = (() => {
   transform: translateX(102%);
   transition: transform .24s cubic-bezier(.16,1,.3,1);
   overflow: hidden;
+  container-type: inline-size;
 }
 #xr-panel.xr-open { transform: translateX(0); }
 
@@ -432,13 +437,19 @@ window.XRAY_Panel = (() => {
   display: flex;
   align-items: flex-start;
   gap: 6px;
+  --xr-heat: 0;
+  background-image: linear-gradient(90deg, rgba(251,191,36,var(--xr-heat)) 0%, rgba(251,191,36,0) 72%);
 }
 .xr-entry:hover {
-  background: linear-gradient(90deg, rgba(255,255,255,.03) 0%, transparent 100%);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.03) 0%, transparent 100%),
+    linear-gradient(90deg, rgba(251,191,36,var(--xr-heat)) 0%, rgba(251,191,36,0) 72%);
   transform: translateX(1px);
 }
 .xr-entry.xr-selected {
-  background: linear-gradient(90deg, rgba(255,255,255,.05) 0%, transparent 100%);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.05) 0%, transparent 100%),
+    linear-gradient(90deg, rgba(251,191,36,var(--xr-heat)) 0%, rgba(251,191,36,0) 72%);
   border-left-color: var(--xr-accent);
 }
 /* Color the left stripe by method */
@@ -448,6 +459,40 @@ window.XRAY_Panel = (() => {
 .xr-entry[data-method="DELETE"] { --xr-stripe: var(--xr-red);    }
 .xr-entry[data-method="PATCH"]  { --xr-stripe: var(--xr-purple); }
 .xr-entry.xr-selected { border-left-color: var(--xr-stripe, var(--xr-accent)); }
+
+.xr-group-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 16px;
+  border: 1px solid var(--xr-border);
+  border-radius: 10px;
+  background: var(--xr-bg3);
+  color: var(--xr-subtext);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.xr-group-badge:hover { border-color: var(--xr-ring); color: var(--xr-text); }
+.xr-group-badge.xr-open { color: var(--xr-accent); border-color: var(--xr-accent); }
+.xr-group-children { display: flex; flex-direction: column; }
+.xr-entry.xr-group-child {
+  margin-left: 14px;
+  border-left-width: 2px;
+  opacity: .95;
+}
+.xr-entry.xr-group-child::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--xr-border);
+}
 
 /* Pin button */
 .xr-entry-pin {
@@ -585,6 +630,27 @@ window.XRAY_Panel = (() => {
   flex-shrink: 0;
 }
 
+.xr-spark-wrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+}
+.xr-spark {
+  width: 44px;
+  height: 12px;
+}
+.xr-spark-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  opacity: .9;
+}
+.xr-spark-dot { fill: currentColor; }
+.xr-spark-fast { color: var(--xr-green); }
+.xr-spark-mid { color: var(--xr-yellow); }
+.xr-spark-slow { color: var(--xr-red); }
+
 /* Timing bar */
 .xr-timing-bar-wrap {
   flex: 1;
@@ -647,7 +713,11 @@ window.XRAY_Panel = (() => {
   letter-spacing: .2px;
   padding: 1px 5px;
   border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
+.xr-status-icon { font-size: 9px; opacity: .92; line-height: 1; }
 .xr-s0 { color: var(--xr-muted);  background: rgba(255,255,255,.04); }
 .xr-s2 { color: var(--xr-green);  background: rgba(74,222,128,.1);   }
 .xr-s3 { color: var(--xr-blue);   background: rgba(96,165,250,.1);   }
@@ -780,7 +850,7 @@ window.XRAY_Panel = (() => {
   box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .xr-toolbar-spacer { flex: 1; }
-.xr-copy-btn {
+.xr-copy-dropdown-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -796,8 +866,8 @@ window.XRAY_Panel = (() => {
   transition: border-color .12s, color .12s, background .12s;
   line-height: 1.4;
 }
-.xr-copy-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); background: var(--xr-surface); }
-.xr-copy-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); background: rgba(74,222,128,.06); }
+.xr-copy-dropdown-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); background: var(--xr-surface); }
+.xr-copy-dropdown-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); background: rgba(74,222,128,.06); }
 
 /* Sub-tabs */
 .xr-dtabs {
@@ -1049,6 +1119,27 @@ window.XRAY_Panel = (() => {
   padding: 5px 10px; font-size: 11px; color: var(--xr-text);
   white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
 }
+.xr-grid-table thead th.xr-grid-idx,
+.xr-grid-table tbody td.xr-grid-idx {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--xr-bg2);
+}
+.xr-grid-table tbody td.xr-grid-idx { background: var(--xr-bg); z-index: 2; }
+.xr-grid-table thead th:nth-child(2),
+.xr-grid-table tbody td:nth-child(2) {
+  position: sticky;
+  left: 36px;
+  z-index: 2;
+  background: var(--xr-bg);
+  box-shadow: 2px 0 0 var(--xr-border);
+}
+.xr-grid-table thead th:nth-child(2) { background: var(--xr-bg2); z-index: 3; }
+.xr-grid-row:hover td.xr-grid-idx,
+.xr-grid-row:hover td:nth-child(2) { background: var(--xr-bg3); }
+.xr-grid-row.xr-grid-sel td.xr-grid-idx,
+.xr-grid-row.xr-grid-sel td:nth-child(2) { background: rgba(99,102,241,.1); }
 .xr-gc-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; }
 .xr-gc-null { color: var(--xr-muted); font-style: italic; }
 .xr-gc-true { color: var(--xr-green); }
@@ -1099,6 +1190,108 @@ window.XRAY_Panel = (() => {
 .xr-diff-old-val { color: var(--xr-red) !important; text-decoration: line-through; opacity: .8; }
 .xr-diff-new-val { color: var(--xr-green) !important; }
 .xr-diff-arrow  { color: var(--xr-muted); margin: 0 4px; font-size: 10px; }
+.xr-diff-auto-info {
+  padding: 5px 10px;
+  font-size: 10px;
+  color: var(--xr-subtext);
+  border-bottom: 1px solid var(--xr-border);
+  background: var(--xr-bg2);
+}
+
+/* ─── Tree breadcrumb ─────────────────────────────────────────────────────── */
+.xr-tree-breadcrumb {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--xr-border);
+  background: var(--xr-bg2);
+  flex-shrink: 0;
+}
+.xr-tree-breadcrumb.xr-open { display: flex; }
+.xr-tree-crumb {
+  border: 1px solid var(--xr-border);
+  background: var(--xr-bg3);
+  color: var(--xr-subtext);
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.xr-tree-crumb:hover { color: var(--xr-text); border-color: var(--xr-ring); }
+.xr-tree-crumb-sep { color: var(--xr-muted); font-size: 9px; }
+.xr-tree-path-hit {
+  outline: 1px solid var(--xr-accent);
+  background: rgba(99,102,241,.08);
+}
+
+/* ─── Waterfall view ──────────────────────────────────────────────────────── */
+.xr-waterfall-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.xr-waterfall-axis {
+  position: relative;
+  height: 18px;
+  border-bottom: 1px solid var(--xr-border);
+  font-size: 9px;
+  color: var(--xr-muted);
+  margin: 0 10px;
+}
+.xr-waterfall-axis-tick {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.xr-waterfall-axis-tick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 1px;
+  height: 8px;
+  background: var(--xr-border);
+}
+.xr-waterfall-body { flex: 1; overflow: auto; padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.xr-waterfall-row { display: grid; grid-template-columns: 210px 1fr; gap: 8px; align-items: center; }
+.xr-waterfall-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.xr-waterfall-lane {
+  position: relative;
+  height: 18px;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+}
+.xr-waterfall-bar {
+  position: absolute;
+  top: 1px;
+  height: 14px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  min-width: 2px;
+  color: var(--xr-bg);
+  font-size: 9px;
+  padding: 0 4px;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.xr-waterfall-bar-text { pointer-events: none; font-weight: 700; opacity: .9; }
+.xr-waterfall-bar.xr-selected { outline: 1px solid var(--xr-accent); }
+.xr-wf-get { background: rgba(96,165,250,.75); }
+.xr-wf-post { background: rgba(74,222,128,.75); }
+.xr-wf-put { background: rgba(251,191,36,.75); }
+.xr-wf-delete { background: rgba(248,113,113,.75); }
+.xr-wf-patch { background: rgba(192,132,252,.75); }
+.xr-wf-head, .xr-wf-options { background: rgba(139, 92, 246, .65); }
 
 /* ─── Pane search bar ────────────────────────────────────────────────────── */
 .xr-pane-search {
@@ -1645,6 +1838,43 @@ window.XRAY_Panel = (() => {
   background: rgba(248,113,113,.1);
 }
 
+/* ─── Container queries (panel-width responsive) ─────────────────────────── */
+@container (max-width: 500px) {
+  .xr-header { padding: 0 7px 0 9px; }
+  .xr-tab { padding: 4px 8px; font-size: 10px; }
+  .xr-detail-url { font-size: 10px; }
+  .xr-pills-row { gap: 5px; }
+  .xr-pill { padding: 4px 6px; }
+  .xr-waterfall-row { grid-template-columns: 150px 1fr; }
+}
+
+@container (max-width: 420px) {
+  .xr-filter-btn { padding: 3px 5px; font-size: 9px; }
+  .xr-filter-btn[data-filter-type] {
+    font-size: 0;
+    min-width: 24px;
+    padding: 3px 4px;
+  }
+  .xr-filter-btn[data-filter-type]::before {
+    content: attr(data-short);
+    font-size: 10px;
+  }
+  .xr-dtabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 0 8px;
+  }
+  .xr-dtab { padding: 8px 6px; text-align: center; }
+  .xr-toolbar-row { padding: 6px 8px; }
+  .xr-waterfall-row { grid-template-columns: 120px 1fr; }
+}
+
+@container (min-width: 600px) {
+  .xr-header { padding: 0 12px 0 14px; }
+  .xr-entry-content { padding-right: 10px; }
+  .xr-waterfall-row { grid-template-columns: 240px 1fr; }
+}
+
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -1763,41 +1993,6 @@ window.XRAY_Panel = (() => {
         </div>
       </div>
 
-      <!-- Filters -->
-      <div class="xr-settings-section">
-        <div class="xr-settings-section-title">Filters</div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-2xx" data-filter="2xx">
-            <span>2xx Success</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-3xx" data-filter="3xx">
-            <span>3xx Redirect</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-4xx" data-filter="4xx">
-            <span>4xx Client Error</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-5xx" data-filter="5xx">
-            <span>5xx Server Error</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-fetch" data-filter="fetch">
-            <span>Fetch requests</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-xhr" data-filter="xhr">
-            <span>XHR requests</span>
-          </label>
-          <label class="xr-settings-checkbox">
-            <input type="checkbox" id="xr-filter-logs" data-filter="logs">
-            <span>Console logs</span>
-          </label>
-        </div>
-      </div>
-
       <!-- Statistics -->
       <div class="xr-settings-section">
         <div class="xr-settings-section-title">Statistics</div>
@@ -1832,6 +2027,8 @@ window.XRAY_Panel = (() => {
           <tr><td><span class="xr-kbd">G</span></td><td>Grid view</td></tr>
           <tr><td><span class="xr-kbd">R</span></td><td>Raw JSON</td></tr>
           <tr><td><span class="xr-kbd">D</span></td><td>Diff view</td></tr>
+          <tr><td><span class="xr-kbd">W</span></td><td>Waterfall view</td></tr>
+          <tr><td><span class="xr-kbd">Shift+W</span></td><td>Collapse all</td></tr>
           <tr><td><span class="xr-kbd">S</span></td><td>Pin/Star</td></tr>
           <tr><td><span class="xr-kbd">C</span></td><td>Copy JSON</td></tr>
           <tr><td><span class="xr-kbd">Esc</span></td><td>Close panel</td></tr>
@@ -1919,6 +2116,13 @@ window.XRAY_Panel = (() => {
     if (dropdown && !_dom.dots?.contains(e.target)) {
       dropdown.classList.remove('xr-open');
     }
+    const inEntryMenu = typeof e.target?.closest === 'function' &&
+      !!e.target.closest('.xr-entry-menu, .xr-entry-menu-dropdown');
+    if (!inEntryMenu) {
+      _root?.querySelectorAll('.xr-entry-menu-dropdown.xr-open').forEach((menu) => {
+        menu.classList.remove('xr-open');
+      });
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1927,26 +2131,9 @@ window.XRAY_Panel = (() => {
   function _saveState() {
     window.XRAY_Store.set(STORE_KEY, {
       open:       _state.open,
-      theme:      _state.theme,
       listWidth:  _state.listWidth,
       panelWidth: _state.panelWidth,
     });
-  }
-
-  async function _loadState() {
-    const saved = await window.XRAY_Store.get(STORE_KEY, {});
-    if (saved.theme && window.XRAY_Themes?.[saved.theme]) {
-      _state.theme = saved.theme;
-    }
-    if (typeof saved.listWidth === 'number') {
-      _state.listWidth = Math.min(300, Math.max(130, saved.listWidth));
-    }
-    if (typeof saved.panelWidth === 'number') {
-      _state.panelWidth = Math.min(MAX_PANEL_W, Math.max(MIN_PANEL_W, saved.panelWidth));
-    }
-    if (typeof saved.open === 'boolean') {
-      _state.open = saved.open;
-    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1975,7 +2162,8 @@ window.XRAY_Panel = (() => {
   }
 
   function _entryMatchesFilter(entry) {
-    return window.XRAY_Search.filter([entry], _state.filter).length > 0;
+    if (window.XRAY_Search.filter([entry], _state.filter).length === 0) return false;
+    return _applyFilters([entry]).length > 0;
   }
 
   function _updateCounts() {
@@ -1988,35 +2176,64 @@ window.XRAY_Panel = (() => {
       _dom.footerCount.textContent = shown;
   }
 
-  function _updateFilterUI() {
-    // Update status code buttons
-    _root.querySelectorAll('.xr-filter-btn[data-filter]').forEach(btn => {
-      const filter = btn.dataset.filter;
-      if (filter === 'all') {
-        btn.classList.toggle('xr-active', _state.filters.statusCodes.length === 0);
-      } else {
-        const range = filter + 'xx';
-        btn.classList.toggle('xr-active', _state.filters.statusCodes.includes(range));
-      }
-    });
-    // Update type buttons
-    _root.querySelectorAll('.xr-filter-btn[data-filter-type]').forEach(btn => {
-      btn.classList.toggle('xr-active', _state.filters.types.includes(btn.dataset.filterType));
-    });
-  }
-
   // ══════════════════════════════════════════════════════════════════════════
   // List rendering
   // ══════════════════════════════════════════════════════════════════════════
-  function _renderEntry(entry) {
+  function _statusGlyph(status) {
+    const code = Number(status) || 0;
+    if (code >= 200 && code < 300) return '✓';
+    if (code >= 300 && code < 400) return '↗';
+    if (code >= 400 && code < 500) return '⚠';
+    if (code >= 500) return '✕';
+    return '•';
+  }
+
+  function _recentEndpointDurations(entry, limit = 8) {
+    const endpoint = entry?.urlPath || entry?.url || null;
+    if (!endpoint) return [Math.max(0, Number(entry?.duration) || 0)];
+    const durations = _state.entries
+      .filter((e) => e.type === 'api' && ((e.urlPath || e.url || null) === endpoint))
+      .slice(-limit)
+      .map((e) => Math.max(0, Number(e.duration) || 0));
+    if (!durations.length) durations.push(Math.max(0, Number(entry?.duration) || 0));
+    return durations;
+  }
+
+  function _buildSparklineSVG(durations, currentDuration) {
+    const vals = durations.length ? durations : [0];
+    const width = 44;
+    const height = 12;
+    const max = Math.max(1, ...vals);
+    const points = vals.map((d, i) => {
+      const x = vals.length === 1 ? 0 : (i / (vals.length - 1)) * width;
+      const y = height - (Math.min(max, d) / max) * height;
+      return `${x.toFixed(2)},${Math.max(1, y).toFixed(2)}`;
+    }).join(' ');
+    const last = points.split(' ').pop() || `0,${height}`;
+    const sparkClass = currentDuration > 1000 ? 'xr-spark-slow' : currentDuration > 300 ? 'xr-spark-mid' : 'xr-spark-fast';
+    return `<svg class="xr-spark ${sparkClass}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+      <polyline class="xr-spark-line" points="${points}" />
+      <circle class="xr-spark-dot" cx="${last.split(',')[0]}" cy="${last.split(',')[1]}" r="1.8"></circle>
+    </svg>`;
+  }
+
+  function _renderEntry(entry, opts = {}) {
     const { formatTime, formatDuration, formatSize, statusClass, methodClass, shortPath, previewJSON } =
       window.XRAY_Utils;
 
     const el = document.createElement('div');
-    el.className = 'xr-entry' + (entry.id === _state.selectedId ? ' xr-selected' : '');
+    const isSelected = opts.forceSelected || entry.id === _state.selectedId;
+    el.className = 'xr-entry' + (isSelected ? ' xr-selected' : '');
     el.dataset.id = entry.id;
+    if (opts.isChild) el.classList.add('xr-group-child');
 
     const isPinned = _state.pinned.has(entry.id);
+    const groupCount = opts.groupCount || 1;
+    const groupExpanded = !!opts.groupExpanded;
+    const groupKey = opts.groupKey || '';
+    const groupBadge = groupCount > 1
+      ? `<button class="xr-group-badge ${groupExpanded ? 'xr-open' : ''}" title="${groupExpanded ? 'Collapse group' : 'Expand group'}" data-group-key="${groupKey}">×${groupCount}</button>`
+      : '';
 
     if (entry.type === 'api') {
       const method  = (entry.method || 'GET').toUpperCase();
@@ -2024,16 +2241,18 @@ window.XRAY_Panel = (() => {
       const sClass  = statusClass(entry.status);
       const path    = shortPath(entry.url || '');
       const dur     = entry.duration ?? 0;
-      // timing bar: 0-200ms=fast, 200-1000ms=slow, 1000+ms=very slow
-      const barPct  = Math.min(100, dur <= 0 ? 0 : dur < 200 ? (dur / 200) * 50 : dur < 1000 ? 50 + ((dur-200)/800)*40 : 90 + Math.min(10, (dur-1000)/500));
-      const barCls  = dur > 1000 ? 'xr-vslow' : dur > 300 ? 'xr-slow' : '';
+      const heat    = Math.min(0.18, Math.max(0, ((Number(entry.size) || 0) / 102400) * 0.18));
+      const sparkline = _buildSparklineSVG(_recentEndpointDurations(entry, 8), dur);
       el.dataset.method = method;
+      el.classList.add('xr-api-entry');
+      el.style.setProperty('--xr-heat', heat.toFixed(3));
       el.innerHTML = `
         <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
             <span class="xr-method-badge ${mClass}">${method}</span>
-            <span class="xr-status ${sClass}">${entry.status || '—'}</span>
+            <span class="xr-status ${sClass}"><span class="xr-status-icon">${_statusGlyph(entry.status)}</span>${entry.status || '—'}</span>
+            ${groupBadge}
             <span style="flex:1"></span>
             <span style="font-size:9.5px;color:var(--xr-muted);font-family:'JetBrains Mono',monospace">${formatDuration(entry.duration)}</span>
           </div>
@@ -2042,9 +2261,7 @@ window.XRAY_Panel = (() => {
             <span>${formatSize(entry.size)}</span>
             <span class="xr-sep"></span>
             <span>${formatTime(entry.timestamp || Date.now())}</span>
-            <div class="xr-timing-bar-wrap" title="${dur}ms">
-              <div class="xr-timing-bar ${barCls}" style="width:${barPct}%"></div>
-            </div>
+            <span class="xr-spark-wrap" title="${dur}ms">${sparkline}</span>
           </div>
         </div>
         <div class="xr-entry-menu" title="More options">⋯</div>
@@ -2064,11 +2281,13 @@ window.XRAY_Panel = (() => {
     } else {
       const level   = (entry.logLevel || 'log').toLowerCase();
       const preview = previewJSON(entry.logData, 64);
+      el.style.setProperty('--xr-heat', '0');
       el.innerHTML = `
         <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
             <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
+            ${groupBadge}
             <span style="flex:1"></span>
             <span style="font-size:9.5px;color:var(--xr-muted)">${formatTime(entry.timestamp || Date.now())}</span>
           </div>
@@ -2085,6 +2304,16 @@ window.XRAY_Panel = (() => {
           _state.pinned.add(entry.id);
         }
         _savePinned();
+        _rebuildList();
+      });
+    }
+
+    const groupBadgeEl = el.querySelector('.xr-group-badge');
+    if (groupBadgeEl && groupKey) {
+      groupBadgeEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (_state.expandedGroups.has(groupKey)) _state.expandedGroups.delete(groupKey);
+        else _state.expandedGroups.add(groupKey);
         _rebuildList();
       });
     }
@@ -2136,14 +2365,11 @@ window.XRAY_Panel = (() => {
 
       menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdown.classList.toggle('xr-open');
-      });
-
-      // Close menu when clicking outside
-      document.addEventListener('click', (e) => {
-        if (!el.contains(e.target)) {
-          dropdown.classList.remove('xr-open');
-        }
+        const willOpen = !dropdown.classList.contains('xr-open');
+        _root?.querySelectorAll('.xr-entry-menu-dropdown.xr-open').forEach((openMenu) => {
+          openMenu.classList.remove('xr-open');
+        });
+        if (willOpen) dropdown.classList.add('xr-open');
       });
     }
 
@@ -2198,15 +2424,16 @@ window.XRAY_Panel = (() => {
 
     // Type toggles
     const types = [
-      { val: 'fetch', label: '📡 Fetch' },
-      { val: 'xhr', label: '🔗 XHR' },
-      { val: 'log', label: '📋 Log' },
+      { val: 'fetch', label: '📡 Fetch', short: '📡' },
+      { val: 'xhr', label: '🔗 XHR', short: '🔗' },
+      { val: 'log', label: '📋 Log', short: '📋' },
     ];
 
-    types.forEach(({ val, label }) => {
+    types.forEach(({ val, label, short }) => {
       const btn = document.createElement('button');
       btn.className = 'xr-filter-btn';
       btn.setAttribute('data-filter-type', val);
+      btn.setAttribute('data-short', short);
       btn.textContent = label;
       if (_state.filters.types.includes(val)) btn.classList.add('xr-active');
       btn.addEventListener('click', () => {
@@ -2250,14 +2477,56 @@ window.XRAY_Panel = (() => {
       return;
     }
 
-    filtered.forEach(entry => pane.appendChild(_renderEntry(entry)));
+    const groups = [];
+    const apiGroups = new Map();
+    filtered.forEach((entry) => {
+      if (entry.type === 'api') {
+        const key = `api:${entry.urlPath || entry.url || 'unknown'}`;
+        if (!apiGroups.has(key)) {
+          const group = { key, entries: [] };
+          apiGroups.set(key, group);
+          groups.push(group);
+        }
+        apiGroups.get(key).entries.push(entry);
+      } else {
+        groups.push({ key: `log:${entry.id}`, entries: [entry] });
+      }
+    });
+
+    groups.forEach((group) => {
+      const [head, ...rest] = group.entries;
+      const expanded = _state.expandedGroups.has(group.key);
+      const forceSelected = !expanded && group.entries.some((e) => e.id === _state.selectedId);
+      pane.appendChild(_renderEntry(head, {
+        groupKey: group.key,
+        groupCount: group.entries.length,
+        groupExpanded: expanded,
+        forceSelected,
+      }));
+
+      if (rest.length > 0 && expanded) {
+        const childrenWrap = document.createElement('div');
+        childrenWrap.className = 'xr-group-children';
+        rest.forEach((child) => {
+          childrenWrap.appendChild(_renderEntry(child, {
+            groupKey: group.key,
+            groupCount: group.entries.length,
+            groupExpanded: expanded,
+            isChild: true,
+          }));
+        });
+        pane.appendChild(childrenWrap);
+      }
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Selection
   // ══════════════════════════════════════════════════════════════════════════
   function _selectEntry(id) {
+    const changed = _state.selectedId !== id;
     _state.selectedId = id;
+    if (changed) _state.treePath = '';
     _dom.listPane.querySelectorAll('.xr-entry').forEach(el =>
       el.classList.toggle('xr-selected', el.dataset.id === id)
     );
@@ -2366,6 +2635,7 @@ window.XRAY_Panel = (() => {
       { id: 'grid', label: 'Grid' },
       { id: 'raw',  label: 'Raw'  },
       { id: 'diff', label: 'Diff' },
+      { id: 'waterfall', label: 'Waterfall' },
     ];
     views.forEach(({ id, label }) => {
       const btn = document.createElement('button');
@@ -2393,8 +2663,8 @@ window.XRAY_Panel = (() => {
     copyWrap.className = 'xr-copy-wrap';
 
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'xr-copy-btn';
-    copyBtn.id = 'xr-copy-btn';
+    copyBtn.className = 'xr-copy-dropdown-btn';
+    copyBtn.id = 'xr-copy-dropdown-btn';
     copyBtn.innerHTML = `<span>⎘</span><span>Copy ▾</span>`;
 
     const copyMenu = document.createElement('div');
@@ -2446,6 +2716,7 @@ window.XRAY_Panel = (() => {
         btn.addEventListener('click', () => {
           _state.activeDTab = btn.dataset.dtab;
           _state.gridDrillRow = null;
+          _state.treePath = '';
           dtabs.querySelectorAll('.xr-dtab').forEach(b =>
             b.classList.toggle('xr-active', b.dataset.dtab === _state.activeDTab)
           );
@@ -2506,6 +2777,12 @@ window.XRAY_Panel = (() => {
     psNext.addEventListener('click', () => _paneSearchNav(1));
     psClose.addEventListener('click', () => _paneSearchClose());
 
+    // ── Tree breadcrumb ────────────────────────────────────────────────────
+    const treeBreadcrumb = document.createElement('div');
+    treeBreadcrumb.className = 'xr-tree-breadcrumb';
+    pane.appendChild(treeBreadcrumb);
+    _dom.treeBreadcrumb = treeBreadcrumb;
+
     // ── Content area ──────────────────────────────────────────────────────
     const content = document.createElement('div');
     content.className = 'xr-content';
@@ -2548,6 +2825,10 @@ window.XRAY_Panel = (() => {
     const content = _dom.content;
     if (!content) return;
     content.innerHTML = '';
+    if (_dom.treeBreadcrumb) {
+      _dom.treeBreadcrumb.classList.remove('xr-open');
+      _dom.treeBreadcrumb.innerHTML = '';
+    }
 
     const entry = _state.selectedId
       ? _state.entries.find(e => e.id === _state.selectedId)
@@ -2600,9 +2881,35 @@ window.XRAY_Panel = (() => {
 
     } else if (_state.activeView === 'tree') {
       try {
-        content.appendChild(window.XRAY_Renderer.buildTree(parsed));
+        const rootPath = entry.type === 'log'
+          ? 'logData'
+          : (_state.activeDTab === 'request' ? 'requestBody' : 'response');
+        let treeRoot = null;
+        treeRoot = window.XRAY_Renderer.buildTree(parsed, {
+          rootPath,
+          onPathSelect: (path) => {
+            _state.treePath = path;
+            _renderTreeBreadcrumb(path, treeRoot);
+          },
+        });
+        content.appendChild(treeRoot);
+        _renderTreeBreadcrumb(_state.treePath || rootPath, treeRoot);
       } catch {
         content.appendChild(window.XRAY_Renderer.buildRaw(data));
+      }
+
+    } else if (_state.activeView === 'waterfall') {
+      const apiEntries = _state.entries.filter((e) => e.type === 'api');
+      if (window.XRAY_Waterfall?.buildWaterfall) {
+        content.appendChild(window.XRAY_Waterfall.buildWaterfall(apiEntries, {
+          selectedId: entry.id,
+          onSelect: (id) => _selectEntry(id),
+        }));
+      } else {
+        const msg = document.createElement('div');
+        msg.className = 'xr-empty';
+        msg.textContent = 'Waterfall renderer is not loaded';
+        content.appendChild(msg);
       }
 
     } else {
@@ -2647,6 +2954,20 @@ window.XRAY_Panel = (() => {
     compareRow.appendChild(sel);
     content.appendChild(compareRow);
 
+    if (prev) {
+      const info = document.createElement('div');
+      info.className = 'xr-diff-auto-info';
+      const deltaMs = Math.max(0, (entry.timestamp || 0) - (prev.timestamp || 0));
+      const deltaSec = Math.round(deltaMs / 1000);
+      const ago = deltaSec < 60
+        ? `${Math.max(1, deltaSec)}s ago`
+        : `${Math.max(1, Math.round(deltaSec / 60))}m ago`;
+      info.textContent = _state.diffCompareId
+        ? `Comparing with selected call · ${ago}`
+        : `Comparing with previous call · ${ago}`;
+      content.appendChild(info);
+    }
+
     const prevData = prev ? _getEntryData(prev) : undefined;
     const prevParsed = prevData
       ? (typeof prevData === 'string' ? (_tryParseRaw(prevData) ?? prevData) : prevData)
@@ -2662,6 +2983,64 @@ window.XRAY_Panel = (() => {
     }
 
     content.appendChild(window.XRAY_Renderer.buildDiff(prevParsed, data));
+  }
+
+  function _parsePathSegments(path) {
+    return String(path || '').match(/[^.[\]]+|\[\d+\]/g) || [];
+  }
+
+  function _jumpToTreePath(path, treeRoot) {
+    if (!treeRoot || !path) return;
+    const lines = treeRoot.querySelectorAll('[data-xr-path]');
+    let target = null;
+    lines.forEach((line) => {
+      if (line.getAttribute('data-xr-path') === path) target = line;
+    });
+    if (!target) return;
+    treeRoot.querySelectorAll('.xr-tree-path-hit').forEach((line) => line.classList.remove('xr-tree-path-hit'));
+    target.classList.add('xr-tree-path-hit');
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(() => target.classList.remove('xr-tree-path-hit'), 1200);
+  }
+
+  function _renderTreeBreadcrumb(path, treeRoot) {
+    const bar = _dom.treeBreadcrumb;
+    if (!bar || !path || !treeRoot) return;
+    const segments = _parsePathSegments(path);
+    if (!segments.length) {
+      bar.classList.remove('xr-open');
+      bar.innerHTML = '';
+      return;
+    }
+
+    bar.innerHTML = '';
+    bar.classList.add('xr-open');
+
+    let fullPath = '';
+    segments.forEach((seg, idx) => {
+      fullPath = idx === 0
+        ? seg
+        : (seg.startsWith('[') ? `${fullPath}${seg}` : `${fullPath}.${seg}`);
+      const targetPath = fullPath;
+
+      const btn = document.createElement('button');
+      btn.className = 'xr-tree-crumb';
+      btn.textContent = seg;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        _state.treePath = targetPath;
+        _jumpToTreePath(targetPath, treeRoot);
+      });
+      bar.appendChild(btn);
+
+      if (idx < segments.length - 1) {
+        const sep = document.createElement('span');
+        sep.className = 'xr-tree-crumb-sep';
+        sep.textContent = '→';
+        bar.appendChild(sep);
+      }
+    });
   }
 
   // ── Pane search ───────────────────────────────────────────────────────────
@@ -2742,7 +3121,7 @@ window.XRAY_Panel = (() => {
 
     navigator.clipboard.writeText(text || '').catch(() => {});
 
-    const btn = _dom.detailPane?.querySelector('#xr-copy-btn');
+    const btn = _dom.detailPane?.querySelector('#xr-copy-dropdown-btn');
     if (btn) {
       btn.classList.add('xr-copied');
       const label = btn.querySelector('span:last-child');
@@ -3109,11 +3488,47 @@ window.XRAY_Panel = (() => {
   // Storage (Theme, Filters, Pinned)
   // ══════════════════════════════════════════════════════════════════════════
 
+  function _normalizeThemeId(themeId) {
+    if (!themeId) return null;
+    const aliases = {
+      'catppuccin-mocha': 'mocha',
+      'catppuccin-latte': 'latte',
+    };
+    return aliases[themeId] || themeId;
+  }
+
   async function _loadState() {
+    // Panel dimensions / open state
+    const panelState = await window.XRAY_Store.get(STORE_KEY, {});
+    if (typeof panelState.listWidth === 'number') {
+      _state.listWidth = Math.min(300, Math.max(130, panelState.listWidth));
+    }
+    if (typeof panelState.panelWidth === 'number') {
+      _state.panelWidth = Math.min(MAX_PANEL_W, Math.max(MIN_PANEL_W, panelState.panelWidth));
+    }
+    if (typeof panelState.open === 'boolean') {
+      _state.open = panelState.open;
+    }
+
     // Load theme
     const themeData = await window.XRAY_Store.get('theme', {});
-    if (themeData.value && window.XRAY_Themes[themeData.value]) {
-      _state.theme = themeData.value;
+    const panelTheme = _normalizeThemeId(themeData.value);
+    if (panelTheme && window.XRAY_Themes[panelTheme]) {
+      _state.theme = panelTheme;
+    }
+
+    // Load settings page preferences (xray_settings via XRAY_Store key "settings")
+    const settingsData = await window.XRAY_Store.get('settings', {});
+    const settingsTheme = _normalizeThemeId(settingsData.theme);
+    if (settingsTheme && window.XRAY_Themes[settingsTheme]) {
+      _state.theme = settingsTheme;
+    }
+    const parsedMaxEntries = Number.parseInt(settingsData.maxEntries, 10);
+    if (Number.isFinite(parsedMaxEntries) && parsedMaxEntries > 0) {
+      _state.maxEntries = parsedMaxEntries;
+    }
+    if (typeof settingsData.autoOpen === 'boolean') {
+      _state.autoOpen = settingsData.autoOpen;
     }
 
     // Load filters
@@ -3130,6 +3545,10 @@ window.XRAY_Panel = (() => {
 
   function _saveTheme(themeId) {
     window.XRAY_Store.set('theme', { value: themeId });
+    window.XRAY_Store.get('settings', {}).then((settings) => {
+      const existing = settings && typeof settings === 'object' ? settings : {};
+      window.XRAY_Store.set('settings', { ...existing, theme: themeId });
+    });
   }
 
   function _saveFilters() {
@@ -3161,7 +3580,7 @@ window.XRAY_Panel = (() => {
     
     _updateCopyPreview(entry, format.value);
     
-    format.addEventListener('change', () => _updateCopyPreview(entry, format.value));
+    format.onchange = () => _updateCopyPreview(entry, format.value);
     
     backdrop.classList.add('xr-open');
 
@@ -3399,6 +3818,7 @@ func main() {
       const replayEntry = {
         id: window.XRAY_Utils.uid(),
         type: 'api',
+        source: 'fetch',
         timestamp: Date.now(),
         method: entry.method,
         url: entry.url,
@@ -3435,70 +3855,9 @@ func main() {
     if (!backdrop) return;
 
     _updateSettingsStats();
-    _populateFilterCheckboxes();
     _dom.settingsTheme.value = _state.theme;
 
     backdrop.classList.add('xr-open');
-
-    _dom.settingsTheme.addEventListener('change', (e) => {
-      _state.theme = e.target.value;
-      _applyTheme(_state.theme);
-      window.XRAY_Store.set('theme', _state.theme);
-    });
-
-    _dom.settingsClrPins.addEventListener('click', () => {
-      _state.pinned.clear();
-      _savePinned();
-      _rebuildList();
-      _updateSettingsStats();
-    });
-
-    _dom.settingsClrAll.addEventListener('click', () => {
-      if (confirm('Delete all entries? This cannot be undone.')) {
-        _state.entries = [];
-        _state.selectedId = null;
-        _state.pinned.clear();
-        _savePinned();
-        _rebuildList();
-        _renderDetail(null);
-        _updateCounts();
-        _updateSettingsStats();
-      }
-    });
-
-    _dom.settingsClose.addEventListener('click', () => {
-      backdrop.classList.remove('xr-open');
-    });
-
-    // Filter checkboxes
-    _root.querySelectorAll('[data-filter]').forEach(checkbox => {
-      checkbox.addEventListener('change', (e) => {
-        const filter = e.target.dataset.filter;
-        const statusFilters = ['2xx', '3xx', '4xx', '5xx'];
-        const typeFilters = ['fetch', 'xhr', 'logs'];
-
-        if (statusFilters.includes(filter)) {
-          const idx = _state.filters.statusCodes.indexOf(filter);
-          if (e.target.checked && idx === -1) {
-            _state.filters.statusCodes.push(filter);
-          } else if (!e.target.checked && idx !== -1) {
-            _state.filters.statusCodes.splice(idx, 1);
-          }
-        } else if (typeFilters.includes(filter)) {
-          const typeMap = { fetch: 'fetch', xhr: 'xhr', logs: 'log' };
-          const mappedType = typeMap[filter];
-          const idx = _state.filters.types.indexOf(mappedType);
-          if (e.target.checked && idx === -1) {
-            _state.filters.types.push(mappedType);
-          } else if (!e.target.checked && idx !== -1) {
-            _state.filters.types.splice(idx, 1);
-          }
-        }
-
-        window.XRAY_Store.set('filters', _state.filters);
-        _rebuildList();
-      });
-    });
   }
 
   function _updateSettingsStats() {
@@ -3516,21 +3875,6 @@ func main() {
     if (_dom.statErrors) _dom.statErrors.textContent = errors.length;
   }
 
-  function _populateFilterCheckboxes() {
-    const statusMap = { '2xx': 'xr-filter-2xx', '3xx': 'xr-filter-3xx', '4xx': 'xr-filter-4xx', '5xx': 'xr-filter-5xx' };
-    const typeMap = { 'fetch': 'xr-filter-fetch', 'xhr': 'xr-filter-xhr', 'log': 'xr-filter-logs' };
-
-    Object.entries(statusMap).forEach(([code, id]) => {
-      const cb = _root.getElementById(id);
-      if (cb) cb.checked = _state.filters.statusCodes.includes(code);
-    });
-
-    Object.entries(typeMap).forEach(([type, id]) => {
-      const cb = _root.getElementById(id);
-      if (cb) cb.checked = _state.filters.types.includes(type);
-    });
-  }
-
   function _applyFilters(entries) {
     if (_state.filters.statusCodes.length === 0 && _state.filters.types.length === 0) {
       return entries;
@@ -3541,7 +3885,7 @@ func main() {
         if (!_state.filters.statusCodes.includes(codeRange)) return false;
       }
       if (_state.filters.types.length > 0) {
-        const eType = e.type === 'api' ? (e.method ? 'fetch' : 'doc') : 'log';
+        const eType = e.type === 'api' ? (e.source || 'fetch') : 'log';
         if (!_state.filters.types.includes(eType)) return false;
       }
       return true;
@@ -3555,6 +3899,37 @@ func main() {
     _dom.closeBtn.addEventListener('click', () => _public.hide());
 
     _dom.settingsBtn.addEventListener('click', () => _openSettingsModal());
+    _dom.settingsClose.addEventListener('click', () => {
+      _dom.settingsBackdrop.classList.remove('xr-open');
+    });
+    _dom.settingsBackdrop.addEventListener('click', (e) => {
+      if (e.target === _dom.settingsBackdrop) _dom.settingsBackdrop.classList.remove('xr-open');
+    });
+    _dom.settingsTheme.addEventListener('change', (e) => {
+      _state.theme = e.target.value;
+      _applyTheme(_state.theme);
+      _saveTheme(_state.theme);
+    });
+    _dom.settingsClrPins.addEventListener('click', () => {
+      _state.pinned.clear();
+      _savePinned();
+      _rebuildList();
+      _updateSettingsStats();
+      _updateCounts();
+    });
+    _dom.settingsClrAll.addEventListener('click', () => {
+      if (!confirm('Delete all entries? This cannot be undone.')) return;
+      _state.entries = [];
+      _state.selectedId = null;
+      _state.treePath = '';
+      _state.expandedGroups.clear();
+      _state.pinned.clear();
+      _savePinned();
+      _rebuildList();
+      _renderDetail(null);
+      _updateCounts();
+      _updateSettingsStats();
+    });
 
     _root.querySelectorAll('.xr-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3572,6 +3947,8 @@ func main() {
     _dom.clearBtn.addEventListener('click', () => {
       _state.entries    = [];
       _state.selectedId = null;
+      _state.treePath = '';
+      _state.expandedGroups.clear();
       _state.pinned.clear();
       _rebuildList();
       _renderDetail(null);
@@ -3628,6 +4005,11 @@ func main() {
 
       // Attach Shadow DOM
       _root = host.attachShadow({ mode: 'open' });
+
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap';
+      _root.appendChild(fontLink);
 
       const style = document.createElement('style');
       style.textContent = _buildCSS();
@@ -3712,6 +4094,25 @@ func main() {
       if (!entry.id) entry.id = window.XRAY_Utils.uid();
       _state.entries.push(entry);
 
+      const maxEntries = Math.max(1, Number.parseInt(_state.maxEntries, 10) || 500);
+      let listTrimmed = false;
+      let selectedWasTrimmed = false;
+      let pinnedChanged = false;
+      if (_state.entries.length > maxEntries) {
+        const overflow = _state.entries.length - maxEntries;
+        const removed = _state.entries.splice(0, overflow);
+        listTrimmed = true;
+        removed.forEach((oldEntry) => {
+          if (oldEntry.id === _state.selectedId) selectedWasTrimmed = true;
+          if (_state.pinned.delete(oldEntry.id)) pinnedChanged = true;
+        });
+      }
+      if (pinnedChanged) _savePinned();
+      if (selectedWasTrimmed) {
+        _state.selectedId = null;
+        _renderDetail(null);
+      }
+
       // Flash the live capture dot
       const dot = _root?.getElementById('xr-capture-dot');
       if (dot) {
@@ -3720,19 +4121,24 @@ func main() {
         dot._fadeTimer = setTimeout(() => dot.classList.remove('xr-live'), 2200);
       }
 
-      if (_entryMatchesCurrentTab(entry) && _entryMatchesFilter(entry)) {
-        const emptyEl = _dom.listPane?.querySelector('.xr-empty-state');
-        if (emptyEl) emptyEl.remove();
-        const el = _renderEntry(entry);
-        el.classList.add('xr-entry-new');
-        _dom.listPane?.appendChild(el);
+      _rebuildList();
+      if (!listTrimmed && _entryMatchesCurrentTab(entry) && _entryMatchesFilter(entry)) {
+        const rows = _dom.listPane?.querySelectorAll('.xr-entry') || [];
+        rows.forEach((row) => {
+          if (row.dataset.id === entry.id) row.classList.add('xr-entry-new');
+        });
       }
       _updateCounts();
+      if (_state.autoOpen && !_state.open) _public.show();
     },
 
     setView(v) {
-      const views = ['tree', 'grid', 'raw', 'diff'];
+      const views = ['tree', 'grid', 'raw', 'diff', 'waterfall'];
       if (!views.includes(v)) return;
+      if (!_state.selectedId && v === 'waterfall') {
+        const latestApi = _state.entries.slice().reverse().find((e) => e.type === 'api');
+        if (latestApi) _selectEntry(latestApi.id);
+      }
       _state.activeView = v;
       _state.gridDrillRow = null;
       _dom.viewToggle?.querySelectorAll('.xr-toggle-btn').forEach(btn =>
