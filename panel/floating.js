@@ -9,7 +9,7 @@ window.XRAY_Panel = (() => {
   const _state = {
     open:          false,
     activeTab:     'api',        // 'api' | 'logs'
-    activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff'
+    activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
     activeDTab:    'response',   // 'response' | 'request' | 'headers'
     selectedId:    null,
     theme:         'zinc',
@@ -31,6 +31,7 @@ window.XRAY_Panel = (() => {
   // ── DOM refs ──────────────────────────────────────────────────────────────
   let _root = null;
   let _host = null;
+  let _isDevtoolsMode = false;
   let _dom  = {};
   const MIN_PANEL_W = 360;
   const MAX_PANEL_W = Math.round(window.screen.width * 0.92) || 1400;
@@ -68,6 +69,19 @@ window.XRAY_Panel = (() => {
   container-type: inline-size;
 }
 #xr-panel.xr-open { transform: translateX(0); }
+#xr-panel.xr-devtools {
+  position: relative;
+  top: 0;
+  right: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100vh;
+  border-left: none;
+  transform: none;
+}
+#xr-panel.xr-devtools #xr-panel-resize,
+#xr-panel.xr-devtools #xr-close { display: none; }
 
 /* ─── Panel resize edge ───────────────────────────────────────────────────── */
 #xr-panel-resize {
@@ -202,6 +216,17 @@ window.XRAY_Panel = (() => {
 }
 
 .xr-hspacer { flex: 1; }
+.xr-header-summary {
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: .9;
+}
 
 /* Theme dots */
 .xr-dots { display: flex; align-items: center; gap: 6px; margin-right: 4px; position: relative; }
@@ -1813,7 +1838,8 @@ window.XRAY_Panel = (() => {
   padding: 16px 20px;
   border-top: 1px solid var(--xr-border);
   flex-shrink: 0;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .xr-settings-btn {
   background: transparent;
@@ -1827,6 +1853,7 @@ window.XRAY_Panel = (() => {
   transition: background .12s;
   font-family: inherit;
 }
+.xr-settings-footer #xr-settings-export-all { margin-right: auto; }
 .xr-settings-btn:hover {
   background: var(--xr-surface);
 }
@@ -1842,6 +1869,7 @@ window.XRAY_Panel = (() => {
 @container (max-width: 500px) {
   .xr-header { padding: 0 7px 0 9px; }
   .xr-tab { padding: 4px 8px; font-size: 10px; }
+  .xr-header-summary { max-width: 140px; font-size: 9px; }
   .xr-detail-url { font-size: 10px; }
   .xr-pills-row { gap: 5px; }
   .xr-pill { padding: 4px 6px; }
@@ -1849,6 +1877,7 @@ window.XRAY_Panel = (() => {
 }
 
 @container (max-width: 420px) {
+  .xr-header-summary { display: none; }
   .xr-filter-btn { padding: 3px 5px; font-size: 9px; }
   .xr-filter-btn[data-filter-type] {
     font-size: 0;
@@ -1921,6 +1950,7 @@ window.XRAY_Panel = (() => {
       Logs <span class="xr-tab-badge" id="xr-log-count">0</span>
     </button>
   </div>
+  <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors · 0.0 MB</div>
   <div class="xr-hspacer"></div>
   <button class="xr-ibtn" id="xr-settings-btn" title="Settings">⚙️</button>
   <div class="xr-dots" id="xr-dots"></div>
@@ -2037,6 +2067,7 @@ window.XRAY_Panel = (() => {
     </div>
 
     <div class="xr-settings-footer">
+      <button class="xr-settings-btn" id="xr-settings-export-all">Export All (JSON)</button>
       <button class="xr-settings-btn xr-settings-btn-danger" id="xr-settings-clear-pins">Clear Pins</button>
       <button class="xr-settings-btn xr-settings-btn-danger" id="xr-settings-clear-all">Clear All</button>
     </div>
@@ -2121,6 +2152,9 @@ window.XRAY_Panel = (() => {
     if (!inEntryMenu) {
       _root?.querySelectorAll('.xr-entry-menu-dropdown.xr-open').forEach((menu) => {
         menu.classList.remove('xr-open');
+        menu.style.position = '';
+        menu.style.left = '';
+        menu.style.top = '';
       });
     }
   });
@@ -2167,10 +2201,21 @@ window.XRAY_Panel = (() => {
   }
 
   function _updateCounts() {
-    const api  = _state.entries.filter(e => e.type === 'api').length;
+    const apiEntries = _state.entries.filter(e => e.type === 'api');
+    const api  = apiEntries.length;
     const logs = _state.entries.filter(e => e.type === 'log').length;
+    const errors = apiEntries.filter((e) => Number(e.status) >= 400).length;
+    const totalBytes = apiEntries.reduce((sum, e) => {
+      const size = Number(e.size);
+      return sum + (Number.isFinite(size) ? Math.max(0, size) : 0);
+    }, 0);
+    const totalMb = totalBytes / (1024 * 1024);
+
     if (_dom.apiCount)   _dom.apiCount.textContent   = api;
     if (_dom.logCount)   _dom.logCount.textContent   = logs;
+    if (_dom.headerSummary) {
+      _dom.headerSummary.textContent = `${api} APIs · ${errors} Errors · ${totalMb.toFixed(1)} MB`;
+    }
     const shown = _filteredEntries().length;
     if (_dom.footerCount)
       _dom.footerCount.textContent = shown;
@@ -2357,19 +2402,67 @@ window.XRAY_Panel = (() => {
           e.stopPropagation();
           item.action();
           dropdown.classList.remove('xr-open');
+          dropdown.style.position = '';
+          dropdown.style.left = '';
+          dropdown.style.top = '';
         });
         dropdown.appendChild(btn);
       });
 
       menuBtn.appendChild(dropdown);
 
-      menuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const willOpen = !dropdown.classList.contains('xr-open');
+      const openDropdown = ({ fixedX = null, fixedY = null } = {}) => {
         _root?.querySelectorAll('.xr-entry-menu-dropdown.xr-open').forEach((openMenu) => {
           openMenu.classList.remove('xr-open');
+          openMenu.style.position = '';
+          openMenu.style.left = '';
+          openMenu.style.top = '';
         });
-        if (willOpen) dropdown.classList.add('xr-open');
+
+        dropdown.style.position = '';
+        dropdown.style.left = '';
+        dropdown.style.top = '';
+        dropdown.classList.add('xr-open');
+
+        if (fixedX === null || fixedY === null) return;
+
+        dropdown.style.position = 'fixed';
+        dropdown.style.left = '0px';
+        dropdown.style.top = '0px';
+
+        const panelRect = _dom.panel?.getBoundingClientRect() || {
+          left: 0,
+          top: 0,
+          right: window.innerWidth,
+          bottom: window.innerHeight,
+        };
+        const menuRect = dropdown.getBoundingClientRect();
+        const pad = 6;
+        const maxX = Math.max(panelRect.left + pad, panelRect.right - menuRect.width - pad);
+        const maxY = Math.max(panelRect.top + pad, panelRect.bottom - menuRect.height - pad);
+        const x = Math.min(maxX, Math.max(panelRect.left + pad, fixedX));
+        const y = Math.min(maxY, Math.max(panelRect.top + pad, fixedY));
+        dropdown.style.left = `${x}px`;
+        dropdown.style.top = `${y}px`;
+      };
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dropdown.classList.contains('xr-open')) {
+          dropdown.classList.remove('xr-open');
+          dropdown.style.position = '';
+          dropdown.style.left = '';
+          dropdown.style.top = '';
+          return;
+        }
+        openDropdown();
+      });
+
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        _selectEntry(entry.id);
+        openDropdown({ fixedX: e.clientX, fixedY: e.clientY });
       });
     }
 
@@ -3135,18 +3228,22 @@ window.XRAY_Panel = (() => {
   }
 
   function _buildCurl(entry) {
+    function shellQuote(value) {
+      return `'${String(value ?? '').replace(/'/g, `'\\''`)}'`;
+    }
+
     const method = (entry.method || 'GET').toUpperCase();
     const url = entry.url || '';
     const headers = entry.requestHeaders || {};
     const body = entry.requestBody;
 
-    let parts = [`curl -X ${method} '${url}'`];
+    let parts = [`curl -X ${method} ${shellQuote(url)}`];
     Object.entries(headers).forEach(([k, v]) => {
-      parts.push(`  -H '${k}: ${v}'`);
+      parts.push(`  -H ${shellQuote(`${k}: ${v}`)}`);
     });
-    if (body) {
+    if (body !== undefined && body !== null && body !== '') {
       const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
-      parts.push(`  --data '${bodyStr.replace(/'/g, "'\\''")}'`);
+      parts.push(`  --data-raw ${shellQuote(bodyStr)}`);
     }
     return parts.join(' \\\n');
   }
@@ -3674,20 +3771,7 @@ ${Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n')}
   }
 
   function _buildCurlCommand(entry) {
-    const headers = entry.requestHeaders || {};
-    const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
-
-    let cmd = `curl -X ${entry.method} '${entry.url}'`;
-
-    Object.entries(headers).forEach(([k, v]) => {
-      cmd += ` \\\n  -H '${k}: ${v}'`;
-    });
-
-    if (body) {
-      cmd += ` \\\n  -d '${body}'`;
-    }
-
-    return cmd;
+    return _buildCurl(entry);
   }
 
   function _buildPythonRequest(entry) {
@@ -3789,6 +3873,8 @@ func main() {
     }
 
     try {
+      const startedAt = Date.now();
+      const startedPerf = performance.now();
       const headers = { ...entry.requestHeaders };
       delete headers['host'];
       delete headers['origin'];
@@ -3807,39 +3893,36 @@ func main() {
 
       const response = await fetch(entry.url, fetchOpts);
       const contentType = response.headers.get('content-type');
-      let data;
-
+      const raw = await response.text();
+      const duration = Math.max(0, Math.round(performance.now() - startedPerf));
+      let parsed = null;
       if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        data = await response.text();
+        try { parsed = JSON.parse(raw); } catch {}
       }
+      const size = new TextEncoder().encode(raw || '').length;
 
       const replayEntry = {
         id: window.XRAY_Utils.uid(),
         type: 'api',
         source: 'fetch',
-        timestamp: Date.now(),
+        timestamp: startedAt,
         method: entry.method,
         url: entry.url,
         urlPath: entry.urlPath,
         status: response.status,
-        duration: 0,
-        size: JSON.stringify(data).length,
+        duration,
+        size,
         requestHeaders: headers,
         requestBody: entry.requestBody,
         responseHeaders: Object.fromEntries(response.headers),
-        responseRaw: typeof data === 'string' ? data : JSON.stringify(data),
-        responseDecrypted: typeof data === 'string' ? null : data,
+        responseRaw: raw,
+        responseDecrypted: parsed,
         decryptStatus: 'none',
         pinned: false,
       };
 
-      _state.entries.push(replayEntry);
-      _state.selectedId = replayEntry.id;
-      _rebuildList();
-      _renderDetail(replayEntry);
-      _updateCounts();
+      _public.add(replayEntry);
+      _selectEntry(replayEntry.id);
     } catch (err) {
       alert(`Replay failed: ${err.message}`);
       console.error('Replay error:', err);
@@ -3849,6 +3932,19 @@ func main() {
   // ══════════════════════════════════════════════════════════════════════════
   // Settings Modal
   // ══════════════════════════════════════════════════════════════════════════
+
+  function _exportAllEntries() {
+    const payload = JSON.stringify(_state.entries, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `xray-export-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
 
   function _openSettingsModal() {
     const backdrop = _dom.settingsBackdrop;
@@ -3930,6 +4026,7 @@ func main() {
       _updateCounts();
       _updateSettingsStats();
     });
+    _dom.settingsExport?.addEventListener('click', () => _exportAllEntries());
 
     _root.querySelectorAll('.xr-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3992,24 +4089,38 @@ func main() {
   // ══════════════════════════════════════════════════════════════════════════
   const _public = {
 
-    async init() {
+    async init(options = {}) {
       await _loadState();
+      const opts = options || {};
+      const useShadow = opts.useShadow !== false;
+      const mountEl = opts.mountEl && typeof opts.mountEl.appendChild === 'function'
+        ? opts.mountEl
+        : null;
+      _isDevtoolsMode = !!opts.devtoolsMode;
 
-      let host = document.getElementById(HOST_ID);
-      if (!host) {
-        host = document.createElement('div');
-        host.id = HOST_ID;
-        document.documentElement.appendChild(host);
+      if (mountEl && !useShadow) {
+        _host = mountEl;
+        if (opts.clearMount !== false) _host.innerHTML = '';
+        _root = _host;
+      } else {
+        let host = document.getElementById(HOST_ID);
+        if (!host) {
+          host = document.createElement('div');
+          host.id = HOST_ID;
+          document.documentElement.appendChild(host);
+        }
+        _host = host;
+        _root = host.attachShadow({ mode: 'open' });
       }
-      _host = host;
 
-      // Attach Shadow DOM
-      _root = host.attachShadow({ mode: 'open' });
-
-      const fontLink = document.createElement('link');
-      fontLink.rel = 'stylesheet';
-      fontLink.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap';
-      _root.appendChild(fontLink);
+      const fontTarget = useShadow ? _root : (document.head || _root);
+      if (!fontTarget.querySelector('link[data-xr-font="jetbrains-mono"]')) {
+        const fontLink = document.createElement('link');
+        fontLink.rel = 'stylesheet';
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap';
+        fontLink.setAttribute('data-xr-font', 'jetbrains-mono');
+        fontTarget.appendChild(fontLink);
+      }
 
       const style = document.createElement('style');
       style.textContent = _buildCSS();
@@ -4018,43 +4129,55 @@ func main() {
       const panel = _buildHTML();
       _root.appendChild(panel);
 
+      const getById = (id) => (_root.getElementById
+        ? _root.getElementById(id)
+        : _root.querySelector(`#${id}`));
+
       // Collect refs
-      _dom.panel        = _root.getElementById('xr-panel');
-      _dom.panelResize  = _root.getElementById('xr-panel-resize');
-      _dom.dots         = _root.getElementById('xr-dots');
-      _dom.settingsBtn  = _root.getElementById('xr-settings-btn');
-      _dom.closeBtn     = _root.getElementById('xr-close');
-      _dom.listPane     = _root.getElementById('xr-list-pane');
-      _dom.dragHandle   = _root.getElementById('xr-drag-handle');
-      _dom.detailPane   = _root.getElementById('xr-detail-pane');
-      _dom.footerCount  = _root.getElementById('xr-count');
-      _dom.apiCount     = _root.getElementById('xr-api-count');
-      _dom.logCount     = _root.getElementById('xr-log-count');
-      _dom.clearBtn     = _root.getElementById('xr-clear');
-      _dom.fuzzyBackdrop = _root.getElementById('xr-fuzzy-backdrop');
-      _dom.fuzzyInput   = _root.getElementById('xr-fuzzy-input');
-      _dom.fuzzyResults = _root.getElementById('xr-fuzzy-results');
-      _dom.copyBackdrop = _root.getElementById('xr-copy-backdrop');
-      _dom.copyTitle   = _root.getElementById('xr-copy-title');
-      _dom.copyFormat  = _root.getElementById('xr-copy-format');
-      _dom.copyCode    = _root.getElementById('xr-copy-code');
-      _dom.copyBtn     = _root.getElementById('xr-copy-btn');
-      _dom.copyCancel  = _root.getElementById('xr-copy-cancel');
-      _dom.copyClose   = _root.getElementById('xr-copy-close');
-      
-      _dom.settingsBackdrop = _root.getElementById('xr-settings-backdrop');
-      _dom.settingsTheme    = _root.getElementById('xr-settings-theme');
-      _dom.settingsClose    = _root.getElementById('xr-settings-close');
-      _dom.settingsClrPins  = _root.getElementById('xr-settings-clear-pins');
-      _dom.settingsClrAll   = _root.getElementById('xr-settings-clear-all');
-      _dom.statApi          = _root.getElementById('xr-stat-api');
-      _dom.statLogs         = _root.getElementById('xr-stat-logs');
-      _dom.statPinned       = _root.getElementById('xr-stat-pinned');
-      _dom.statErrors       = _root.getElementById('xr-stat-errors');
+      _dom.panel         = getById('xr-panel');
+      _dom.panelResize   = getById('xr-panel-resize');
+      _dom.dots          = getById('xr-dots');
+      _dom.settingsBtn   = getById('xr-settings-btn');
+      _dom.closeBtn      = getById('xr-close');
+      _dom.listPane      = getById('xr-list-pane');
+      _dom.dragHandle    = getById('xr-drag-handle');
+      _dom.detailPane    = getById('xr-detail-pane');
+      _dom.footerCount   = getById('xr-count');
+      _dom.apiCount      = getById('xr-api-count');
+      _dom.logCount      = getById('xr-log-count');
+      _dom.headerSummary = getById('xr-header-summary');
+      _dom.clearBtn      = getById('xr-clear');
+      _dom.fuzzyBackdrop = getById('xr-fuzzy-backdrop');
+      _dom.fuzzyInput    = getById('xr-fuzzy-input');
+      _dom.fuzzyResults  = getById('xr-fuzzy-results');
+      _dom.copyBackdrop  = getById('xr-copy-backdrop');
+      _dom.copyTitle     = getById('xr-copy-title');
+      _dom.copyFormat    = getById('xr-copy-format');
+      _dom.copyCode      = getById('xr-copy-code');
+      _dom.copyBtn       = getById('xr-copy-btn');
+      _dom.copyCancel    = getById('xr-copy-cancel');
+      _dom.copyClose     = getById('xr-copy-close');
+
+      _dom.settingsBackdrop = getById('xr-settings-backdrop');
+      _dom.settingsTheme    = getById('xr-settings-theme');
+      _dom.settingsClose    = getById('xr-settings-close');
+      _dom.settingsExport   = getById('xr-settings-export-all');
+      _dom.settingsClrPins  = getById('xr-settings-clear-pins');
+      _dom.settingsClrAll   = getById('xr-settings-clear-all');
+      _dom.statApi          = getById('xr-stat-api');
+      _dom.statLogs         = getById('xr-stat-logs');
+      _dom.statPinned       = getById('xr-stat-pinned');
+      _dom.statErrors       = getById('xr-stat-errors');
 
       // Apply persisted state
-      _dom.panel.style.width = `${_state.panelWidth}px`;
       _dom.listPane.style.width = `${_state.listWidth}px`;
+      if (_isDevtoolsMode) {
+        _state.open = true;
+        _dom.panel.classList.add('xr-devtools', 'xr-open');
+        _dom.panel.style.width = '100%';
+      } else {
+        _dom.panel.style.width = `${_state.panelWidth}px`;
+      }
       _buildDots();
       _applyTheme(_state.theme);
 
@@ -4068,24 +4191,28 @@ func main() {
       if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
 
       // Restore open state
-      if (_state.open) _dom.panel.classList.add('xr-open');
+      if (!_isDevtoolsMode && _state.open) _dom.panel.classList.add('xr-open');
     },
 
     show() {
       if (!_dom.panel) return;
       _state.open = true;
       _dom.panel.classList.add('xr-open');
-      _saveState();
+      if (!_isDevtoolsMode) _saveState();
     },
 
     hide() {
       if (!_dom.panel) return;
+      if (_isDevtoolsMode) return;
       _state.open = false;
       _dom.panel.classList.remove('xr-open');
       _saveState();
     },
 
-    toggle() { _state.open ? _public.hide() : _public.show(); },
+    toggle() {
+      if (_isDevtoolsMode) return;
+      _state.open ? _public.hide() : _public.show();
+    },
 
     isOpen() { return _state.open; },
 

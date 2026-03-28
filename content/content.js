@@ -12,6 +12,12 @@
     await XRAY_Panel.init();
   }
 
+  function _relayToDevtools(entry) {
+    chrome.runtime.sendMessage({ type: 'xray:capture', entry }, () => {
+      void chrome.runtime.lastError;
+    });
+  }
+
   // Receive captured entries from MAIN world via postMessage
   // (CustomEvent.detail is nullified by Chrome when crossing MAIN→ISOLATED worlds)
   window.addEventListener('message', async (e) => {
@@ -20,6 +26,7 @@
     if (!entry) return;
     await _initPanel();
     XRAY_Panel.add(entry);
+    _relayToDevtools(entry);
   });
 
   // Receive toggle / show command from background.js
@@ -32,14 +39,16 @@
   // Expose global helper: jv(data) — opens panel and injects data as a manual log entry
   window.jv = function (data) {
     _initPanel().then(() => {
-      XRAY_Panel.add({
+      const entry = {
         id: 'jv_' + Date.now().toString(36),
         type: 'log',
         timestamp: Date.now(),
         logLevel: 'log',
         logData: data,
         pinned: false,
-      });
+      };
+      XRAY_Panel.add(entry);
+      _relayToDevtools(entry);
       XRAY_Panel.show();
     });
   };
