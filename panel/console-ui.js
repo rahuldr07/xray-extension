@@ -663,7 +663,7 @@ window.XRAY_ConsoleUI = (() => {
     }
   }
 
-  _public = {
+  const _public = {
     init,
     handleTabSwitch,
     updateContext,
