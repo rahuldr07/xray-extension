@@ -35,10 +35,12 @@ window.XRAY_ConsoleUI = (() => {
 .xr-console-pane {
   display: none;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-width: 0;
   background: var(--xr-bg);
   overflow: hidden;
   container-type: inline-size;
+  border: 2px solid red; /* DEBUG - remove later */
 }
 .xr-console-pane.xr-active { display: flex; }
 

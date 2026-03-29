@@ -4040,10 +4040,14 @@ func main() {
         );
         
         const isConsole = _state.activeTab === 'console';
+        console.log('[XRAY] Tab switch, isConsole:', isConsole, 'consolePane:', _dom.consolePane);
         if (_dom.listWrap) _dom.listWrap.style.display = isConsole ? 'none' : '';
         if (_dom.dragHandle) _dom.dragHandle.style.display = isConsole ? 'none' : '';
         if (_dom.detailPane) _dom.detailPane.style.display = isConsole ? 'none' : '';
-        if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
+        if (_dom.consolePane) {
+          _dom.consolePane.classList.toggle('xr-active', isConsole);
+          console.log('[XRAY] consolePane classes:', _dom.consolePane.className);
+        }
         
         if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
         
@@ -4159,6 +4163,7 @@ func main() {
       _dom.dragHandle    = getById('xr-drag-handle');
       _dom.detailPane    = getById('xr-detail-pane');
       _dom.consolePane   = getById('xr-console-pane');
+      console.log('[XRAY] DOM refs - consolePane:', _dom.consolePane);
       _dom.footerCount   = getById('xr-count');
       _dom.apiCount      = getById('xr-api-count');
       _dom.logCount      = getById('xr-log-count');
