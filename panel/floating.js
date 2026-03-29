@@ -1949,6 +1949,9 @@ window.XRAY_Panel = (() => {
     <button class="xr-tab" data-tab="logs">
       Logs <span class="xr-tab-badge" id="xr-log-count">0</span>
     </button>
+    <button class="xr-tab" data-tab="console">
+      Console <span class="xr-console-icon">&gt;_</span>
+    </button>
   </div>
   <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors · 0.0 MB</div>
   <div class="xr-hspacer"></div>
@@ -1962,6 +1965,7 @@ window.XRAY_Panel = (() => {
   </div>
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
   <div class="xr-detail-pane" id="xr-detail-pane"></div>
+  <div class="xr-console-pane" id="xr-console-pane"></div>
 </div>
 <div class="xr-footer">
   <div class="xr-footer-hint">
@@ -4034,10 +4038,21 @@ func main() {
         _root.querySelectorAll('.xr-tab').forEach(b =>
           b.classList.toggle('xr-active', b.dataset.tab === _state.activeTab)
         );
-        _state.selectedId = null;
-        _rebuildList();
-        _renderDetail(null);
-        _updateCounts();
+        
+        const isConsole = _state.activeTab === 'console';
+        _dom.listWrap.style.display = isConsole ? 'none' : '';
+        _dom.dragHandle.style.display = isConsole ? 'none' : '';
+        _dom.detailPane.style.display = isConsole ? 'none' : '';
+        if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
+        
+        if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
+        
+        if (!isConsole) {
+          _state.selectedId = null;
+          _rebuildList();
+          _renderDetail(null);
+          _updateCounts();
+        }
       });
     });
 
@@ -4142,6 +4157,7 @@ func main() {
       _dom.listPane      = getById('xr-list-pane');
       _dom.dragHandle    = getById('xr-drag-handle');
       _dom.detailPane    = getById('xr-detail-pane');
+      _dom.consolePane   = getById('xr-console-pane');
       _dom.footerCount   = getById('xr-count');
       _dom.apiCount      = getById('xr-api-count');
       _dom.logCount      = getById('xr-log-count');
@@ -4189,6 +4205,7 @@ func main() {
       // Events + shortcuts
       _bindEvents();
       if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
+      if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
 
       // Restore open state
       if (!_isDevtoolsMode && _state.open) _dom.panel.classList.add('xr-open');

@@ -125,6 +125,50 @@ window.XRAY_Console = (() => {
     },
   };
 
+  // ── Utils ───────────────────────────────────────────────────────────────────
+  function _toCSV(arr) {
+    if (!Array.isArray(arr) || !arr.length) return '';
+    const keys = Object.keys(arr[0] || {});
+    const header = keys.join(',');
+    const rows = arr.map(item => keys.map(k => {
+      const v = item[k];
+      return typeof v === 'string' && (v.includes(',') || v.includes('"')) 
+        ? `"${v.replace(/"/g, '""')}"` : v ?? '';
+    }).join(','));
+    return [header, ...rows].join('\n');
+  }
+  function _toTable(arr) { return { __xr_render: 'table', data: arr }; }
+  function _diff(a, b) {
+    const result = { added: {}, removed: {}, changed: {} };
+    const aKeys = new Set(Object.keys(a || {}));
+    const bKeys = new Set(Object.keys(b || {}));
+    for (const k of bKeys) if (!aKeys.has(k)) result.added[k] = b[k];
+    for (const k of aKeys) {
+      if (!bKeys.has(k)) result.removed[k] = a[k];
+      else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) result.changed[k] = { from: a[k], to: b[k] };
+    }
+    return result;
+  }
+  function _schema(obj, depth = 0) {
+    if (depth > 5) return 'any';
+    if (obj === null) return 'null';
+    if (Array.isArray(obj)) return obj.length ? [_schema(obj[0], depth + 1)] : 'array';
+    if (typeof obj === 'object') {
+      const s = {};
+      for (const [k, v] of Object.entries(obj)) s[k] = _schema(v, depth + 1);
+      return s;
+    }
+    return typeof obj;
+  }
+  function _parseUrl(url) {
+    if (!url) return null;
+    try { const u = new URL(url); return { full: url, host: u.host, path: u.pathname, query: u.search }; } catch { return null; }
+  }
+  function _parseParams(url) {
+    if (!url) return {};
+    try { const u = new URL(url); return Object.fromEntries(u.searchParams); } catch { return {}; }
+  }
+
   // ── Execution ───────────────────────────────────────────────────────────────
   async function execute(code) {
     const trimmed = (code || '').trim();
@@ -139,14 +183,43 @@ window.XRAY_Console = (() => {
     _historyIndex = -1;
 
     // Build context
+    const allEntries = () => window.XRAY_Panel?.getEntries?.() || [];
+    const currentIdx = _currentEntry ? allEntries().findIndex(e => e.id === _currentEntry.id) : -1;
+    
     const ctx = {
       $r: _currentEntry,
       $res: _parseBody(_currentEntry?.responseDecrypted || _currentEntry?.responseRaw),
       $req: _parseBody(_currentEntry?.requestBody),
-      $all: () => window.XRAY_Panel?.getEntries?.() || [],
+      $h: _currentEntry?.responseHeaders || {},
+      $rh: _currentEntry?.requestHeaders || {},
+      $url: _parseUrl(_currentEntry?.url),
+      $params: _parseParams(_currentEntry?.url),
+      $status: _currentEntry?.status || 0,
+      $time: _currentEntry?.duration || 0,
+      $size: _currentEntry?.size || 0,
+      $method: (_currentEntry?.method || 'GET').toUpperCase(),
+      $all: allEntries,
+      $similar: () => allEntries().filter(e => e.urlPath === _currentEntry?.urlPath && e.id !== _currentEntry?.id),
+      $prev: () => currentIdx > 0 ? allEntries()[currentIdx - 1] : null,
+      $next: () => currentIdx >= 0 && currentIdx < allEntries().length - 1 ? allEntries()[currentIdx + 1] : null,
       copy: _copy,
       pin: _pin,
       assert: _assert,
+      toCSV: _toCSV,
+      toTable: _toTable,
+      diff: _diff,
+      schema: _schema,
+      pick: (obj, keys) => keys.reduce((acc, k) => (k in (obj || {}) && (acc[k] = obj[k]), acc), {}),
+      omit: (obj, keys) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => !keys.includes(k))),
+      flatten: (obj, prefix = '') => {
+        const result = {};
+        for (const [k, v] of Object.entries(obj || {})) {
+          const key = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === 'object' && !Array.isArray(v)) Object.assign(result, ctx.flatten(v, key));
+          else result[key] = v;
+        }
+        return result;
+      },
       _: _,
       ..._scope,
       ..._pins,

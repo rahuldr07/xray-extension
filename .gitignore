@@ -8,3 +8,6 @@ Thumbs.db
 *.zip
 node_modules/
 *.log
+
+# Planning docs (private)
+XRAY_ROADMAP.md

@@ -29,7 +29,9 @@
         "panel/waterfall.js",
         "panel/search.js",
         "panel/shortcuts.js",
+        "panel/codemirror.bundle.js",
         "panel/console.js",
+        "panel/console-ui.js",
         "panel/floating.js",
         "content/content.js"
       ],
