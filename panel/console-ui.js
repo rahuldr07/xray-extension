@@ -643,7 +643,14 @@ window.XRAY_ConsoleUI = (() => {
     
     _buildUI();
     console.log('[XRAY ConsoleUI] UI built, cells:', _cells.length);
-    if (_cells.length === 0 && window.CM) createCell();
+    if (_cells.length === 0 && window.CM) {
+      try {
+        createCell();
+        console.log('[XRAY ConsoleUI] First cell created');
+      } catch (e) {
+        console.error('[XRAY ConsoleUI] createCell failed:', e);
+      }
+    }
   }
 
   function handleTabSwitch(isConsole) {
