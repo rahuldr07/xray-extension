@@ -40,7 +40,6 @@ window.XRAY_ConsoleUI = (() => {
   background: var(--xr-bg);
   overflow: hidden;
   container-type: inline-size;
-  border: 2px solid red; /* DEBUG - remove later */
 }
 .xr-console-pane.xr-active { display: flex; }
 
@@ -233,6 +232,59 @@ window.XRAY_ConsoleUI = (() => {
   white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
 }
 .xr-console-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* Truncation Notice */
+.xr-out-truncated {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 4px;
+  color: #ffc107;
+  font-size: 11px;
+}
+
+/* Responsive: Container Queries */
+@container (max-width: 500px) {
+  .xr-console-toolbar {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+  .xr-console-toolbar button {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  .xr-console-toolbar button span.xr-btn-text {
+    display: none;
+  }
+  .xr-console-ctx-badge {
+    max-width: 100px;
+    font-size: 9px;
+  }
+  .xr-cell-num {
+    font-size: 9px;
+    min-width: 24px;
+  }
+  .xr-cell-editor {
+    font-size: 11px;
+  }
+  .xr-output {
+    font-size: 11px;
+    padding: 8px;
+  }
+}
+@container (max-width: 350px) {
+  .xr-console-toolbar button:not(#xr-console-add-cell) {
+    display: none;
+  }
+  .xr-console-ctx-badge {
+    display: none;
+  }
+  .xr-console-cells {
+    padding: 8px;
+    gap: 12px;
+  }
+}
     `;
     _root.appendChild(style);
   }
@@ -273,7 +325,6 @@ window.XRAY_ConsoleUI = (() => {
 
   function _buildUI() {
     const pane = _getById('xr-console-pane');
-    console.log('[XRAY ConsoleUI] _buildUI, pane:', pane);
     if (!pane) {
       console.warn('XRAY ConsoleUI: console pane not found');
       return;
@@ -281,7 +332,6 @@ window.XRAY_ConsoleUI = (() => {
 
     // Check if CodeMirror loaded
     if (!window.CM) {
-      console.warn('[XRAY ConsoleUI] CM not available, showing error');
       pane.innerHTML = `
         <div style="padding: 20px; color: var(--xr-muted); text-align: center;">
           <p>⚠️ CodeMirror failed to load</p>
@@ -291,7 +341,6 @@ window.XRAY_ConsoleUI = (() => {
       return;
     }
     
-    console.log('[XRAY ConsoleUI] Building full UI');
     pane.innerHTML = `
       <div class="xr-console-toolbar">
         <button id="xr-console-add-cell">+ Cell</button>
@@ -503,7 +552,10 @@ window.XRAY_ConsoleUI = (() => {
         syntaxHighlighting(xrHighlightStyle(), { fallback: true }),
         bracketMatching(),
         closeBrackets(),
-        autocompletion({ override: [_myCompletions] }),
+        autocompletion({ 
+          override: [_myCompletions],
+          activateOnTypingDelay: 150  // debounce autocomplete
+        }),
         javascript(),
         keymap.of([
           ...runKeymap,
@@ -585,6 +637,8 @@ window.XRAY_ConsoleUI = (() => {
     });
   }
 
+  const MAX_OUTPUT_ITEMS = 50;
+
   async function _executeCell(cell) {
     const idx = _cells.indexOf(cell);
     const code = cell.editor.state.doc.toString();
@@ -602,11 +656,27 @@ window.XRAY_ConsoleUI = (() => {
     } else if (result.result && result.result.__xr_render === 'table') {
       cell.outWrap.appendChild(_renderTableObject(result.result.data));
     } else if (result.type === 'object' || result.type === 'array') {
+      let data = result.result;
+      let truncated = false;
+      
+      // Limit large arrays for performance
+      if (Array.isArray(data) && data.length > MAX_OUTPUT_ITEMS) {
+        data = data.slice(0, MAX_OUTPUT_ITEMS);
+        truncated = true;
+      }
+      
       if (window.XRAY_Renderer) {
-        const tree = window.XRAY_Renderer.buildTree(result.result);
+        const tree = window.XRAY_Renderer.buildTree(data);
         cell.outWrap.appendChild(tree);
       } else {
-        cell.outWrap.textContent = JSON.stringify(result.result, null, 2);
+        cell.outWrap.textContent = JSON.stringify(data, null, 2);
+      }
+      
+      if (truncated) {
+        const note = document.createElement('div');
+        note.className = 'xr-out-truncated';
+        note.textContent = `⚠ Showing first ${MAX_OUTPUT_ITEMS} of ${result.result.length} items. Use toTable() for full view.`;
+        cell.outWrap.appendChild(note);
       }
     } else {
       const sp = document.createElement('span');
@@ -630,25 +700,17 @@ window.XRAY_ConsoleUI = (() => {
   }
 
   function init(root, panelUtils) {
-    console.log('[XRAY ConsoleUI] init called, root:', root);
     _root = root;
-    
-    // Always inject CSS first (even if CM not loaded)
     _injectCSS();
-    console.log('[XRAY ConsoleUI] CSS injected');
     
     if (!_loadCM()) {
       console.warn('[XRAY ConsoleUI] CodeMirror bundle not found!');
-    } else {
-      console.log('[XRAY ConsoleUI] CodeMirror loaded');
     }
     
     _buildUI();
-    console.log('[XRAY ConsoleUI] UI built, cells:', _cells.length);
     if (_cells.length === 0 && window.CM) {
       try {
         createCell();
-        console.log('[XRAY ConsoleUI] First cell created');
       } catch (e) {
         console.error('[XRAY ConsoleUI] createCell failed:', e);
       }
