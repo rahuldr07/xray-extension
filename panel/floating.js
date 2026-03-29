@@ -4154,6 +4154,7 @@ func main() {
       _dom.dots          = getById('xr-dots');
       _dom.settingsBtn   = getById('xr-settings-btn');
       _dom.closeBtn      = getById('xr-close');
+      _dom.listWrap      = _root.querySelector('.xr-list-wrap');
       _dom.listPane      = getById('xr-list-pane');
       _dom.dragHandle    = getById('xr-drag-handle');
       _dom.detailPane    = getById('xr-detail-pane');

@@ -257,9 +257,29 @@ window.XRAY_ConsoleUI = (() => {
     return wrap;
   }
 
+  function _getById(id) {
+    return _root.getElementById 
+      ? _root.getElementById(id) 
+      : _root.querySelector(`#${id}`);
+  }
+
   function _buildUI() {
-    const pane = _root.getElementById('xr-console-pane');
-    if (!pane) return;
+    const pane = _getById('xr-console-pane');
+    if (!pane) {
+      console.warn('XRAY ConsoleUI: console pane not found');
+      return;
+    }
+
+    // Check if CodeMirror loaded
+    if (!window.CM) {
+      pane.innerHTML = `
+        <div style="padding: 20px; color: var(--xr-muted); text-align: center;">
+          <p>⚠️ CodeMirror failed to load</p>
+          <p style="font-size: 11px;">Console requires the CodeMirror bundle</p>
+        </div>
+      `;
+      return;
+    }
 
     pane.innerHTML = `
       <div class="xr-console-toolbar">
@@ -267,6 +287,7 @@ window.XRAY_ConsoleUI = (() => {
         <button id="xr-console-run-all">▶ Run All</button>
         <button id="xr-console-clear">🗑 Clear</button>
         <button id="xr-console-snippets" title="Code snippets">📚 Snips</button>
+        <button id="xr-console-history" title="Command history">📜 History</button>
         <div class="xr-console-ctx-badge" id="xr-console-ctx-badge">No context</div>
       </div>
       <div id="xr-snippets-menu" class="xr-snippets-menu">
@@ -278,6 +299,10 @@ window.XRAY_ConsoleUI = (() => {
         <button class="xr-snip-item" data-code="toCSV($res.items || $res)">📄 Export CSV</button>
         <button class="xr-snip-item" data-code="diff($prev()?.responseDecrypted, $res)">🔀 Diff with prev</button>
       </div>
+      <div id="xr-history-menu" class="xr-snippets-menu">
+        <div class="xr-snip-header">History</div>
+        <div id="xr-history-items"></div>
+      </div>
       <div class="xr-console-cells" id="xr-console-cells"></div>
     `;
 
@@ -285,18 +310,27 @@ window.XRAY_ConsoleUI = (() => {
     _dom.cellsContainer = pane.querySelector('#xr-console-cells');
     _dom.ctxBadge = pane.querySelector('#xr-console-ctx-badge');
     const snipMenu = pane.querySelector('#xr-snippets-menu');
+    const histMenu = pane.querySelector('#xr-history-menu');
+    const histItems = pane.querySelector('#xr-history-items');
     let snipMenuActive = false;
+    let histMenuActive = false;
 
-    // Close snippet menu when clicking outside
+    // Close menus when clicking outside
     _root.addEventListener('click', (e) => {
       if (snipMenuActive && !snipMenu.contains(e.target) && !e.target.closest('#xr-console-snippets')) {
         snipMenu.classList.remove('xr-show');
         snipMenuActive = false;
       }
+      if (histMenuActive && !histMenu.contains(e.target) && !e.target.closest('#xr-console-history')) {
+        histMenu.classList.remove('xr-show');
+        histMenuActive = false;
+      }
     });
 
     pane.querySelector('#xr-console-snippets').onclick = (e) => {
       e.stopPropagation();
+      histMenu.classList.remove('xr-show');
+      histMenuActive = false;
       snipMenuActive = !snipMenuActive;
       snipMenu.classList.toggle('xr-show', snipMenuActive);
       if (snipMenuActive) {
@@ -304,6 +338,41 @@ window.XRAY_ConsoleUI = (() => {
         snipMenu.style.left = rect.left + 'px';
         snipMenu.style.top = (rect.bottom + 4) + 'px';
       }
+    };
+
+    pane.querySelector('#xr-console-history').onclick = (e) => {
+      e.stopPropagation();
+      snipMenu.classList.remove('xr-show');
+      snipMenuActive = false;
+      histMenuActive = !histMenuActive;
+      
+      // Populate history from XRAY_Console
+      if (histMenuActive) {
+        const history = window.XRAY_Console?.getHistory?.() || [];
+        if (history.length === 0) {
+          histItems.innerHTML = '<div class="xr-hist-empty">No history yet</div>';
+        } else {
+          histItems.innerHTML = history.slice(0, 20).map((cmd, i) => {
+            const short = cmd.length > 40 ? cmd.slice(0, 40) + '…' : cmd;
+            return `<button class="xr-snip-item xr-hist-item" data-idx="${i}">${short}</button>`;
+          }).join('');
+          
+          histItems.querySelectorAll('.xr-hist-item').forEach(btn => {
+            btn.onclick = () => {
+              const idx = parseInt(btn.dataset.idx);
+              const code = history[idx];
+              histMenu.classList.remove('xr-show');
+              histMenuActive = false;
+              createCell(code);
+            };
+          });
+        }
+        
+        const rect = e.target.getBoundingClientRect();
+        histMenu.style.left = rect.left + 'px';
+        histMenu.style.top = (rect.bottom + 4) + 'px';
+      }
+      histMenu.classList.toggle('xr-show', histMenuActive);
     };
     
     pane.querySelectorAll('.xr-snip-item').forEach(btn => {
@@ -551,13 +620,17 @@ window.XRAY_ConsoleUI = (() => {
 
   function init(root, panelUtils) {
     _root = root;
+    
+    // Always inject CSS first (even if CM not loaded)
+    _injectCSS();
+    
     if (!_loadCM()) {
       console.warn('XRAY: CodeMirror bundle not found!');
-      return;
+      // Still build basic UI without editor
     }
-    _injectCSS();
+    
     _buildUI();
-    if (_cells.length === 0) createCell();
+    if (_cells.length === 0 && window.CM) createCell();
   }
 
   function handleTabSwitch(isConsole) {
