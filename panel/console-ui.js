@@ -271,6 +271,7 @@ window.XRAY_ConsoleUI = (() => {
 
   function _buildUI() {
     const pane = _getById('xr-console-pane');
+    console.log('[XRAY ConsoleUI] _buildUI, pane:', pane);
     if (!pane) {
       console.warn('XRAY ConsoleUI: console pane not found');
       return;
@@ -278,6 +279,7 @@ window.XRAY_ConsoleUI = (() => {
 
     // Check if CodeMirror loaded
     if (!window.CM) {
+      console.warn('[XRAY ConsoleUI] CM not available, showing error');
       pane.innerHTML = `
         <div style="padding: 20px; color: var(--xr-muted); text-align: center;">
           <p>⚠️ CodeMirror failed to load</p>
@@ -286,7 +288,8 @@ window.XRAY_ConsoleUI = (() => {
       `;
       return;
     }
-
+    
+    console.log('[XRAY ConsoleUI] Building full UI');
     pane.innerHTML = `
       <div class="xr-console-toolbar">
         <button id="xr-console-add-cell">+ Cell</button>
@@ -625,17 +628,21 @@ window.XRAY_ConsoleUI = (() => {
   }
 
   function init(root, panelUtils) {
+    console.log('[XRAY ConsoleUI] init called, root:', root);
     _root = root;
     
     // Always inject CSS first (even if CM not loaded)
     _injectCSS();
+    console.log('[XRAY ConsoleUI] CSS injected');
     
     if (!_loadCM()) {
-      console.warn('XRAY: CodeMirror bundle not found!');
-      // Still build basic UI without editor
+      console.warn('[XRAY ConsoleUI] CodeMirror bundle not found!');
+    } else {
+      console.log('[XRAY ConsoleUI] CodeMirror loaded');
     }
     
     _buildUI();
+    console.log('[XRAY ConsoleUI] UI built, cells:', _cells.length);
     if (_cells.length === 0 && window.CM) createCell();
   }
 
