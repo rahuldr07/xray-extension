@@ -13,6 +13,8 @@ window.XRAY_Console = (() => {
   let _currentEntry = null;
   let _pins = {};
   let _scope = {};
+  let _evalId = 0;
+  let _pendingEvals = new Map();
 
   // ── Init ────────────────────────────────────────────────────────────────────
   function init() {
@@ -20,6 +22,21 @@ window.XRAY_Console = (() => {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) _history = JSON.parse(raw);
     } catch (e) {}
+    
+    // Listen for eval results from MAIN world
+    window.addEventListener('message', (e) => {
+      if (e.data?.type !== 'XRAY_EVAL_RESULT') return;
+      const { id, success, resultType, result, error } = e.data;
+      const resolver = _pendingEvals.get(id);
+      if (!resolver) return;
+      _pendingEvals.delete(id);
+      
+      if (success) {
+        resolver.resolve({ type: resultType, result });
+      } else {
+        resolver.resolve({ type: 'error', error });
+      }
+    });
   }
 
   // ── Context ─────────────────────────────────────────────────────────────────
@@ -231,27 +248,129 @@ window.XRAY_Console = (() => {
       Object.defineProperty(ctx, '$fetch', { get: () => _generateFetch(_currentEntry), enumerable: true });
     }
 
-    try {
-      // Detect expression vs statement
-      const isExpr = !trimmed.includes(';') && !trimmed.includes('\n') &&
-        !/^(const|let|var|if|for|while|switch|try)\s/.test(trimmed);
+    // Execute in MAIN world to avoid CSP restrictions
+    return _executeInMainWorld(trimmed, ctx);
+  }
 
-      const body = isExpr ? `return (${trimmed})` : trimmed;
-      const argNames = Object.keys(ctx);
-      const argVals = Object.values(ctx);
-
-      const fn = new Function(...argNames, `return (async () => { ${body} })()`);
-      const result = await fn(...argVals);
-
-      // Assertion check
-      if (result && result.__xr_assert__) {
-        return { type: 'assertion', pass: result.pass, message: result.message };
+  function _executeInMainWorld(code, ctx) {
+    return new Promise((resolve) => {
+      const id = ++_evalId;
+      _pendingEvals.set(id, { resolve });
+      
+      // Serialize context - convert functions to their return values where safe
+      const serializedCtx = {};
+      for (const [key, val] of Object.entries(ctx)) {
+        if (typeof val === 'function') {
+          // Skip functions - they can't be serialized
+          // But call value-returning ones like $all, $similar, $prev, $next
+          if (['$all', '$similar', '$prev', '$next'].includes(key)) {
+            try { serializedCtx[key] = val(); } catch { serializedCtx[key] = null; }
+          }
+        } else if (typeof val === 'object' && val !== null) {
+          try { serializedCtx[key] = JSON.parse(JSON.stringify(val)); } catch { serializedCtx[key] = null; }
+        } else {
+          serializedCtx[key] = val;
+        }
       }
 
-      return { type: _getType(result), result };
-    } catch (err) {
-      return { type: 'error', error: { message: err.message, stack: err.stack } };
-    }
+      // Inject script into MAIN world
+      const script = document.createElement('script');
+      script.textContent = `
+        (async () => {
+          const _xrayId = ${id};
+          const _xrayCode = ${JSON.stringify(code)};
+          const _xrayCtx = ${JSON.stringify(serializedCtx)};
+          
+          try {
+            // Helper functions available in console
+            const toCSV = (arr) => {
+              if (!Array.isArray(arr) || !arr.length) return '';
+              const keys = Object.keys(arr[0]);
+              const header = keys.join(',');
+              const rows = arr.map(row => keys.map(k => {
+                let v = row[k];
+                if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) v = '"' + v.replace(/"/g, '""') + '"';
+                return v ?? '';
+              }).join(','));
+              return [header, ...rows].join('\\n');
+            };
+            const toTable = (arr) => ({ __xr_render: 'table', data: arr });
+            const diff = (a, b) => {
+              const result = { added: {}, removed: {}, changed: {} };
+              const aKeys = new Set(Object.keys(a || {}));
+              const bKeys = new Set(Object.keys(b || {}));
+              for (const k of bKeys) if (!aKeys.has(k)) result.added[k] = b[k];
+              for (const k of aKeys) {
+                if (!bKeys.has(k)) result.removed[k] = a[k];
+                else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) result.changed[k] = { from: a[k], to: b[k] };
+              }
+              return result;
+            };
+            const schema = (obj, depth = 0) => {
+              if (depth > 5) return 'any';
+              if (obj === null) return 'null';
+              if (Array.isArray(obj)) return obj.length ? [schema(obj[0], depth + 1)] : 'array';
+              if (typeof obj === 'object') {
+                const s = {};
+                for (const [k, v] of Object.entries(obj)) s[k] = schema(v, depth + 1);
+                return s;
+              }
+              return typeof obj;
+            };
+            const pick = (obj, keys) => keys.reduce((acc, k) => (k in (obj || {}) && (acc[k] = obj[k]), acc), {});
+            const omit = (obj, keys) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => !keys.includes(k)));
+            const flatten = (obj, prefix = '') => {
+              const result = {};
+              for (const [k, v] of Object.entries(obj || {})) {
+                const key = prefix ? prefix + '.' + k : k;
+                if (v && typeof v === 'object' && !Array.isArray(v)) Object.assign(result, flatten(v, key));
+                else result[key] = v;
+              }
+              return result;
+            };
+            const copy = (val) => { navigator.clipboard.writeText(typeof val === 'string' ? val : JSON.stringify(val, null, 2)); return '✓ Copied'; };
+            
+            // Detect expression vs statement
+            const isExpr = !_xrayCode.includes(';') && !_xrayCode.includes('\\n') &&
+              !/^(const|let|var|if|for|while|switch|try)\\s/.test(_xrayCode);
+            const body = isExpr ? 'return (' + _xrayCode + ')' : _xrayCode;
+            
+            // Build context args
+            const { $res, $req, $h, $rh, $url, $params, $status, $time, $size, $method, $all, $similar, $prev, $next, $r, $curl, $fetch } = _xrayCtx;
+            
+            const fn = new Function('$res', '$req', '$h', '$rh', '$url', '$params', '$status', '$time', '$size', '$method', '$all', '$similar', '$prev', '$next', '$r', '$curl', '$fetch', 'toCSV', 'toTable', 'diff', 'schema', 'pick', 'omit', 'flatten', 'copy', 'return (async () => { ' + body + ' })()');
+            const result = await fn($res, $req, $h, $rh, $url, $params, $status, $time, $size, $method, $all, $similar, $prev, $next, $r, $curl, $fetch, toCSV, toTable, diff, schema, pick, omit, flatten, copy);
+            
+            // Determine type
+            let resultType = typeof result;
+            if (result === undefined) resultType = 'undefined';
+            else if (result === null) resultType = 'null';
+            else if (Array.isArray(result)) resultType = 'array';
+            else if (typeof result === 'object') resultType = 'object';
+            
+            // Serialize result
+            let serialized = result;
+            if (typeof result === 'object' && result !== null) {
+              try { serialized = JSON.parse(JSON.stringify(result)); } catch { serialized = String(result); }
+            }
+            
+            window.postMessage({ type: 'XRAY_EVAL_RESULT', id: _xrayId, success: true, resultType, result: serialized }, '*');
+          } catch (err) {
+            window.postMessage({ type: 'XRAY_EVAL_RESULT', id: _xrayId, success: false, error: { message: err.message, stack: err.stack } }, '*');
+          }
+        })();
+      `;
+      document.documentElement.appendChild(script);
+      script.remove();
+      
+      // Timeout after 30s
+      setTimeout(() => {
+        if (_pendingEvals.has(id)) {
+          _pendingEvals.delete(id);
+          resolve({ type: 'error', error: { message: 'Execution timeout (30s)' } });
+        }
+      }, 30000);
+    });
   }
 
   function _getType(val) {
