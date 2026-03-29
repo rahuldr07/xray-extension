@@ -207,6 +207,12 @@ window.XRAY_ConsoleUI = (() => {
 .xr-snip-item:hover {
   background: var(--xr-bg3);
 }
+.xr-hist-empty {
+  padding: 12px;
+  color: var(--xr-muted);
+  font-size: 11px;
+  text-align: center;
+}
 
 /* Table Output */
 .xr-console-table-wrap {
@@ -634,15 +640,18 @@ window.XRAY_ConsoleUI = (() => {
   }
 
   function handleTabSwitch(isConsole) {
-    if (isConsole && _cells.length && _cells[0].editor) {
-      setTimeout(() => _cells[_cells.length-1].editor.focus(), 50);
+    if (isConsole && _cells.length > 0) {
+      const lastCell = _cells[_cells.length - 1];
+      if (lastCell?.editor) {
+        setTimeout(() => lastCell.editor.focus(), 50);
+      }
     }
     // Sync context from floating panel's selected entry
-    if (window.XRAY_Panel) {
+    if (isConsole && window.XRAY_Panel) {
       const selectedId = window.XRAY_Panel.getSelectedId?.() || null;
       if (selectedId) {
         const entry = window.XRAY_Panel.getEntry?.(selectedId);
-        updateContext(entry);
+        if (entry) updateContext(entry);
       }
     }
   }

@@ -4040,9 +4040,9 @@ func main() {
         );
         
         const isConsole = _state.activeTab === 'console';
-        _dom.listWrap.style.display = isConsole ? 'none' : '';
-        _dom.dragHandle.style.display = isConsole ? 'none' : '';
-        _dom.detailPane.style.display = isConsole ? 'none' : '';
+        if (_dom.listWrap) _dom.listWrap.style.display = isConsole ? 'none' : '';
+        if (_dom.dragHandle) _dom.dragHandle.style.display = isConsole ? 'none' : '';
+        if (_dom.detailPane) _dom.detailPane.style.display = isConsole ? 'none' : '';
         if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
         
         if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
