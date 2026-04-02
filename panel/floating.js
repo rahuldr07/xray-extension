@@ -8,7 +8,7 @@ window.XRAY_Panel = (() => {
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
     open:          false,
-    activeTab:     'api',        // 'api' | 'logs'
+    activeTab:     'api',        // 'api' | 'logs' | 'console'
     activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
     activeDTab:    'response',   // 'response' | 'request' | 'headers'
     selectedId:    null,
@@ -4206,6 +4206,7 @@ func main() {
       // Events + shortcuts
       _bindEvents();
       if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
+      if (window.XRAY_Console?.init) window.XRAY_Console.init();
       if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
 
       // Restore open state
@@ -4327,6 +4328,19 @@ func main() {
       const target = filtered[next];
       _selectEntry(target.id);
       _dom.listPane?.querySelector(`[data-id="${target.id}"]`)?.scrollIntoView({ block: 'nearest' });
+    },
+
+    // Console API
+    getEntries() {
+      return [..._state.entries];
+    },
+
+    getSelectedId() {
+      return _state.selectedId;
+    },
+
+    getEntry(id) {
+      return _state.entries.find(e => e.id === id) || null;
     },
 
   };

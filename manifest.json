@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Auto-intercepts API calls, decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel.",
 
-  "permissions": ["storage", "scripting", "activeTab"],
+  "permissions": ["storage", "scripting", "activeTab", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],
 
   "background": {
@@ -14,7 +14,12 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/interceptor.js", "content/console-capture.js"],
+      "js": [
+        "content/interceptor.js",
+        "content/console-capture.js",
+        "content/decrypt-bridge.js",
+        "content/console-executor.js"
+      ],
       "world": "MAIN",
       "run_at": "document_start"
     },
