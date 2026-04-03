@@ -757,6 +757,18 @@ window.XRAY_Panel = (() => {
   min-width: 0;
   overflow: hidden;
 }
+.xr-insights-pane {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+  background: var(--xr-bg);
+}
+.xr-insights-pane.xr-active {
+  display: flex;
+}
 .xr-detail-empty {
   display: flex;
   flex-direction: column;
@@ -1116,6 +1128,22 @@ window.XRAY_Panel = (() => {
   border-radius: 3px;
   padding: 1px 4px;
   color: var(--xr-subtext);
+}
+.xr-export-btn {
+  padding: 4px 10px;
+  background: var(--xr-bg3);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+  color: var(--xr-subtext);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.xr-export-btn:hover {
+  background: var(--xr-surface);
+  border-color: var(--xr-ring);
+  color: var(--xr-text);
 }
 
 /* ─── Grid view ──────────────────────────────────────────────────────────── */
@@ -1952,6 +1980,9 @@ window.XRAY_Panel = (() => {
     <button class="xr-tab" data-tab="console">
       Console <span class="xr-console-icon">&gt;_</span>
     </button>
+    <button class="xr-tab" data-tab="insights">
+      📊 Insights
+    </button>
   </div>
   <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors · 0.0 MB</div>
   <div class="xr-hspacer"></div>
@@ -1966,11 +1997,13 @@ window.XRAY_Panel = (() => {
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
   <div class="xr-detail-pane" id="xr-detail-pane"></div>
   <div class="xr-console-pane" id="xr-console-pane"></div>
+  <div class="xr-insights-pane" id="xr-insights-pane"></div>
 </div>
 <div class="xr-footer">
   <div class="xr-footer-hint">
     <span class="xr-kbd">Ctrl+K</span> search
   </div>
+  <button class="xr-export-btn" id="xr-export-btn" title="Export all entries">⬇ Export</button>
   <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
 </div>
@@ -2772,6 +2805,7 @@ window.XRAY_Panel = (() => {
       { id: 'json',  icon: '{ }', label: 'Copy JSON'       },
       { id: 'curl',  icon: '⌘',  label: 'Copy as cURL'    },
       { id: 'fetch', icon: '⚡',  label: 'Copy as fetch()' },
+      { id: 'axios', icon: '📦',  label: 'Copy as axios'   },
     ].forEach(({ id, icon, label }) => {
       const item = document.createElement('button');
       item.dataset.copyAs = id;
@@ -3198,22 +3232,46 @@ window.XRAY_Panel = (() => {
 
     let text;
 
-    if (as === 'curl') {
-      text = _buildCurl(entry);
-    } else if (as === 'fetch') {
-      text = _buildFetch(entry);
-    } else {
-      let data;
-      if (entry.type === 'log') {
-        data = entry.logData;
-      } else if (_state.activeDTab === 'request') {
-        data = entry.requestBody;
-      } else if (_state.activeDTab === 'headers') {
-        data = { request: entry.requestHeaders, response: entry.responseHeaders };
+    // Use XRAY_Export module if available, fallback to built-in
+    if (window.XRAY_Export) {
+      if (as === 'curl') {
+        text = window.XRAY_Export.toCurl(entry);
+      } else if (as === 'fetch') {
+        text = window.XRAY_Export.toFetch(entry);
+      } else if (as === 'axios') {
+        text = window.XRAY_Export.toAxios(entry);
       } else {
-        data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
+        let data;
+        if (entry.type === 'log') {
+          data = entry.logData;
+        } else if (_state.activeDTab === 'request') {
+          data = entry.requestBody;
+        } else if (_state.activeDTab === 'headers') {
+          data = { request: entry.requestHeaders, response: entry.responseHeaders };
+        } else {
+          data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
+        }
+        text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
       }
-      text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    } else {
+      // Fallback to built-in functions
+      if (as === 'curl') {
+        text = _buildCurl(entry);
+      } else if (as === 'fetch') {
+        text = _buildFetch(entry);
+      } else {
+        let data;
+        if (entry.type === 'log') {
+          data = entry.logData;
+        } else if (_state.activeDTab === 'request') {
+          data = entry.requestBody;
+        } else if (_state.activeDTab === 'headers') {
+          data = { request: entry.requestHeaders, response: entry.responseHeaders };
+        } else {
+          data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw;
+        }
+        text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      }
     }
 
     navigator.clipboard.writeText(text || '').catch(() => {});
@@ -3476,6 +3534,88 @@ window.XRAY_Panel = (() => {
 
   function _fuzzyClose() {
     _dom.fuzzyBackdrop?.classList.remove('xr-open');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     Export Menu (uses XRAY_Export if available)
+     ────────────────────────────────────────────────────────────────────────── */
+  function _showExportMenu() {
+    const entries = _getVisibleEntries();
+    if (entries.length === 0) {
+      alert('No entries to export');
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'xr-export-menu';
+    menu.innerHTML = `
+      <div class="xr-export-menu-title">Export ${entries.length} entries</div>
+      <button data-fmt="json">📄 JSON</button>
+      <button data-fmt="csv">📊 CSV</button>
+      <button data-fmt="har">🌐 HAR</button>
+    `;
+    menu.style.cssText = `
+      position: fixed; z-index: 100000;
+      background: var(--xr-surface); border: 1px solid var(--xr-border);
+      border-radius: 6px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      display: flex; flex-direction: column; gap: 4px;
+    `;
+    const btnRect = _dom.exportBtn.getBoundingClientRect();
+    menu.style.bottom = `${window.innerHeight - btnRect.top + 4}px`;
+    menu.style.left = `${btnRect.left}px`;
+
+    const styleTitle = `font-size:10px;color:var(--xr-muted);margin-bottom:4px;`;
+    const styleBtn = `
+      padding:6px 12px; text-align:left; border:none; background:transparent;
+      color:var(--xr-text); border-radius:4px; cursor:pointer; font-size:11px;
+    `;
+    menu.querySelector('.xr-export-menu-title').style.cssText = styleTitle;
+    menu.querySelectorAll('button').forEach(b => b.style.cssText = styleBtn);
+    menu.querySelectorAll('button').forEach(b => {
+      b.addEventListener('mouseenter', () => b.style.background = 'var(--xr-bg3)');
+      b.addEventListener('mouseleave', () => b.style.background = 'transparent');
+    });
+
+    menu.addEventListener('click', (e) => {
+      const fmt = e.target.dataset?.fmt;
+      if (!fmt) return;
+      menu.remove();
+      _exportEntries(entries, fmt);
+    });
+
+    document.body.appendChild(menu);
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target) && e.target !== _dom.exportBtn) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 10);
+  }
+
+  function _getVisibleEntries() {
+    return _state.entries.filter(e =>
+      _state.activeTab === 'all' ||
+      e.type === (_state.activeTab === 'api' ? 'api' : 'log')
+    );
+  }
+
+  function _exportEntries(entries, fmt) {
+    const Export = window.XRAY_Export;
+    if (Export) {
+      if (fmt === 'json') Export.downloadJSON(entries, `xray-export-${Date.now()}.json`);
+      else if (fmt === 'csv') Export.downloadCSV(entries, `xray-export-${Date.now()}.csv`);
+      else if (fmt === 'har') Export.downloadHAR(entries, `xray-export-${Date.now()}.har`);
+    } else {
+      // Fallback: simple JSON download
+      const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xray-export-${Date.now()}.${fmt === 'csv' ? 'csv' : 'json'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
 
   function _fuzzyRender(query) {
@@ -3934,6 +4074,121 @@ func main() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Insights Pane
+  // ══════════════════════════════════════════════════════════════════════════
+
+  let _insightsInitialized = false;
+
+  function _toggleInsightsPane(show) {
+    if (!_dom.insightsPane) return;
+    
+    _dom.insightsPane.classList.toggle('xr-active', show);
+    
+    if (show) {
+      _renderInsights();
+    }
+  }
+
+  function _renderInsights() {
+    const Insights = window.XRAY_Insights;
+    const entries = _state.entries;
+    
+    if (Insights && entries.length > 0) {
+      // Use XRAY_Insights module
+      if (!_insightsInitialized) {
+        Insights.init(_dom.insightsPane);
+        _insightsInitialized = true;
+      }
+      Insights.update(entries);
+    } else if (entries.length === 0) {
+      _dom.insightsPane.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;color:var(--xr-muted);">
+          <div style="font-size:32px;opacity:0.4;">📊</div>
+          <div style="font-size:13px;">No data to analyze</div>
+          <div style="font-size:11px;opacity:0.7;">Capture some API requests or logs to see insights</div>
+        </div>
+      `;
+    } else {
+      // Fallback without XRAY_Insights: show basic stats
+      _renderBasicInsights(entries);
+    }
+  }
+
+  function _renderBasicInsights(entries) {
+    const apis = entries.filter(e => e.type === 'api');
+    const logs = entries.filter(e => e.type === 'log');
+    const errors = apis.filter(e => String(e.status || '').match(/^[45]/));
+    const avgTime = apis.length > 0 
+      ? (apis.reduce((s, e) => s + (e.duration || 0), 0) / apis.length).toFixed(0) 
+      : 0;
+    
+    const statusCounts = {};
+    apis.forEach(e => {
+      const code = String(e.status || 'unknown');
+      statusCounts[code] = (statusCounts[code] || 0) + 1;
+    });
+    
+    const topEndpoints = {};
+    apis.forEach(e => {
+      try {
+        const url = new URL(e.url);
+        const path = url.pathname;
+        topEndpoints[path] = (topEndpoints[path] || 0) + 1;
+      } catch {}
+    });
+    const sortedEndpoints = Object.entries(topEndpoints)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    
+    _dom.insightsPane.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--xr-info);">${apis.length}</div>
+          <div style="font-size:11px;color:var(--xr-muted);margin-top:4px;">API Requests</div>
+        </div>
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--xr-success);">${logs.length}</div>
+          <div style="font-size:11px;color:var(--xr-muted);margin-top:4px;">Console Logs</div>
+        </div>
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--xr-error);">${errors.length}</div>
+          <div style="font-size:11px;color:var(--xr-muted);margin-top:4px;">Errors</div>
+        </div>
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--xr-warning);">${avgTime}ms</div>
+          <div style="font-size:11px;color:var(--xr-muted);margin-top:4px;">Avg Response</div>
+        </div>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;">
+          <div style="font-size:12px;font-weight:600;color:var(--xr-text);margin-bottom:12px;">Status Distribution</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${Object.entries(statusCounts).map(([code, count]) => `
+              <div style="display:flex;justify-content:space-between;font-size:11px;">
+                <span style="color:${code.startsWith('2') ? 'var(--xr-success)' : code.startsWith('4') || code.startsWith('5') ? 'var(--xr-error)' : 'var(--xr-warning)'};">${code}</span>
+                <span style="color:var(--xr-muted);">${count}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div style="background:var(--xr-surface);border-radius:8px;padding:16px;">
+          <div style="font-size:12px;font-weight:600;color:var(--xr-text);margin-bottom:12px;">Top Endpoints</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${sortedEndpoints.map(([path, count]) => `
+              <div style="display:flex;justify-content:space-between;font-size:10px;gap:8px;">
+                <span style="color:var(--xr-subtext);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${path}">${path}</span>
+                <span style="color:var(--xr-muted);flex-shrink:0;">${count}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Settings Modal
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -4040,14 +4295,20 @@ func main() {
         );
         
         const isConsole = _state.activeTab === 'console';
-        if (_dom.listWrap) _dom.listWrap.style.display = isConsole ? 'none' : '';
-        if (_dom.dragHandle) _dom.dragHandle.style.display = isConsole ? 'none' : '';
-        if (_dom.detailPane) _dom.detailPane.style.display = isConsole ? 'none' : '';
+        const isInsights = _state.activeTab === 'insights';
+        
+        // Hide/show main panes
+        if (_dom.listWrap) _dom.listWrap.style.display = (isConsole || isInsights) ? 'none' : '';
+        if (_dom.dragHandle) _dom.dragHandle.style.display = (isConsole || isInsights) ? 'none' : '';
+        if (_dom.detailPane) _dom.detailPane.style.display = (isConsole || isInsights) ? 'none' : '';
         if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
+        
+        // Show/hide insights pane
+        _toggleInsightsPane(isInsights);
         
         if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
         
-        if (!isConsole) {
+        if (!isConsole && !isInsights) {
           _state.selectedId = null;
           _rebuildList();
           _renderDetail(null);
@@ -4066,6 +4327,11 @@ func main() {
       _renderDetail(null);
       _updateCounts();
     });
+
+    // Export button click - show export menu
+    if (_dom.exportBtn) {
+      _dom.exportBtn.addEventListener('click', _showExportMenu);
+    }
 
     // Fuzzy overlay events
     _dom.fuzzyBackdrop.addEventListener('click', (e) => {
@@ -4159,11 +4425,13 @@ func main() {
       _dom.dragHandle    = getById('xr-drag-handle');
       _dom.detailPane    = getById('xr-detail-pane');
       _dom.consolePane   = getById('xr-console-pane');
+      _dom.insightsPane  = getById('xr-insights-pane');
       _dom.footerCount   = getById('xr-count');
       _dom.apiCount      = getById('xr-api-count');
       _dom.logCount      = getById('xr-log-count');
       _dom.headerSummary = getById('xr-header-summary');
       _dom.clearBtn      = getById('xr-clear');
+      _dom.exportBtn     = getById('xr-export-btn');
       _dom.fuzzyBackdrop = getById('xr-fuzzy-backdrop');
       _dom.fuzzyInput    = getById('xr-fuzzy-input');
       _dom.fuzzyResults  = getById('xr-fuzzy-results');
@@ -4208,6 +4476,13 @@ func main() {
       if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
       if (window.XRAY_Console?.init) window.XRAY_Console.init();
       if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
+      
+      // Initialize Web Worker for off-thread processing (non-blocking)
+      if (window.XRAY_Worker?.init) {
+        window.XRAY_Worker.init().catch(() => {
+          // Worker failed to initialize, continue without it
+        });
+      }
 
       // Restore open state
       if (!_isDevtoolsMode && _state.open) _dom.panel.classList.add('xr-open');
