@@ -8,14 +8,14 @@ window.XRAY_Panel = (() => {
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
     open:          false,
-    activeTab:     'api',        // 'api' | 'logs' | 'console'
+    activeTab:     'api',        // 'api' | 'logs' | 'console' | 'insights'
     activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
     activeDTab:    'response',   // 'response' | 'request' | 'headers'
     selectedId:    null,
     theme:         'zinc',
     filter:        '',
-    listWidth:     220,
-    panelWidth:    520,
+    listWidth:     320,          // Wider for new grid layout
+    panelWidth:    680,
     entries:       [],
     diffCompareId: null,         // ID of entry to diff against
     gridDrillRow:  null,         // drilled-in row data from grid view
@@ -23,9 +23,14 @@ window.XRAY_Panel = (() => {
     treePath:      '',
     paneSearch:    { active: false, query: '', hits: [], current: -1 },
     pinned:        new Set(),    // pinned entry IDs
-    filters:       { statusCodes: [], types: [] },  // filter state
+    filters:       { statusCodes: [], types: [] },  // filter state (moved to settings)
     maxEntries:    500,
     autoOpen:      false,
+    // Sorting state for API list
+    sort:          { field: 'timestamp', order: 'desc' },  // field: 'method' | 'status' | 'url' | 'time' | 'size' | 'timestamp'
+    // Timeline reference for waterfall
+    timelineStart: null,
+    timelineEnd:   null,
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -49,8 +54,8 @@ window.XRAY_Panel = (() => {
 #xr-panel {
   position: fixed;
   top: 0; right: 0;
-  width: 520px;
-  min-width: 360px;
+  width: 680px;
+  min-width: 480px;
   max-width: 92vw;
   height: 100vh;
   z-index: 2147483647;
@@ -291,37 +296,175 @@ window.XRAY_Panel = (() => {
 
 /* Filter bar */
 .xr-filter-bar {
-  display: flex;
+  display: none; /* Moved filters to settings */
+}
+.xr-filter-btn {
+  display: none;
+}
+
+/* ─── API List Column Header ─────────────────────────────────────────────── */
+.xr-list-header {
+  display: grid;
+  grid-template-columns: 58px 42px 1fr 60px 50px 80px;
   gap: 4px;
   padding: 6px 8px;
   background: var(--xr-bg2);
   border-bottom: 1px solid var(--xr-border);
-  overflow-x: auto;
-  align-items: center;
-}
-.xr-filter-btn {
-  padding: 4px 8px;
-  border: 1px solid var(--xr-border);
-  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--xr-muted);
-  border-radius: 4px;
-  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.xr-list-header-col {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
-  flex-shrink: 0;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all .12s;
 }
-.xr-filter-btn:hover {
+.xr-list-header-col:hover {
+  background: var(--xr-bg3);
   color: var(--xr-text);
-  border-color: var(--xr-accent);
 }
-.xr-filter-btn.xr-active {
-  background: var(--xr-accent);
-  color: var(--xr-bg);
-  border-color: var(--xr-accent);
+.xr-list-header-col.xr-sorted {
+  color: var(--xr-accent);
 }
-.xr-filter-sep { width: 1px; height: 14px; background: var(--xr-border); margin: 0 2px; }
+.xr-list-header-col .xr-sort-icon {
+  font-size: 8px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.xr-list-header-col:hover .xr-sort-icon,
+.xr-list-header-col.xr-sorted .xr-sort-icon {
+  opacity: 1;
+}
+.xr-list-header-col.xr-sorted.xr-asc .xr-sort-icon::after { content: '▲'; }
+.xr-list-header-col.xr-sorted.xr-desc .xr-sort-icon::after { content: '▼'; }
 
+/* ─── API Entry Row (Grid Layout) ────────────────────────────────────────── */
+.xr-entry.xr-api-row {
+  display: grid;
+  grid-template-columns: 58px 42px 1fr 60px 50px 80px;
+  gap: 4px;
+  padding: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--xr-border);
+  cursor: pointer;
+  transition: background .1s;
+  min-height: 44px;
+  position: relative;
+}
+.xr-entry.xr-api-row:hover {
+  background: var(--xr-bg2);
+}
+.xr-entry.xr-api-row.xr-selected {
+  background: var(--xr-surface);
+  box-shadow: inset 3px 0 0 var(--xr-accent);
+}
+.xr-api-row .xr-col {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.xr-api-row .xr-col-method {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  font-size: 10px;
+}
+.xr-api-row .xr-col-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 10px;
+}
+.xr-api-row .xr-col-url {
+  color: var(--xr-subtext);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.xr-api-row .xr-col-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--xr-muted);
+  text-align: right;
+}
+.xr-api-row .xr-col-size {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--xr-muted);
+  text-align: right;
+}
+.xr-api-row .xr-col-waterfall {
+  position: relative;
+  height: 12px;
+}
+
+/* ─── Waterfall Bar ──────────────────────────────────────────────────────── */
+.xr-waterfall-bar {
+  position: absolute;
+  height: 8px;
+  top: 2px;
+  border-radius: 2px;
+  min-width: 3px;
+}
+.xr-waterfall-bar.xr-wf-wait { background: var(--xr-muted); opacity: 0.4; }
+.xr-waterfall-bar.xr-wf-dns { background: #4dabf7; }
+.xr-waterfall-bar.xr-wf-connect { background: #f59f00; }
+.xr-waterfall-bar.xr-wf-ttfb { background: #37b24d; }
+.xr-waterfall-bar.xr-wf-download { background: var(--xr-info); }
+.xr-waterfall-bar.xr-wf-total { background: var(--xr-accent); }
+
+/* ─── Status colors ──────────────────────────────────────────────────────── */
+.xr-col-status.xr-s-2xx { color: var(--xr-success); }
+.xr-col-status.xr-s-3xx { color: var(--xr-info); }
+.xr-col-status.xr-s-4xx { color: var(--xr-warning); }
+.xr-col-status.xr-s-5xx { color: var(--xr-error); }
+.xr-col-status.xr-s-pending { color: var(--xr-muted); }
+
+/* ─── Method colors ──────────────────────────────────────────────────────── */
+.xr-col-method.xr-m-get { color: var(--xr-success); }
+.xr-col-method.xr-m-post { color: var(--xr-info); }
+.xr-col-method.xr-m-put { color: var(--xr-warning); }
+.xr-col-method.xr-m-patch { color: #f59f00; }
+.xr-col-method.xr-m-delete { color: var(--xr-error); }
+
+/* ─── Quick Actions (on hover) ───────────────────────────────────────────── */
+.xr-api-row .xr-quick-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  gap: 4px;
+  background: var(--xr-surface);
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--xr-border);
+  z-index: 2;
+}
+.xr-api-row:hover .xr-quick-actions {
+  display: flex;
+}
+.xr-quick-actions button {
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  color: var(--xr-muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.xr-quick-actions button:hover {
+  background: var(--xr-bg3);
+  color: var(--xr-text);
+}
 
 /* Icon buttons */
 .xr-ibtn {
@@ -357,8 +500,8 @@ window.XRAY_Panel = (() => {
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  min-width: 130px;
-  max-width: 300px;
+  min-width: 280px;
+  max-width: 500px;
   flex: 1;
 }
 
@@ -370,6 +513,7 @@ window.XRAY_Panel = (() => {
   flex-shrink: 0;
   overflow: hidden;
   border-right: 1px solid var(--xr-border);
+  min-width: 280px;
 }
 .xr-list-wrap::after {
   content: '';
@@ -1828,6 +1972,41 @@ window.XRAY_Panel = (() => {
   cursor: pointer;
   accent-color: var(--xr-ring);
 }
+.xr-settings-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.xr-settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+  font-size: 11px;
+  color: var(--xr-text);
+}
+.xr-settings-checkbox:hover {
+  background: var(--xr-surface);
+}
+.xr-settings-checkbox:has(input:checked) {
+  background: var(--xr-surface);
+  border-color: var(--xr-accent);
+}
+.xr-filter-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 10px;
+}
+.xr-filter-tag.xr-s-2xx { color: var(--xr-success); }
+.xr-filter-tag.xr-s-3xx { color: var(--xr-info); }
+.xr-filter-tag.xr-s-4xx { color: var(--xr-warning); }
+.xr-filter-tag.xr-s-5xx { color: var(--xr-error); }
 .xr-settings-stat {
   display: flex;
   align-items: baseline;
@@ -2057,6 +2236,29 @@ window.XRAY_Panel = (() => {
             <option value="dracula">Dracula (Dark)</option>
             <option value="nord">Nord (Dark)</option>
           </select>
+        </div>
+      </div>
+
+      <!-- Filters (moved from list) -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Filters</div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-label">Status Codes</label>
+          <div class="xr-settings-filters" id="xr-settings-status-filters">
+            <label class="xr-settings-checkbox"><input type="checkbox" data-status="2xx"> <span class="xr-filter-tag xr-s-2xx">2xx</span></label>
+            <label class="xr-settings-checkbox"><input type="checkbox" data-status="3xx"> <span class="xr-filter-tag xr-s-3xx">3xx</span></label>
+            <label class="xr-settings-checkbox"><input type="checkbox" data-status="4xx"> <span class="xr-filter-tag xr-s-4xx">4xx</span></label>
+            <label class="xr-settings-checkbox"><input type="checkbox" data-status="5xx"> <span class="xr-filter-tag xr-s-5xx">5xx</span></label>
+          </div>
+          <div style="font-size:10px;color:var(--xr-muted);margin-top:4px;">Leave all unchecked to show all status codes</div>
+        </div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-label">Request Types</label>
+          <div class="xr-settings-filters" id="xr-settings-type-filters">
+            <label class="xr-settings-checkbox"><input type="checkbox" data-type="fetch"> 📡 Fetch</label>
+            <label class="xr-settings-checkbox"><input type="checkbox" data-type="xhr"> 🔗 XHR</label>
+          </div>
+          <div style="font-size:10px;color:var(--xr-muted);margin-top:4px;">Leave all unchecked to show all types</div>
         </div>
       </div>
 
@@ -2512,88 +2714,29 @@ window.XRAY_Panel = (() => {
     if (!pane) return;
     pane.innerHTML = '';
 
-    // Build filter bar
-    const filterBar = document.createElement('div');
-    filterBar.className = 'xr-filter-bar';
-    filterBar.id = 'xr-filter-bar';
-
-    const filters = [
-      { attr: 'data-filter', val: 'all', label: 'All' },
-      { attr: 'data-filter', val: '2xx', label: '2xx' },
-      { attr: 'data-filter', val: '3xx', label: '3xx' },
-      { attr: 'data-filter', val: '4xx', label: '4xx' },
-      { attr: 'data-filter', val: '5xx', label: '5xx' },
-    ];
-
-    filters.forEach(({ attr, val, label }) => {
-      const btn = document.createElement('button');
-      btn.className = 'xr-filter-btn';
-      btn.setAttribute(attr, val);
-      btn.textContent = label;
-      if ((val === 'all' && _state.filters.statusCodes.length === 0) ||
-          (val !== 'all' && _state.filters.statusCodes.includes(val + 'xx'))) {
-        btn.classList.add('xr-active');
-      }
-      btn.addEventListener('click', () => {
-        if (val === 'all') {
-          _state.filters.statusCodes = [];
-        } else {
-          const range = val + 'xx';
-          if (_state.filters.statusCodes.includes(range)) {
-            _state.filters.statusCodes = _state.filters.statusCodes.filter(f => f !== range);
-          } else {
-            _state.filters.statusCodes.push(range);
-          }
-        }
-        _saveFilters();
-        _rebuildList();
-        _updateCounts();
-      });
-      filterBar.appendChild(btn);
-    });
-
-    // Type toggles
-    const types = [
-      { val: 'fetch', label: '📡 Fetch', short: '📡' },
-      { val: 'xhr', label: '🔗 XHR', short: '🔗' },
-      { val: 'log', label: '📋 Log', short: '📋' },
-    ];
-
-    types.forEach(({ val, label, short }) => {
-      const btn = document.createElement('button');
-      btn.className = 'xr-filter-btn';
-      btn.setAttribute('data-filter-type', val);
-      btn.setAttribute('data-short', short);
-      btn.textContent = label;
-      if (_state.filters.types.includes(val)) btn.classList.add('xr-active');
-      btn.addEventListener('click', () => {
-        if (_state.filters.types.includes(val)) {
-          _state.filters.types = _state.filters.types.filter(t => t !== val);
-        } else {
-          _state.filters.types.push(val);
-        }
-        _saveFilters();
-        _rebuildList();
-        _updateCounts();
-      });
-      filterBar.appendChild(btn);
-    });
-
-    pane.appendChild(filterBar);
-
+    const isApiTab = _state.activeTab === 'api';
     const filtered = _filteredEntries();
 
+    // Calculate timeline bounds for waterfall visualization
+    if (isApiTab && filtered.length > 0) {
+      const timestamps = filtered.map(e => e.timestamp || 0);
+      const durations = filtered.map(e => e.duration || 0);
+      _state.timelineStart = Math.min(...timestamps);
+      _state.timelineEnd = Math.max(...timestamps.map((t, i) => t + durations[i]));
+    }
+
+    // Build column header for API tab
+    if (isApiTab) {
+      pane.appendChild(_buildListHeader());
+    }
+
     if (filtered.length === 0) {
-      const icon  = _state.activeTab === 'api' ? '◈' : '◉';
-      const title = _state.filter
-        ? 'No matches'
-        : `No ${_state.activeTab === 'api' ? 'requests' : 'logs'} yet`;
-      const desc  = _state.filter
-        ? 'Try a different search term.'
-        : _state.activeTab === 'api'
-          ? 'Make a fetch/XHR call on the page and it will appear here.'
-          : 'Use console.log() on the page or call jv(data) to inspect any object.';
-      const hint = !_state.filter && _state.activeTab === 'api'
+      const icon  = isApiTab ? '◈' : '◉';
+      const title = `No ${isApiTab ? 'requests' : 'logs'} yet`;
+      const desc  = isApiTab
+        ? 'Make a fetch/XHR call on the page and it will appear here.'
+        : 'Use console.log() on the page or call jv(data) to inspect any object.';
+      const hint = isApiTab
         ? `<div class="xr-kbd-hint"><span class="xr-kbd">Ctrl+Shift+X</span> toggle panel</div>`
         : '';
       pane.innerHTML += `
@@ -2607,47 +2750,195 @@ window.XRAY_Panel = (() => {
       return;
     }
 
-    const groups = [];
-    const apiGroups = new Map();
-    filtered.forEach((entry) => {
-      if (entry.type === 'api') {
-        const key = `api:${entry.urlPath || entry.url || 'unknown'}`;
-        if (!apiGroups.has(key)) {
-          const group = { key, entries: [] };
-          apiGroups.set(key, group);
-          groups.push(group);
-        }
-        apiGroups.get(key).entries.push(entry);
-      } else {
+    // Render entries based on tab type
+    if (isApiTab) {
+      // Sort entries
+      const sorted = _sortEntries(filtered);
+      sorted.forEach(entry => {
+        pane.appendChild(_renderApiRow(entry));
+      });
+    } else {
+      // Logs tab - keep original grouping behavior
+      const groups = [];
+      const logGroups = new Map();
+      filtered.forEach((entry) => {
         groups.push({ key: `log:${entry.id}`, entries: [entry] });
+      });
+      groups.forEach((group) => {
+        const [head] = group.entries;
+        pane.appendChild(_renderEntry(head, {}));
+      });
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     List Header with Sortable Columns
+     ────────────────────────────────────────────────────────────────────────── */
+  function _buildListHeader() {
+    const header = document.createElement('div');
+    header.className = 'xr-list-header';
+    
+    const columns = [
+      { id: 'method', label: 'Method' },
+      { id: 'status', label: 'Status' },
+      { id: 'url',    label: 'URL' },
+      { id: 'time',   label: 'Time' },
+      { id: 'size',   label: 'Size' },
+      { id: 'waterfall', label: 'Waterfall' },
+    ];
+
+    columns.forEach(col => {
+      const colEl = document.createElement('div');
+      colEl.className = 'xr-list-header-col';
+      if (_state.sort.field === col.id) {
+        colEl.classList.add('xr-sorted', `xr-${_state.sort.order}`);
       }
-    });
-
-    groups.forEach((group) => {
-      const [head, ...rest] = group.entries;
-      const expanded = _state.expandedGroups.has(group.key);
-      const forceSelected = !expanded && group.entries.some((e) => e.id === _state.selectedId);
-      pane.appendChild(_renderEntry(head, {
-        groupKey: group.key,
-        groupCount: group.entries.length,
-        groupExpanded: expanded,
-        forceSelected,
-      }));
-
-      if (rest.length > 0 && expanded) {
-        const childrenWrap = document.createElement('div');
-        childrenWrap.className = 'xr-group-children';
-        rest.forEach((child) => {
-          childrenWrap.appendChild(_renderEntry(child, {
-            groupKey: group.key,
-            groupCount: group.entries.length,
-            groupExpanded: expanded,
-            isChild: true,
-          }));
+      colEl.innerHTML = `
+        <span>${col.label}</span>
+        <span class="xr-sort-icon"></span>
+      `;
+      
+      if (col.id !== 'waterfall') { // Waterfall is not sortable
+        colEl.addEventListener('click', () => {
+          if (_state.sort.field === col.id) {
+            _state.sort.order = _state.sort.order === 'asc' ? 'desc' : 'asc';
+          } else {
+            _state.sort.field = col.id;
+            _state.sort.order = col.id === 'timestamp' ? 'desc' : 'asc';
+          }
+          _rebuildList();
         });
-        pane.appendChild(childrenWrap);
+      } else {
+        colEl.style.cursor = 'default';
       }
+      
+      header.appendChild(colEl);
     });
+    
+    return header;
+  }
+
+  function _sortEntries(entries) {
+    const { field, order } = _state.sort;
+    const mult = order === 'asc' ? 1 : -1;
+    
+    return [...entries].sort((a, b) => {
+      // Pinned always first
+      const aPinned = _state.pinned.has(a.id);
+      const bPinned = _state.pinned.has(b.id);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      
+      let cmp = 0;
+      switch (field) {
+        case 'method':
+          cmp = (a.method || '').localeCompare(b.method || '');
+          break;
+        case 'status':
+          cmp = (Number(a.status) || 0) - (Number(b.status) || 0);
+          break;
+        case 'url':
+          cmp = (a.urlPath || a.url || '').localeCompare(b.urlPath || b.url || '');
+          break;
+        case 'time':
+          cmp = (a.duration || 0) - (b.duration || 0);
+          break;
+        case 'size':
+          cmp = (a.size || 0) - (b.size || 0);
+          break;
+        case 'timestamp':
+        default:
+          cmp = (a.timestamp || 0) - (b.timestamp || 0);
+          break;
+      }
+      return cmp * mult;
+    });
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     Render API Row (Grid Layout with Waterfall)
+     ────────────────────────────────────────────────────────────────────────── */
+  function _renderApiRow(entry) {
+    const { formatDuration, formatSize, shortPath } = window.XRAY_Utils;
+    
+    const row = document.createElement('div');
+    row.className = 'xr-entry xr-api-row';
+    row.dataset.id = entry.id;
+    if (entry.id === _state.selectedId) row.classList.add('xr-selected');
+    
+    const method = (entry.method || 'GET').toUpperCase();
+    const status = entry.status || '—';
+    const statusNum = Number(status) || 0;
+    const statusClass = statusNum >= 500 ? 'xr-s-5xx' :
+                       statusNum >= 400 ? 'xr-s-4xx' :
+                       statusNum >= 300 ? 'xr-s-3xx' :
+                       statusNum >= 200 ? 'xr-s-2xx' : 'xr-s-pending';
+    const methodClass = `xr-m-${method.toLowerCase()}`;
+    
+    const path = shortPath(entry.url || '');
+    const duration = entry.duration || 0;
+    const size = entry.size || 0;
+    
+    row.innerHTML = `
+      <div class="xr-col xr-col-method ${methodClass}">${method}</div>
+      <div class="xr-col xr-col-status ${statusClass}">${status}</div>
+      <div class="xr-col xr-col-url" title="${entry.url || ''}">${path}</div>
+      <div class="xr-col xr-col-time">${formatDuration(duration)}</div>
+      <div class="xr-col xr-col-size">${formatSize(size)}</div>
+      <div class="xr-col xr-col-waterfall">${_buildWaterfallBar(entry)}</div>
+      <div class="xr-quick-actions">
+        <button title="Copy URL" data-action="copy-url">📋</button>
+        <button title="Replay" data-action="replay">🔄</button>
+        <button title="Pin" data-action="pin">${_state.pinned.has(entry.id) ? '⭐' : '☆'}</button>
+      </div>
+    `;
+    
+    // Quick action handlers
+    row.querySelector('[data-action="copy-url"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(entry.url || '');
+    });
+    row.querySelector('[data-action="replay"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _replayRequest(entry);
+    });
+    row.querySelector('[data-action="pin"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (_state.pinned.has(entry.id)) _state.pinned.delete(entry.id);
+      else _state.pinned.add(entry.id);
+      _savePinned();
+      _rebuildList();
+    });
+    
+    row.addEventListener('click', () => _selectEntry(entry.id));
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      _selectEntry(entry.id);
+      _openCopyModal(entry);
+    });
+    
+    return row;
+  }
+
+  function _buildWaterfallBar(entry) {
+    const duration = entry.duration || 0;
+    const start = entry.timestamp || 0;
+    const timelineSpan = (_state.timelineEnd || start + duration) - (_state.timelineStart || start);
+    
+    if (timelineSpan <= 0) return '';
+    
+    // Calculate position as percentage
+    const left = ((start - _state.timelineStart) / timelineSpan) * 100;
+    const width = Math.max(3, (duration / timelineSpan) * 100);
+    
+    // Color based on status
+    const status = Number(entry.status) || 0;
+    const colorClass = status >= 500 ? 'xr-wf-download' : // blue for downloads
+                       status >= 400 ? 'xr-wf-ttfb' : // orange for errors (reuse)
+                       'xr-wf-total';
+    
+    return `<div class="xr-waterfall-bar ${colorClass}" 
+                style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%"
+                title="${duration}ms"></div>`;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -4210,9 +4501,70 @@ func main() {
     if (!backdrop) return;
 
     _updateSettingsStats();
+    _updateSettingsFilters();
     _dom.settingsTheme.value = _state.theme;
 
     backdrop.classList.add('xr-open');
+  }
+
+  function _updateSettingsFilters() {
+    // Update status filter checkboxes
+    const statusContainer = _root.querySelector('#xr-settings-status-filters');
+    if (statusContainer) {
+      statusContainer.querySelectorAll('input[data-status]').forEach(input => {
+        const status = input.dataset.status;
+        input.checked = _state.filters.statusCodes.includes(status);
+      });
+    }
+    // Update type filter checkboxes
+    const typeContainer = _root.querySelector('#xr-settings-type-filters');
+    if (typeContainer) {
+      typeContainer.querySelectorAll('input[data-type]').forEach(input => {
+        const type = input.dataset.type;
+        input.checked = _state.filters.types.includes(type);
+      });
+    }
+  }
+
+  function _bindSettingsFilters() {
+    // Status filter change handlers
+    const statusContainer = _root.querySelector('#xr-settings-status-filters');
+    if (statusContainer) {
+      statusContainer.querySelectorAll('input[data-status]').forEach(input => {
+        input.addEventListener('change', () => {
+          const status = input.dataset.status;
+          if (input.checked) {
+            if (!_state.filters.statusCodes.includes(status)) {
+              _state.filters.statusCodes.push(status);
+            }
+          } else {
+            _state.filters.statusCodes = _state.filters.statusCodes.filter(s => s !== status);
+          }
+          _saveFilters();
+          _rebuildList();
+          _updateCounts();
+        });
+      });
+    }
+    // Type filter change handlers
+    const typeContainer = _root.querySelector('#xr-settings-type-filters');
+    if (typeContainer) {
+      typeContainer.querySelectorAll('input[data-type]').forEach(input => {
+        input.addEventListener('change', () => {
+          const type = input.dataset.type;
+          if (input.checked) {
+            if (!_state.filters.types.includes(type)) {
+              _state.filters.types.push(type);
+            }
+          } else {
+            _state.filters.types = _state.filters.types.filter(t => t !== type);
+          }
+          _saveFilters();
+          _rebuildList();
+          _updateCounts();
+        });
+      });
+    }
   }
 
   function _updateSettingsStats() {
@@ -4473,6 +4825,7 @@ func main() {
 
       // Events + shortcuts
       _bindEvents();
+      _bindSettingsFilters();
       if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
       if (window.XRAY_Console?.init) window.XRAY_Console.init();
       if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
