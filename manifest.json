@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "XRAY — Encrypted API Visualizer",
-  "version": "0.1.0",
-  "description": "Auto-intercepts API calls, decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel.",
+  "version": "0.2.0",
+  "description": "Ultra-fast API interceptor with auto-decryption, console capture, and world-class visualization. Built to outperform Chrome DevTools.",
 
   "permissions": ["storage", "scripting", "activeTab", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],
@@ -29,7 +29,10 @@
         "shared/utils.js",
         "shared/decrypt.js",
         "shared/store.js",
+        "shared/worker-client.js",
         "panel/themes.js",
+        "panel/virtual-list.js",
+        "panel/insights.js",
         "panel/renderer.js",
         "panel/waterfall.js",
         "panel/search.js",
@@ -42,6 +45,13 @@
       ],
       "world": "ISOLATED",
       "run_at": "document_start"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["workers/xray-worker.js"],
+      "matches": ["<all_urls>"]
     }
   ],
 

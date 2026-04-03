@@ -22,6 +22,49 @@ npm install
 
 ## Architecture
 
+### High-Performance Design (v0.2.0+)
+
+XRAY uses a multi-layered architecture optimized for handling 100K+ entries:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         PAGE (MAIN WORLD)                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
+│  │ interceptor │  │   console   │  │    decrypt-bridge.js    │ │
+│  │     .js     │  │ capture.js  │  │  console-executor.js    │ │
+│  └──────┬──────┘  └──────┬──────┘  └───────────────────────┬─┘ │
+│         │ postMessage     │ postMessage (batched)          │    │
+└─────────┼─────────────────┼────────────────────────────────┼────┘
+          ▼                 ▼                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    CONTENT SCRIPTS (ISOLATED WORLD)             │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                      content.js                            │ │
+│  │  • Receives entries from MAIN world                       │ │
+│  │  • Initializes worker and panel                           │ │
+│  │  • Forwards entries to worker for indexing                │ │
+│  └────────────────────────────┬──────────────────────────────┘ │
+│                               │                                 │
+│  ┌────────────────────────────▼──────────────────────────────┐ │
+│  │                 shared/worker-client.js                    │ │
+│  │  • Promise-based API for worker communication              │ │
+│  │  • Automatic fallback if worker unavailable               │ │
+│  └────────────────────────────┬──────────────────────────────┘ │
+└───────────────────────────────┼─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    WEB WORKER (OFF MAIN THREAD)                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                   workers/xray-worker.js                   │ │
+│  │  • IndexedDB storage (unlimited, persistent)               │ │
+│  │  • Pre-computed search tokens (instant search)             │ │
+│  │  • JSON stats, diff computation, export (CSV, HAR)         │ │
+│  │  • Analytics and pattern detection                         │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ### Extension Worlds (Manifest V3)
 
 **MAIN world scripts** (`world: "MAIN"` in manifest.json):
@@ -34,9 +77,20 @@ npm install
 
 **ISOLATED world scripts** (`world: "ISOLATED"` in manifest.json):
 - `content/content.js` — Receives postMessage events from MAIN world, stores data, manages panel
+- `shared/worker-client.js` — Promise-based API for Web Worker communication
 - `panel/floating.js` — Renders the Shadow DOM panel UI
+- `panel/virtual-list.js` — Virtual scrolling for large lists (100K+ items)
+- `panel/insights.js` — Analytics dashboard with worker-powered analysis
 - All other `panel/*` and `shared/*` files
 - Cannot directly access page's window objects, but has access to chrome APIs
+
+**Web Worker** (`workers/xray-worker.js`):
+- Runs on separate thread — never blocks UI
+- IndexedDB storage for unlimited, persistent entries
+- Pre-computed search tokens for instant filtering
+- JSON stats computation, diff calculation
+- Export to CSV, HAR formats
+- Analytics and pattern detection
 
 ### Data Flow
 
@@ -130,12 +184,26 @@ The `content/decrypt-bridge.js` file (MAIN world) contains the decrypt function:
   parseToken: string,        // X-Parse-Token header value
   
   // Log entries
-  logData: any,
-  logLevel: 'log' | 'warn' | 'error',
+  logData: any,              // Preview or full data
+  logLevel: 'log' | 'warn' | 'error' | 'info' | 'debug',
+  objectRefs: string[],      // IDs for lazy-loading full objects
+  
+  // Internal (added by worker)
+  _searchTokens: string[],   // Pre-computed search tokens
   
   // Common
   pinned: boolean,
 }
+```
+
+**Lazy Object Loading:**
+Log entries may contain `__xray_ref__` markers in `logData`:
+```javascript
+// Preview stored in logData
+{ username: "john", __xray_ref__: "xrl_abc123" }
+
+// Full object retrieved via:
+const full = await window.__XRAY_fetchLogObject__('xrl_abc123');
 ```
 
 ### Error Handling
@@ -143,12 +211,41 @@ The `content/decrypt-bridge.js` file (MAIN world) contains the decrypt function:
 - Errors logged to `console.error` with `[XRAY]` prefix
 - Original `fetch`/`XHR`/`console` behavior always preserved — extension never interferes
 
-### Performance Constraints
-- Interceptor overhead target: **< 2ms per API call**
-- Panel render target: **< 100ms for 1000-key JSON**
-- Bundle size target: **< 50 KB total**
-- Memory limit: **< 20 MB for 500 stored entries**
-- Max stored entries: 500 (configurable via `_state.maxEntries`)
+### Performance Constraints (v0.2.0+)
+- Console capture overhead target: **< 0.1ms per log** (lazy serialization)
+- API intercept overhead target: **< 2ms per call**
+- Search latency target: **< 50ms for 10K entries** (pre-indexed tokens)
+- Panel render target: **< 16ms** (virtual scrolling)
+- Memory limit: **< 50 MB for 10K stored entries**
+- Max stored entries: configurable, default 500 (unlimited with IndexedDB)
+
+### Performance Optimizations
+
+**Console Capture (`content/console-capture.js`):**
+- Zero-copy for primitives — passes values directly
+- Lazy serialization — stores WeakRef, serializes on-demand
+- Batched emission — groups rapid logs into single postMessage (16ms batching)
+- Circular reference safe — handles self-referential objects
+- Captures: `log`, `warn`, `error`, `info`, `debug`, `table`, `dir`
+
+**Search (`panel/search.js`):**
+- Pre-computed tokens per entry (URL parts, methods, status, keys)
+- Token-based matching (no full JSON serialization)
+- 150ms debounce for typing
+- WeakMap cache for tokens (auto-GC on entry removal)
+- Supports structured queries: `status:404 method:POST /api/users`
+
+**Virtual Scrolling (`panel/virtual-list.js`):**
+- Renders only visible items + 5 overscan
+- Handles 100K+ items smoothly
+- 32px default item height
+- Keyboard navigation: ↑↓, Home, End
+
+**Web Worker (`workers/xray-worker.js`):**
+- IndexedDB with indexes on timestamp, type, url, status
+- Async cloning that yields to prevent blocking
+- Pre-computed search tokens stored with entries
+- Export to CSV, HAR without blocking UI
 
 ### Keyboard Shortcuts
 Defined in `panel/shortcuts.js` and `manifest.json`:
