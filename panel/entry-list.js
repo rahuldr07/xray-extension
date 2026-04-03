@@ -154,6 +154,7 @@ window.XRAY_EntryList = (() => {
     
     if (entry.type === 'api') {
       el.dataset.method = entry.method || 'GET';
+      el.classList.add('xr-api-row');
     }
     
     if (isGroupChild) {
@@ -215,37 +216,29 @@ window.XRAY_EntryList = (() => {
   function _renderApiEntry(entry, isGroupHeader, groupCount, expanded) {
     const method = entry.method || 'GET';
     const status = entry.status || 0;
-    const statusClass = status >= 400 ? 'xr-status-error' : status >= 300 ? 'xr-status-redirect' : 'xr-status-ok';
-    const duration = entry.duration ? `${entry.duration}ms` : '';
-    const size = entry.size ? _formatSize(entry.size) : '';
+    const statusClass = `xr-s-${status >= 500 ? '5xx' : status >= 400 ? '4xx' : status >= 300 ? '3xx' : '2xx'}`;
+    const methodClass = `xr-m-${method.toLowerCase()}`;
+    const duration = entry.duration ? `${entry.duration}ms` : '0ms';
+    const size = entry.size ? _formatSize(entry.size) : '0B';
     const path = entry.urlPath || _extractPath(entry.url) || entry.url || '';
     const time = _formatTime(entry.timestamp);
     
-    const groupToggle = isGroupHeader && groupCount > 1 
-      ? `<span class="xr-group-toggle">${expanded ? '▼' : '▶'} ${groupCount}</span>`
-      : '';
-    
-    const decryptBadge = entry.decryptStatus === 'ok' 
-      ? '<span class="xr-decrypt-badge">🔓</span>' 
-      : '';
+    // Calculate a mock waterfall bar for now
+    const left = Math.min(Math.random() * 50, 40) + '%';
+    const width = Math.max(Math.random() * 40, 5) + '%';
     
     return `
-      <div class="xr-entry-content">
-        <div class="xr-entry-row1">
-          ${groupToggle}
-          <span class="xr-method">${method}</span>
-          <span class="xr-status ${statusClass}">${status}</span>
-          ${decryptBadge}
-          <span class="xr-entry-pin" title="Pin">★</span>
-        </div>
-        <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
-        <div class="xr-entry-row3">
-          <span>${duration}</span>
-          <span class="xr-sep">·</span>
-          <span>${size}</span>
-          <span class="xr-sep">·</span>
-          <span>${time}</span>
-        </div>
+      <div class="xr-col xr-col-method ${methodClass}">${method}</div>
+      <div class="xr-col xr-col-status ${statusClass}"><div class="xr-status-dot"></div>${status}</div>
+      <div class="xr-col xr-col-url" title="${entry.url || ''}"><span class="xr-url-path">${path}</span></div>
+      <div class="xr-col xr-col-time">${duration}</div>
+      <div class="xr-col xr-col-size">${size}</div>
+      <div class="xr-col xr-col-waterfall">
+        <div class="xr-waterfall-bar xr-wf-total" style="left:${left}; width:${width}"></div>
+      </div>
+      <div class="xr-quick-actions">
+        <button class="xr-entry-pin" title="Pin">📌</button>
+        <button title="Copy">📋</button>
       </div>
     `;
   }

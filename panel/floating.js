@@ -2,42 +2,42 @@
 window.XRAY_Panel = (() => {
   'use strict';
 
-  const HOST_ID   = '__xray_root__';
+  const HOST_ID = '__xray_root__';
   const STORE_KEY = 'panel_v2';
 
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
-    open:          false,
-    activeTab:     'api',        // 'api' | 'logs' | 'console' | 'insights'
-    activeView:    'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
-    activeDTab:    'response',   // 'response' | 'request' | 'headers'
-    selectedId:    null,
-    theme:         'zinc',
-    filter:        '',
-    listWidth:     320,          // Wider for new grid layout
-    panelWidth:    680,
-    entries:       [],
+    open: false,
+    activeTab: 'api',        // 'api' | 'logs' | 'console' | 'insights'
+    activeView: 'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
+    activeDTab: 'response',   // 'response' | 'request' | 'headers'
+    selectedId: null,
+    theme: 'zinc',
+    filter: '',
+    listWidth: 320,          // Wider for new grid layout
+    panelWidth: 680,
+    entries: [],
     diffCompareId: null,         // ID of entry to diff against
-    gridDrillRow:  null,         // drilled-in row data from grid view
-    expandedGroups:new Set(),    // expanded endpoint groups
-    treePath:      '',
-    paneSearch:    { active: false, query: '', hits: [], current: -1 },
-    pinned:        new Set(),    // pinned entry IDs
-    filters:       { statusCodes: [], types: [] },  // filter state (moved to settings)
-    maxEntries:    500,
-    autoOpen:      false,
+    gridDrillRow: null,         // drilled-in row data from grid view
+    expandedGroups: new Set(),    // expanded endpoint groups
+    treePath: '',
+    paneSearch: { active: false, query: '', hits: [], current: -1 },
+    pinned: new Set(),    // pinned entry IDs
+    filters: { statusCodes: [], types: [] },  // filter state (moved to settings)
+    maxEntries: 500,
+    autoOpen: false,
     // Sorting state for API list
-    sort:          { field: 'timestamp', order: 'desc' },  // field: 'method' | 'status' | 'url' | 'time' | 'size' | 'timestamp'
+    sort: { field: 'timestamp', order: 'desc' },  // field: 'method' | 'status' | 'url' | 'time' | 'size' | 'timestamp'
     // Timeline reference for waterfall
     timelineStart: null,
-    timelineEnd:   null,
+    timelineEnd: null,
   };
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
   let _root = null;
   let _host = null;
   let _isDevtoolsMode = false;
-  let _dom  = {};
+  let _dom = {};
   const MIN_PANEL_W = 360;
   const MAX_PANEL_W = Math.round(window.screen.width * 0.92) || 1400;
 
@@ -52,6 +52,22 @@ window.XRAY_Panel = (() => {
 
 /* ─── Panel shell ────────────────────────────────────────────────────────── */
 #xr-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--xr-bg);
+  color: var(--xr-text);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+/* Standalone mode (legacy / devtools) */
+#xr-panel.xr-standalone {
   position: fixed;
   top: 0; right: 0;
   width: 680px;
@@ -59,21 +75,14 @@ window.XRAY_Panel = (() => {
   max-width: 92vw;
   height: 100vh;
   z-index: 2147483647;
-  display: flex;
-  flex-direction: column;
-  background: var(--xr-bg);
-  color: var(--xr-text);
   border-left: 1px solid var(--xr-border);
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 12px;
-  line-height: 1.5;
   box-shadow: -8px 0 56px rgba(0,0,0,.65), -1px 0 0 rgba(255,255,255,.04);
   transform: translateX(102%);
   transition: transform .24s cubic-bezier(.16,1,.3,1);
-  overflow: hidden;
-  container-type: inline-size;
 }
-#xr-panel.xr-open { transform: translateX(0); }
+#xr-panel.xr-standalone.xr-open { transform: translateX(0); }
+
+/* DevTools mode */
 #xr-panel.xr-devtools {
   position: relative;
   top: 0;
@@ -88,7 +97,11 @@ window.XRAY_Panel = (() => {
 #xr-panel.xr-devtools #xr-panel-resize,
 #xr-panel.xr-devtools #xr-close { display: none; }
 
-/* ─── Panel resize edge ───────────────────────────────────────────────────── */
+/* HUD embedded mode - hide redundant elements */
+#xr-panel.xr-hud-embed #xr-panel-resize,
+#xr-panel.xr-hud-embed #xr-close { display: none; }
+
+/* ─── Panel resize edge (standalone only) ─────────────────────────────────── */
 #xr-panel-resize {
   position: absolute;
   top: 0; left: 0;
@@ -98,7 +111,9 @@ window.XRAY_Panel = (() => {
   z-index: 10;
   background: transparent;
   transition: background .15s;
+  display: none; /* Hidden when embedded in HUD */
 }
+#xr-panel.xr-standalone #xr-panel-resize { display: block; }
 #xr-panel-resize:hover,
 #xr-panel-resize.xr-dragging {
   background: var(--xr-accent);
@@ -1998,6 +2013,38 @@ window.XRAY_Panel = (() => {
   background: var(--xr-surface);
   border-color: var(--xr-accent);
 }
+/* Range slider */
+.xr-settings-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 4px;
+  background: var(--xr-bg3);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.xr-settings-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--xr-accent);
+  cursor: pointer;
+  transition: transform .15s;
+}
+.xr-settings-range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.xr-settings-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--xr-accent);
+  border: none;
+  cursor: pointer;
+}
 .xr-filter-tag {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
@@ -2117,6 +2164,9 @@ window.XRAY_Panel = (() => {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--xr-surface); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--xr-overlay); }
+
+/* ─── N+1 Detection ─────────────────────────────────────────────────────── */
+${window.XRAY_NPlusOne?.getCSS?.() || ''}
     `;
   }
 
@@ -2224,11 +2274,36 @@ window.XRAY_Panel = (() => {
       <button class="xr-settings-close" id="xr-settings-close">✕</button>
     </div>
     <div class="xr-settings-body">
-      <!-- Appearance -->
+      <!-- Panel Appearance -->
       <div class="xr-settings-section">
-        <div class="xr-settings-section-title">Appearance</div>
+        <div class="xr-settings-section-title">Panel</div>
         <div class="xr-settings-item">
-          <label class="xr-settings-label">Theme</label>
+          <label class="xr-settings-label">Dock Position</label>
+          <select class="xr-settings-select" id="xr-settings-dock">
+            <option value="right">Right Side</option>
+            <option value="bottom">Bottom</option>
+          </select>
+        </div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-label">Background Opacity</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="range" min="50" max="100" value="92" class="xr-settings-range" id="xr-settings-opacity">
+            <span id="xr-settings-opacity-val" style="font-size:11px;color:var(--xr-subtext);min-width:32px;">92%</span>
+          </div>
+        </div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-checkbox">
+            <input type="checkbox" id="xr-settings-blur" checked>
+            <span>Glassmorphism (frosted blur)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Theme -->
+      <div class="xr-settings-section">
+        <div class="xr-settings-section-title">Theme</div>
+        <div class="xr-settings-item">
+          <label class="xr-settings-label">Color Scheme</label>
           <select class="xr-settings-select" id="xr-settings-theme">
             <option value="zinc">Zinc (Dark)</option>
             <option value="mocha">Mocha (Dark)</option>
@@ -2290,7 +2365,8 @@ window.XRAY_Panel = (() => {
         <div class="xr-settings-section-title">Keyboard Shortcuts</div>
         <table class="xr-settings-kbd-table">
           <tr><td><span class="xr-kbd">Ctrl+Shift+X</span></td><td>Toggle panel</td></tr>
-          <tr><td><span class="xr-kbd">Ctrl+K</span></td><td>Fuzzy search</td></tr>
+          <tr><td><span class="xr-kbd">Ctrl+Shift+D</span></td><td>Toggle dock mode</td></tr>
+          <tr><td><span class="xr-kbd">Ctrl+K</span></td><td>Command palette</td></tr>
           <tr><td><span class="xr-kbd">Ctrl+F</span></td><td>Search in JSON</td></tr>
           <tr><td><span class="xr-kbd">T</span></td><td>Tree view</td></tr>
           <tr><td><span class="xr-kbd">G</span></td><td>Grid view</td></tr>
@@ -2321,7 +2397,7 @@ window.XRAY_Panel = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _applyTheme(name) {
     const themes = window.XRAY_Themes || {};
-    const theme  = themes[name] || themes['zinc'];
+    const theme = themes[name] || themes['zinc'];
     if (!theme || !_dom.panel) return;
     Object.entries(theme.vars).forEach(([k, v]) => _dom.panel.style.setProperty(k, v));
     _state.theme = name;
@@ -2343,7 +2419,7 @@ window.XRAY_Panel = (() => {
     dotsWrapper.style.position = 'relative';
 
     const themeList = window.XRAY_ThemesList || [];
-    
+
     // Show first dot as "picker" trigger
     if (themeList.length > 0) {
       const triggerDot = document.createElement('div');
@@ -2403,8 +2479,8 @@ window.XRAY_Panel = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _saveState() {
     window.XRAY_Store.set(STORE_KEY, {
-      open:       _state.open,
-      listWidth:  _state.listWidth,
+      open: _state.open,
+      listWidth: _state.listWidth,
       panelWidth: _state.panelWidth,
     });
   }
@@ -2414,12 +2490,12 @@ window.XRAY_Panel = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _filteredEntries() {
     const byTab = _state.entries.filter(e =>
-      (_state.activeTab === 'api'  && e.type === 'api') ||
+      (_state.activeTab === 'api' && e.type === 'api') ||
       (_state.activeTab === 'logs' && e.type === 'log')
     );
     const searched = window.XRAY_Search.filter(byTab, _state.filter);
     const filtered = _applyFilters(searched);
-    
+
     // Sort: pinned first, then by timestamp desc
     return filtered.sort((a, b) => {
       const aPinned = _state.pinned.has(a.id);
@@ -2430,8 +2506,8 @@ window.XRAY_Panel = (() => {
   }
 
   function _entryMatchesCurrentTab(entry) {
-    return (_state.activeTab === 'api'  && entry.type === 'api') ||
-           (_state.activeTab === 'logs' && entry.type === 'log');
+    return (_state.activeTab === 'api' && entry.type === 'api') ||
+      (_state.activeTab === 'logs' && entry.type === 'log');
   }
 
   function _entryMatchesFilter(entry) {
@@ -2441,7 +2517,7 @@ window.XRAY_Panel = (() => {
 
   function _updateCounts() {
     const apiEntries = _state.entries.filter(e => e.type === 'api');
-    const api  = apiEntries.length;
+    const api = apiEntries.length;
     const logs = _state.entries.filter(e => e.type === 'log').length;
     const errors = apiEntries.filter((e) => Number(e.status) >= 400).length;
     const totalBytes = apiEntries.reduce((sum, e) => {
@@ -2450,8 +2526,8 @@ window.XRAY_Panel = (() => {
     }, 0);
     const totalMb = totalBytes / (1024 * 1024);
 
-    if (_dom.apiCount)   _dom.apiCount.textContent   = api;
-    if (_dom.logCount)   _dom.logCount.textContent   = logs;
+    if (_dom.apiCount) _dom.apiCount.textContent = api;
+    if (_dom.logCount) _dom.logCount.textContent = logs;
     if (_dom.headerSummary) {
       _dom.headerSummary.textContent = `${api} APIs · ${errors} Errors · ${totalMb.toFixed(1)} MB`;
     }
@@ -2520,12 +2596,12 @@ window.XRAY_Panel = (() => {
       : '';
 
     if (entry.type === 'api') {
-      const method  = (entry.method || 'GET').toUpperCase();
-      const mClass  = methodClass(entry.method || 'GET');
-      const sClass  = statusClass(entry.status);
-      const path    = shortPath(entry.url || '');
-      const dur     = entry.duration ?? 0;
-      const heat    = Math.min(0.18, Math.max(0, ((Number(entry.size) || 0) / 102400) * 0.18));
+      const method = (entry.method || 'GET').toUpperCase();
+      const mClass = methodClass(entry.method || 'GET');
+      const sClass = statusClass(entry.status);
+      const path = shortPath(entry.url || '');
+      const dur = entry.duration ?? 0;
+      const heat = Math.min(0.18, Math.max(0, ((Number(entry.size) || 0) / 102400) * 0.18));
       const sparkline = _buildSparklineSVG(_recentEndpointDurations(entry, 8), dur);
       el.dataset.method = method;
       el.classList.add('xr-api-entry');
@@ -2550,7 +2626,7 @@ window.XRAY_Panel = (() => {
         </div>
         <div class="xr-entry-menu" title="More options">⋯</div>
       `;
-      
+
       // Pin button click handler
       el.querySelector('.xr-entry-pin').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2563,7 +2639,7 @@ window.XRAY_Panel = (() => {
         _rebuildList();
       });
     } else {
-      const level   = (entry.logLevel || 'log').toLowerCase();
+      const level = (entry.logLevel || 'log').toLowerCase();
       const preview = previewJSON(entry.logData, 64);
       el.style.setProperty('--xr-heat', '0');
       el.innerHTML = `
@@ -2579,7 +2655,7 @@ window.XRAY_Panel = (() => {
         </div>
         <div class="xr-entry-menu" title="More options">⋯</div>
       `;
-      
+
       el.querySelector('.xr-entry-pin').addEventListener('click', (e) => {
         e.stopPropagation();
         if (_state.pinned.has(entry.id)) {
@@ -2610,22 +2686,30 @@ window.XRAY_Panel = (() => {
       dropdown.className = 'xr-entry-menu-dropdown';
 
       const menuItems = [
-        { label: isPinned ? '☆ Unpin' : '⭐ Pin', action: () => {
-          if (_state.pinned.has(entry.id)) _state.pinned.delete(entry.id);
-          else _state.pinned.add(entry.id);
-          _savePinned();
-          _rebuildList();
-        }},
-        { label: '🔗 Open in tab', action: () => {
-          if (entry.url) window.open(entry.url, '_blank');
-        }},
-        { label: '🔄 Replay', action: () => {
-          _replayRequest(entry);
-        }},
+        {
+          label: isPinned ? '☆ Unpin' : '⭐ Pin', action: () => {
+            if (_state.pinned.has(entry.id)) _state.pinned.delete(entry.id);
+            else _state.pinned.add(entry.id);
+            _savePinned();
+            _rebuildList();
+          }
+        },
+        {
+          label: '🔗 Open in tab', action: () => {
+            if (entry.url) window.open(entry.url, '_blank');
+          }
+        },
+        {
+          label: '🔄 Replay', action: () => {
+            _replayRequest(entry);
+          }
+        },
         null, // separator
-        { label: '📋 Copy & Export', action: () => {
-          _openCopyModal(entry);
-        }},
+        {
+          label: '📋 Copy & Export', action: () => {
+            _openCopyModal(entry);
+          }
+        },
       ];
 
       menuItems.forEach(item => {
@@ -2731,9 +2815,9 @@ window.XRAY_Panel = (() => {
     }
 
     if (filtered.length === 0) {
-      const icon  = isApiTab ? '◈' : '◉';
+      const icon = isApiTab ? '◈' : '◉';
       const title = `No ${isApiTab ? 'requests' : 'logs'} yet`;
-      const desc  = isApiTab
+      const desc = isApiTab
         ? 'Make a fetch/XHR call on the page and it will appear here.'
         : 'Use console.log() on the page or call jv(data) to inspect any object.';
       const hint = isApiTab
@@ -2777,13 +2861,13 @@ window.XRAY_Panel = (() => {
   function _buildListHeader() {
     const header = document.createElement('div');
     header.className = 'xr-list-header';
-    
+
     const columns = [
       { id: 'method', label: 'Method' },
       { id: 'status', label: 'Status' },
-      { id: 'url',    label: 'URL' },
-      { id: 'time',   label: 'Time' },
-      { id: 'size',   label: 'Size' },
+      { id: 'url', label: 'URL' },
+      { id: 'time', label: 'Time' },
+      { id: 'size', label: 'Size' },
       { id: 'waterfall', label: 'Waterfall' },
     ];
 
@@ -2797,7 +2881,7 @@ window.XRAY_Panel = (() => {
         <span>${col.label}</span>
         <span class="xr-sort-icon"></span>
       `;
-      
+
       if (col.id !== 'waterfall') { // Waterfall is not sortable
         colEl.addEventListener('click', () => {
           if (_state.sort.field === col.id) {
@@ -2811,23 +2895,23 @@ window.XRAY_Panel = (() => {
       } else {
         colEl.style.cursor = 'default';
       }
-      
+
       header.appendChild(colEl);
     });
-    
+
     return header;
   }
 
   function _sortEntries(entries) {
     const { field, order } = _state.sort;
     const mult = order === 'asc' ? 1 : -1;
-    
+
     return [...entries].sort((a, b) => {
       // Pinned always first
       const aPinned = _state.pinned.has(a.id);
       const bPinned = _state.pinned.has(b.id);
       if (aPinned !== bPinned) return aPinned ? -1 : 1;
-      
+
       let cmp = 0;
       switch (field) {
         case 'method':
@@ -2859,29 +2943,33 @@ window.XRAY_Panel = (() => {
      ────────────────────────────────────────────────────────────────────────── */
   function _renderApiRow(entry) {
     const { formatDuration, formatSize, shortPath } = window.XRAY_Utils;
-    
+
     const row = document.createElement('div');
     row.className = 'xr-entry xr-api-row';
     row.dataset.id = entry.id;
     if (entry.id === _state.selectedId) row.classList.add('xr-selected');
-    
+
     const method = (entry.method || 'GET').toUpperCase();
     const status = entry.status || '—';
     const statusNum = Number(status) || 0;
     const statusClass = statusNum >= 500 ? 'xr-s-5xx' :
-                       statusNum >= 400 ? 'xr-s-4xx' :
-                       statusNum >= 300 ? 'xr-s-3xx' :
-                       statusNum >= 200 ? 'xr-s-2xx' : 'xr-s-pending';
+      statusNum >= 400 ? 'xr-s-4xx' :
+        statusNum >= 300 ? 'xr-s-3xx' :
+          statusNum >= 200 ? 'xr-s-2xx' : 'xr-s-pending';
     const methodClass = `xr-m-${method.toLowerCase()}`;
-    
+
     const path = shortPath(entry.url || '');
     const duration = entry.duration || 0;
     const size = entry.size || 0;
-    
+
+    // N+1 detection badge
+    const n1Warning = window.XRAY_NPlusOne?.getWarningForEntry?.(entry);
+    const n1Badge = n1Warning ? window.XRAY_NPlusOne.renderBadge(n1Warning) : '';
+
     row.innerHTML = `
       <div class="xr-col xr-col-method ${methodClass}">${method}</div>
       <div class="xr-col xr-col-status ${statusClass}">${status}</div>
-      <div class="xr-col xr-col-url" title="${entry.url || ''}">${path}</div>
+      <div class="xr-col xr-col-url" title="${entry.url || ''}">${path}${n1Badge ? ' ' + n1Badge : ''}</div>
       <div class="xr-col xr-col-time">${formatDuration(duration)}</div>
       <div class="xr-col xr-col-size">${formatSize(size)}</div>
       <div class="xr-col xr-col-waterfall">${_buildWaterfallBar(entry)}</div>
@@ -2891,7 +2979,7 @@ window.XRAY_Panel = (() => {
         <button title="Pin" data-action="pin">${_state.pinned.has(entry.id) ? '⭐' : '☆'}</button>
       </div>
     `;
-    
+
     // Quick action handlers
     row.querySelector('[data-action="copy-url"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2908,14 +2996,14 @@ window.XRAY_Panel = (() => {
       _savePinned();
       _rebuildList();
     });
-    
+
     row.addEventListener('click', () => _selectEntry(entry.id));
     row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       _selectEntry(entry.id);
       _openCopyModal(entry);
     });
-    
+
     return row;
   }
 
@@ -2923,19 +3011,19 @@ window.XRAY_Panel = (() => {
     const duration = entry.duration || 0;
     const start = entry.timestamp || 0;
     const timelineSpan = (_state.timelineEnd || start + duration) - (_state.timelineStart || start);
-    
+
     if (timelineSpan <= 0) return '';
-    
+
     // Calculate position as percentage
     const left = ((start - _state.timelineStart) / timelineSpan) * 100;
     const width = Math.max(3, (duration / timelineSpan) * 100);
-    
+
     // Color based on status
     const status = Number(entry.status) || 0;
     const colorClass = status >= 500 ? 'xr-wf-download' : // blue for downloads
-                       status >= 400 ? 'xr-wf-ttfb' : // orange for errors (reuse)
-                       'xr-wf-total';
-    
+      status >= 400 ? 'xr-wf-ttfb' : // orange for errors (reuse)
+        'xr-wf-total';
+
     return `<div class="xr-waterfall-bar ${colorClass}" 
                 style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%"
                 title="${duration}ms"></div>`;
@@ -2982,7 +3070,7 @@ window.XRAY_Panel = (() => {
     }
 
     const { formatDuration, formatSize, statusClass, methodClass } = window.XRAY_Utils;
-    const isApi  = entry.type === 'api';
+    const isApi = entry.type === 'api';
     const method = isApi
       ? (entry.method || 'GET').toUpperCase()
       : (entry.logLevel || 'log').toUpperCase();
@@ -3002,8 +3090,8 @@ window.XRAY_Panel = (() => {
       try {
         const u = new URL(entry.url);
         urlDisplay = `<span class="xr-url-host">${u.origin}</span>` +
-                     `<span class="xr-url-path">${u.pathname}</span>` +
-                     (u.search ? `<span class="xr-url-qs">${u.search}</span>` : '');
+          `<span class="xr-url-path">${u.pathname}</span>` +
+          (u.search ? `<span class="xr-url-qs">${u.search}</span>` : '');
       } catch { urlDisplay = entry.url; }
     } else {
       urlDisplay = isApi ? (entry.url || '—') : window.XRAY_Utils.previewJSON(entry.logData, 140);
@@ -3054,7 +3142,7 @@ window.XRAY_Panel = (() => {
     const views = [
       { id: 'tree', label: 'Tree' },
       { id: 'grid', label: 'Grid' },
-      { id: 'raw',  label: 'Raw'  },
+      { id: 'raw', label: 'Raw' },
       { id: 'diff', label: 'Diff' },
       { id: 'waterfall', label: 'Waterfall' },
     ];
@@ -3093,10 +3181,10 @@ window.XRAY_Panel = (() => {
     copyMenu.id = 'xr-copy-menu';
     copyMenu.style.display = 'none';
     [
-      { id: 'json',  icon: '{ }', label: 'Copy JSON'       },
-      { id: 'curl',  icon: '⌘',  label: 'Copy as cURL'    },
-      { id: 'fetch', icon: '⚡',  label: 'Copy as fetch()' },
-      { id: 'axios', icon: '📦',  label: 'Copy as axios'   },
+      { id: 'json', icon: '{ }', label: 'Copy JSON' },
+      { id: 'curl', icon: '⌘', label: 'Copy as cURL' },
+      { id: 'fetch', icon: '⚡', label: 'Copy as fetch()' },
+      { id: 'axios', icon: '📦', label: 'Copy as axios' },
     ].forEach(({ id, icon, label }) => {
       const item = document.createElement('button');
       item.dataset.copyAs = id;
@@ -3131,8 +3219,8 @@ window.XRAY_Panel = (() => {
       dtabs.className = 'xr-dtabs';
       dtabs.innerHTML = `
         <button class="xr-dtab ${_state.activeDTab === 'response' ? 'xr-active' : ''}" data-dtab="response">Response</button>
-        <button class="xr-dtab ${_state.activeDTab === 'request'  ? 'xr-active' : ''}" data-dtab="request">Request</button>
-        <button class="xr-dtab ${_state.activeDTab === 'headers'  ? 'xr-active' : ''}" data-dtab="headers">Headers</button>
+        <button class="xr-dtab ${_state.activeDTab === 'request' ? 'xr-active' : ''}" data-dtab="request">Request</button>
+        <button class="xr-dtab ${_state.activeDTab === 'headers' ? 'xr-active' : ''}" data-dtab="headers">Headers</button>
       `;
       dtabs.querySelectorAll('.xr-dtab').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -3182,7 +3270,7 @@ window.XRAY_Panel = (() => {
     psBar.appendChild(psClose);
     pane.appendChild(psBar);
 
-    _dom.paneSearchBar   = psBar;
+    _dom.paneSearchBar = psBar;
     _dom.paneSearchInput = psInput;
     _dom.paneSearchCount = psCount;
 
@@ -3565,7 +3653,7 @@ window.XRAY_Panel = (() => {
       }
     }
 
-    navigator.clipboard.writeText(text || '').catch(() => {});
+    navigator.clipboard.writeText(text || '').catch(() => { });
 
     const btn = _dom.detailPane?.querySelector('#xr-copy-dropdown-btn');
     if (btn) {
@@ -3635,11 +3723,11 @@ window.XRAY_Panel = (() => {
         const onUp = () => {
           handle.classList.remove('xr-dragging');
           document.removeEventListener('mousemove', onMove, true);
-          document.removeEventListener('mouseup',   onUp,   true);
+          document.removeEventListener('mouseup', onUp, true);
           _saveState();
         };
         document.addEventListener('mousemove', onMove, true);
-        document.addEventListener('mouseup',   onUp,   true);
+        document.addEventListener('mouseup', onUp, true);
       });
     }
 
@@ -3649,8 +3737,8 @@ window.XRAY_Panel = (() => {
       panelEdge.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const startX    = e.clientX;
-        const startW    = _state.panelWidth;
+        const startX = e.clientX;
+        const startW = _state.panelWidth;
         // disable transition during drag for instant feedback
         _dom.panel.style.transition = 'none';
         panelEdge.classList.add('xr-dragging');
@@ -3666,11 +3754,11 @@ window.XRAY_Panel = (() => {
           panelEdge.classList.remove('xr-dragging');
           _dom.panel.style.transition = '';
           document.removeEventListener('mousemove', onMove, true);
-          document.removeEventListener('mouseup',   onUp,   true);
+          document.removeEventListener('mouseup', onUp, true);
           _saveState();
         };
         document.addEventListener('mousemove', onMove, true);
-        document.addEventListener('mouseup',   onUp,   true);
+        document.addEventListener('mouseup', onUp, true);
       });
     }
   }
@@ -3682,24 +3770,24 @@ window.XRAY_Panel = (() => {
 
   // Scoring constants (tuned to match fzf v2 feel)
   const FZ = {
-    MATCH:        16,
-    CONSECUTIVE:  32,   // per consecutive char after first
-    WORD_START:   48,   // char after / . - _ space
-    CAMEL:        24,   // uppercase after lowercase
-    STR_START:    72,   // very first char of string
+    MATCH: 16,
+    CONSECUTIVE: 32,   // per consecutive char after first
+    WORD_START: 48,   // char after / . - _ space
+    CAMEL: 24,   // uppercase after lowercase
+    STR_START: 72,   // very first char of string
     GAP_PENALTY: - 2,   // per skipped char between matches
     FIELD_METHOD: 1.4,  // multiplier when matching method token
     FIELD_STATUS: 1.3,  // multiplier when matching status
-    FIELD_PATH:   1.1,  // multiplier for path segment vs full url
+    FIELD_PATH: 1.1,  // multiplier for path segment vs full url
   };
 
   // Returns { score, positions } or null if no match
   function _fzScore(query, text) {
     if (!query) return { score: 1, positions: [] };
-    const q  = query.toLowerCase();
-    const t  = text.toLowerCase();
-    const m  = q.length;
-    const n  = t.length;
+    const q = query.toLowerCase();
+    const t = text.toLowerCase();
+    const m = q.length;
+    const n = t.length;
 
     // Quick reject — all query chars must appear in order
     let qi = 0;
@@ -3710,10 +3798,10 @@ window.XRAY_Panel = (() => {
     const bonus = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
       const p = i > 0 ? text[i - 1] : '';
-      if (i === 0)                                    bonus[i] = FZ.STR_START;
-      else if ('/._- ?&=#'.includes(p))              bonus[i] = FZ.WORD_START;
+      if (i === 0) bonus[i] = FZ.STR_START;
+      else if ('/._- ?&=#'.includes(p)) bonus[i] = FZ.WORD_START;
       else if (p === p.toLowerCase() && p !== p.toUpperCase() &&
-               text[i] !== text[i].toLowerCase())    bonus[i] = FZ.CAMEL;
+        text[i] !== text[i].toLowerCase()) bonus[i] = FZ.CAMEL;
     }
 
     // Greedy forward pass — find first valid match set
@@ -3773,8 +3861,8 @@ window.XRAY_Panel = (() => {
       fields: [
         { text: method, multiplier: FZ.FIELD_METHOD },
         { text: status, multiplier: FZ.FIELD_STATUS },
-        { text: path,   multiplier: FZ.FIELD_PATH   },
-        { text: full,   multiplier: 1               },
+        { text: path, multiplier: FZ.FIELD_PATH },
+        { text: full, multiplier: 1 },
       ]
     };
   }
@@ -3802,8 +3890,8 @@ window.XRAY_Panel = (() => {
     let out = '', inMark = false;
     for (let i = 0; i < text.length; i++) {
       const hi = set.has(i);
-      if (hi && !inMark)  { out += '<mark>'; inMark = true; }
-      if (!hi && inMark)  { out += '</mark>'; inMark = false; }
+      if (hi && !inMark) { out += '<mark>'; inMark = true; }
+      if (!hi && inMark) { out += '</mark>'; inMark = false; }
       out += _escHtml(text[i]);
     }
     if (inMark) out += '</mark>';
@@ -3811,7 +3899,7 @@ window.XRAY_Panel = (() => {
   }
 
   function _escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function _fuzzyOpen() {
@@ -4109,11 +4197,11 @@ window.XRAY_Panel = (() => {
     if (!backdrop || !title || !code || !format) return;
 
     title.textContent = `Copy & Export: ${entry.method || 'LOG'} ${entry.urlPath || ''}`;
-    
+
     _updateCopyPreview(entry, format.value);
-    
+
     format.onchange = () => _updateCopyPreview(entry, format.value);
-    
+
     backdrop.classList.add('xr-open');
 
     _dom.copyBtn.onclick = () => {
@@ -4134,7 +4222,7 @@ window.XRAY_Panel = (() => {
     let preview = '';
 
     if (entry.type === 'api') {
-      switch(format) {
+      switch (format) {
         case 'fetch':
           preview = _buildFetchCall(entry);
           break;
@@ -4332,7 +4420,7 @@ func main() {
       const duration = Math.max(0, Math.round(performance.now() - startedPerf));
       let parsed = null;
       if (contentType && contentType.includes('application/json')) {
-        try { parsed = JSON.parse(raw); } catch {}
+        try { parsed = JSON.parse(raw); } catch { }
       }
       const size = new TextEncoder().encode(raw || '').length;
 
@@ -4372,9 +4460,9 @@ func main() {
 
   function _toggleInsightsPane(show) {
     if (!_dom.insightsPane) return;
-    
+
     _dom.insightsPane.classList.toggle('xr-active', show);
-    
+
     if (show) {
       _renderInsights();
     }
@@ -4383,7 +4471,7 @@ func main() {
   function _renderInsights() {
     const Insights = window.XRAY_Insights;
     const entries = _state.entries;
-    
+
     if (Insights && entries.length > 0) {
       // Use XRAY_Insights module
       if (!_insightsInitialized) {
@@ -4409,28 +4497,28 @@ func main() {
     const apis = entries.filter(e => e.type === 'api');
     const logs = entries.filter(e => e.type === 'log');
     const errors = apis.filter(e => String(e.status || '').match(/^[45]/));
-    const avgTime = apis.length > 0 
-      ? (apis.reduce((s, e) => s + (e.duration || 0), 0) / apis.length).toFixed(0) 
+    const avgTime = apis.length > 0
+      ? (apis.reduce((s, e) => s + (e.duration || 0), 0) / apis.length).toFixed(0)
       : 0;
-    
+
     const statusCounts = {};
     apis.forEach(e => {
       const code = String(e.status || 'unknown');
       statusCounts[code] = (statusCounts[code] || 0) + 1;
     });
-    
+
     const topEndpoints = {};
     apis.forEach(e => {
       try {
         const url = new URL(e.url);
         const path = url.pathname;
         topEndpoints[path] = (topEndpoints[path] || 0) + 1;
-      } catch {}
+      } catch { }
     });
     const sortedEndpoints = Object.entries(topEndpoints)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
-    
+
     _dom.insightsPane.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
         <div style="background:var(--xr-surface);border-radius:8px;padding:16px;text-align:center;">
@@ -4527,7 +4615,39 @@ func main() {
   }
 
   function _bindSettingsFilters() {
-    // Status filter change handlers
+    // ── HUD Settings (dock, opacity, blur) ─────────────────────────────────
+    const dockSelect = _root.querySelector('#xr-settings-dock');
+    const opacityRange = _root.querySelector('#xr-settings-opacity');
+    const opacityVal = _root.querySelector('#xr-settings-opacity-val');
+    const blurCheck = _root.querySelector('#xr-settings-blur');
+    
+    if (dockSelect && window.XRAY_HUD) {
+      dockSelect.value = window.XRAY_HUD.getDockMode();
+      dockSelect.addEventListener('change', () => {
+        window.XRAY_HUD.setDockMode(dockSelect.value);
+      });
+    }
+    
+    if (opacityRange && window.XRAY_HUD) {
+      const initialOpacity = Math.round(window.XRAY_HUD.getOpacity() * 100);
+      opacityRange.value = initialOpacity;
+      if (opacityVal) opacityVal.textContent = `${initialOpacity}%`;
+      
+      opacityRange.addEventListener('input', () => {
+        const val = parseInt(opacityRange.value, 10);
+        if (opacityVal) opacityVal.textContent = `${val}%`;
+        window.XRAY_HUD.setOpacity(val / 100);
+      });
+    }
+    
+    if (blurCheck && window.XRAY_HUD) {
+      blurCheck.checked = window.XRAY_HUD.getBlur();
+      blurCheck.addEventListener('change', () => {
+        window.XRAY_HUD.setBlur(blurCheck.checked);
+      });
+    }
+    
+    // ── Status filter change handlers ──────────────────────────────────────
     const statusContainer = _root.querySelector('#xr-settings-status-filters');
     if (statusContainer) {
       statusContainer.querySelectorAll('input[data-status]').forEach(input => {
@@ -4546,7 +4666,7 @@ func main() {
         });
       });
     }
-    // Type filter change handlers
+    // ── Type filter change handlers ────────────────────────────────────────
     const typeContainer = _root.querySelector('#xr-settings-type-filters');
     if (typeContainer) {
       typeContainer.querySelectorAll('input[data-type]').forEach(input => {
@@ -4600,6 +4720,25 @@ func main() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // HUD Dock Mode Adjustment
+  // ══════════════════════════════════════════════════════════════════════════
+  function _adjustForDockMode(mode) {
+    if (!_dom.panel) return;
+    
+    // In bottom dock mode, we might want to adjust layouts
+    // For now, just ensure the list/detail split works
+    if (mode === 'bottom') {
+      // Bottom dock has full width but limited height
+      // Could adjust flex ratios, hide certain elements, etc.
+      _dom.panel.classList.add('xr-dock-bottom');
+      _dom.panel.classList.remove('xr-dock-right');
+    } else {
+      _dom.panel.classList.add('xr-dock-right');
+      _dom.panel.classList.remove('xr-dock-bottom');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Event binding
   // ══════════════════════════════════════════════════════════════════════════
   function _bindEvents() {
@@ -4645,21 +4784,21 @@ func main() {
         _root.querySelectorAll('.xr-tab').forEach(b =>
           b.classList.toggle('xr-active', b.dataset.tab === _state.activeTab)
         );
-        
+
         const isConsole = _state.activeTab === 'console';
         const isInsights = _state.activeTab === 'insights';
-        
+
         // Hide/show main panes
         if (_dom.listWrap) _dom.listWrap.style.display = (isConsole || isInsights) ? 'none' : '';
         if (_dom.dragHandle) _dom.dragHandle.style.display = (isConsole || isInsights) ? 'none' : '';
         if (_dom.detailPane) _dom.detailPane.style.display = (isConsole || isInsights) ? 'none' : '';
         if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
-        
+
         // Show/hide insights pane
         _toggleInsightsPane(isInsights);
-        
+
         if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
-        
+
         if (!isConsole && !isInsights) {
           _state.selectedId = null;
           _rebuildList();
@@ -4670,7 +4809,7 @@ func main() {
     });
 
     _dom.clearBtn.addEventListener('click', () => {
-      _state.entries    = [];
+      _state.entries = [];
       _state.selectedId = null;
       _state.treePath = '';
       _state.expandedGroups.clear();
@@ -4720,6 +4859,8 @@ func main() {
   // ══════════════════════════════════════════════════════════════════════════
   // Public API
   // ══════════════════════════════════════════════════════════════════════════
+  let _hudMode = false;  // Track if embedded in HUD shell
+
   const _public = {
 
     async init(options = {}) {
@@ -4730,12 +4871,63 @@ func main() {
         ? opts.mountEl
         : null;
       _isDevtoolsMode = !!opts.devtoolsMode;
+      _hudMode = !!opts.hudMode;
 
-      if (mountEl && !useShadow) {
+      // ── HUD Mode: Embed into XRAY_HUD shell ──────────────────────────────
+      if (!_isDevtoolsMode && window.XRAY_HUD && !opts.legacyMode) {
+        _hudMode = true;
+        
+        // Initialize HUD shell
+        window.XRAY_HUD.init({ autoOpen: _state.open });
+        
+        // Get HUD's shadow root and content slot
+        const hudRoot = window.XRAY_HUD.getShadowRoot();
+        const hudContent = window.XRAY_HUD.getContentSlot();
+        
+        if (hudRoot && hudContent) {
+          _host = hudContent;
+          _root = hudContent; // Content is inside HUD's shadow DOM
+          
+          // Inject styles into HUD shadow root
+          const style = document.createElement('style');
+          style.textContent = _buildCSS();
+          hudRoot.insertBefore(style, hudRoot.firstChild);
+          
+          // Build and mount panel
+          const panel = _buildHTML();
+          panel.classList.add('xr-hud-embed');
+          _host.appendChild(panel);
+          
+          // Wire HUD events
+          window.XRAY_HUD.on('xray-show', () => {
+            _state.open = true;
+            _saveState();
+          });
+          window.XRAY_HUD.on('xray-hide', () => {
+            _state.open = false;
+            _saveState();
+          });
+          window.XRAY_HUD.on('xray-dock-change', (e) => {
+            // Adjust layout for dock mode if needed
+            _adjustForDockMode(e.detail.mode);
+          });
+        }
+      }
+      // ── DevTools or Mount Element Mode ───────────────────────────────────
+      else if (mountEl && !useShadow) {
         _host = mountEl;
         if (opts.clearMount !== false) _host.innerHTML = '';
         _root = _host;
-      } else {
+        
+        const style = document.createElement('style');
+        style.textContent = _buildCSS();
+        _root.appendChild(style);
+        
+        const panel = _buildHTML();
+        _root.appendChild(panel);
+      }
+      // ── Standalone Mode (Legacy) ─────────────────────────────────────────
+      else {
         let host = document.getElementById(HOST_ID);
         if (!host) {
           host = document.createElement('div');
@@ -4744,9 +4936,20 @@ func main() {
         }
         _host = host;
         _root = host.attachShadow({ mode: 'open' });
+        
+        const style = document.createElement('style');
+        style.textContent = _buildCSS();
+        _root.appendChild(style);
+        
+        const panel = _buildHTML();
+        panel.classList.add('xr-standalone');
+        _root.appendChild(panel);
       }
 
-      const fontTarget = useShadow ? _root : (document.head || _root);
+      // ── Load fonts ─────────────────────────────────────────────────────────
+      const fontTarget = _hudMode 
+        ? (window.XRAY_HUD.getShadowRoot() || document.head)
+        : (useShadow ? _root : (document.head || _root));
       if (!fontTarget.querySelector('link[data-xr-font="jetbrains-mono"]')) {
         const fontLink = document.createElement('link');
         fontLink.rel = 'stylesheet';
@@ -4755,96 +4958,111 @@ func main() {
         fontTarget.appendChild(fontLink);
       }
 
-      const style = document.createElement('style');
-      style.textContent = _buildCSS();
-      _root.appendChild(style);
-
-      const panel = _buildHTML();
-      _root.appendChild(panel);
-
+      // ── Collect DOM refs ───────────────────────────────────────────────────
       const getById = (id) => (_root.getElementById
         ? _root.getElementById(id)
         : _root.querySelector(`#${id}`));
 
-      // Collect refs
-      _dom.panel         = getById('xr-panel');
-      _dom.panelResize   = getById('xr-panel-resize');
-      _dom.dots          = getById('xr-dots');
-      _dom.settingsBtn   = getById('xr-settings-btn');
-      _dom.closeBtn      = getById('xr-close');
-      _dom.listWrap      = _root.querySelector('.xr-list-wrap');
-      _dom.listPane      = getById('xr-list-pane');
-      _dom.dragHandle    = getById('xr-drag-handle');
-      _dom.detailPane    = getById('xr-detail-pane');
-      _dom.consolePane   = getById('xr-console-pane');
-      _dom.insightsPane  = getById('xr-insights-pane');
-      _dom.footerCount   = getById('xr-count');
-      _dom.apiCount      = getById('xr-api-count');
-      _dom.logCount      = getById('xr-log-count');
+      _dom.panel = getById('xr-panel');
+      _dom.panelResize = getById('xr-panel-resize');
+      _dom.dots = getById('xr-dots');
+      _dom.settingsBtn = getById('xr-settings-btn');
+      _dom.closeBtn = getById('xr-close');
+      _dom.listWrap = _root.querySelector('.xr-list-wrap');
+      _dom.listPane = getById('xr-list-pane');
+      _dom.dragHandle = getById('xr-drag-handle');
+      _dom.detailPane = getById('xr-detail-pane');
+      _dom.consolePane = getById('xr-console-pane');
+      _dom.insightsPane = getById('xr-insights-pane');
+      _dom.footerCount = getById('xr-count');
+      _dom.apiCount = getById('xr-api-count');
+      _dom.logCount = getById('xr-log-count');
       _dom.headerSummary = getById('xr-header-summary');
-      _dom.clearBtn      = getById('xr-clear');
-      _dom.exportBtn     = getById('xr-export-btn');
+      _dom.clearBtn = getById('xr-clear');
+      _dom.exportBtn = getById('xr-export-btn');
       _dom.fuzzyBackdrop = getById('xr-fuzzy-backdrop');
-      _dom.fuzzyInput    = getById('xr-fuzzy-input');
-      _dom.fuzzyResults  = getById('xr-fuzzy-results');
-      _dom.copyBackdrop  = getById('xr-copy-backdrop');
-      _dom.copyTitle     = getById('xr-copy-title');
-      _dom.copyFormat    = getById('xr-copy-format');
-      _dom.copyCode      = getById('xr-copy-code');
-      _dom.copyBtn       = getById('xr-copy-btn');
-      _dom.copyCancel    = getById('xr-copy-cancel');
-      _dom.copyClose     = getById('xr-copy-close');
+      _dom.fuzzyInput = getById('xr-fuzzy-input');
+      _dom.fuzzyResults = getById('xr-fuzzy-results');
+      _dom.copyBackdrop = getById('xr-copy-backdrop');
+      _dom.copyTitle = getById('xr-copy-title');
+      _dom.copyFormat = getById('xr-copy-format');
+      _dom.copyCode = getById('xr-copy-code');
+      _dom.copyBtn = getById('xr-copy-btn');
+      _dom.copyCancel = getById('xr-copy-cancel');
+      _dom.copyClose = getById('xr-copy-close');
 
       _dom.settingsBackdrop = getById('xr-settings-backdrop');
-      _dom.settingsTheme    = getById('xr-settings-theme');
-      _dom.settingsClose    = getById('xr-settings-close');
-      _dom.settingsExport   = getById('xr-settings-export-all');
-      _dom.settingsClrPins  = getById('xr-settings-clear-pins');
-      _dom.settingsClrAll   = getById('xr-settings-clear-all');
-      _dom.statApi          = getById('xr-stat-api');
-      _dom.statLogs         = getById('xr-stat-logs');
-      _dom.statPinned       = getById('xr-stat-pinned');
-      _dom.statErrors       = getById('xr-stat-errors');
+      _dom.settingsTheme = getById('xr-settings-theme');
+      _dom.settingsClose = getById('xr-settings-close');
+      _dom.settingsExport = getById('xr-settings-export-all');
+      _dom.settingsClrPins = getById('xr-settings-clear-pins');
+      _dom.settingsClrAll = getById('xr-settings-clear-all');
+      _dom.statApi = getById('xr-stat-api');
+      _dom.statLogs = getById('xr-stat-logs');
+      _dom.statPinned = getById('xr-stat-pinned');
+      _dom.statErrors = getById('xr-stat-errors');
 
-      // Apply persisted state
+      // ── Apply state ────────────────────────────────────────────────────────
       _dom.listPane.style.width = `${_state.listWidth}px`;
       if (_isDevtoolsMode) {
         _state.open = true;
         _dom.panel.classList.add('xr-devtools', 'xr-open');
         _dom.panel.style.width = '100%';
-      } else {
+      } else if (!_hudMode) {
+        // Standalone mode
         _dom.panel.style.width = `${_state.panelWidth}px`;
       }
       _buildDots();
       _applyTheme(_state.theme);
 
-      // Initial render
+      // ── Initial render ─────────────────────────────────────────────────────
       _rebuildList();
       _renderDetail(null);
       _updateCounts();
 
-      // Events + shortcuts
+      // ── Events + shortcuts ─────────────────────────────────────────────────
       _bindEvents();
       _bindSettingsFilters();
-      if (window.XRAY_Shortcuts?.init) window.XRAY_Shortcuts.init(_public);
+      
+      // In HUD mode, shortcuts are handled by HUD
+      if (!_hudMode && window.XRAY_Shortcuts?.init) {
+        window.XRAY_Shortcuts.init(_public);
+      }
+      
       if (window.XRAY_Console?.init) window.XRAY_Console.init();
       if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
-      
-      // Initialize Web Worker for off-thread processing (non-blocking)
+
+      // ── Initialize Command Palette (⌘K) ────────────────────────────────────
+      if (window.XRAY_CommandPalette?.init) {
+        const paletteRoot = _hudMode ? window.XRAY_HUD?.getShadowRoot() : _root;
+        if (paletteRoot) {
+          window.XRAY_CommandPalette.init(paletteRoot, _public);
+        }
+      }
+
+      // ── Initialize Web Worker ──────────────────────────────────────────────
       if (window.XRAY_Worker?.init) {
         window.XRAY_Worker.init().catch(() => {
           // Worker failed to initialize, continue without it
         });
       }
 
-      // Restore open state
-      if (!_isDevtoolsMode && _state.open) _dom.panel.classList.add('xr-open');
+      // ── Restore open state (standalone only) ───────────────────────────────
+      if (!_isDevtoolsMode && !_hudMode && _state.open) {
+        _dom.panel.classList.add('xr-open');
+      }
     },
 
     show() {
       if (!_dom.panel) return;
       _state.open = true;
-      _dom.panel.classList.add('xr-open');
+      
+      if (_hudMode && window.XRAY_HUD) {
+        window.XRAY_HUD.show();
+      } else {
+        _dom.panel.classList.add('xr-open');
+      }
+      
       if (!_isDevtoolsMode) _saveState();
     },
 
@@ -4852,21 +5070,43 @@ func main() {
       if (!_dom.panel) return;
       if (_isDevtoolsMode) return;
       _state.open = false;
-      _dom.panel.classList.remove('xr-open');
+      
+      if (_hudMode && window.XRAY_HUD) {
+        window.XRAY_HUD.hide();
+      } else {
+        _dom.panel.classList.remove('xr-open');
+      }
+      
       _saveState();
     },
 
     toggle() {
       if (_isDevtoolsMode) return;
-      _state.open ? _public.hide() : _public.show();
+      
+      if (_hudMode && window.XRAY_HUD) {
+        window.XRAY_HUD.toggle();
+        _state.open = window.XRAY_HUD.isOpen();
+      } else {
+        _state.open ? _public.hide() : _public.show();
+      }
     },
 
-    isOpen() { return _state.open; },
+    isOpen() { 
+      if (_hudMode && window.XRAY_HUD) {
+        return window.XRAY_HUD.isOpen();
+      }
+      return _state.open; 
+    },
 
     add(entry) {
       if (!entry) return;
       if (!entry.id) entry.id = window.XRAY_Utils.uid();
       _state.entries.push(entry);
+
+      // Track for N+1 detection
+      if (window.XRAY_NPlusOne?.trackEntry) {
+        window.XRAY_NPlusOne.trackEntry(entry);
+      }
 
       const maxEntries = Math.max(1, Number.parseInt(_state.maxEntries, 10) || 500);
       let listTrimmed = false;
@@ -4923,8 +5163,8 @@ func main() {
 
     focusSearch() { _fuzzyOpen(); },
 
-    hasSelection()      { return !!_state.selectedId; },
-    paneSearchFocus()   { _paneSearchOpen(); },
+    hasSelection() { return !!_state.selectedId; },
+    paneSearchFocus() { _paneSearchOpen(); },
 
     copySelected() { _copySelected(); },
 
@@ -4949,8 +5189,8 @@ func main() {
     selectNext(dir) {
       const filtered = _filteredEntries();
       if (!filtered.length) return;
-      const idx  = filtered.findIndex(e => e.id === _state.selectedId);
-      let   next = idx === -1
+      const idx = filtered.findIndex(e => e.id === _state.selectedId);
+      let next = idx === -1
         ? (dir > 0 ? 0 : filtered.length - 1)
         : (idx + dir + filtered.length) % filtered.length;
       const target = filtered[next];
@@ -4969,6 +5209,12 @@ func main() {
 
     getEntry(id) {
       return _state.entries.find(e => e.id === id) || null;
+    },
+
+    getSelectedEntry() {
+      return _state.selectedId 
+        ? _state.entries.find(e => e.id === _state.selectedId) 
+        : null;
     },
 
   };
