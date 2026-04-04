@@ -1161,21 +1161,19 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   function setTheme(themeId) {
     _settings.theme = themeId;
     
-    // Try direct theme application via XRAY_Themes
-    if (window.XRAY_Themes && window.XRAY_Themes[themeId]) {
+    // Use panel's public API if available
+    if (_panelRef?.setTheme) {
+      _panelRef.setTheme(themeId);
+    } else if (window.XRAY_Panel?.setTheme) {
+      window.XRAY_Panel.setTheme(themeId);
+    } else if (window.XRAY_Themes && window.XRAY_Themes[themeId]) {
+      // Fallback: try direct application
       const panel = _panelRoot?.querySelector?.('#xr-panel');
       if (panel) {
         Object.entries(window.XRAY_Themes[themeId].vars).forEach(([k, v]) => {
           panel.style.setProperty(k, v);
         });
       }
-    }
-    
-    // Also update the settings select if it exists
-    const select = _panelRoot?.querySelector?.('#xr-settings-theme');
-    if (select) {
-      select.value = themeId;
-      select.dispatchEvent(new Event('change'));
     }
     
     render();

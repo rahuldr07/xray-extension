@@ -420,5 +420,6 @@ window.XRAY_Insights = (() => {
     hide,
     isVisible,
     getContainer,
+    update: show,  // Alias for show() - updates the insights with new entries
   };
 })();

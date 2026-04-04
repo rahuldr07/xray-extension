@@ -5644,6 +5644,17 @@ func main() {
       _updateCounts();
     },
 
+    setTheme(themeId) {
+      if (window.XRAY_Themes && window.XRAY_Themes[themeId]) {
+        _applyTheme(themeId);
+        _saveTheme(themeId);
+      }
+    },
+
+    getTheme() {
+      return _state.theme;
+    },
+
   };
 
   return _public;

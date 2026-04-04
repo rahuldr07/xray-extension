@@ -21,25 +21,21 @@ window.XRAY_Worker = (() => {
       _readyResolve = resolve;
     });
     
-    // Create worker - try multiple paths for different contexts
-    const workerPaths = [
-      '/workers/xray-worker.js',
-      '../workers/xray-worker.js',
-      chrome.runtime?.getURL?.('workers/xray-worker.js'),
-    ].filter(Boolean);
+    // Create worker - ONLY use chrome.runtime.getURL for proper extension context
+    // Other paths cause CSP violations on sites like GitHub
+    const workerUrl = chrome.runtime?.getURL?.('workers/xray-worker.js');
     
-    let lastError = null;
-    for (const path of workerPaths) {
-      try {
-        _worker = new Worker(path);
-        break;
-      } catch (e) {
-        lastError = e;
-      }
+    if (!workerUrl) {
+      console.warn('[XRAY Worker] chrome.runtime.getURL not available, running without worker');
+      _ready = true;
+      _readyResolve?.();
+      return _readyPromise;
     }
     
-    if (!_worker) {
-      console.error('[XRAY Worker] Failed to create worker:', lastError);
+    try {
+      _worker = new Worker(workerUrl);
+    } catch (e) {
+      console.warn('[XRAY Worker] Failed to create worker:', e.message);
       // Fallback: run synchronously on main thread
       _ready = true;
       _readyResolve?.();
@@ -69,7 +65,7 @@ window.XRAY_Worker = (() => {
     };
     
     _worker.onerror = (e) => {
-      console.error('[XRAY Worker] Error:', e.message);
+      console.warn('[XRAY Worker] Error:', e.message);
     };
     
     // Initialize worker
