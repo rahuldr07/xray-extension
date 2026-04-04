@@ -59,11 +59,13 @@ window.XRAY_Panel = (() => {
   flex-direction: column;
   background: var(--xr-bg);
   color: var(--xr-text);
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;
   container-type: inline-size;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Standalone mode (legacy / devtools) */
@@ -1301,33 +1303,46 @@ window.XRAY_Panel = (() => {
 .xr-copy-dropdown-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); background: rgba(74,222,128,.06); }
 
 /* Sub-tabs */
+/* ═══════════════════════════════════════════════════════════════════════════
+   DETAIL PANE TABS (macOS segmented control)
+   ═══════════════════════════════════════════════════════════════════════════ */
 .xr-dtabs {
   display: flex;
-  padding: 0 12px;
-  background: var(--xr-bg2);
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--xr-bg);
   border-bottom: 1px solid var(--xr-border);
   flex-shrink: 0;
+}
+.xr-dtabs-inner {
+  display: flex;
   gap: 2px;
+  padding: 3px;
+  background: var(--xr-bg3);
+  border-radius: var(--xr-radius-md, 8px);
 }
 .xr-dtab {
-  padding: 8px 12px;
+  padding: 6px 14px;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--xr-radius, 6px);
   color: var(--xr-muted);
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: color .12s, border-color .12s;
-  margin-bottom: -1px;
-  line-height: 1.4;
+  transition: all var(--xr-transition, 0.15s ease);
+  line-height: 1.3;
+  white-space: nowrap;
 }
-.xr-dtab:hover { color: var(--xr-subtext); }
+.xr-dtab:hover { 
+  color: var(--xr-subtext); 
+}
 .xr-dtab.xr-active {
+  background: var(--xr-surface);
   color: var(--xr-text);
-  border-bottom-color: var(--xr-accent);
   font-weight: 600;
+  box-shadow: var(--xr-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 /* Content area */
@@ -2377,12 +2392,15 @@ window.XRAY_Panel = (() => {
     content: attr(data-short);
     font-size: 10px;
   }
-  .xr-dtabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 0 8px;
+  .xr-dtabs { padding: 6px 8px; }
+  .xr-dtabs-inner { width: 100%; }
+  .xr-dtab { 
+    flex: 1; 
+    padding: 6px 8px; 
+    text-align: center;
+    font-size: 10px;
   }
-  .xr-dtab { padding: 8px 6px; text-align: center; }
+  .xr-dtab svg { display: none; }
   .xr-toolbar-row { padding: 6px 8px; }
   .xr-waterfall-row { grid-template-columns: 120px 1fr; }
 }
@@ -2395,9 +2413,12 @@ window.XRAY_Panel = (() => {
 
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--xr-surface); border-radius: 4px; }
+::-webkit-scrollbar-thumb { 
+  background: var(--xr-surface); 
+  border-radius: 3px; 
+}
 ::-webkit-scrollbar-thumb:hover { background: var(--xr-overlay); }
 
 /* ─── N+1 Detection ─────────────────────────────────────────────────────── */
@@ -3500,14 +3521,25 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     pane.appendChild(header);
 
-    // ── Sub-tabs (API only) ───────────────────────────────────────────────
+    // ── Sub-tabs (API only) - macOS segmented control style ───────────────
     if (isApi) {
       const dtabs = document.createElement('div');
       dtabs.className = 'xr-dtabs';
       dtabs.innerHTML = `
-        <button class="xr-dtab ${_state.activeDTab === 'response' ? 'xr-active' : ''}" data-dtab="response">Response</button>
-        <button class="xr-dtab ${_state.activeDTab === 'request' ? 'xr-active' : ''}" data-dtab="request">Request</button>
-        <button class="xr-dtab ${_state.activeDTab === 'headers' ? 'xr-active' : ''}" data-dtab="headers">Headers</button>
+        <div class="xr-dtabs-inner">
+          <button class="xr-dtab ${_state.activeDTab === 'response' ? 'xr-active' : ''}" data-dtab="response">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            Response
+          </button>
+          <button class="xr-dtab ${_state.activeDTab === 'request' ? 'xr-active' : ''}" data-dtab="request">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            Request
+          </button>
+          <button class="xr-dtab ${_state.activeDTab === 'headers' ? 'xr-active' : ''}" data-dtab="headers">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px;"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            Headers
+          </button>
+        </div>
       `;
       dtabs.querySelectorAll('.xr-dtab').forEach(btn => {
         btn.addEventListener('click', () => {

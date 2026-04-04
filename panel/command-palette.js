@@ -319,7 +319,10 @@ window.XRAY_CommandPalette = (() => {
   // Command Actions (delegated to XRAY_Panel)
   // ══════════════════════════════════════════════════════════════════════════
   function switchTab(tab) {
-    document.querySelector(`[data-tab="${tab}"]`)?.click();
+    // Query within shadow root, not document
+    const tabBtn = _root?.querySelector?.(`[data-tab="${tab}"]`) || 
+                   document.querySelector(`#__xray_root__`)?.shadowRoot?.querySelector(`[data-tab="${tab}"]`);
+    tabBtn?.click();
   }
 
   function setView(view) {
