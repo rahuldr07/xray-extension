@@ -1192,6 +1192,8 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   // ══════════════════════════════════════════════════════════════════════════
   // Open / Close
   // ══════════════════════════════════════════════════════════════════════════
+  let _host = null;
+  
   function open() {
     if (_isOpen) return;
     _isOpen = true;
@@ -1199,11 +1201,17 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     _selIdx = 0;
     _selGroup = 'appearance';
 
+    // Enable pointer events on host
+    _host = document.getElementById('__xray_cmd_host__');
+    if (_host) _host.style.pointerEvents = 'auto';
+    
     _container.classList.add('xr-open');
     setTimeout(() => {
       _input?.focus();
       render();
     }, 20);
+    
+    console.log('[XRAY] Command Palette opened');
   }
 
   function close() {
@@ -1212,6 +1220,12 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     _container.classList.remove('xr-open');
     if (_input) _input.value = '';
     _query = '';
+    
+    // Disable pointer events on host so page is interactive
+    _host = document.getElementById('__xray_cmd_host__');
+    if (_host) _host.style.pointerEvents = 'none';
+    
+    console.log('[XRAY] Command Palette closed');
   }
 
   function toggle() {
@@ -1307,8 +1321,19 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   function init(shadowRoot, panelRef) {
     if (_container) return; // Already initialized
 
-    _root = shadowRoot;
     _panelRef = panelRef;
+
+    // Create our own top-level shadow host for the command palette
+    // This ensures it's at document root level and can properly overlay everything
+    let host = document.getElementById('__xray_cmd_host__');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = '__xray_cmd_host__';
+      host.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;';
+      document.documentElement.appendChild(host);
+    }
+    
+    _root = host.shadowRoot || host.attachShadow({ mode: 'open' });
 
     // Inject styles
     const style = document.createElement('style');
@@ -1332,6 +1357,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     _input.addEventListener('input', handleInput);
     _root.querySelector('#xr-cmd-esc')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       close();
     });
     
@@ -1345,8 +1371,8 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     
     // Backdrop click closes
     _container.addEventListener('click', (e) => {
+      e.stopPropagation();
       if (e.target === _container) {
-        e.stopPropagation();
         close();
       }
     });
@@ -1357,6 +1383,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     // Global keyboard
     document.addEventListener('keydown', handleKeyDown, true);
 
+    console.log('[XRAY] Command Palette initialized');
     return _public;
   }
 
