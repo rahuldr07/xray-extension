@@ -3088,28 +3088,37 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     return el;
   }
 
+  // Virtual list instance for high-performance scrolling
+  let _virtualList = null;
+
   function _rebuildList() {
     const pane = _dom.listPane;
     if (!pane) return;
-    pane.innerHTML = '';
 
     const isApiTab = _state.activeTab === 'api';
     const filtered = _filteredEntries();
 
-    // Calculate timeline bounds for waterfall visualization
+    // Calculate timeline bounds for waterfall visualization (O(n) but fast)
     if (isApiTab && filtered.length > 0) {
-      const timestamps = filtered.map(e => e.timestamp || 0);
-      const durations = filtered.map(e => e.duration || 0);
-      _state.timelineStart = Math.min(...timestamps);
-      _state.timelineEnd = Math.max(...timestamps.map((t, i) => t + durations[i]));
+      let minTs = Infinity, maxEnd = 0;
+      for (let i = 0; i < filtered.length; i++) {
+        const ts = filtered[i].timestamp || 0;
+        const dur = filtered[i].duration || 0;
+        if (ts < minTs) minTs = ts;
+        if (ts + dur > maxEnd) maxEnd = ts + dur;
+      }
+      _state.timelineStart = minTs;
+      _state.timelineEnd = maxEnd;
     }
 
-    // Build column header for API tab
-    if (isApiTab) {
-      pane.appendChild(_buildListHeader());
-    }
-
+    // Empty state
     if (filtered.length === 0) {
+      // Destroy virtual list if exists
+      if (_virtualList) {
+        _virtualList.destroy();
+        _virtualList = null;
+      }
+      pane.innerHTML = '';
       const icon = isApiTab ? '◈' : '◉';
       const title = `No ${isApiTab ? 'requests' : 'logs'} yet`;
       const desc = isApiTab
@@ -3118,7 +3127,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const hint = isApiTab
         ? `<div class="xr-kbd-hint"><span class="xr-kbd">Ctrl+Shift+X</span> toggle panel</div>`
         : '';
-      pane.innerHTML += `
+      pane.innerHTML = `
         <div class="xr-empty-state">
           <div class="xr-empty-icon">${icon}</div>
           <div class="xr-empty-title">${title}</div>
@@ -3129,24 +3138,51 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       return;
     }
 
-    // Render entries based on tab type
-    if (isApiTab) {
-      // Sort entries
-      const sorted = _sortEntries(filtered);
-      sorted.forEach(entry => {
-        pane.appendChild(_renderApiRow(entry));
-      });
+    // Sort entries
+    const sorted = isApiTab ? _sortEntries(filtered) : filtered;
+
+    // Use virtual list for large datasets (>50 items) or always for API tab
+    const useVirtual = sorted.length > 50 || isApiTab;
+
+    if (useVirtual && window.XRAY_VirtualList) {
+      // Create or update virtual list
+      if (!_virtualList) {
+        pane.innerHTML = '';
+        _virtualList = new window.XRAY_VirtualList({
+          container: pane,
+          items: sorted,
+          itemHeight: 36,
+          renderItem: (entry, index, isSelected) => {
+            const el = isApiTab ? _renderApiRow(entry) : _renderEntry(entry, {});
+            if (isSelected) el.classList.add('xr-selected');
+            return el;
+          },
+          onSelect: (entry) => _selectEntry(entry.id),
+          className: isApiTab ? 'xr-api-vlist' : 'xr-log-vlist'
+        });
+      } else {
+        _virtualList.setItems(sorted);
+      }
+
+      // Select current entry if exists
+      if (_state.selectedId) {
+        const idx = sorted.findIndex(e => e.id === _state.selectedId);
+        if (idx !== -1) _virtualList.select(idx);
+      }
     } else {
-      // Logs tab - keep original grouping behavior
-      const groups = [];
-      const logGroups = new Map();
-      filtered.forEach((entry) => {
-        groups.push({ key: `log:${entry.id}`, entries: [entry] });
-      });
-      groups.forEach((group) => {
-        const [head] = group.entries;
-        pane.appendChild(_renderEntry(head, {}));
-      });
+      // Destroy virtual list if switching to non-virtual mode
+      if (_virtualList) {
+        _virtualList.destroy();
+        _virtualList = null;
+      }
+      pane.innerHTML = '';
+
+      // Direct rendering for small datasets
+      if (isApiTab) {
+        sorted.forEach(entry => pane.appendChild(_renderApiRow(entry)));
+      } else {
+        sorted.forEach(entry => pane.appendChild(_renderEntry(entry, {})));
+      }
     }
   }
 
