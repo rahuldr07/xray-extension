@@ -6,8 +6,9 @@ window.XRAY_CommandPalette = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   // State
   // ══════════════════════════════════════════════════════════════════════════
-  let _root = null;
-  let _panelRef = null;
+  let _root = null;        // Command palette's own shadow root
+  let _panelRoot = null;   // Panel's shadow root (for querying panel elements)
+  let _panelRef = null;    // Panel public API reference
   let _container = null;
   let _input = null;
   let _leftCol = null;
@@ -1039,7 +1040,9 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Tab switching ──
   function switchTab(tabId) {
-    const tabBtn = _root?.querySelector?.(`[data-tab="${tabId}"]`);
+    console.log('[XRAY CMD] switchTab:', tabId, '_panelRoot:', !!_panelRoot);
+    const tabBtn = _panelRoot?.querySelector?.(`[data-tab="${tabId}"]`);
+    console.log('[XRAY CMD] tabBtn found:', !!tabBtn);
     if (tabBtn) {
       tabBtn.click();
       _settings.activeTab = tabId;
@@ -1048,46 +1051,57 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Theme ──
   function setTheme(themeId) {
+    console.log('[XRAY CMD] setTheme:', themeId);
     _settings.theme = themeId;
-    // Apply via panel
-    const select = _root?.querySelector?.('#xr-settings-theme');
+    
+    // Try direct theme application via XRAY_Themes
+    if (window.XRAY_Themes && window.XRAY_Themes[themeId]) {
+      const panel = _panelRoot?.querySelector?.('#xr-panel');
+      console.log('[XRAY CMD] panel found:', !!panel);
+      if (panel) {
+        Object.entries(window.XRAY_Themes[themeId].vars).forEach(([k, v]) => {
+          panel.style.setProperty(k, v);
+        });
+        console.log('[XRAY CMD] Theme applied:', themeId);
+      }
+    }
+    
+    // Also update the settings select if it exists
+    const select = _panelRoot?.querySelector?.('#xr-settings-theme');
     if (select) {
       select.value = themeId;
       select.dispatchEvent(new Event('change'));
     }
-    // Also try direct method
-    if (window.XRAY_Themes && _panelRef) {
-      const panel = _root?.querySelector?.('#xr-panel');
-      if (panel && window.XRAY_Themes[themeId]) {
-        Object.entries(window.XRAY_Themes[themeId].vars).forEach(([k, v]) => {
-          panel.style.setProperty(k, v);
-        });
-      }
-    }
+    
     render();
   }
 
   // ── Dock ──
   function setDock(position) {
+    console.log('[XRAY CMD] setDock:', position);
     _settings.dock = position;
     if (window.XRAY_HUD?.setDock) {
       window.XRAY_HUD.setDock(position);
+      console.log('[XRAY CMD] Dock set via HUD');
     }
     render();
   }
 
   // ── Blur ──
   function toggleBlur() {
+    console.log('[XRAY CMD] toggleBlur, new value:', !_settings.blur);
     _settings.blur = !_settings.blur;
     // Apply to HUD or panel
     if (window.XRAY_HUD?.setBlur) {
       window.XRAY_HUD.setBlur(_settings.blur);
+      console.log('[XRAY CMD] Blur set via HUD');
     }
     render();
   }
 
   // ── Opacity ──
   function setOpacity(value) {
+    console.log('[XRAY CMD] setOpacity:', value);
     _settings.opacity = value;
     if (window.XRAY_HUD?.setOpacity) {
       window.XRAY_HUD.setOpacity(value / 100);
@@ -1097,13 +1111,18 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── View ──
   function setView(viewId) {
+    console.log('[XRAY CMD] setView:', viewId, '_panelRef:', !!_panelRef);
     _settings.activeView = viewId;
-    _panelRef?.setView?.(viewId);
+    if (_panelRef?.setView) {
+      _panelRef.setView(viewId);
+      console.log('[XRAY CMD] View set via panelRef');
+    }
     render();
   }
 
   // ── Filters ──
   function toggleFilter(filterId) {
+    console.log('[XRAY CMD] toggleFilter:', filterId);
     _settings.filters[filterId] = !_settings.filters[filterId];
     applyFilters();
     render();
@@ -1111,7 +1130,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   function applyFilters() {
     // Apply to panel settings checkboxes
-    const container = _root?.querySelector?.('#xr-settings-status-filters');
+    const container = _panelRoot?.querySelector?.('#xr-settings-status-filters');
     if (container) {
       container.querySelectorAll('input[data-status]').forEach(cb => {
         const status = cb.dataset.status;
@@ -1159,11 +1178,11 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   // ══════════════════════════════════════════════════════════════════════════
   function syncSettingsFromPanel() {
     // Sync theme
-    const themeSelect = _root?.querySelector?.('#xr-settings-theme');
+    const themeSelect = _panelRoot?.querySelector?.('#xr-settings-theme');
     if (themeSelect) _settings.theme = themeSelect.value;
 
     // Sync active tab
-    const activeTab = _root?.querySelector?.('.xr-tab.xr-active');
+    const activeTab = _panelRoot?.querySelector?.('.xr-tab.xr-active');
     if (activeTab) _settings.activeTab = activeTab.dataset.tab;
 
     // Sync view - try to get from panel state
@@ -1321,6 +1340,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   function init(shadowRoot, panelRef) {
     if (_container) return; // Already initialized
 
+    _panelRoot = shadowRoot;  // Store panel's shadow root for querying panel elements
     _panelRef = panelRef;
 
     // Create our own top-level shadow host for the command palette
