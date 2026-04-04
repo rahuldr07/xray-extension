@@ -319,13 +319,16 @@ window.XRAY_CommandPalette = (() => {
   // Command Actions (delegated to XRAY_Panel)
   // ══════════════════════════════════════════════════════════════════════════
   function switchTab(tab) {
+    console.log('[XRAY CMD] switchTab:', tab, '_root:', !!_root);
     // Query within shadow root, not document
     const tabBtn = _root?.querySelector?.(`[data-tab="${tab}"]`) || 
                    document.querySelector(`#__xray_root__`)?.shadowRoot?.querySelector(`[data-tab="${tab}"]`);
+    console.log('[XRAY CMD] tabBtn found:', !!tabBtn);
     tabBtn?.click();
   }
 
   function setView(view) {
+    console.log('[XRAY CMD] setView:', view, '_panelRef:', !!_panelRef);
     _panelRef?.setView?.(view);
   }
 
@@ -1079,6 +1082,8 @@ window.XRAY_CommandPalette = (() => {
     const cmd = _currentResults[idx];
     if (!cmd) return;
     
+    console.log('[XRAY CMD] Executing:', cmd.id, cmd.label);
+    
     // Save to recent
     saveRecent(cmd.id);
     
@@ -1088,7 +1093,9 @@ window.XRAY_CommandPalette = (() => {
     // Execute after animation
     setTimeout(() => {
       try {
+        console.log('[XRAY CMD] Running action for:', cmd.id);
         cmd.action();
+        console.log('[XRAY CMD] Action completed');
       } catch (err) {
         console.error('[XRAY Command Palette] Action failed:', err);
       }
