@@ -3148,7 +3148,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       // Create or update virtual list
       if (!_virtualList) {
         pane.innerHTML = '';
-        _virtualList = new window.XRAY_VirtualList({
+        _virtualList = window.XRAY_VirtualList.create({
           container: pane,
           items: sorted,
           itemHeight: 36,
@@ -5526,8 +5526,11 @@ func main() {
         _renderDetail(null);
       }
 
+      // Only update UI if panel is initialized (has shadow root)
+      if (!_root || !_dom.listPane) return;
+
       // Flash the live capture dot
-      const dot = _root?.getElementById('xr-capture-dot');
+      const dot = _root.querySelector?.('#xr-capture-dot');
       if (dot) {
         dot.classList.add('xr-live');
         clearTimeout(dot._fadeTimer);
