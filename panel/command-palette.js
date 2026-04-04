@@ -668,6 +668,7 @@ window.XRAY_CommandPalette = (() => {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 8px;
+  pointer-events: auto;
 }
 
 .xr-cmd-results::-webkit-scrollbar {
@@ -709,6 +710,8 @@ window.XRAY_CommandPalette = (() => {
   padding: 10px 12px;
   border-radius: 10px;
   cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
   transition: 
     background 0.1s,
     transform 0.1s ${SPRING.snappy};
@@ -1193,11 +1196,39 @@ window.XRAY_CommandPalette = (() => {
   // Global Keyboard Shortcut
   // ══════════════════════════════════════════════════════════════════════════
   function handleGlobalKeyDown(e) {
-    // Cmd/Ctrl + K
+    // Cmd/Ctrl + K to toggle
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       e.stopPropagation();
       toggle();
+      return;
+    }
+    
+    // Handle navigation when palette is open (even if input not focused)
+    if (_isOpen) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          _selectedIdx = Math.min(_selectedIdx + 1, _currentResults.length - 1);
+          updateSelection();
+          break;
+          
+        case 'ArrowUp':
+          e.preventDefault();
+          _selectedIdx = Math.max(_selectedIdx - 1, 0);
+          updateSelection();
+          break;
+          
+        case 'Enter':
+          e.preventDefault();
+          executeCommand(_selectedIdx);
+          break;
+          
+        case 'Escape':
+          e.preventDefault();
+          close();
+          break;
+      }
     }
   }
 
