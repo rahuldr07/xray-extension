@@ -117,14 +117,14 @@ window.XRAY_CommandPalette = (() => {
 .xr-cmd-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
   z-index: 2147483646;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.18s ease-out, visibility 0.18s;
+  transition: opacity 0.2s ease-out, visibility 0.2s;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -140,22 +140,25 @@ window.XRAY_CommandPalette = (() => {
   width: 640px;
   max-width: calc(100vw - 48px);
   max-height: 480px;
-  background: linear-gradient(to bottom, #141416, #111113);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 14px;
+  background: rgba(17, 17, 19, 0.85);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transform: translateY(-8px) scale(0.98);
+  transform: translateY(-10px) scale(0.96);
   opacity: 0;
-  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.15s ease;
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease;
   font-family: var(--cp-sans);
   font-size: 13px;
   color: var(--cp-t0);
   box-shadow: 
-    0 0 0 1px rgba(255,255,255,0.05) inset,
-    0 24px 48px -12px rgba(0,0,0,0.5),
-    0 0 1px rgba(0,0,0,0.4);
+    0 0 0 1px rgba(255,255,255,0.08) inset,
+    0 25px 60px -15px rgba(0,0,0,0.6),
+    0 10px 30px -10px rgba(0,0,0,0.4),
+    0 0 1px rgba(0,0,0,0.3);
   pointer-events: auto;
 }
 .xr-cmd-backdrop.xr-open .xr-cmd-shell {
@@ -170,7 +173,8 @@ window.XRAY_CommandPalette = (() => {
   gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--cp-bd);
-  background: rgba(255,255,255,0.02);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(10px);
 }
 .xr-cmd-head svg { color: var(--cp-t3); flex-shrink: 0; }
 .xr-cmd-inp {
@@ -214,7 +218,7 @@ window.XRAY_CommandPalette = (() => {
   border-right: 1px solid var(--cp-bd);
   overflow-y: auto;
   padding: 8px;
-  background: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.2);
 }
 .xr-cmd-left::-webkit-scrollbar { width: 0; }
 
@@ -1089,7 +1093,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   // ══════════════════════════════════════════════════════════════════════════
   function executeAction(action) {
     if (!action) return;
-    console.log('[XRAY CMD] Executing:', action);
 
     const [type, value] = action.split(':');
 
@@ -1147,9 +1150,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Tab switching ──
   function switchTab(tabId) {
-    console.log('[XRAY CMD] switchTab:', tabId, '_panelRoot:', !!_panelRoot);
     const tabBtn = _panelRoot?.querySelector?.(`[data-tab="${tabId}"]`);
-    console.log('[XRAY CMD] tabBtn found:', !!tabBtn);
     if (tabBtn) {
       tabBtn.click();
       _settings.activeTab = tabId;
@@ -1158,18 +1159,15 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Theme ──
   function setTheme(themeId) {
-    console.log('[XRAY CMD] setTheme:', themeId);
     _settings.theme = themeId;
     
     // Try direct theme application via XRAY_Themes
     if (window.XRAY_Themes && window.XRAY_Themes[themeId]) {
       const panel = _panelRoot?.querySelector?.('#xr-panel');
-      console.log('[XRAY CMD] panel found:', !!panel);
       if (panel) {
         Object.entries(window.XRAY_Themes[themeId].vars).forEach(([k, v]) => {
           panel.style.setProperty(k, v);
         });
-        console.log('[XRAY CMD] Theme applied:', themeId);
       }
     }
     
@@ -1185,30 +1183,24 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Dock ──
   function setDock(position) {
-    console.log('[XRAY CMD] setDock:', position);
     _settings.dock = position;
-    // HUD uses setDockMode
     if (window.XRAY_HUD?.setDockMode) {
       window.XRAY_HUD.setDockMode(position);
-      console.log('[XRAY CMD] Dock set via HUD.setDockMode');
     }
     render();
   }
 
   // ── Blur ──
   function toggleBlur() {
-    console.log('[XRAY CMD] toggleBlur, new value:', !_settings.blur);
     _settings.blur = !_settings.blur;
     if (window.XRAY_HUD?.setBlur) {
       window.XRAY_HUD.setBlur(_settings.blur);
-      console.log('[XRAY CMD] Blur set via HUD');
     }
     render();
   }
 
   // ── Opacity ──
   function setOpacity(value) {
-    console.log('[XRAY CMD] setOpacity:', value);
     _settings.opacity = value;
     if (window.XRAY_HUD?.setOpacity) {
       window.XRAY_HUD.setOpacity(value / 100);
@@ -1218,18 +1210,15 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── View ──
   function setView(viewId) {
-    console.log('[XRAY CMD] setView:', viewId, '_panelRef:', !!_panelRef);
     _settings.activeView = viewId;
     if (_panelRef?.setView) {
       _panelRef.setView(viewId);
-      console.log('[XRAY CMD] View set via panelRef');
     }
     render();
   }
 
   // ── Filters ──
   function toggleFilter(filterId) {
-    console.log('[XRAY CMD] toggleFilter:', filterId);
     _settings.filters[filterId] = !_settings.filters[filterId];
     applyFilters();
     render();
@@ -1336,8 +1325,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
       _input?.focus();
       render();
     }, 20);
-    
-    console.log('[XRAY] Command Palette opened');
   }
 
   function close() {
@@ -1350,8 +1337,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     // Disable pointer events on host so page is interactive
     _host = document.getElementById('__xray_cmd_host__');
     if (_host) _host.style.pointerEvents = 'none';
-    
-    console.log('[XRAY] Command Palette closed');
   }
 
   function toggle() {
@@ -1510,7 +1495,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     // Global keyboard
     document.addEventListener('keydown', handleKeyDown, true);
 
-    console.log('[XRAY] Command Palette initialized');
     return _public;
   }
 
