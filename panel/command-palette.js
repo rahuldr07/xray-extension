@@ -396,7 +396,12 @@ window.XRAY_CommandPalette = (() => {
   }
 
   function openSettings() {
-    _root?.querySelector('#xr-settings-btn')?.click();
+    // Directly open settings modal via panel's shadow root
+    const backdrop = _root?.querySelector('#xr-settings-backdrop') ||
+                     _root?.querySelector('.xr-settings-backdrop');
+    if (backdrop) {
+      backdrop.classList.add('xr-open');
+    }
   }
 
   function setTheme(theme) {

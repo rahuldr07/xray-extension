@@ -275,11 +275,44 @@ window.XRAY_Panel = (() => {
   font-weight: 500;
   font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
   z-index: 1;
+  margin-right: 8px;
+}
+
+/* ─── Command Palette Trigger (⌘K button) ───────────────────────────────────── */
+.xr-cmd-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px !important;
+  width: auto !important;
+  background: var(--xr-bg3) !important;
+  border: 1px solid var(--xr-border) !important;
+  border-radius: var(--xr-radius-md, 8px) !important;
+  cursor: pointer;
+  transition: all var(--xr-transition, 0.15s ease);
+}
+.xr-cmd-hint:hover {
+  background: var(--xr-surface) !important;
+  border-color: var(--xr-border-hover) !important;
+}
+.xr-cmd-hint svg {
+  width: 13px;
+  height: 13px;
+  color: var(--xr-muted);
+}
+.xr-cmd-kbd {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--xr-subtext);
+  padding: 1px 4px;
+  background: var(--xr-bg);
+  border-radius: var(--xr-radius-xs, 3px);
 }
 
 /* ─── Theme selector (macOS-style dots) ─────────────────────────────────────── */
@@ -2469,9 +2502,15 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       📊 Insights
     </button>
   </div>
-  <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors · 0.0 MB</div>
   <div class="xr-hspacer"></div>
-  <button class="xr-ibtn" id="xr-settings-btn" title="Settings">⚙️</button>
+  <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors</div>
+  <button class="xr-ibtn xr-cmd-hint" id="xr-cmd-trigger" title="Command Palette (Ctrl+K)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <span class="xr-cmd-kbd">⌘K</span>
+  </button>
   <div class="xr-dots" id="xr-dots"></div>
   <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
 </div>
@@ -5063,11 +5102,16 @@ func main() {
   function _bindEvents() {
     _dom.closeBtn.addEventListener('click', () => _public.hide());
 
-    _dom.settingsBtn.addEventListener('click', () => _openSettingsModal());
-    _dom.settingsClose.addEventListener('click', () => {
+    // Command palette trigger button (opens ⌘K)
+    _dom.cmdTrigger?.addEventListener('click', () => {
+      window.XRAY_CommandPalette?.open?.();
+    });
+
+    // Settings modal handlers (accessed via command palette)
+    _dom.settingsClose?.addEventListener('click', () => {
       _dom.settingsBackdrop.classList.remove('xr-open');
     });
-    _dom.settingsBackdrop.addEventListener('click', (e) => {
+    _dom.settingsBackdrop?.addEventListener('click', (e) => {
       if (e.target === _dom.settingsBackdrop) _dom.settingsBackdrop.classList.remove('xr-open');
     });
     _dom.settingsTheme.addEventListener('change', (e) => {
@@ -5285,7 +5329,7 @@ func main() {
       _dom.panel = getById('xr-panel');
       _dom.panelResize = getById('xr-panel-resize');
       _dom.dots = getById('xr-dots');
-      _dom.settingsBtn = getById('xr-settings-btn');
+      _dom.cmdTrigger = getById('xr-cmd-trigger');
       _dom.closeBtn = getById('xr-close');
       _dom.listWrap = _root.querySelector('.xr-list-wrap');
       _dom.listPane = getById('xr-list-pane');
