@@ -32,7 +32,7 @@
         "shared/worker-client.js",
         "panel/themes.js",
         "panel/hud-core.js",
-        "panel/command-palette.js",
+        "panel/command-palette-v2.js",
         "panel/n-plus-one.js",
         "panel/virtual-list.js",
         "panel/entry-list.js",

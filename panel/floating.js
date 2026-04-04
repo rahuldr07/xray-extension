@@ -5619,6 +5619,31 @@ func main() {
         : null;
     },
 
+    // Command Palette helpers
+    getPinnedCount() {
+      return _state.pinned?.size || 0;
+    },
+
+    clearPins() {
+      _state.pinned.clear();
+      _savePinned();
+      _rebuildList();
+      _updateCounts();
+    },
+
+    clearAll() {
+      if (!confirm('Delete all entries? This cannot be undone.')) return;
+      _state.entries = [];
+      _state.selectedId = null;
+      _state.treePath = '';
+      _state.expandedGroups.clear();
+      _state.pinned.clear();
+      _savePinned();
+      _rebuildList();
+      _renderDetail(null);
+      _updateCounts();
+    },
+
   };
 
   return _public;
