@@ -98,7 +98,21 @@ window.XRAY_CommandPalette = (() => {
 /* ═══════════════════════════════════════════════════════════════════════════
    Command Palette V2 — Two-Column Premium Design
    ═══════════════════════════════════════════════════════════════════════════ */
-:root {
+/* Variables scoped to shadow host */
+:host {
+  --cp-bg0: #08080a; --cp-bg1: #0f0f12; --cp-bg2: #16161a; --cp-bg3: #1e1e23; --cp-bg4: #26262d;
+  --cp-t0: #f4f4f5; --cp-t1: #d1d1d6; --cp-t2: #98989f; --cp-t3: #636368; --cp-t4: #3f3f45;
+  --cp-bd: rgba(255,255,255,0.055); --cp-bd2: rgba(255,255,255,0.095); --cp-bd3: rgba(255,255,255,0.14);
+  --cp-acc: #6366f1; --cp-acc-l: #818cf8; --cp-acc-dim: rgba(99,102,241,0.15);
+  --cp-grn: #22c55e; --cp-grn-dim: rgba(34,197,94,0.13);
+  --cp-red: #ef4444; --cp-red-dim: rgba(239,68,68,0.13);
+  --cp-ylw: #f59e0b; --cp-ylw-dim: rgba(245,158,11,0.13);
+  --cp-blu: #3b82f6; --cp-blu-dim: rgba(59,130,246,0.13);
+  --cp-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --cp-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+}
+/* Fallback for non-shadow contexts */
+.xr-cmd-backdrop {
   --cp-bg0: #08080a; --cp-bg1: #0f0f12; --cp-bg2: #16161a; --cp-bg3: #1e1e23; --cp-bg4: #26262d;
   --cp-t0: #f4f4f5; --cp-t1: #d1d1d6; --cp-t2: #98989f; --cp-t3: #636368; --cp-t4: #3f3f45;
   --cp-bd: rgba(255,255,255,0.055); --cp-bd2: rgba(255,255,255,0.095); --cp-bd3: rgba(255,255,255,0.14);
@@ -114,12 +128,13 @@ window.XRAY_CommandPalette = (() => {
 .xr-cmd-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 2147483646;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition: opacity 0.2s ease, visibility 0.2s;
   display: flex;
   align-items: flex-start;
@@ -129,14 +144,15 @@ window.XRAY_CommandPalette = (() => {
 .xr-cmd-backdrop.xr-open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .xr-cmd-shell {
   width: 680px;
   max-width: calc(100vw - 40px);
   max-height: 520px;
-  background: var(--cp-bg1);
-  border: 1px solid var(--cp-bd2);
+  background: #0f0f12;
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -147,7 +163,8 @@ window.XRAY_CommandPalette = (() => {
   font-family: var(--cp-sans);
   font-size: 13px;
   color: var(--cp-t0);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.05);
+  pointer-events: auto;
 }
 .xr-cmd-backdrop.xr-open .xr-cmd-shell {
   transform: translateY(0) scale(1);
@@ -224,10 +241,12 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 6px;
   border-left: 2px solid transparent;
   transition: background 0.08s;
+  pointer-events: auto;
+  user-select: none;
 }
-.xr-cmd-grp:hover { background: var(--cp-bg3); }
+.xr-cmd-grp:hover { background: #1e1e23; }
 .xr-cmd-grp.sel {
-  background: var(--cp-bg3);
+  background: #1e1e23;
   border-left-color: var(--cp-acc);
 }
 .xr-cmd-grp-icon {
@@ -286,6 +305,8 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.12s;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-theme-card:hover { background: var(--cp-bg3); border-color: var(--cp-bd2); }
 .xr-theme-card.on { border-color: var(--cp-acc); background: var(--cp-acc-dim); }
@@ -294,9 +315,10 @@ window.XRAY_CommandPalette = (() => {
   height: 24px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.1);
+  pointer-events: none;
 }
 .xr-theme-card.on .xr-theme-swatch { border-color: var(--cp-acc-l); }
-.xr-theme-name { font-size: 9.5px; color: var(--cp-t3); text-align: center; }
+.xr-theme-name { font-size: 9.5px; color: var(--cp-t3); text-align: center; pointer-events: none; }
 .xr-theme-card.on .xr-theme-name { color: var(--cp-acc-l); }
 
 /* ── Setting Row ── */
@@ -323,6 +345,8 @@ window.XRAY_CommandPalette = (() => {
   border: 1px solid var(--cp-bd2);
   transition: background 0.15s;
   flex-shrink: 0;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-tgl.on { background: var(--cp-acc); }
 .xr-tgl-thumb {
@@ -334,6 +358,7 @@ window.XRAY_CommandPalette = (() => {
   top: 2px;
   left: 2px;
   transition: all 0.14s;
+  pointer-events: none;
 }
 .xr-tgl.on .xr-tgl-thumb { left: 16px; background: #fff; }
 
@@ -358,6 +383,8 @@ window.XRAY_CommandPalette = (() => {
   font-family: var(--cp-sans);
   transition: all 0.1s;
   white-space: nowrap;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-seg-o.on { background: var(--cp-bg4); color: var(--cp-t1); }
 
@@ -373,6 +400,8 @@ window.XRAY_CommandPalette = (() => {
   border: 1px solid var(--cp-bd2);
   background: transparent;
   color: var(--cp-t3);
+  pointer-events: auto;
+  user-select: none;
   transition: all 0.1s;
 }
 .xr-chip:hover { border-color: var(--cp-bd3); color: var(--cp-t2); }
@@ -398,6 +427,8 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.12s;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-view-card:hover { background: var(--cp-bg3); border-color: var(--cp-bd2); }
 .xr-view-card.on { border-color: var(--cp-acc); background: var(--cp-acc-dim); }
@@ -409,11 +440,12 @@ window.XRAY_CommandPalette = (() => {
   justify-content: center;
   background: var(--cp-bg3);
   border-radius: 6px;
+  pointer-events: none;
 }
 .xr-view-card.on .xr-view-icon { background: rgba(99,102,241,0.25); }
-.xr-view-label { font-size: 10px; color: var(--cp-t2); }
+.xr-view-label { font-size: 10px; color: var(--cp-t2); pointer-events: none; }
 .xr-view-card.on .xr-view-label { color: var(--cp-acc-l); }
-.xr-view-key { font-size: 9px; font-family: var(--cp-mono); color: var(--cp-t4); }
+.xr-view-key { font-size: 9px; font-family: var(--cp-mono); color: var(--cp-t4); pointer-events: none; }
 
 /* ── Nav Grid ── */
 .xr-nav-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
@@ -426,6 +458,8 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.12s;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-nav-card:hover { background: var(--cp-bg3); border-color: var(--cp-bd2); }
 .xr-nav-card.on { border-color: var(--cp-acc); background: var(--cp-acc-dim); }
@@ -437,10 +471,11 @@ window.XRAY_CommandPalette = (() => {
   justify-content: center;
   background: var(--cp-bg3);
   border-radius: 5px;
+  pointer-events: none;
 }
 .xr-nav-card.on .xr-nav-icon { background: rgba(99,102,241,0.25); }
-.xr-nav-label { font-size: 11px; color: var(--cp-t1); }
-.xr-nav-key { font-size: 9px; font-family: var(--cp-mono); color: var(--cp-t4); margin-left: auto; }
+.xr-nav-label { font-size: 11px; color: var(--cp-t1); pointer-events: none; }
+.xr-nav-key { font-size: 9px; font-family: var(--cp-mono); color: var(--cp-t4); margin-left: auto; pointer-events: none; }
 
 /* ── Export List ── */
 .xr-export-list { display: flex; flex-direction: column; gap: 4px; }
@@ -453,6 +488,8 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.1s;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-exp-item:hover { background: var(--cp-bg3); border-color: var(--cp-bd2); }
 .xr-exp-icon {
@@ -463,9 +500,10 @@ window.XRAY_CommandPalette = (() => {
   justify-content: center;
   background: var(--cp-bg3);
   border-radius: 5px;
+  pointer-events: none;
 }
-.xr-exp-label { font-size: 11.5px; color: var(--cp-t1); flex: 1; }
-.xr-exp-desc { font-size: 10px; color: var(--cp-t4); }
+.xr-exp-label { font-size: 11.5px; color: var(--cp-t1); flex: 1; pointer-events: none; }
+.xr-exp-desc { font-size: 10px; color: var(--cp-t4); pointer-events: none; }
 
 /* ── Danger Zone ── */
 .xr-danger-zone {
@@ -491,6 +529,8 @@ window.XRAY_CommandPalette = (() => {
   cursor: pointer;
   transition: background 0.1s;
   border-bottom: 1px solid rgba(239,68,68,0.07);
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-dz-item:last-child { border-bottom: none; }
 .xr-dz-item:hover { background: rgba(239,68,68,0.06); }
@@ -502,8 +542,9 @@ window.XRAY_CommandPalette = (() => {
   justify-content: center;
   background: var(--cp-red-dim);
   border-radius: 5px;
+  pointer-events: none;
 }
-.xr-dz-text { flex: 1; }
+.xr-dz-text { flex: 1; pointer-events: none; }
 .xr-dz-label { font-size: 11.5px; color: var(--cp-t1); }
 .xr-dz-sub { font-size: 10px; color: var(--cp-t4); }
 .xr-dz-badge {
@@ -513,6 +554,7 @@ window.XRAY_CommandPalette = (() => {
   font-size: 9px;
   font-weight: 700;
   color: var(--cp-red);
+  pointer-events: none;
 }
 
 /* ── Search Results ── */
@@ -525,6 +567,8 @@ window.XRAY_CommandPalette = (() => {
   border-radius: 6px;
   transition: background 0.07s;
   border-left: 2px solid transparent;
+  pointer-events: auto;
+  user-select: none;
 }
 .xr-search-item:hover { background: var(--cp-bg3); }
 .xr-search-item.sel { background: var(--cp-bg3); border-left-color: var(--cp-acc); }
@@ -668,7 +712,8 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
     // Bind click events
     _leftCol.querySelectorAll('.xr-cmd-grp').forEach(el => {
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         _selGroup = el.dataset.group;
         render();
       });
@@ -899,7 +944,10 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
     // Bind events
     _rightCol.querySelectorAll('.xr-search-item').forEach(el => {
-      el.addEventListener('click', () => executeAction(el.dataset.action));
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        executeAction(el.dataset.action);
+      });
       el.addEventListener('mouseenter', () => {
         _selIdx = parseInt(el.dataset.idx, 10);
         updateSearchSelection();
@@ -909,7 +957,10 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   function bindDetailEvents() {
     _rightCol.querySelectorAll('[data-action]').forEach(el => {
-      el.addEventListener('click', () => executeAction(el.dataset.action));
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        executeAction(el.dataset.action);
+      });
     });
   }
 
@@ -921,7 +972,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   function updateFooter() {
     const stats = getStats();
-    const ctx = document.getElementById('xr-cmd-fctx');
+    const ctx = _root?.querySelector?.('#xr-cmd-fctx');
     if (ctx) ctx.textContent = `${stats.apis} requests · ${stats.logs} logs`;
   }
 
@@ -1274,12 +1325,33 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     _input = _root.querySelector('#xr-cmd-inp');
     _leftCol = _root.querySelector('#xr-cmd-left');
     _rightCol = _root.querySelector('#xr-cmd-right');
+    
+    const shell = _root.querySelector('.xr-cmd-shell');
 
     // Bind events
     _input.addEventListener('input', handleInput);
-    _root.querySelector('#xr-cmd-esc')?.addEventListener('click', close);
+    _root.querySelector('#xr-cmd-esc')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      close();
+    });
+    
+    // Shell captures all clicks to prevent pass-through
+    shell?.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    shell?.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+    
+    // Backdrop click closes
     _container.addEventListener('click', (e) => {
-      if (e.target === _container) close();
+      if (e.target === _container) {
+        e.stopPropagation();
+        close();
+      }
+    });
+    _container.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
     });
 
     // Global keyboard
