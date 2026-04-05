@@ -1319,24 +1319,28 @@ window.XRAY_Panel = (() => {
   box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .xr-toolbar-spacer { flex: 1; }
-.xr-copy-dropdown-btn {
+
+/* Detail pane export button */
+.xr-detail-export-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 11px;
-  background: var(--xr-bg3);
-  border: 1px solid var(--xr-border);
+  padding: 5px 12px;
+  background: var(--xr-accent-muted);
+  border: 1px solid var(--xr-accent);
   border-radius: 6px;
-  color: var(--xr-subtext);
-  font-size: 10px;
+  color: var(--xr-accent);
+  font-size: 11px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .12s, color .12s, background .12s;
-  line-height: 1.4;
+  transition: all .15s;
 }
-.xr-copy-dropdown-btn:hover { border-color: var(--xr-ring); color: var(--xr-text); background: var(--xr-surface); }
-.xr-copy-dropdown-btn.xr-copied { border-color: var(--xr-green); color: var(--xr-green); background: rgba(74,222,128,.06); }
+.xr-detail-export-btn:hover {
+  background: var(--xr-accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
 
 /* Sub-tabs */
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1574,22 +1578,6 @@ window.XRAY_Panel = (() => {
   padding: 1px 4px;
   color: var(--xr-subtext);
 }
-.xr-export-btn {
-  padding: 4px 10px;
-  background: var(--xr-bg3);
-  border: 1px solid var(--xr-border);
-  border-radius: 4px;
-  color: var(--xr-subtext);
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all .15s;
-}
-.xr-export-btn:hover {
-  background: var(--xr-surface);
-  border-color: var(--xr-ring);
-  color: var(--xr-text);
-}
 
 /* ─── Grid view ──────────────────────────────────────────────────────────── */
 .xr-grid-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -1813,23 +1801,6 @@ window.XRAY_Panel = (() => {
 .xr-ps-nav button:hover, .xr-ps-close:hover { color: var(--xr-text); }
 .xr-search-hit     { background: rgba(251,191,36,.25) !important; border-radius: 2px; outline: 1px solid rgba(251,191,36,.4); }
 .xr-search-current { background: rgba(251,191,36,.6)  !important; outline: 1px solid rgba(251,191,36,.9); }
-
-/* ─── Copy dropdown ──────────────────────────────────────────────────────── */
-.xr-copy-wrap { position: relative; }
-.xr-copy-menu {
-  position: absolute; right: 0; top: calc(100% + 4px);
-  background: var(--xr-bg2); border: 1px solid var(--xr-border);
-  border-radius: 6px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
-  z-index: 999; min-width: 170px; overflow: hidden;
-}
-.xr-copy-menu button {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  background: none; border: none; color: var(--xr-text);
-  padding: 8px 14px; text-align: left; font-size: 11px;
-  cursor: pointer; font-family: inherit; white-space: nowrap;
-}
-.xr-copy-menu button:hover { background: var(--xr-bg3); }
-.xr-copy-menu-icon { font-size: 12px; opacity: .7; }
 
 /* ─── Fuzzy overlay ──────────────────────────────────────────────────────── */
 .xr-fuzzy-backdrop {
@@ -2507,6 +2478,13 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   </div>
   <div class="xr-hspacer"></div>
   <div class="xr-header-summary" id="xr-header-summary">0 APIs · 0 Errors</div>
+  <button class="xr-ibtn" id="xr-export-trigger" title="Export (C)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+      <polyline points="16 6 12 2 8 6"/>
+      <line x1="12" y1="2" x2="12" y2="15"/>
+    </svg>
+  </button>
   <button class="xr-ibtn xr-cmd-hint" id="xr-cmd-trigger" title="Command Palette (Ctrl+K)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="8"></circle>
@@ -2528,9 +2506,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 </div>
 <div class="xr-footer">
   <div class="xr-footer-hint">
-    <span class="xr-kbd">Ctrl+K</span> search
+    <span class="xr-kbd">C</span> export · <span class="xr-kbd">⌘K</span> search
   </div>
-  <button class="xr-export-btn" id="xr-export-btn" title="Export all entries">⬇ Export</button>
   <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
 </div>
@@ -3566,47 +3543,17 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     spacer.className = 'xr-toolbar-spacer';
     toolbar.appendChild(spacer);
 
-    // Copy dropdown
-    const copyWrap = document.createElement('div');
-    copyWrap.className = 'xr-copy-wrap';
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'xr-copy-dropdown-btn';
-    copyBtn.id = 'xr-copy-dropdown-btn';
-    copyBtn.innerHTML = `<span>⎘</span><span>Copy ▾</span>`;
-
-    const copyMenu = document.createElement('div');
-    copyMenu.className = 'xr-copy-menu';
-    copyMenu.id = 'xr-copy-menu';
-    copyMenu.style.display = 'none';
-    [
-      { id: 'json', icon: '{ }', label: 'Copy JSON' },
-      { id: 'curl', icon: '⌘', label: 'Copy as cURL' },
-      { id: 'fetch', icon: '⚡', label: 'Copy as fetch()' },
-      { id: 'axios', icon: '📦', label: 'Copy as axios' },
-    ].forEach(({ id, icon, label }) => {
-      const item = document.createElement('button');
-      item.dataset.copyAs = id;
-      item.innerHTML = `<span class="xr-copy-menu-icon">${icon}</span>${label}`;
-      item.addEventListener('click', () => {
-        copyMenu.style.display = 'none';
-        _copySelected(id);
-      });
-      copyMenu.appendChild(item);
+    // Export button (opens unified modal)
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'xr-detail-export-btn';
+    exportBtn.innerHTML = `<span>↗</span> Export`;
+    exportBtn.title = 'Export this entry (C)';
+    exportBtn.addEventListener('click', () => {
+      const entry = _state.entries.find(e => e.id === _state.selectedId);
+      if (entry) _openCopyModal(entry);
     });
+    toolbar.appendChild(exportBtn);
 
-    copyBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const open = copyMenu.style.display !== 'none';
-      copyMenu.style.display = open ? 'none' : 'block';
-    });
-
-    // Close dropdown when clicking outside
-    _root.addEventListener('click', () => { copyMenu.style.display = 'none'; }, true);
-
-    copyWrap.appendChild(copyBtn);
-    copyWrap.appendChild(copyMenu);
-    toolbar.appendChild(copyWrap);
     _dom.viewToggle = viewToggle;
     header.appendChild(toolbar);
 
@@ -4328,80 +4275,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   /* ──────────────────────────────────────────────────────────────────────────
      Export Menu (uses XRAY_Export if available)
      ────────────────────────────────────────────────────────────────────────── */
-  function _showExportMenu() {
-    const entries = _getVisibleEntries();
-    if (entries.length === 0) {
-      alert('No entries to export');
-      return;
-    }
-
-    // Remove any existing menu
-    const existingMenu = _root.querySelector('.xr-export-menu');
-    if (existingMenu) existingMenu.remove();
-
-    const menu = document.createElement('div');
-    menu.className = 'xr-export-menu';
-    menu.innerHTML = `
-      <div class="xr-export-menu-title">Export ${entries.length} entries</div>
-      <button data-fmt="json">📄 JSON</button>
-      <button data-fmt="csv">📊 CSV</button>
-      <button data-fmt="har">🌐 HAR</button>
-    `;
-    menu.style.cssText = `
-      position: fixed; z-index: 100000;
-      background: #27272a; border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px; padding: 8px; 
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
-      display: flex; flex-direction: column; gap: 2px;
-      backdrop-filter: blur(20px);
-    `;
-    const btnRect = _dom.exportBtn.getBoundingClientRect();
-    menu.style.bottom = `${window.innerHeight - btnRect.top + 8}px`;
-    menu.style.left = `${btnRect.left}px`;
-
-    const styleTitle = `font-size:10px;color:#71717a;margin-bottom:6px;padding:0 4px;`;
-    const styleBtn = `
-      padding:8px 12px; text-align:left; border:none; background:transparent;
-      color:#fafafa; border-radius:6px; cursor:pointer; font-size:12px;
-      transition: background 0.15s;
-    `;
-    menu.querySelector('.xr-export-menu-title').style.cssText = styleTitle;
-    menu.querySelectorAll('button').forEach(b => {
-      b.style.cssText = styleBtn;
-      b.addEventListener('mouseenter', () => b.style.background = 'rgba(255,255,255,0.08)');
-      b.addEventListener('mouseleave', () => b.style.background = 'transparent');
-    });
-
-    menu.addEventListener('click', (e) => {
-      const fmt = e.target.dataset?.fmt;
-      if (!fmt) return;
-      menu.remove();
-      _exportEntries(entries, fmt);
-    });
-
-    // Append to shadow root so it's part of our DOM
-    _root.appendChild(menu);
-    
-    const closeMenu = (e) => {
-      if (!menu.contains(e.target) && e.target !== _dom.exportBtn) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-        _root.removeEventListener('click', closeMenuShadow);
-      }
-    };
-    const closeMenuShadow = (e) => {
-      if (!menu.contains(e.target) && e.target !== _dom.exportBtn) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-        _root.removeEventListener('click', closeMenuShadow);
-      }
-    };
-    setTimeout(() => {
-      document.addEventListener('click', closeMenu);
-      _root.addEventListener('click', closeMenuShadow);
-    }, 10);
-  }
-
   function _getVisibleEntries() {
     return _state.entries.filter(e =>
       _state.activeTab === 'all' ||
@@ -4615,8 +4488,132 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Copy & Export Modal
+  // Unified Export Modal (handles single entry OR bulk export)
   // ══════════════════════════════════════════════════════════════════════════
+
+  function _openUnifiedExport() {
+    // If an entry is selected, export that entry
+    // Otherwise, export all visible entries
+    const selectedEntry = _state.selectedId 
+      ? _state.entries.find(e => e.id === _state.selectedId)
+      : null;
+    
+    if (selectedEntry) {
+      _openCopyModal(selectedEntry);
+    } else {
+      _openBulkExportModal();
+    }
+  }
+
+  function _openBulkExportModal() {
+    const entries = _getVisibleEntries();
+    if (entries.length === 0) {
+      alert('No entries to export');
+      return;
+    }
+
+    const backdrop = _dom.copyBackdrop;
+    const title = _dom.copyTitle;
+    const code = _dom.copyCode;
+    const format = _dom.copyFormat;
+
+    if (!backdrop || !title || !code || !format) return;
+
+    title.textContent = `Export ${entries.length} entries`;
+
+    // Change format options for bulk export
+    format.innerHTML = `
+      <option value="json">JSON (Full data)</option>
+      <option value="csv">CSV (Spreadsheet)</option>
+      <option value="har">HAR (HTTP Archive)</option>
+      <option value="urls">URLs only</option>
+    `;
+
+    _updateBulkPreview(entries, 'json');
+    format.onchange = () => _updateBulkPreview(entries, format.value);
+
+    backdrop.classList.add('xr-open');
+
+    _dom.copyBtn.textContent = 'Download';
+    _dom.copyBtn.onclick = () => {
+      const fmt = format.value;
+      _exportEntries(entries, fmt);
+      _dom.copyBtn.textContent = '✓ Downloaded';
+      setTimeout(() => { 
+        _dom.copyBtn.textContent = 'Download';
+        backdrop.classList.remove('xr-open');
+        // Restore single entry format options
+        _restoreSingleFormatOptions();
+      }, 1500);
+    };
+
+    _dom.copyCancel.onclick = () => {
+      backdrop.classList.remove('xr-open');
+      _restoreSingleFormatOptions();
+    };
+    _dom.copyClose.onclick = () => {
+      backdrop.classList.remove('xr-open');
+      _restoreSingleFormatOptions();
+    };
+  }
+
+  function _updateBulkPreview(entries, format) {
+    const code = _dom.copyCode;
+    if (!code) return;
+
+    let preview = '';
+    const sample = entries.slice(0, 3);
+
+    switch (format) {
+      case 'json':
+        preview = JSON.stringify(sample, null, 2);
+        if (entries.length > 3) preview += `\n\n// ... and ${entries.length - 3} more entries`;
+        break;
+      case 'csv':
+        preview = 'timestamp,method,url,status,duration,size\n';
+        sample.forEach(e => {
+          if (e.type === 'api') {
+            preview += `${e.timestamp},${e.method},${e.url},${e.status},${e.duration},${e.size}\n`;
+          }
+        });
+        if (entries.length > 3) preview += `... and ${entries.length - 3} more rows`;
+        break;
+      case 'har':
+        preview = `{
+  "log": {
+    "version": "1.2",
+    "entries": [
+      // ${entries.length} HTTP requests
+    ]
+  }
+}`;
+        break;
+      case 'urls':
+        sample.filter(e => e.type === 'api').forEach(e => {
+          preview += e.url + '\n';
+        });
+        if (entries.length > 3) preview += `... and ${entries.length - 3} more URLs`;
+        break;
+    }
+
+    code.textContent = preview;
+  }
+
+  function _restoreSingleFormatOptions() {
+    const format = _dom.copyFormat;
+    if (!format) return;
+    format.innerHTML = `
+      <option value="fetch">fetch() call</option>
+      <option value="curl">cURL command</option>
+      <option value="json">JSON response</option>
+      <option value="python">Python requests</option>
+      <option value="go">Go net/http</option>
+      <option value="jest">Jest test</option>
+      <option value="js-object">JS object</option>
+      <option value="ts-object">TS object</option>
+    `;
+    _dom.copyBtn.textContent = 'Copy';
+  }
 
   function _openCopyModal(entry) {
     const backdrop = _dom.copyBackdrop;
@@ -4626,7 +4623,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     if (!backdrop || !title || !code || !format) return;
 
-    title.textContent = `Copy & Export: ${entry.method || 'LOG'} ${entry.urlPath || ''}`;
+    // Restore single entry format options
+    _restoreSingleFormatOptions();
+
+    title.textContent = `Export: ${entry.method || 'LOG'} ${entry.urlPath || ''}`;
 
     _updateCopyPreview(entry, format.value);
 
@@ -5254,9 +5254,9 @@ func main() {
       _updateCounts();
     });
 
-    // Export button click - show export menu
-    if (_dom.exportBtn) {
-      _dom.exportBtn.addEventListener('click', _showExportMenu);
+    // Export trigger button - opens unified export modal
+    if (_dom.exportTrigger) {
+      _dom.exportTrigger.addEventListener('click', _openUnifiedExport);
     }
 
     // Fuzzy overlay events
@@ -5402,6 +5402,7 @@ func main() {
       _dom.panelResize = getById('xr-panel-resize');
       _dom.dots = getById('xr-dots');
       _dom.cmdTrigger = getById('xr-cmd-trigger');
+      _dom.exportTrigger = getById('xr-export-trigger');
       _dom.closeBtn = getById('xr-close');
       _dom.listWrap = _root.querySelector('.xr-list-wrap');
       _dom.listPane = getById('xr-list-pane');
@@ -5414,7 +5415,6 @@ func main() {
       _dom.logCount = getById('xr-log-count');
       _dom.headerSummary = getById('xr-header-summary');
       _dom.clearBtn = getById('xr-clear');
-      _dom.exportBtn = getById('xr-export-btn');
       _dom.fuzzyBackdrop = getById('xr-fuzzy-backdrop');
       _dom.fuzzyInput = getById('xr-fuzzy-input');
       _dom.fuzzyResults = getById('xr-fuzzy-results');
