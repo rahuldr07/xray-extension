@@ -1991,148 +1991,149 @@ window.XRAY_Panel = (() => {
   color: var(--xr-red);
 }
 
-/* ─── Copy & Export Modal ────────────────────────────────────────────────── */
+/* ─── Premium Export Modal (Two-Panel Design) ──────────────────────────────── */
 .xr-copy-backdrop {
   display: none;
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.6);
+  background: rgba(0,0,0,.65);
   z-index: 9999;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 24px 16px;
   font-family: inherit;
+  -webkit-font-smoothing: antialiased;
 }
-.xr-copy-backdrop.xr-open {
-  display: flex;
-}
+.xr-copy-backdrop.xr-open { display: flex; }
 .xr-copy-modal {
-  background: var(--xr-bg);
-  border: 1px solid var(--xr-border);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 580px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,.3);
+  width: 100%;
+  max-width: 660px;
+  background: #1c1c1e;
+  border: 0.5px solid rgba(255,255,255,0.13);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
 }
+/* Modal Header */
 .xr-copy-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--xr-border);
-  flex-shrink: 0;
+  padding: 14px 16px 12px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.02);
 }
-.xr-copy-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--xr-text);
-  font-family: inherit;
-  flex: 1;
+.xr-copy-header-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.xr-copy-method {
+  padding: 3px 8px; border-radius: 5px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+}
+.xr-copy-method.m-get { background: rgba(52,199,89,0.15); color: #34c759; border: 0.5px solid rgba(52,199,89,0.25); }
+.xr-copy-method.m-post { background: rgba(10,132,255,0.15); color: #0a84ff; border: 0.5px solid rgba(10,132,255,0.25); }
+.xr-copy-method.m-put { background: rgba(255,159,10,0.15); color: #ff9f0a; border: 0.5px solid rgba(255,159,10,0.25); }
+.xr-copy-method.m-patch { background: rgba(175,82,222,0.15); color: #af52de; border: 0.5px solid rgba(175,82,222,0.25); }
+.xr-copy-method.m-delete { background: rgba(255,69,58,0.15); color: #ff453a; border: 0.5px solid rgba(255,69,58,0.25); }
+.xr-copy-method.m-log { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 0.5px solid rgba(255,255,255,0.12); }
+.xr-copy-url {
+  font-size: 13px; color: rgba(255,255,255,0.75); letter-spacing: -0.2px;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .xr-copy-close {
-  background: none;
-  border: none;
-  color: var(--xr-muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: color .12s;
-  flex-shrink: 0;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.09); border-radius: 6px;
+  cursor: pointer; color: rgba(255,255,255,0.4); font-size: 14px; transition: all 0.12s; flex-shrink: 0;
 }
-.xr-copy-close:hover {
-  color: var(--xr-text);
+.xr-copy-close:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+.xr-copy-pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.xr-copy-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.09);
+  border-radius: 20px; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: -0.1px;
 }
-.xr-copy-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 20px;
-  flex: 1;
-  overflow-y: auto;
+.xr-copy-pill b { color: rgba(255,255,255,0.7); font-weight: 500; }
+.xr-copy-pill.dec { background: rgba(52,199,89,0.1); border-color: rgba(52,199,89,0.2); color: rgba(52,199,89,0.8); }
+/* Two-Panel Body */
+.xr-copy-body { display: flex; height: 420px; }
+/* Left Rail */
+.xr-copy-rail {
+  width: 180px; flex-shrink: 0; border-right: 0.5px solid rgba(255,255,255,0.07);
+  overflow-y: auto; padding: 8px 0;
 }
-.xr-copy-format {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.xr-copy-rail::-webkit-scrollbar { width: 0; }
+.xr-copy-rail-group { margin-bottom: 2px; }
+.xr-copy-rail-label {
+  padding: 8px 12px 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.22); text-transform: uppercase; user-select: none;
 }
-.xr-copy-format-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--xr-muted);
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  flex-shrink: 0;
-  width: 60px;
+.xr-copy-rail-item {
+  display: flex; align-items: center; gap: 9px; padding: 7px 12px;
+  cursor: pointer; transition: background 0.07s; border-left: 2px solid transparent;
 }
-.xr-copy-format-select {
-  flex: 1;
-  background: var(--xr-bg2);
-  border: 1px solid var(--xr-border);
-  border-radius: 5px;
-  color: var(--xr-text);
-  font-size: 11px;
-  padding: 6px 8px;
-  font-family: inherit;
-  cursor: pointer;
+.xr-copy-rail-item:hover { background: rgba(255,255,255,0.05); }
+.xr-copy-rail-item.sel { background: rgba(99,102,241,0.14); border-left-color: #6366f1; }
+.xr-copy-rail-item.sel .xr-copy-rail-item-label { color: rgba(255,255,255,0.9); }
+.xr-copy-rail-item.sel .xr-copy-rail-item-icon { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.3); }
+.xr-copy-rail-item-icon {
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 6px; flex-shrink: 0; transition: all 0.1s; color: rgba(255,255,255,0.5);
 }
-.xr-copy-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.xr-copy-rail-item-label { font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: -0.1px; flex: 1; }
+.xr-copy-rail-item-badge {
+  padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 500;
+  background: rgba(99,102,241,0.2); color: #a5b4fc;
 }
-.xr-copy-preview-label {
-  font-size: 10px;
-  color: var(--xr-muted);
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  font-weight: 600;
-}
+.xr-copy-rail-sep { height: 0.5px; background: rgba(255,255,255,0.06); margin: 6px 12px; }
+/* Right Panel */
+.xr-copy-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.xr-copy-panel-head { padding: 10px 14px 8px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; }
+.xr-copy-panel-title { font-size: 13px; color: rgba(255,255,255,0.8); font-weight: 500; letter-spacing: -0.1px; }
+.xr-copy-panel-desc { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 2px; letter-spacing: -0.05px; line-height: 1.5; }
 .xr-copy-code {
-  background: var(--xr-bg2);
-  border: 1px solid var(--xr-border);
-  border-radius: 5px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 10px;
-  color: var(--xr-text);
-  padding: 10px;
-  overflow-y: auto;
-  max-height: 320px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  flex: 1; overflow: auto; padding: 12px 14px;
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px; line-height: 1.7; color: rgba(255,255,255,0.78);
+  white-space: pre; tab-size: 2; background: rgba(0,0,0,0.2);
 }
+.xr-copy-code::-webkit-scrollbar { width: 3px; height: 3px; }
+.xr-copy-code::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+/* Syntax Highlighting */
+.sy-k { color: #fc5fa3; } .sy-s { color: #fc6a5d; } .sy-n { color: #d9c97c; }
+.sy-t { color: #5dd8ff; } .sy-fn { color: #a167e6; } .sy-prop { color: #41a1c0; }
+.sy-bool { color: #a167e6; } .sy-cm { color: #5c6e74; font-style: italic; }
+/* Footer */
 .xr-copy-footer {
-  display: flex;
-  gap: 8px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--xr-border);
-  flex-shrink: 0;
-  justify-content: flex-end;
+  display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+  border-top: 0.5px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); flex-shrink: 0;
 }
 .xr-copy-btn {
-  background: var(--xr-ring);
-  border: 1px solid var(--xr-ring);
-  color: white;
-  border-radius: 5px;
-  padding: 7px 14px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity .12s;
-  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+  background: #6366f1; border: none; border-radius: 7px; color: white;
+  font-size: 12.5px; font-weight: 500; cursor: pointer; font-family: inherit;
+  transition: all 0.15s; letter-spacing: -0.1px; flex-shrink: 0;
 }
-.xr-copy-btn:hover {
-  opacity: 0.9;
+.xr-copy-btn:hover { background: #4f52d4; }
+.xr-copy-btn.copied { background: #34c759; }
+.xr-copy-btn-download {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+  background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 7px;
+  color: rgba(255,255,255,0.55); font-size: 12px; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all 0.13s; letter-spacing: -0.1px;
 }
-.xr-copy-btn-cancel {
-  background: transparent;
-  border: 1px solid var(--xr-border);
-  color: var(--xr-text);
+.xr-copy-btn-download:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+.xr-copy-footer-spacer { flex: 1; }
+.xr-copy-footer-hint { font-size: 11px; color: rgba(255,255,255,0.18); letter-spacing: -0.05px; }
+/* Session Export */
+.xr-copy-session {
+  padding: 10px 16px; border-top: 0.5px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;
 }
-.xr-copy-btn-cancel:hover {
-  background: var(--xr-surface);
+.xr-copy-session-label { font-size: 11.5px; color: rgba(255,255,255,0.3); letter-spacing: -0.05px; }
+.xr-copy-session-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
+  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.09); border-radius: 6px;
+  color: rgba(255,255,255,0.45); font-size: 11.5px; cursor: pointer; font-family: inherit;
+  transition: all 0.12s; letter-spacing: -0.1px;
 }
+.xr-copy-session-btn:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.7); }
+.xr-copy-session-hint { font-size: 11px; color: rgba(255,255,255,0.18); margin-left: auto; }
 
 /* ─── Settings Modal ─────────────────────────────────────────────────────── */
 .xr-settings-backdrop {
@@ -2514,31 +2515,45 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 <div class="xr-copy-backdrop" id="xr-copy-backdrop">
   <div class="xr-copy-modal">
     <div class="xr-copy-header">
-      <div class="xr-copy-title" id="xr-copy-title">Copy & Export</div>
-      <button class="xr-copy-close" id="xr-copy-close">✕</button>
+      <div class="xr-copy-header-top">
+        <span class="xr-copy-method" id="xr-copy-method">POST</span>
+        <span class="xr-copy-url" id="xr-copy-url"></span>
+        <button class="xr-copy-close" id="xr-copy-close">✕</button>
+      </div>
+      <div class="xr-copy-pills" id="xr-copy-pills"></div>
     </div>
     <div class="xr-copy-body">
-      <div class="xr-copy-format">
-        <label class="xr-copy-format-label">Format:</label>
-        <select class="xr-copy-format-select" id="xr-copy-format">
-          <option value="fetch">JavaScript: fetch()</option>
-          <option value="js-object">JavaScript: Object</option>
-          <option value="ts-object">TypeScript: Object</option>
-          <option value="json">JSON</option>
-          <option value="curl">cURL</option>
-          <option value="python">Python: requests</option>
-          <option value="go">Go: http.Client</option>
-          <option value="jest">Jest: Test case</option>
-        </select>
-      </div>
-      <div class="xr-copy-preview">
-        <div class="xr-copy-preview-label">Preview:</div>
+      <div class="xr-copy-rail" id="xr-copy-rail"></div>
+      <div class="xr-copy-panel">
+        <div class="xr-copy-panel-head">
+          <div class="xr-copy-panel-title" id="xr-copy-panel-title">cURL command</div>
+          <div class="xr-copy-panel-desc" id="xr-copy-panel-desc">Shell command with all headers</div>
+        </div>
         <pre class="xr-copy-code" id="xr-copy-code"></pre>
+        <div class="xr-copy-footer">
+          <button class="xr-copy-btn" id="xr-copy-btn">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Copy
+          </button>
+          <button class="xr-copy-btn-download" id="xr-copy-download">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="xr-copy-download-label">Download .sh</span>
+          </button>
+          <span class="xr-copy-footer-spacer"></span>
+          <span class="xr-copy-footer-hint" id="xr-copy-hint"></span>
+        </div>
       </div>
     </div>
-    <div class="xr-copy-footer">
-      <button class="xr-copy-btn xr-copy-btn-cancel" id="xr-copy-cancel">Cancel</button>
-      <button class="xr-copy-btn" id="xr-copy-btn">Copy</button>
+    <div class="xr-copy-session" id="xr-copy-session">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:rgba(255,255,255,0.25);flex-shrink:0;"><path d="M2 4h3v8H2zM6 8h3v4H6zM10 2h4v10h-4z" stroke="currentColor" stroke-width="1.2"/></svg>
+      <span class="xr-copy-session-label">Export session</span>
+      <button class="xr-copy-session-btn" id="xr-session-json">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        <span id="xr-session-count">0 requests</span> as JSON
+      </button>
+      <button class="xr-copy-session-btn" id="xr-session-har">HAR archive</button>
+      <button class="xr-copy-session-btn" id="xr-session-csv">CSV</button>
+      <span class="xr-copy-session-hint" id="xr-session-hint"></span>
     </div>
   </div>
 </div>
@@ -4488,331 +4503,535 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Unified Export Modal (handles single entry OR bulk export)
+  // Premium Export Modal - Two-Panel Design with Smart Type Inference
   // ══════════════════════════════════════════════════════════════════════════
 
-  function _openUnifiedExport() {
-    // If an entry is selected, export that entry
-    // Otherwise, export all visible entries
-    const selectedEntry = _state.selectedId 
-      ? _state.entries.find(e => e.id === _state.selectedId)
-      : null;
+  const _exportGroups = [
+    {
+      label: 'Request snippets',
+      items: [
+        { id: 'curl', label: 'cURL', ext: 'sh', desc: 'Universal shell command, works everywhere', icon: '<path d="M3 5l3 3-3 3M8 11h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+        { id: 'fetch', label: 'fetch()', ext: 'ts', desc: 'Async/await with TypeScript types', icon: '<path d="M5 5L2 8l3 3M11 5l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+        { id: 'axios', label: 'axios', ext: 'ts', desc: 'Axios with base URL extracted', icon: '<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>' },
+        { id: 'python', label: 'Python requests', ext: 'py', desc: 'requests library with TypedDict', icon: '<path d="M5 3h6M5 3C5 3 3 5 3 8s2 5 2 5h6s2-2 2-5-2-5-2-5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>' },
+        { id: 'go', label: 'Go http.Client', ext: 'go', desc: 'Idiomatic Go with error handling', icon: '<path d="M3 8h10M9 5l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+      ]
+    },
+    {
+      label: 'Response models',
+      items: [
+        { id: 'ts-iface', label: 'TypeScript interface', ext: 'ts', desc: 'Fully typed interface from response', icon: '<path d="M3 4h10M8 4v8M5 12h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>', badge: 'smart' },
+        { id: 'zod', label: 'Zod schema', ext: 'ts', desc: 'Runtime validation schema', icon: '<path d="M8 2l5 10H3L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>', badge: 'smart' },
+        { id: 'py-class', label: 'Python dataclass', ext: 'py', desc: 'Typed dataclass with datetime detection', icon: '<rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>' },
+        { id: 'go-struct', label: 'Go struct', ext: 'go', desc: 'Struct with json tags', icon: '<rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>' },
+      ]
+    },
+    {
+      label: 'Testing',
+      items: [
+        { id: 'jest', label: 'Jest test', ext: 'test.ts', desc: 'Full describe block with mocked fetch', icon: '<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>' },
+        { id: 'msw', label: 'MSW handler', ext: 'ts', desc: 'Mock Service Worker v2 handler', icon: '<path d="M3 4h10M3 8h7M3 12h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>', badge: 'new' },
+      ]
+    },
+  ];
+
+  const _exportMeta = {
+    curl: { title: 'cURL command', desc: 'Shell command with all headers. Paste directly into terminal.', dl: 'request.sh' },
+    fetch: { title: 'fetch() with TypeScript', desc: 'Async/await pattern. Throws on non-2xx. Typed response.', dl: 'request.ts' },
+    axios: { title: 'axios request', desc: 'Pre-configured axios client with base URL and auth.', dl: 'request.ts' },
+    python: { title: 'Python requests', desc: 'TypedDict response type. Uses raise_for_status().', dl: 'request.py' },
+    go: { title: 'Go http.Client', desc: 'Idiomatic Go with proper struct types and error handling.', dl: 'request.go' },
+    'ts-iface': { title: 'TypeScript interface', desc: 'Types inferred from response. ISO dates detected, nested objects extracted.', dl: 'types.ts' },
+    zod: { title: 'Zod validation schema', desc: 'Runtime schema generated from response shape.', dl: 'schema.ts' },
+    'py-class': { title: 'Python dataclass', desc: '@dataclass with type hints. datetime imported when detected.', dl: 'model.py' },
+    'go-struct': { title: 'Go struct', desc: 'Struct with json tags. time.Time for timestamps.', dl: 'model.go' },
+    jest: { title: 'Jest test case', desc: 'Full describe block with mock setup and error case.', dl: 'request.test.ts' },
+    msw: { title: 'MSW handler', desc: 'Mock Service Worker v2 handler with validation.', dl: 'handlers.ts' },
+  };
+
+  let _exportSelectedFormat = 'curl';
+  let _exportCurrentEntry = null;
+
+  // Type inference engine
+  function _inferType(val, key = '') {
+    if (val === null) return { ts: 'null', zod: 'z.null()', py: 'None', go: 'interface{}' };
+    if (typeof val === 'boolean') return { ts: 'boolean', zod: 'z.boolean()', py: 'bool', go: 'bool' };
+    if (typeof val === 'number') {
+      const isInt = Number.isInteger(val);
+      return { ts: 'number', zod: isInt ? 'z.number().int()' : 'z.number()', py: isInt ? 'int' : 'float', go: isInt ? 'int' : 'float64' };
+    }
+    if (typeof val === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}T/.test(val)) return { ts: 'string', zod: 'z.string().datetime()', py: 'datetime', go: 'time.Time' };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return { ts: 'string', zod: 'z.string().date()', py: 'date', go: 'time.Time' };
+      return { ts: 'string', zod: 'z.string()', py: 'str', go: 'string' };
+    }
+    if (Array.isArray(val)) {
+      if (!val.length) return { ts: 'unknown[]', zod: 'z.array(z.unknown())', py: 'List[Any]', go: '[]interface{}' };
+      const inner = _inferType(val[0], key);
+      return { ts: `${inner.ts}[]`, zod: `z.array(${inner.zod})`, py: `List[${inner.py}]`, go: `[]${inner.go}` };
+    }
+    if (typeof val === 'object') {
+      return { ts: _toPascal(key), zod: _toPascal(key) + 'Schema', py: _toPascal(key), go: _toPascal(key) };
+    }
+    return { ts: 'unknown', zod: 'z.unknown()', py: 'Any', go: 'interface{}' };
+  }
+
+  function _toPascal(s) { return (s || 'Object').replace(/(^|[-_])([a-z])/g, (_, __, c) => c.toUpperCase()).replace(/^./, c => c.toUpperCase()); }
+  function _toSnake(s) { return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, ''); }
+
+  function _buildTSInterface(obj, name = 'Response', depth = 0) {
+    const nested = [];
+    let lines = `interface ${name} {\n`;
+    Object.entries(obj || {}).forEach(([k, v]) => {
+      const t = _inferType(v, k);
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        nested.push(_buildTSInterface(v, _toPascal(k), 0));
+        lines += `  ${k}: ${_toPascal(k)};\n`;
+      } else {
+        lines += `  ${k}: ${t.ts};\n`;
+      }
+    });
+    lines += `}`;
+    return [...nested, lines].join('\n\n');
+  }
+
+  function _buildZodSchema(obj, name = 'Response') {
+    const nested = [];
+    let lines = `const ${name.charAt(0).toLowerCase() + name.slice(1)}Schema = z.object({\n`;
+    Object.entries(obj || {}).forEach(([k, v]) => {
+      const t = _inferType(v, k);
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        const subName = _toPascal(k);
+        nested.push(_buildZodSchema(v, subName));
+        lines += `  ${k}: ${subName.charAt(0).toLowerCase() + subName.slice(1)}Schema,\n`;
+      } else {
+        lines += `  ${k}: ${t.zod},\n`;
+      }
+    });
+    lines += `});\n\ntype ${name} = z.infer<typeof ${name.charAt(0).toLowerCase() + name.slice(1)}Schema>;`;
+    return [...nested, lines].join('\n\n');
+  }
+
+  function _buildPyDataclass(obj, name = 'Response') {
+    const nested = [];
+    const imports = new Set(['from dataclasses import dataclass']);
+    let lines = `@dataclass\nclass ${name}:\n`;
+    Object.entries(obj || {}).forEach(([k, v]) => {
+      const t = _inferType(v, k);
+      const snake = _toSnake(k);
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        nested.push(_buildPyDataclass(v, _toPascal(k)));
+        lines += `    ${snake}: ${_toPascal(k)}\n`;
+      } else {
+        if (t.py === 'datetime') imports.add('from datetime import datetime');
+        if (t.py.startsWith('List')) imports.add('from typing import List, Optional, Any');
+        lines += `    ${snake}: ${t.py}\n`;
+      }
+    });
+    return [...imports].join('\n') + '\n\n' + [...nested, lines].join('\n\n');
+  }
+
+  function _buildGoStruct(obj, name = 'Response') {
+    const nested = [];
+    let lines = `type ${name} struct {\n`;
+    const needsTime = JSON.stringify(obj).match(/\d{4}-\d{2}-\d{2}T/);
+    Object.entries(obj || {}).forEach(([k, v]) => {
+      const t = _inferType(v, k);
+      const pascal = _toPascal(k);
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        nested.push(_buildGoStruct(v, _toPascal(k)));
+        lines += `\t${pascal} ${_toPascal(k)} \`json:"${k}"\`\n`;
+      } else {
+        lines += `\t${pascal} ${t.go} \`json:"${k}"\`\n`;
+      }
+    });
+    lines += `}`;
+    const imports = needsTime ? 'import (\n\t"time"\n)\n\n' : '';
+    return imports + [...nested, lines].join('\n\n');
+  }
+
+  // Code generators
+  const _exportGenerators = {
+    curl: (entry) => {
+      const headers = entry.requestHeaders || {};
+      const h = Object.entries(headers).filter(([k]) => !['host', 'content-length'].includes(k.toLowerCase())).map(([k, v]) => `  -H '${k}: ${v}'`).join(' \\\n');
+      const body = entry.requestBody ? ` \\\n  --data-raw '${JSON.stringify(entry.requestBody)}'` : '';
+      return `curl -X ${entry.method} '${entry.url}' \\\n${h}${body} \\\n  --compressed`;
+    },
+    fetch: (entry) => {
+      const headers = entry.requestHeaders || {};
+      const hStr = JSON.stringify(headers, null, 4).split('\n').join('\n  ');
+      const body = entry.requestBody ? `\n  body: JSON.stringify(${JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ')}),` : '';
+      const urlObj = new URL(entry.url);
+      return `const BASE_URL = '${urlObj.origin}';\n\nconst response = await fetch(\`\${BASE_URL}${urlObj.pathname}\`, {\n  method: '${entry.method}',\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
+    },
+    axios: (entry) => {
+      const headers = entry.requestHeaders || {};
+      const auth = headers['Authorization'] || headers['authorization'] || '';
+      const urlObj = new URL(entry.url);
+      const bodyStr = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ') : 'undefined';
+      return `import axios from 'axios';\n\nconst client = axios.create({\n  baseURL: '${urlObj.origin}',\n  headers: {\n    'Authorization': '${auth}',\n    'Content-Type': 'application/json',\n  },\n});\n\nconst { data } = await client.${entry.method.toLowerCase()}(\n  '${urlObj.pathname}',\n  ${bodyStr}\n);\n\nconsole.log(data);`;
+    },
+    python: (entry) => {
+      const headers = entry.requestHeaders || {};
+      const hStr = Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n');
+      const body = entry.requestBody ? `\npayload = ${JSON.stringify(entry.requestBody, null, 4)}\n` : '';
+      const dataArg = entry.requestBody ? ', json=payload' : '';
+      return `import requests\n\nurl = '${entry.url}'\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${entry.method.toLowerCase()}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
+    },
+    go: (entry) => {
+      const headers = entry.requestHeaders || {};
+      const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
+      let code = `package main\n\nimport (\n\t"bytes"\n\t"encoding/json"\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\turl := "${entry.url}"`;
+      if (body) {
+        code += `\n\tpayload := []byte(\`${body}\`)\n\treq, _ := http.NewRequest("${entry.method}", url, bytes.NewBuffer(payload))`;
+      } else {
+        code += `\n\treq, _ := http.NewRequest("${entry.method}", url, nil)`;
+      }
+      Object.entries(headers).slice(0, 5).forEach(([k, v]) => {
+        code += `\n\treq.Header.Set("${k}", "${v}")`;
+      });
+      code += `\n\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tvar result map[string]interface{}\n\tjson.NewDecoder(resp.Body).Decode(&result)\n\tfmt.Println(result)\n}`;
+      return code;
+    },
+    'ts-iface': (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
+      return _buildTSInterface(typeof data === 'object' ? data : {}, name);
+    },
+    zod: (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
+      return `import { z } from 'zod';\n\n` + _buildZodSchema(typeof data === 'object' ? data : {}, name);
+    },
+    'py-class': (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
+      return _buildPyDataclass(typeof data === 'object' ? data : {}, name);
+    },
+    'go-struct': (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
+      return _buildGoStruct(typeof data === 'object' ? data : {}, name);
+    },
+    jest: (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe('${entry.method} ${entry.urlPath}', () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
+    },
+    msw: (entry) => {
+      const data = entry.responseDecrypted || entry.responseRaw || {};
+      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${entry.method.toLowerCase()}('${entry.url}', async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
+    },
+  };
+
+  // Syntax highlighting
+  function _syntaxHighlight(code, format) {
+    const e = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const c = e(code);
     
+    if (format === 'curl') {
+      return c
+        .replace(/(curl|-X|-H|--data-raw|--compressed)/g, '<span class="sy-k">$1</span>')
+        .replace(/'([^']+)'/g, '<span class="sy-s">\'$1\'</span>');
+    }
+    if (['fetch', 'axios', 'ts-iface', 'zod', 'jest', 'msw'].includes(format)) {
+      return c
+        .replace(/\/\/ .+/g, '<span class="sy-cm">$&</span>')
+        .replace(/\b(import|export|const|let|type|interface|async|await|return|if|throw|new|from|of|extends|implements)\b/g, '<span class="sy-k">$1</span>')
+        .replace(/\b(string|number|boolean|void|unknown|null|any)\b/g, '<span class="sy-t">$1</span>')
+        .replace(/'([^'\n]*)'/g, '<span class="sy-s">\'$1\'</span>')
+        .replace(/`([^`]*)`/g, '<span class="sy-s">`$1`</span>')
+        .replace(/\b(\d+)\b/g, '<span class="sy-n">$1</span>')
+        .replace(/\b(true|false)\b/g, '<span class="sy-bool">$1</span>')
+        .replace(/\b(describe|it|expect|beforeEach|afterEach|jest)\b/g, '<span class="sy-fn">$1</span>');
+    }
+    if (['python', 'py-class'].includes(format)) {
+      return c
+        .replace(/#.+/g, '<span class="sy-cm">$&</span>')
+        .replace(/\b(import|from|class|def|return|if|async|await|raise|print)\b/g, '<span class="sy-k">$1</span>')
+        .replace(/\b(str|int|float|bool|List|Optional|Any|datetime|date)\b/g, '<span class="sy-t">$1</span>')
+        .replace(/'([^'\n]*)'/g, '<span class="sy-s">\'$1\'</span>')
+        .replace(/@\w+/g, '<span class="sy-fn">$&</span>')
+        .replace(/\b(\d+)\b/g, '<span class="sy-n">$1</span>');
+    }
+    if (['go', 'go-struct'].includes(format)) {
+      return c
+        .replace(/\/\/.+/g, '<span class="sy-cm">$&</span>')
+        .replace(/\b(package|import|type|struct|func|return|if|var|const|defer)\b/g, '<span class="sy-k">$1</span>')
+        .replace(/\b(string|int|float64|bool|error|interface)\b/g, '<span class="sy-t">$1</span>')
+        .replace(/"([^"\n]*)"/g, '<span class="sy-s">"$1"</span>')
+        .replace(/`([^`]*)`/g, '<span class="sy-prop">`$1`</span>')
+        .replace(/\b(\d+)\b/g, '<span class="sy-n">$1</span>');
+    }
+    return c;
+  }
+
+  function _openUnifiedExport() {
+    const selectedEntry = _state.selectedId ? _state.entries.find(e => e.id === _state.selectedId) : null;
     if (selectedEntry) {
       _openCopyModal(selectedEntry);
     } else {
-      _openBulkExportModal();
+      // Open with no entry = show session export section prominently
+      _showToast('Select an entry to export, or use session export below');
     }
-  }
-
-  function _openBulkExportModal() {
-    const entries = _getVisibleEntries();
-    if (entries.length === 0) {
-      alert('No entries to export');
-      return;
-    }
-
-    const backdrop = _dom.copyBackdrop;
-    const title = _dom.copyTitle;
-    const code = _dom.copyCode;
-    const format = _dom.copyFormat;
-
-    if (!backdrop || !title || !code || !format) return;
-
-    title.textContent = `Export ${entries.length} entries`;
-
-    // Change format options for bulk export
-    format.innerHTML = `
-      <option value="json">JSON (Full data)</option>
-      <option value="csv">CSV (Spreadsheet)</option>
-      <option value="har">HAR (HTTP Archive)</option>
-      <option value="urls">URLs only</option>
-    `;
-
-    _updateBulkPreview(entries, 'json');
-    format.onchange = () => _updateBulkPreview(entries, format.value);
-
-    backdrop.classList.add('xr-open');
-
-    _dom.copyBtn.textContent = 'Download';
-    _dom.copyBtn.onclick = () => {
-      const fmt = format.value;
-      _exportEntries(entries, fmt);
-      _dom.copyBtn.textContent = '✓ Downloaded';
-      setTimeout(() => { 
-        _dom.copyBtn.textContent = 'Download';
-        backdrop.classList.remove('xr-open');
-        // Restore single entry format options
-        _restoreSingleFormatOptions();
-      }, 1500);
-    };
-
-    _dom.copyCancel.onclick = () => {
-      backdrop.classList.remove('xr-open');
-      _restoreSingleFormatOptions();
-    };
-    _dom.copyClose.onclick = () => {
-      backdrop.classList.remove('xr-open');
-      _restoreSingleFormatOptions();
-    };
-  }
-
-  function _updateBulkPreview(entries, format) {
-    const code = _dom.copyCode;
-    if (!code) return;
-
-    let preview = '';
-    const sample = entries.slice(0, 3);
-
-    switch (format) {
-      case 'json':
-        preview = JSON.stringify(sample, null, 2);
-        if (entries.length > 3) preview += `\n\n// ... and ${entries.length - 3} more entries`;
-        break;
-      case 'csv':
-        preview = 'timestamp,method,url,status,duration,size\n';
-        sample.forEach(e => {
-          if (e.type === 'api') {
-            preview += `${e.timestamp},${e.method},${e.url},${e.status},${e.duration},${e.size}\n`;
-          }
-        });
-        if (entries.length > 3) preview += `... and ${entries.length - 3} more rows`;
-        break;
-      case 'har':
-        preview = `{
-  "log": {
-    "version": "1.2",
-    "entries": [
-      // ${entries.length} HTTP requests
-    ]
-  }
-}`;
-        break;
-      case 'urls':
-        sample.filter(e => e.type === 'api').forEach(e => {
-          preview += e.url + '\n';
-        });
-        if (entries.length > 3) preview += `... and ${entries.length - 3} more URLs`;
-        break;
-    }
-
-    code.textContent = preview;
-  }
-
-  function _restoreSingleFormatOptions() {
-    const format = _dom.copyFormat;
-    if (!format) return;
-    format.innerHTML = `
-      <option value="fetch">fetch() call</option>
-      <option value="curl">cURL command</option>
-      <option value="json">JSON response</option>
-      <option value="python">Python requests</option>
-      <option value="go">Go net/http</option>
-      <option value="jest">Jest test</option>
-      <option value="js-object">JS object</option>
-      <option value="ts-object">TS object</option>
-    `;
-    _dom.copyBtn.textContent = 'Copy';
   }
 
   function _openCopyModal(entry) {
+    _exportCurrentEntry = entry;
+    _exportSelectedFormat = 'curl';
+    
     const backdrop = _dom.copyBackdrop;
-    const title = _dom.copyTitle;
-    const code = _dom.copyCode;
-    const format = _dom.copyFormat;
+    if (!backdrop) return;
 
-    if (!backdrop || !title || !code || !format) return;
+    // Update header
+    const method = _root.querySelector('#xr-copy-method');
+    const url = _root.querySelector('#xr-copy-url');
+    const pills = _root.querySelector('#xr-copy-pills');
+    
+    if (method) {
+      method.textContent = entry.method || 'LOG';
+      method.className = 'xr-copy-method m-' + (entry.method || 'log').toLowerCase();
+    }
+    if (url) url.textContent = entry.url || entry.logData?.message || 'Log entry';
+    if (pills) {
+      pills.innerHTML = `
+        <div class="xr-copy-pill"><b>${entry.status || '—'}</b></div>
+        <div class="xr-copy-pill"><b>${entry.duration || 0}ms</b></div>
+        <div class="xr-copy-pill"><b>${_formatSize(entry.size || 0)}</b></div>
+        ${entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
+      `;
+    }
 
-    // Restore single entry format options
-    _restoreSingleFormatOptions();
+    // Build rail
+    _buildExportRail();
+    
+    // Update session section
+    const sessionCount = _root.querySelector('#xr-session-count');
+    const sessionHint = _root.querySelector('#xr-session-hint');
+    const apiCount = _state.entries.filter(e => e.type === 'api').length;
+    const errorCount = _state.entries.filter(e => e.status >= 400).length;
+    if (sessionCount) sessionCount.textContent = `${apiCount} requests`;
+    if (sessionHint) sessionHint.textContent = `session · ${apiCount} entries${errorCount > 0 ? ` · ${errorCount} errors` : ''}`;
 
-    title.textContent = `Export: ${entry.method || 'LOG'} ${entry.urlPath || ''}`;
-
-    _updateCopyPreview(entry, format.value);
-
-    format.onchange = () => _updateCopyPreview(entry, format.value);
+    // Update preview
+    _updateExportPreview();
 
     backdrop.classList.add('xr-open');
-
-    _dom.copyBtn.onclick = () => {
-      navigator.clipboard.writeText(code.textContent).then(() => {
-        _dom.copyBtn.textContent = '✓ Copied';
-        setTimeout(() => { _dom.copyBtn.textContent = 'Copy'; }, 2000);
-      }).catch(err => console.error('Copy failed:', err));
-    };
-
-    _dom.copyCancel.onclick = () => backdrop.classList.remove('xr-open');
-    _dom.copyClose.onclick = () => backdrop.classList.remove('xr-open');
   }
 
-  function _updateCopyPreview(entry, format) {
-    const code = _dom.copyCode;
-    if (!code) return;
+  function _buildExportRail() {
+    const rail = _root.querySelector('#xr-copy-rail');
+    if (!rail) return;
 
-    let preview = '';
-
-    if (entry.type === 'api') {
-      switch (format) {
-        case 'fetch':
-          preview = _buildFetchCall(entry);
-          break;
-        case 'js-object':
-          preview = _buildJSObject(entry);
-          break;
-        case 'ts-object':
-          preview = _buildTSObject(entry);
-          break;
-        case 'json':
-          preview = JSON.stringify(entry.responseDecrypted || entry.responseRaw, null, 2);
-          break;
-        case 'curl':
-          preview = _buildCurlCommand(entry);
-          break;
-        case 'python':
-          preview = _buildPythonRequest(entry);
-          break;
-        case 'go':
-          preview = _buildGoRequest(entry);
-          break;
-        case 'jest':
-          preview = _buildJestTest(entry);
-          break;
-      }
-    } else if (entry.type === 'log') {
-      // For logs, show formats that make sense
-      if (format === 'json') {
-        preview = JSON.stringify(entry.logData, null, 2);
-      } else if (format === 'js-object') {
-        preview = 'const logData = ' + JSON.stringify(entry.logData, null, 2) + ';';
-      } else if (format === 'ts-object') {
-        preview = 'const logData: any = ' + JSON.stringify(entry.logData, null, 2) + ';';
-      } else {
-        preview = JSON.stringify(entry.logData, null, 2);
-      }
-    }
-
-    code.textContent = preview;
-  }
-
-  function _buildFetchCall(entry) {
-    const headers = entry.requestHeaders || {};
-    const body = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2) : null;
-
-    let code = `fetch('${entry.url}', {
-  method: '${entry.method}',
-  headers: {
-${Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n')}
-  }`;
-
-    if (body) {
-      code += `,
-  body: ${body}`;
-    }
-
-    code += '\n}).then(r => r.json()).then(data => console.log(data))';
-    return code;
-  }
-
-  function _buildJSObject(entry) {
-    const data = entry.responseDecrypted || entry.responseRaw || {};
-    return 'const data = ' + JSON.stringify(data, null, 2) + ';';
-  }
-
-  function _buildTSObject(entry) {
-    const data = entry.responseDecrypted || entry.responseRaw || {};
-    return 'const data: any = ' + JSON.stringify(data, null, 2) + ';';
-  }
-
-  function _buildCurlCommand(entry) {
-    return _buildCurl(entry);
-  }
-
-  function _buildPythonRequest(entry) {
-    const headers = entry.requestHeaders || {};
-    const body = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2) : null;
-
-    let code = `import requests
-
-url = '${entry.url}'
-headers = {
-${Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n')}
-}`;
-
-    if (body) {
-      code += `
-data = ${body}
-response = requests.${entry.method.toLowerCase()}(url, headers=headers, json=data)`;
-    } else {
-      code += `
-response = requests.${entry.method.toLowerCase()}(url, headers=headers)`;
-    }
-
-    code += `
-print(response.json())`;
-    return code;
-  }
-
-  function _buildGoRequest(entry) {
-    const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
-    const headers = entry.requestHeaders || {};
-
-    let code = `package main
-
-import (
-  "fmt"
-  "io/ioutil"
-  "net/http"
-  "strings"
-)
-
-func main() {
-  url := "${entry.url}"`;
-
-    if (body) {
-      code += `
-  payload := strings.NewReader(\`${body}\`)
-  req, _ := http.NewRequest("${entry.method}", url, payload)`;
-    } else {
-      code += `
-  req, _ := http.NewRequest("${entry.method}", url, nil)`;
-    }
-
-    code += `
-  
-  client := &http.Client{}`;
-    Object.entries(headers).forEach(([k, v]) => {
-      code += `\n  req.Header.Add("${k}", "${v}")`;
+    let html = '';
+    _exportGroups.forEach(group => {
+      html += `<div class="xr-copy-rail-group"><div class="xr-copy-rail-label">${group.label}</div>`;
+      group.items.forEach(item => {
+        const badge = item.badge ? `<span class="xr-copy-rail-item-badge">${item.badge}</span>` : '';
+        const sel = item.id === _exportSelectedFormat ? ' sel' : '';
+        html += `<div class="xr-copy-rail-item${sel}" data-format="${item.id}">
+          <div class="xr-copy-rail-item-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${item.icon}</svg></div>
+          <span class="xr-copy-rail-item-label">${item.label}</span>
+          ${badge}
+        </div>`;
+      });
+      html += `</div><div class="xr-copy-rail-sep"></div>`;
     });
+    rail.innerHTML = html;
 
-    code += `
-
-  resp, _ := client.Do(req)
-  defer resp.Body.Close()
-  body, _ := ioutil.ReadAll(resp.Body)
-  fmt.Println(string(body))
-}`;
-
-    return code;
+    // Add click handlers
+    rail.querySelectorAll('.xr-copy-rail-item').forEach(item => {
+      item.addEventListener('click', () => {
+        _exportSelectedFormat = item.dataset.format;
+        rail.querySelectorAll('.xr-copy-rail-item').forEach(i => i.classList.remove('sel'));
+        item.classList.add('sel');
+        _updateExportPreview();
+      });
+    });
   }
 
-  function _buildJestTest(entry) {
-    const method = entry.method || 'GET';
-    const url = entry.url || '';
-    const expectedData = entry.responseDecrypted || entry.responseRaw || {};
+  function _updateExportPreview() {
+    const entry = _exportCurrentEntry;
+    if (!entry) return;
 
-    let code = `describe('API: ${method} ${entry.urlPath}', () => {
-  it('should return valid response', async () => {
-    const response = await fetch('${url}', {
-      method: '${method}'
-    });
-    const data = await response.json();
+    const title = _root.querySelector('#xr-copy-panel-title');
+    const desc = _root.querySelector('#xr-copy-panel-desc');
+    const code = _root.querySelector('#xr-copy-code');
+    const dlLabel = _root.querySelector('#xr-copy-download-label');
+    const hint = _root.querySelector('#xr-copy-hint');
+
+    const meta = _exportMeta[_exportSelectedFormat] || {};
+    const generator = _exportGenerators[_exportSelectedFormat];
+
+    if (title) title.textContent = meta.title || _exportSelectedFormat;
+    if (desc) desc.textContent = meta.desc || '';
     
-    expect(response.status).toBe(${entry.status});
-    expect(data).toEqual(${JSON.stringify(expectedData, null, 4).split('\n').join('\n    ')});
-  });
-});`;
+    let rawCode = '';
+    if (generator) {
+      try {
+        rawCode = generator(entry);
+      } catch (e) {
+        rawCode = '// Error generating code: ' + e.message;
+      }
+    }
+    
+    if (code) code.innerHTML = _syntaxHighlight(rawCode, _exportSelectedFormat);
+    if (dlLabel) {
+      const ext = meta.dl?.split('.').pop() || 'txt';
+      dlLabel.textContent = `Download .${ext}`;
+    }
 
-    return code;
+    const hints = {
+      'ts-iface': 'Types inferred from real response',
+      'zod': 'Runtime validation included',
+      'msw': 'msw v2 API',
+      'jest': 'Includes error case test'
+    };
+    if (hint) hint.textContent = hints[_exportSelectedFormat] || '';
+  }
+
+  function _getRawExportCode() {
+    const entry = _exportCurrentEntry;
+    if (!entry) return '';
+    const generator = _exportGenerators[_exportSelectedFormat];
+    if (!generator) return '';
+    try {
+      return generator(entry);
+    } catch {
+      return '';
+    }
+  }
+
+  function _initExportModal() {
+    const copyBtn = _root.querySelector('#xr-copy-btn');
+    const downloadBtn = _root.querySelector('#xr-copy-download');
+    const closeBtn = _root.querySelector('#xr-copy-close');
+    const backdrop = _dom.copyBackdrop;
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const code = _getRawExportCode();
+        navigator.clipboard.writeText(code).then(() => {
+          copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied';
+          copyBtn.classList.add('copied');
+          setTimeout(() => {
+            copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Copy';
+            copyBtn.classList.remove('copied');
+          }, 1600);
+        });
+      });
+    }
+
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        const code = _getRawExportCode();
+        const meta = _exportMeta[_exportSelectedFormat] || {};
+        const filename = meta.dl || 'export.txt';
+        const blob = new Blob([code], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => backdrop?.classList.remove('xr-open'));
+    }
+
+    if (backdrop) {
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) backdrop.classList.remove('xr-open');
+      });
+    }
+
+    // Session export buttons
+    const sessionJson = _root.querySelector('#xr-session-json');
+    const sessionHar = _root.querySelector('#xr-session-har');
+    const sessionCsv = _root.querySelector('#xr-session-csv');
+
+    if (sessionJson) {
+      sessionJson.addEventListener('click', () => _exportSession('json'));
+    }
+    if (sessionHar) {
+      sessionHar.addEventListener('click', () => _exportSession('har'));
+    }
+    if (sessionCsv) {
+      sessionCsv.addEventListener('click', () => _exportSession('csv'));
+    }
+  }
+
+  function _exportSession(format) {
+    const entries = _state.entries.filter(e => e.type === 'api');
+    if (entries.length === 0) {
+      _showToast('No API entries to export');
+      return;
+    }
+
+    let content = '';
+    let filename = '';
+    let mime = 'text/plain';
+
+    switch (format) {
+      case 'json':
+        content = JSON.stringify(entries, null, 2);
+        filename = `xray-export-${Date.now()}.json`;
+        mime = 'application/json';
+        break;
+      case 'har':
+        content = JSON.stringify(_buildHAR(entries), null, 2);
+        filename = `xray-export-${Date.now()}.har`;
+        mime = 'application/json';
+        break;
+      case 'csv':
+        content = 'timestamp,method,url,status,duration,size\n';
+        entries.forEach(e => {
+          content += `${e.timestamp},${e.method},"${e.url}",${e.status},${e.duration},${e.size}\n`;
+        });
+        filename = `xray-export-${Date.now()}.csv`;
+        mime = 'text/csv';
+        break;
+    }
+
+    const blob = new Blob([content], { type: mime });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    
+    _showToast(`Exported ${entries.length} entries as ${format.toUpperCase()}`);
+  }
+
+  function _buildHAR(entries) {
+    return {
+      log: {
+        version: '1.2',
+        creator: { name: 'XRAY DevTools', version: '1.0.0' },
+        entries: entries.map(e => ({
+          startedDateTime: new Date(e.timestamp).toISOString(),
+          time: e.duration,
+          request: {
+            method: e.method,
+            url: e.url,
+            headers: Object.entries(e.requestHeaders || {}).map(([k, v]) => ({ name: k, value: v })),
+            postData: e.requestBody ? { mimeType: 'application/json', text: JSON.stringify(e.requestBody) } : undefined,
+          },
+          response: {
+            status: e.status,
+            statusText: '',
+            headers: Object.entries(e.responseHeaders || {}).map(([k, v]) => ({ name: k, value: v })),
+            content: {
+              size: e.size,
+              mimeType: 'application/json',
+              text: typeof e.responseDecrypted === 'object' ? JSON.stringify(e.responseDecrypted) : (e.responseRaw || ''),
+            },
+          },
+          timings: { send: 0, wait: e.duration, receive: 0 },
+        })),
+      },
+    };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -5419,12 +5638,6 @@ func main() {
       _dom.fuzzyInput = getById('xr-fuzzy-input');
       _dom.fuzzyResults = getById('xr-fuzzy-results');
       _dom.copyBackdrop = getById('xr-copy-backdrop');
-      _dom.copyTitle = getById('xr-copy-title');
-      _dom.copyFormat = getById('xr-copy-format');
-      _dom.copyCode = getById('xr-copy-code');
-      _dom.copyBtn = getById('xr-copy-btn');
-      _dom.copyCancel = getById('xr-copy-cancel');
-      _dom.copyClose = getById('xr-copy-close');
 
       _dom.settingsBackdrop = getById('xr-settings-backdrop');
       _dom.settingsTheme = getById('xr-settings-theme');
@@ -5458,6 +5671,7 @@ func main() {
       // ── Events + shortcuts ─────────────────────────────────────────────────
       _bindEvents();
       _bindSettingsFilters();
+      _initExportModal();
       
       // In HUD mode, shortcuts are handled by HUD
       if (!_hudMode && window.XRAY_Shortcuts?.init) {
