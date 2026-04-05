@@ -4793,10 +4793,11 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       }
       if (url) url.textContent = entry.url || entry.logData?.message || 'Log entry';
       if (pills) {
+        const formatSize = window.XRAY_Utils?.formatSize || ((b) => b > 1024 ? (b/1024).toFixed(1) + 'KB' : b + 'B');
         pills.innerHTML = `
           <div class="xr-copy-pill"><b>${entry.status || '—'}</b></div>
           <div class="xr-copy-pill"><b>${entry.duration || 0}ms</b></div>
-          <div class="xr-copy-pill"><b>${_formatSize(entry.size || 0)}</b></div>
+          <div class="xr-copy-pill"><b>${formatSize(entry.size || 0)}</b></div>
           ${entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
         `;
       }
