@@ -100,9 +100,9 @@ window.XRAY_CommandPalette = (() => {
 .xr-cmd-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(20px) saturate(200%);
-  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
   z-index: 2147483646;
   opacity: 0;
   visibility: hidden;
@@ -123,25 +123,29 @@ window.XRAY_CommandPalette = (() => {
   width: 640px;
   max-width: calc(100vw - 48px);
   max-height: 480px;
-  background: rgba(17, 17, 19, 0.85);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 28, 32, 0.88) 0%,
+    rgba(22, 22, 26, 0.92) 100%
+  );
+  backdrop-filter: blur(60px) saturate(200%) brightness(1.02);
+  -webkit-backdrop-filter: blur(60px) saturate(200%) brightness(1.02);
+  border: 0.5px solid rgba(255,255,255,0.15);
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transform: translateY(-10px) scale(0.96);
+  transform: translateY(-8px) scale(0.98);
   opacity: 0;
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease;
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
   font-family: var(--cp-sans);
   font-size: 13px;
   color: var(--cp-t0);
   box-shadow: 
-    0 0 0 1px rgba(255,255,255,0.08) inset,
-    0 25px 60px -15px rgba(0,0,0,0.6),
-    0 10px 30px -10px rgba(0,0,0,0.4),
-    0 0 1px rgba(0,0,0,0.3);
+    0 0 0 0.5px rgba(255,255,255,0.1) inset,
+    0 24px 80px -12px rgba(0,0,0,0.5),
+    0 12px 40px -8px rgba(0,0,0,0.35),
+    0 0 1px rgba(0,0,0,0.2);
   pointer-events: auto;
 }
 .xr-cmd-backdrop.xr-open .xr-cmd-shell {
@@ -155,9 +159,8 @@ window.XRAY_CommandPalette = (() => {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--cp-bd);
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(10px);
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
 }
 .xr-cmd-head svg { color: var(--cp-t3); flex-shrink: 0; }
 .xr-cmd-inp {
@@ -888,7 +891,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
           <div class="xr-sr-desc">Panel transparency</div>
         </div>
         <div class="xr-seg">
-          ${[70, 80, 90, 100].map(v => `
+          ${[65, 75, 85, 95].map(v => `
             <button class="xr-seg-o${_settings.opacity === v ? ' on' : ''}" data-action="opacity:${v}">${v}%</button>
           `).join('')}
         </div>

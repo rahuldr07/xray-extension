@@ -43,7 +43,7 @@ window.XRAY_HUD = (() => {
         Object.assign(_state, {
           dockMode: parsed.dockMode || 'right',
           size: Math.max(MIN_SIZE, parsed.size || 680),
-          opacity: Math.min(1, Math.max(0, parsed.opacity ?? 0.92)),
+          opacity: Math.min(1, Math.max(0, parsed.opacity ?? 0.78)), // Apple-style default
           backdropBlur: parsed.backdropBlur !== false,
         });
       }
@@ -94,9 +94,15 @@ window.XRAY_HUD = (() => {
   will-change: transform, opacity;
   contain: layout style paint;
   
-  /* Visual isolation - uses theme color with opacity */
+  /* Apple-style layered background */
   --hud-bg-rgb: var(--xr-bg-rgb, 9, 9, 11);
-  background: rgba(var(--hud-bg-rgb), var(--hud-opacity, 0.92));
+  --hud-opacity-val: var(--hud-opacity, 0.78);
+  background: 
+    linear-gradient(
+      180deg,
+      rgba(var(--hud-bg-rgb), calc(var(--hud-opacity-val) - 0.05)) 0%,
+      rgba(var(--hud-bg-rgb), var(--hud-opacity-val)) 100%
+    );
   color: var(--xr-text, #fafafa);
   font-size: 12px;
   line-height: 1.5;
@@ -106,10 +112,21 @@ window.XRAY_HUD = (() => {
   transition: transform 0.32s ${SPRING_CURVE}, opacity 0.2s ease-out;
 }
 
-/* Glassmorphism layer */
+/* Apple-style glassmorphism with vibrancy */
 .xr-hud.xr-blur {
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(190%) brightness(1.05);
+  -webkit-backdrop-filter: blur(40px) saturate(190%) brightness(1.05);
+}
+
+/* Inner glow border (Apple style) */
+.xr-hud::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  z-index: 1;
 }
 
 /* ─── Right Dock Mode ────────────────────────────────────────────────────── */
@@ -120,11 +137,11 @@ window.XRAY_HUD = (() => {
   height: 100vh;
   max-width: 95vw;
   min-width: ${MIN_SIZE}px;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 0.5px solid rgba(255, 255, 255, 0.08);
   box-shadow: 
-    -12px 0 48px rgba(0, 0, 0, 0.5),
-    -1px 0 0 rgba(255, 255, 255, 0.03),
-    inset 1px 0 0 rgba(255, 255, 255, 0.02);
+    -20px 0 80px rgba(0, 0, 0, 0.35),
+    -8px 0 32px rgba(0, 0, 0, 0.25),
+    -1px 0 0 rgba(255, 255, 255, 0.04);
   
   /* Hidden state: slide right */
   transform: translateX(102%);
@@ -143,11 +160,11 @@ window.XRAY_HUD = (() => {
   height: var(--hud-size, 400px);
   max-height: 80vh;
   min-height: ${MIN_SIZE}px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   box-shadow: 
-    0 -12px 48px rgba(0, 0, 0, 0.5),
-    0 -1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    0 -20px 80px rgba(0, 0, 0, 0.35),
+    0 -8px 32px rgba(0, 0, 0, 0.25),
+    0 -1px 0 rgba(255, 255, 255, 0.04);
   
   /* Hidden state: slide down */
   transform: translateY(102%);
