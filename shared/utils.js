@@ -49,13 +49,22 @@ window.XRAY_Utils = (() => {
     try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
   }
 
-  /** Truncate a URL path to a readable form */
+  /** Truncate a URL path to a readable form - show meaningful endpoint */
   function shortPath(url) {
     try {
       const u = new URL(url);
-      const p = u.pathname;
-      return p.length > 42 ? '…' + p.slice(-42) : p;
-    } catch { return url.length > 45 ? '…' + url.slice(-45) : url; }
+      let p = u.pathname;
+      // Remove trailing slash
+      if (p.endsWith('/') && p.length > 1) p = p.slice(0, -1);
+      // If path is short enough, show it
+      if (p.length <= 35) return p || '/';
+      // Otherwise show last 2-3 segments
+      const segments = p.split('/').filter(Boolean);
+      if (segments.length <= 2) return p.length > 40 ? '…' + p.slice(-38) : p;
+      // Show last 2-3 meaningful segments
+      const lastParts = segments.slice(-3).join('/');
+      return lastParts.length > 35 ? '…/' + segments.slice(-2).join('/') : '…/' + lastParts;
+    } catch { return url.length > 40 ? '…' + url.slice(-38) : url; }
   }
 
   return { uid, formatTime, formatDuration, formatSize, previewJSON, statusClass, methodClass, safeClone, shortPath };
