@@ -41,6 +41,15 @@
     return out;
   }
 
+  // Resolve relative URLs to absolute
+  function _resolveUrl(url) {
+    try {
+      return new URL(url, window.location.href).href;
+    } catch {
+      return url;
+    }
+  }
+
   // ── fetch wrapper ─────────────────────────────────────────────────────────
   window.fetch = async function (...args) {
     const id    = _uid();
@@ -51,12 +60,12 @@
       const req = args[0];
       const init = args[1] || {};
       if (req instanceof Request) {
-        url        = req.url;
+        url        = req.url; // Request.url is always absolute
         method     = req.method || 'GET';
         reqHeaders = _parseHeaders(req.headers);
         try { reqBody = await req.clone().json(); } catch { reqBody = null; }
       } else {
-        url        = String(req);
+        url        = _resolveUrl(String(req)); // Resolve relative URLs
         method     = (init.method || 'GET').toUpperCase();
         reqHeaders = _parseHeaders(init.headers);
         if (init.body) {
@@ -117,7 +126,7 @@
 
   // ── XHR wrapper ───────────────────────────────────────────────────────────
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    this.__xr = { id: _uid(), method: (method || 'GET').toUpperCase(), url: String(url), reqHeaders: {}, start: 0 };
+    this.__xr = { id: _uid(), method: (method || 'GET').toUpperCase(), url: _resolveUrl(String(url)), reqHeaders: {}, start: 0 };
     return _origXHROpen.apply(this, [method, url, ...rest]);
   };
 
