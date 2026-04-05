@@ -4768,12 +4768,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
   function _openUnifiedExport() {
     const selectedEntry = _state.selectedId ? _state.entries.find(e => e.id === _state.selectedId) : null;
-    if (selectedEntry) {
-      _openCopyModal(selectedEntry);
-    } else {
-      // Open with no entry = show session export section prominently
-      _showToast('Select an entry to export, or use session export below');
-    }
+    _openCopyModal(selectedEntry);
   }
 
   function _openCopyModal(entry) {
@@ -4781,25 +4776,41 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     _exportSelectedFormat = 'curl';
     
     const backdrop = _dom.copyBackdrop;
-    if (!backdrop) return;
+    if (!backdrop) {
+      console.error('[XRAY] Export modal backdrop not found');
+      return;
+    }
 
     // Update header
     const method = _root.querySelector('#xr-copy-method');
     const url = _root.querySelector('#xr-copy-url');
     const pills = _root.querySelector('#xr-copy-pills');
     
-    if (method) {
-      method.textContent = entry.method || 'LOG';
-      method.className = 'xr-copy-method m-' + (entry.method || 'log').toLowerCase();
-    }
-    if (url) url.textContent = entry.url || entry.logData?.message || 'Log entry';
-    if (pills) {
-      pills.innerHTML = `
-        <div class="xr-copy-pill"><b>${entry.status || '—'}</b></div>
-        <div class="xr-copy-pill"><b>${entry.duration || 0}ms</b></div>
-        <div class="xr-copy-pill"><b>${_formatSize(entry.size || 0)}</b></div>
-        ${entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
-      `;
+    if (entry) {
+      if (method) {
+        method.textContent = entry.method || 'LOG';
+        method.className = 'xr-copy-method m-' + (entry.method || 'log').toLowerCase();
+      }
+      if (url) url.textContent = entry.url || entry.logData?.message || 'Log entry';
+      if (pills) {
+        pills.innerHTML = `
+          <div class="xr-copy-pill"><b>${entry.status || '—'}</b></div>
+          <div class="xr-copy-pill"><b>${entry.duration || 0}ms</b></div>
+          <div class="xr-copy-pill"><b>${_formatSize(entry.size || 0)}</b></div>
+          ${entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
+        `;
+      }
+    } else {
+      // No entry selected - show session export mode
+      if (method) {
+        method.textContent = 'SESSION';
+        method.className = 'xr-copy-method m-log';
+      }
+      if (url) url.textContent = 'Export all captured requests';
+      if (pills) {
+        const apiCount = _state.entries.filter(e => e.type === 'api').length;
+        pills.innerHTML = `<div class="xr-copy-pill"><b>${apiCount}</b> requests captured</div>`;
+      }
     }
 
     // Build rail
@@ -4852,7 +4863,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
   function _updateExportPreview() {
     const entry = _exportCurrentEntry;
-    if (!entry) return;
 
     const title = _root.querySelector('#xr-copy-panel-title');
     const desc = _root.querySelector('#xr-copy-panel-desc');
@@ -4867,7 +4877,9 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     if (desc) desc.textContent = meta.desc || '';
     
     let rawCode = '';
-    if (generator) {
+    if (!entry) {
+      rawCode = '// Select an API request from the list to generate code\n// Or use the session export buttons below to export all entries';
+    } else if (generator) {
       try {
         rawCode = generator(entry);
       } catch (e) {
