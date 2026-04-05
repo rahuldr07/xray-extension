@@ -2000,8 +2000,8 @@ window.XRAY_Panel = (() => {
 .xr-copy-method.m-delete { background: rgba(255,69,58,0.15); color: #ff453a; border: 0.5px solid rgba(255,69,58,0.25); }
 .xr-copy-method.m-log { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 0.5px solid rgba(255,255,255,0.12); }
 .xr-copy-url {
-  font-size: 13px; color: rgba(255,255,255,0.75); letter-spacing: -0.2px;
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; color: rgba(255,255,255,0.75); letter-spacing: -0.2px;
+  flex: 1; min-width: 0; word-break: break-all; line-height: 1.5;
 }
 .xr-copy-close {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
@@ -5641,8 +5641,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       _bindSettingsFilters();
       _initExportModal();
       
-      // In HUD mode, shortcuts are handled by HUD
-      if (!_hudMode && window.XRAY_Shortcuts?.init) {
+      // Initialize keyboard shortcuts (always, for both HUD and standalone)
+      if (window.XRAY_Shortcuts?.init) {
         window.XRAY_Shortcuts.init(_public);
       }
       
