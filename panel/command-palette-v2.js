@@ -1237,22 +1237,26 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
   // ── Export ──
   function doExport(type) {
+    // Get selected entry for copy operations
+    const selectedEntry = _panelRef?.getSelectedEntry?.() || window.XRAY_Panel?.getSelectedEntry?.();
+    const allEntries = _panelRef?.getEntries?.() || window.XRAY_Panel?.getEntries?.() || [];
+    
     if (window.XRAY_Export) {
       switch (type) {
         case 'curl':
-          window.XRAY_Export.copyAsCurl?.();
+          if (selectedEntry) window.XRAY_Export.copyCurl(selectedEntry);
           break;
         case 'fetch':
-          window.XRAY_Export.copyAsFetch?.();
+          if (selectedEntry) window.XRAY_Export.copyFetch(selectedEntry);
           break;
         case 'axios':
-          window.XRAY_Export.copyAsAxios?.();
+          if (selectedEntry) window.XRAY_Export.copyAxios(selectedEntry);
           break;
         case 'json':
-          window.XRAY_Export.exportJSON?.();
+          window.XRAY_Export.downloadJSON(allEntries);
           break;
         case 'har':
-          window.XRAY_Export.exportHAR?.();
+          window.XRAY_Export.downloadHAR(allEntries);
           break;
       }
     }
