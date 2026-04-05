@@ -709,6 +709,7 @@ window.XRAY_HUD = (() => {
     getOpacity: () => _state.opacity,
     getBlur: () => _state.backdropBlur,
     getSize: () => _state.size,
+    getState: () => ({ ..._state }),
     
     // DOM access (for embedding panel content)
     getContentSlot: () => _root?.querySelector('#xr-hud-content'),

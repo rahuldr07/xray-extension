@@ -24,7 +24,6 @@ window.XRAY_CommandPalette = (() => {
     dock: 'right',
     opacity: 92,
     blur: true,
-    filters: { s2: false, s3: false, s4: false, s5: false },
     activeView: 'tree',
     activeTab: 'api',
   };
@@ -55,21 +54,11 @@ window.XRAY_CommandPalette = (() => {
     { id: 'insights', label: 'Insights', key: '⌘4', icon: '<path d="M2 12l3-4 3 2 3-5 3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>' },
   ];
 
-  const EXPORTS = [
-    { id: 'curl', label: 'Copy as cURL', desc: 'Shell command with headers', color: '#22c55e' },
-    { id: 'fetch', label: 'Copy as fetch()', desc: 'JavaScript fetch snippet', color: '#3b82f6' },
-    { id: 'axios', label: 'Copy as axios', desc: 'Axios request snippet', color: '#a855f7' },
-    { id: 'json', label: 'Export JSON', desc: 'All captured entries', color: '#f59e0b' },
-    { id: 'har', label: 'Export HAR', desc: 'HTTP Archive format', color: '#6b7280' },
-  ];
-
   const GROUPS = [
-    { id: 'navigation', label: 'Navigation', icon: '<path d="M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
     { id: 'appearance', label: 'Appearance', icon: '<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/>' },
     { id: 'views', label: 'Views', icon: '<rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/>' },
-    { id: 'filters', label: 'Filters', icon: '<path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>' },
-    { id: 'export', label: 'Export', icon: '<path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
-    { id: 'danger', label: 'Danger', icon: '<path d="M8 3L14 13H2L8 3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>' },
+    { id: 'navigation', label: 'Navigation', icon: '<path d="M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { id: 'danger', label: 'Danger Zone', icon: '<path d="M8 3L14 13H2L8 3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>' },
   ];
 
   // All searchable commands for fuzzy search
@@ -78,16 +67,10 @@ window.XRAY_CommandPalette = (() => {
     ...VIEWS.map(v => ({ action: `view:${v.id}`, label: `${v.label} view`, desc: 'Switch response view', icon: v.icon, key: v.key })),
     ...THEMES.map(t => ({ action: `theme:${t.id}`, label: `Theme: ${t.name}`, desc: t.desc, icon: `<circle cx="8" cy="8" r="5.5" stroke="${t.dot}" stroke-width="1.5"/>` })),
     { action: 'blur', label: 'Toggle blur effect', desc: 'Glassmorphism panel', icon: '<circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2.5 2"/>' },
-    { action: 'filter:s2', label: 'Filter: 2xx success', desc: 'Show success responses', icon: '<circle cx="8" cy="8" r="5.5" fill="rgba(34,197,94,0.2)" stroke="#22c55e" stroke-width="1.2"/>' },
-    { action: 'filter:s3', label: 'Filter: 3xx redirect', desc: 'Show redirects', icon: '<circle cx="8" cy="8" r="5.5" fill="rgba(59,130,246,0.2)" stroke="#3b82f6" stroke-width="1.2"/>' },
-    { action: 'filter:s4', label: 'Filter: 4xx errors', desc: 'Show client errors', icon: '<circle cx="8" cy="8" r="5.5" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="1.2"/>' },
-    { action: 'filter:s5', label: 'Filter: 5xx errors', desc: 'Show server errors', icon: '<circle cx="8" cy="8" r="5.5" fill="rgba(239,68,68,0.2)" stroke="#ef4444" stroke-width="1.2"/>' },
-    { action: 'clear-filters', label: 'Clear all filters', desc: 'Reset to show all', icon: '<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' },
-    ...EXPORTS.map(e => ({ action: `export:${e.id}`, label: e.label, desc: e.desc, icon: '<path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' })),
-    { action: 'clear-pins', label: 'Clear pinned entries', desc: 'Remove all starred items', icon: '<path d="M6 2h4M8 2v8M5 12l3-2 3 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>' },
-    { action: 'clear-all', label: 'Clear all entries', desc: 'Delete everything captured', icon: '<path d="M2 4h12M6 4V2h4v2M3 4l1 10h8l1-10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
     { action: 'dock:right', label: 'Dock panel right', desc: 'Panel position', icon: '<rect x="9" y="2" width="5" height="12" rx="1" stroke="currentColor" stroke-width="1.2"/>' },
     { action: 'dock:bottom', label: 'Dock panel bottom', desc: 'Panel position', icon: '<rect x="2" y="9" width="12" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/>' },
+    { action: 'clear-pins', label: 'Clear pinned entries', desc: 'Remove all starred items', icon: '<path d="M6 2h4M8 2v8M5 12l3-2 3 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>' },
+    { action: 'clear-all', label: 'Clear all entries', desc: 'Delete everything captured', icon: '<path d="M2 4h12M6 4V2h4v2M3 4l1 10h8l1-10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
     { action: 'close', label: 'Close panel', desc: 'Hide XRAY', icon: '<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>', key: 'Esc' },
   ];
 
@@ -835,16 +818,12 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   function renderDetailPanel() {
     let html = '';
 
-    if (_selGroup === 'navigation') {
-      html = renderNavigation();
-    } else if (_selGroup === 'appearance') {
+    if (_selGroup === 'appearance') {
       html = renderAppearance();
     } else if (_selGroup === 'views') {
       html = renderViews();
-    } else if (_selGroup === 'filters') {
-      html = renderFilters();
-    } else if (_selGroup === 'export') {
-      html = renderExport();
+    } else if (_selGroup === 'navigation') {
+      html = renderNavigation();
     } else if (_selGroup === 'danger') {
       html = renderDanger();
     }
@@ -942,56 +921,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
       <div style="margin-top:10px;padding:9px;background:var(--cp-bg3);border-radius:6px;border:1px solid var(--cp-bd);">
         <div style="font-size:10px;color:var(--cp-t3);margin-bottom:5px;">Active: <span style="color:var(--cp-acc-l);font-family:var(--cp-mono);">${_settings.activeView}</span></div>
         <div style="font-size:10px;color:var(--cp-t4);">${viewDescs[_settings.activeView] || ''}</div>
-      </div>
-    `;
-  }
-
-  function renderFilters() {
-    const active = Object.values(_settings.filters).filter(Boolean).length;
-    return `
-      <div class="xr-rp-title">
-        <div class="xr-rp-title-icon"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
-        Filters
-        ${active > 0 ? `<span style="margin-left:4px;padding:2px 6px;background:var(--cp-ylw-dim);border-radius:8px;font-size:9px;font-weight:700;color:var(--cp-ylw);">${active} active</span>` : ''}
-      </div>
-      <div class="xr-section-label">Status codes</div>
-      <div class="xr-chip-row">
-        <button class="xr-chip c2${_settings.filters.s2 ? ' on' : ''}" data-action="filter:s2">2xx Success</button>
-        <button class="xr-chip c3${_settings.filters.s3 ? ' on' : ''}" data-action="filter:s3">3xx Redirect</button>
-        <button class="xr-chip c4${_settings.filters.s4 ? ' on' : ''}" data-action="filter:s4">4xx Client</button>
-        <button class="xr-chip c5${_settings.filters.s5 ? ' on' : ''}" data-action="filter:s5">5xx Server</button>
-      </div>
-      <div class="xr-setting-row">
-        <div class="xr-sr-left">
-          <div class="xr-sr-label">Quick filter: errors only</div>
-          <div class="xr-sr-desc">Enable 4xx + 5xx together</div>
-        </div>
-        <button style="padding:4px 10px;background:var(--cp-bg4);border:1px solid var(--cp-bd2);border-radius:5px;color:var(--cp-t2);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--cp-sans);" data-action="errors-only">Errors only</button>
-      </div>
-      <div class="xr-setting-row">
-        <div class="xr-sr-left">
-          <div class="xr-sr-label">Reset all filters</div>
-          <div class="xr-sr-desc">Show all captured requests</div>
-        </div>
-        <button style="padding:4px 10px;background:var(--cp-bg4);border:1px solid var(--cp-bd2);border-radius:5px;color:var(--cp-t2);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--cp-sans);" data-action="clear-filters">Clear</button>
-      </div>
-    `;
-  }
-
-  function renderExport() {
-    return `
-      <div class="xr-rp-title">
-        <div class="xr-rp-title-icon"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        Export & copy
-      </div>
-      <div class="xr-export-list">
-        ${EXPORTS.map(e => `
-          <div class="xr-exp-item" data-action="export:${e.id}">
-            <div class="xr-exp-icon"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="9" height="11" rx="1.5" stroke="${e.color}" stroke-width="1.2"/><path d="M5 6h5M5 9h3" stroke="${e.color}" stroke-width="1.1" stroke-linecap="round"/></svg></div>
-            <div style="flex:1;min-width:0;"><div class="xr-exp-label">${e.label}</div><div class="xr-exp-desc">${e.desc}</div></div>
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-        `).join('')}
       </div>
     `;
   }
@@ -1116,23 +1045,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
       case 'view':
         setView(value);
         break;
-      case 'filter':
-        toggleFilter(value);
-        break;
-      case 'errors-only':
-        _settings.filters = { s2: false, s3: false, s4: true, s5: true };
-        applyFilters();
-        render();
-        break;
-      case 'clear-filters':
-        _settings.filters = { s2: false, s3: false, s4: false, s5: false };
-        applyFilters();
-        render();
-        break;
-      case 'export':
-        doExport(value);
-        close();
-        break;
       case 'clear-pins':
         clearPins();
         render();
@@ -1215,53 +1127,6 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     render();
   }
 
-  // ── Filters ──
-  function toggleFilter(filterId) {
-    _settings.filters[filterId] = !_settings.filters[filterId];
-    applyFilters();
-    render();
-  }
-
-  function applyFilters() {
-    // Apply to panel settings checkboxes
-    const container = _panelRoot?.querySelector?.('#xr-settings-status-filters');
-    if (container) {
-      container.querySelectorAll('input[data-status]').forEach(cb => {
-        const status = cb.dataset.status;
-        const key = 's' + status.charAt(0);
-        cb.checked = _settings.filters[key] || false;
-        cb.dispatchEvent(new Event('change'));
-      });
-    }
-  }
-
-  // ── Export ──
-  function doExport(type) {
-    // Get selected entry for copy operations
-    const selectedEntry = _panelRef?.getSelectedEntry?.() || window.XRAY_Panel?.getSelectedEntry?.();
-    const allEntries = _panelRef?.getEntries?.() || window.XRAY_Panel?.getEntries?.() || [];
-    
-    if (window.XRAY_Export) {
-      switch (type) {
-        case 'curl':
-          if (selectedEntry) window.XRAY_Export.copyCurl(selectedEntry);
-          break;
-        case 'fetch':
-          if (selectedEntry) window.XRAY_Export.copyFetch(selectedEntry);
-          break;
-        case 'axios':
-          if (selectedEntry) window.XRAY_Export.copyAxios(selectedEntry);
-          break;
-        case 'json':
-          window.XRAY_Export.downloadJSON(allEntries);
-          break;
-        case 'har':
-          window.XRAY_Export.downloadHAR(allEntries);
-          break;
-      }
-    }
-  }
-
   // ── Clear ──
   function clearPins() {
     _panelRef?.clearPins?.();
@@ -1275,9 +1140,22 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   // Helpers
   // ══════════════════════════════════════════════════════════════════════════
   function syncSettingsFromPanel() {
-    // Sync theme
-    const themeSelect = _panelRoot?.querySelector?.('#xr-settings-theme');
-    if (themeSelect) _settings.theme = themeSelect.value;
+    // Sync theme from panel
+    if (_panelRef?.getTheme) {
+      _settings.theme = _panelRef.getTheme();
+    } else if (window.XRAY_Panel?.getTheme) {
+      _settings.theme = window.XRAY_Panel.getTheme();
+    }
+
+    // Sync blur and opacity from HUD
+    if (window.XRAY_HUD?.getState) {
+      const hudState = window.XRAY_HUD.getState();
+      if (hudState) {
+        _settings.blur = hudState.backdropBlur ?? true;
+        _settings.opacity = Math.round((hudState.opacity ?? 0.92) * 100);
+        _settings.dock = hudState.dockMode ?? 'right';
+      }
+    }
 
     // Sync active tab
     const activeTab = _panelRoot?.querySelector?.('.xr-tab.xr-active');
