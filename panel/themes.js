@@ -7,6 +7,7 @@ window.XRAY_Themes = {
     vars: {
       // Base layers (depth system)
       '--xr-bg':       '#09090b',
+      '--xr-bg-rgb':   '9, 9, 11',  // For rgba() with opacity
       '--xr-bg2':      '#131316',
       '--xr-bg3':      '#1c1c21',
       '--xr-surface':  '#27272a',
@@ -92,6 +93,7 @@ window.XRAY_Themes = {
     dot: '#cba6f7',
     vars: {
       '--xr-bg':       '#11111b',
+      '--xr-bg-rgb':   '17, 17, 27',  // For rgba() with opacity
       '--xr-bg2':      '#181825',
       '--xr-bg3':      '#1e1e2e',
       '--xr-surface':  '#313244',
@@ -167,6 +169,7 @@ window.XRAY_Themes = {
     dot: '#dc8a78',
     vars: {
       '--xr-bg':       '#eff1f5',
+      '--xr-bg-rgb':   '239, 241, 245',  // For rgba() with opacity
       '--xr-bg2':      '#e6e9ef',
       '--xr-bg3':      '#dce0e8',
       '--xr-surface':  '#ccd0da',
@@ -242,6 +245,7 @@ window.XRAY_Themes = {
     dot: '#bd93f9',
     vars: {
       '--xr-bg':       '#171920',
+      '--xr-bg-rgb':   '23, 25, 32',  // For rgba() with opacity
       '--xr-bg2':      '#21222c',
       '--xr-bg3':      '#282a36',
       '--xr-surface':  '#343746',
@@ -317,6 +321,7 @@ window.XRAY_Themes = {
     dot: '#88c0d0',
     vars: {
       '--xr-bg':       '#1a1e26',
+      '--xr-bg-rgb':   '26, 30, 38',  // For rgba() with opacity
       '--xr-bg2':      '#232830',
       '--xr-bg3':      '#2e3440',
       '--xr-surface':  '#3b4252',

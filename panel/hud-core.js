@@ -94,9 +94,10 @@ window.XRAY_HUD = (() => {
   will-change: transform, opacity;
   contain: layout style paint;
   
-  /* Visual isolation */
-  background: rgba(10, 10, 12, var(--hud-opacity, 0.92));
-  color: #fafafa;
+  /* Visual isolation - uses theme color with opacity */
+  --hud-bg-rgb: var(--xr-bg-rgb, 9, 9, 11);
+  background: rgba(var(--hud-bg-rgb), var(--hud-opacity, 0.92));
+  color: var(--xr-text, #fafafa);
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;

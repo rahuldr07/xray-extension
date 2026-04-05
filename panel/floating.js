@@ -99,7 +99,10 @@ window.XRAY_Panel = (() => {
 #xr-panel.xr-devtools #xr-panel-resize,
 #xr-panel.xr-devtools #xr-close { display: none; }
 
-/* HUD embedded mode - hide redundant elements */
+/* HUD embedded mode - transparent bg for glassmorphism, hide redundant elements */
+#xr-panel.xr-hud-embed {
+  background: transparent;
+}
 #xr-panel.xr-hud-embed #xr-panel-resize,
 #xr-panel.xr-hud-embed #xr-close { display: none; }
 
@@ -2694,8 +2697,21 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     const themes = window.XRAY_Themes || {};
     const theme = themes[name] || themes['zinc'];
     if (!theme || !_dom.panel) return;
+    
+    // Apply to panel
     Object.entries(theme.vars).forEach(([k, v]) => _dom.panel.style.setProperty(k, v));
     _state.theme = name;
+    
+    // Also apply to HUD shell for consistent glassmorphism
+    if (_hudMode && window.XRAY_HUD?.getShadowRoot) {
+      const hudRoot = window.XRAY_HUD.getShadowRoot();
+      const hudPanel = hudRoot?.querySelector('.xr-hud');
+      if (hudPanel) {
+        Object.entries(theme.vars).forEach(([k, v]) => hudPanel.style.setProperty(k, v));
+      }
+    }
+    
+    // Update theme dots
     _root.querySelectorAll('.xr-dot').forEach(d =>
       d.classList.toggle('xr-active', d.dataset.theme === name)
     );
