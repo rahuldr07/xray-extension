@@ -29,7 +29,6 @@ window.XRAY_HUD = (() => {
   let _root = null;     // Shadow root
   let _panel = null;    // Main panel element
   let _resizeHandle = null;
-  let _dockToggle = null;
   let _listeners = [];  // Cleanup registry
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -229,45 +228,6 @@ window.XRAY_HUD = (() => {
   transform: translateX(-50%);
 }
 
-/* ─── Dock Toggle Button ─────────────────────────────────────────────────── */
-.xr-dock-toggle {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: rgba(39, 39, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #a1a1aa;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.15s;
-  z-index: 101;
-}
-
-.xr-dock-toggle:hover {
-  background: rgba(63, 63, 70, 0.9);
-  color: #fafafa;
-  transform: scale(1.05);
-}
-
-.xr-dock-toggle:active {
-  transform: scale(0.95);
-}
-
-/* Position dock toggle based on mode */
-.xr-dock-right .xr-dock-toggle {
-  top: 10px;
-  left: 10px;
-}
-
-.xr-dock-bottom .xr-dock-toggle {
-  top: 10px;
-  right: 48px;
-}
-
 /* ─── Snap Indicators (shown during resize) ──────────────────────────────── */
 .xr-snap-indicator {
   position: fixed;
@@ -381,13 +341,6 @@ window.XRAY_HUD = (() => {
     resizeHandle.className = 'xr-resize-handle';
     panel.appendChild(resizeHandle);
 
-    // Dock toggle button
-    const dockToggle = document.createElement('button');
-    dockToggle.className = 'xr-dock-toggle';
-    dockToggle.title = 'Toggle dock position (Ctrl+Shift+D)';
-    dockToggle.innerHTML = _state.dockMode === 'right' ? '⇊' : '⇉';
-    panel.appendChild(dockToggle);
-
     // Content slot (where XRAY_Panel content goes)
     const content = document.createElement('div');
     content.className = 'xr-hud-content';
@@ -400,7 +353,7 @@ window.XRAY_HUD = (() => {
     kbdHint.innerHTML = '<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> to toggle';
     panel.appendChild(kbdHint);
 
-    return { panel, resizeHandle, dockToggle, content, kbdHint };
+    return { panel, resizeHandle, content, kbdHint };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -546,12 +499,6 @@ window.XRAY_HUD = (() => {
       }
       _panel.style.setProperty('--hud-size', `${_state.size}px`);
       
-      // Update toggle icon
-      _dockToggle.innerHTML = mode === 'right' ? '⇊' : '⇉';
-      _dockToggle.title = mode === 'right' 
-        ? 'Switch to bottom dock' 
-        : 'Switch to right dock';
-      
       // Reopen if was open
       if (wasOpen) {
         requestAnimationFrame(() => {
@@ -673,16 +620,10 @@ window.XRAY_HUD = (() => {
     const shell = _buildShell();
     _panel = shell.panel;
     _resizeHandle = shell.resizeHandle;
-    _dockToggle = shell.dockToggle;
     _root.appendChild(_panel);
     
     // Bind resize
     _initResize();
-    
-    // Bind dock toggle
-    _dockToggle.addEventListener('click', () => {
-      _setDockMode(_state.dockMode === 'right' ? 'bottom' : 'right');
-    });
     
     // Bind keyboard shortcuts
     _initKeyboard();
