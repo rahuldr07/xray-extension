@@ -534,12 +534,17 @@ window.XRAY_HUD = (() => {
       _state.dockMode = mode;
       _panel.classList.add(`xr-dock-${_state.dockMode}`);
       
-      // Adjust size for new orientation
-      const vpSize = mode === 'right' ? window.innerWidth : window.innerHeight;
-      if (_state.size > vpSize * 0.8) {
-        _state.size = Math.round(vpSize * 0.5);
-        _panel.style.setProperty('--hud-size', `${_state.size}px`);
+      // Set appropriate default size for each dock mode
+      if (mode === 'right') {
+        // Right dock: ~60% of viewport width
+        const defaultWidth = Math.round(window.innerWidth * 0.60);
+        _state.size = Math.max(MIN_SIZE, Math.min(defaultWidth, window.innerWidth * 0.85));
+      } else {
+        // Bottom dock: ~45% of viewport height
+        const defaultHeight = Math.round(window.innerHeight * 0.45);
+        _state.size = Math.max(MIN_SIZE, Math.min(defaultHeight, window.innerHeight * 0.75));
       }
+      _panel.style.setProperty('--hud-size', `${_state.size}px`);
       
       // Update toggle icon
       _dockToggle.innerHTML = mode === 'right' ? '⇊' : '⇉';

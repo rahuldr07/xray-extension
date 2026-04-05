@@ -4335,6 +4335,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       return;
     }
 
+    // Remove any existing menu
+    const existingMenu = _root.querySelector('.xr-export-menu');
+    if (existingMenu) existingMenu.remove();
+
     const menu = document.createElement('div');
     menu.className = 'xr-export-menu';
     menu.innerHTML = `
@@ -4345,23 +4349,26 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     `;
     menu.style.cssText = `
       position: fixed; z-index: 100000;
-      background: var(--xr-surface); border: 1px solid var(--xr-border);
-      border-radius: 6px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      display: flex; flex-direction: column; gap: 4px;
+      background: #27272a; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 8px; 
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+      display: flex; flex-direction: column; gap: 2px;
+      backdrop-filter: blur(20px);
     `;
     const btnRect = _dom.exportBtn.getBoundingClientRect();
-    menu.style.bottom = `${window.innerHeight - btnRect.top + 4}px`;
+    menu.style.bottom = `${window.innerHeight - btnRect.top + 8}px`;
     menu.style.left = `${btnRect.left}px`;
 
-    const styleTitle = `font-size:10px;color:var(--xr-muted);margin-bottom:4px;`;
+    const styleTitle = `font-size:10px;color:#71717a;margin-bottom:6px;padding:0 4px;`;
     const styleBtn = `
-      padding:6px 12px; text-align:left; border:none; background:transparent;
-      color:var(--xr-text); border-radius:4px; cursor:pointer; font-size:11px;
+      padding:8px 12px; text-align:left; border:none; background:transparent;
+      color:#fafafa; border-radius:6px; cursor:pointer; font-size:12px;
+      transition: background 0.15s;
     `;
     menu.querySelector('.xr-export-menu-title').style.cssText = styleTitle;
-    menu.querySelectorAll('button').forEach(b => b.style.cssText = styleBtn);
     menu.querySelectorAll('button').forEach(b => {
-      b.addEventListener('mouseenter', () => b.style.background = 'var(--xr-bg3)');
+      b.style.cssText = styleBtn;
+      b.addEventListener('mouseenter', () => b.style.background = 'rgba(255,255,255,0.08)');
       b.addEventListener('mouseleave', () => b.style.background = 'transparent');
     });
 
@@ -4372,14 +4379,27 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       _exportEntries(entries, fmt);
     });
 
-    document.body.appendChild(menu);
+    // Append to shadow root so it's part of our DOM
+    _root.appendChild(menu);
+    
     const closeMenu = (e) => {
       if (!menu.contains(e.target) && e.target !== _dom.exportBtn) {
         menu.remove();
         document.removeEventListener('click', closeMenu);
+        _root.removeEventListener('click', closeMenuShadow);
       }
     };
-    setTimeout(() => document.addEventListener('click', closeMenu), 10);
+    const closeMenuShadow = (e) => {
+      if (!menu.contains(e.target) && e.target !== _dom.exportBtn) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+        _root.removeEventListener('click', closeMenuShadow);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', closeMenu);
+      _root.addEventListener('click', closeMenuShadow);
+    }, 10);
   }
 
   function _getVisibleEntries() {
