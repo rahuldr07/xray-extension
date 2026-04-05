@@ -2468,7 +2468,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 </div>
 <div class="xr-footer">
   <div class="xr-footer-hint">
-    <span class="xr-kbd">Ctrl+E</span> export · <span class="xr-kbd">Ctrl+K</span> search
+    <span class="xr-kbd">E</span> export · <span class="xr-kbd">Ctrl+K</span> commands
   </div>
   <span class="xr-count" id="xr-count">0</span>
   <button class="xr-clear-btn" id="xr-clear">Clear</button>
@@ -2617,7 +2617,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         <table class="xr-settings-kbd-table">
           <tr><td><span class="xr-kbd">Ctrl+Shift+X</span></td><td>Toggle panel</td></tr>
           <tr><td><span class="xr-kbd">Ctrl+K</span></td><td>Command palette</td></tr>
-          <tr><td><span class="xr-kbd">Ctrl+E</span></td><td>Export modal</td></tr>
+          <tr><td><span class="xr-kbd">E</span></td><td>Export modal</td></tr>
           <tr><td><span class="xr-kbd">Ctrl+F</span></td><td>Search in JSON</td></tr>
           <tr><td><span class="xr-kbd">T</span></td><td>Tree view</td></tr>
           <tr><td><span class="xr-kbd">G</span></td><td>Grid view</td></tr>

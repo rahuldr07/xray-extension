@@ -44,13 +44,6 @@ window.XRAY_Shortcuts = (() => {
       return;
     }
 
-    // Ctrl+E — export modal
-    if (e.ctrlKey && e.key === 'e' && !inInput) {
-      e.preventDefault();
-      _panel.openExport();
-      return;
-    }
-
     // Ctrl+F — pane search if entry selected, else fuzzy search
     if (e.ctrlKey && e.key === 'f' && !inInput) {
       e.preventDefault();
@@ -88,6 +81,7 @@ window.XRAY_Shortcuts = (() => {
       case 'w':         e.preventDefault(); _panel.setView('waterfall'); break;
       case 'c':         e.preventDefault(); _panel.copySelected();  break;
       case 's':         e.preventDefault(); _panel.pinSelected();   break;
+      case 'e':         e.preventDefault(); _panel.openExport();    break;
       case 'arrowdown': e.preventDefault(); _panel.selectNext(1);   break;
       case 'arrowup':   e.preventDefault(); _panel.selectNext(-1);  break;
     }
