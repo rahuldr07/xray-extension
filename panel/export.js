@@ -33,6 +33,11 @@ window.XRAY_Export = (() => {
   /**
    * Export entries to CSV (API entries only)
    */
+  function _escapeCSV(value) {
+    const raw = value === undefined || value === null ? '' : String(value);
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+
   async function toCSV(entries) {
     // Use worker if available
     if (window.XRAY_Worker?.isReady()) {
@@ -44,18 +49,17 @@ window.XRAY_Export = (() => {
     if (!apiEntries.length) return '';
     
     const headers = ['timestamp', 'method', 'url', 'status', 'duration_ms', 'size_bytes'];
-    const rows = [headers.join(',')];
+    const rows = [headers.map(_escapeCSV).join(',')];
     
     apiEntries.forEach(entry => {
-      const row = [
+      rows.push([
         new Date(entry.timestamp).toISOString(),
         entry.method || 'GET',
-        `"${(entry.url || '').replace(/"/g, '""')}"`,
+        entry.url || '',
         entry.status || '',
         entry.duration || '',
         entry.size || '',
-      ];
-      rows.push(row.join(','));
+      ].map(_escapeCSV).join(','));
     });
     
     return rows.join('\n');

@@ -294,6 +294,11 @@ function computeDiff(a, b, path = '') {
 // EXPORT: Various formats
 // ════════════════════════════════════════════════════════════════════════════
 
+function escapeCSV(value) {
+  const raw = value === undefined || value === null ? '' : String(value);
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
 function exportToCSV(entries, options = {}) {
   if (!entries.length) return '';
   
@@ -301,18 +306,17 @@ function exportToCSV(entries, options = {}) {
   if (!apiEntries.length) return '';
   
   const headers = ['timestamp', 'method', 'url', 'status', 'duration', 'size'];
-  const rows = [headers.join(',')];
+  const rows = [headers.map(escapeCSV).join(',')];
   
   for (const entry of apiEntries) {
-    const row = [
+    rows.push([
       new Date(entry.timestamp).toISOString(),
       entry.method || '',
-      `"${(entry.url || '').replace(/"/g, '""')}"`,
+      entry.url || '',
       entry.status || '',
       entry.duration || '',
       entry.size || '',
-    ];
-    rows.push(row.join(','));
+    ].map(escapeCSV).join(','));
   }
   
   return rows.join('\n');
