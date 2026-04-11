@@ -4271,24 +4271,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     );
   }
 
-  function _exportEntries(entries, fmt) {
-    const Export = window.XRAY_Export;
-    if (Export) {
-      if (fmt === 'json') Export.downloadJSON(entries, `xray-export-${Date.now()}.json`);
-      else if (fmt === 'csv') Export.downloadCSV(entries, `xray-export-${Date.now()}.csv`);
-      else if (fmt === 'har') Export.downloadHAR(entries, `xray-export-${Date.now()}.har`);
-    } else {
-      // Fallback: simple JSON download
-      const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `xray-export-${Date.now()}.${fmt === 'csv' ? 'csv' : 'json'}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  }
-
   function _fuzzyRender(query) {
     const results = _dom.fuzzyResults;
     results.innerHTML = '';
