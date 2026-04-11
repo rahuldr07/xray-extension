@@ -4971,22 +4971,48 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     const sessionCsv = _root.querySelector('#xr-session-csv');
 
     if (sessionJson) {
-      sessionJson.addEventListener('click', () => _exportSession('json'));
+      sessionJson.addEventListener('click', () => { void _exportSession('json'); });
     }
     if (sessionHar) {
-      sessionHar.addEventListener('click', () => _exportSession('har'));
+      sessionHar.addEventListener('click', () => { void _exportSession('har'); });
     }
     if (sessionCsv) {
-      sessionCsv.addEventListener('click', () => _exportSession('csv'));
+      sessionCsv.addEventListener('click', () => { void _exportSession('csv'); });
     }
   }
 
-  function _exportSession(format) {
+  async function _exportSession(format) {
     const entries = _state.entries.filter(e => e.type === 'api');
     if (entries.length === 0) {
       _showToast('No API entries to export');
       return;
     }
+
+    const baseName = `xray-export-${Date.now()}`;
+    const Export = window.XRAY_Export;
+    if (Export) {
+      try {
+        if (format === 'json') {
+          await Export.downloadJSON(entries, `${baseName}.json`);
+        } else if (format === 'har') {
+          await Export.downloadHAR(entries, `${baseName}.har`);
+        } else if (format === 'csv') {
+          await Export.downloadCSV(entries, `${baseName}.csv`);
+        } else {
+          throw new Error(`Unsupported export format: ${format}`);
+        }
+        _showToast(`Exported ${entries.length} entries as ${format.toUpperCase()}`);
+        return;
+      } catch (err) {
+        console.error('[XRAY] Session export failed', err);
+        _showToast('Session export failed');
+      }
+    }
+
+    const csvEscape = (value) => {
+      const raw = value === undefined || value === null ? '' : String(value);
+      return `"${raw.replace(/"/g, '""')}"`;
+    };
 
     let content = '';
     let filename = '';
@@ -5006,7 +5032,14 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       case 'csv':
         content = 'timestamp,method,url,status,duration,size\n';
         entries.forEach(e => {
-          content += `${e.timestamp},${e.method},"${e.url}",${e.status},${e.duration},${e.size}\n`;
+          content += [
+            csvEscape(new Date(e.timestamp).toISOString()),
+            csvEscape(e.method),
+            csvEscape(e.url),
+            csvEscape(e.status),
+            csvEscape(e.duration),
+            csvEscape(e.size),
+          ].join(',') + '\n';
         });
         filename = `xray-export-${Date.now()}.csv`;
         mime = 'text/csv';
