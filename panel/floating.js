@@ -4759,7 +4759,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
           <div class="xr-copy-pill"><b>${entry.status || '—'}</b></div>
           <div class="xr-copy-pill"><b>${entry.duration || 0}ms</b></div>
           <div class="xr-copy-pill"><b>${formatSize(entry.size || 0)}</b></div>
-          ${entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
+          ${entry.decryptStatus === 'ok' || entry.decryptStatus === 'success' ? '<div class="xr-copy-pill dec">🔓 Decrypted</div>' : ''}
         `;
       }
     } else {
