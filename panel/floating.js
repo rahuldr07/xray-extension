@@ -4540,6 +4540,31 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   function _toPascal(s) { return (s || 'Object').replace(/(^|[-_])([a-z])/g, (_, __, c) => c.toUpperCase()).replace(/^./, c => c.toUpperCase()); }
   function _toSnake(s) { return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, ''); }
 
+  function _getExportUrlParts(entry) {
+    const fullUrl = String(entry?.url || '');
+    try {
+      const parsed = new URL(fullUrl);
+      return {
+        fullUrl,
+        origin: parsed.origin,
+        pathWithQuery: `${parsed.pathname}${parsed.search}`,
+      };
+    } catch {
+      return { fullUrl, origin: '', pathWithQuery: fullUrl };
+    }
+  }
+
+  function _getExportResponseObject(entry) {
+    if (!entry || entry.type !== 'api') return {};
+    const data = entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null;
+    return (typeof data === 'object' && data !== null) ? data : {};
+  }
+
+  function _getExportResponseValue(entry) {
+    if (!entry || entry.type !== 'api') return null;
+    return entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null;
+  }
+
   function _buildTSInterface(obj, name = 'Response', depth = 0) {
     const nested = [];
     let lines = `interface ${name} {\n`;
@@ -4617,37 +4642,55 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const headers = entry.requestHeaders || {};
       const h = Object.entries(headers).filter(([k]) => !['host', 'content-length'].includes(k.toLowerCase())).map(([k, v]) => `  -H '${k}: ${v}'`).join(' \\\n');
       const body = entry.requestBody ? ` \\\n  --data-raw '${JSON.stringify(entry.requestBody)}'` : '';
-      return `curl -X ${entry.method} '${entry.url}' \\\n${h}${body} \\\n  --compressed`;
+      return `curl -X ${entry.method || 'GET'} '${entry.url}' \\\n${h}${body} \\\n  --compressed`;
     },
     fetch: (entry) => {
       const headers = entry.requestHeaders || {};
       const hStr = JSON.stringify(headers, null, 4).split('\n').join('\n  ');
-      const body = entry.requestBody ? `\n  body: JSON.stringify(${JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ')}),` : '';
-      const urlObj = new URL(entry.url);
-      return `const BASE_URL = '${urlObj.origin}';\n\nconst response = await fetch(\`\${BASE_URL}${urlObj.pathname}\`, {\n  method: '${entry.method}',\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
+      const hasBody = entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
+      const body = hasBody
+        ? (typeof entry.requestBody === 'string'
+          ? `\n  body: ${JSON.stringify(entry.requestBody)},`
+          : `\n  body: JSON.stringify(${JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ')}),`)
+        : '';
+      const { fullUrl, origin, pathWithQuery } = _getExportUrlParts(entry);
+      const baseDecl = origin ? `const BASE_URL = ${JSON.stringify(origin)};\n\n` : '';
+      const target = origin ? `BASE_URL + ${JSON.stringify(pathWithQuery)}` : JSON.stringify(fullUrl);
+      return `${baseDecl}const response = await fetch(${target}, {\n  method: ${JSON.stringify(entry.method || 'GET')},\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
     },
     axios: (entry) => {
       const headers = entry.requestHeaders || {};
       const auth = headers['Authorization'] || headers['authorization'] || '';
-      const urlObj = new URL(entry.url);
-      const bodyStr = entry.requestBody ? JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ') : 'undefined';
-      return `import axios from 'axios';\n\nconst client = axios.create({\n  baseURL: '${urlObj.origin}',\n  headers: {\n    'Authorization': '${auth}',\n    'Content-Type': 'application/json',\n  },\n});\n\nconst { data } = await client.${entry.method.toLowerCase()}(\n  '${urlObj.pathname}',\n  ${bodyStr}\n);\n\nconsole.log(data);`;
+      const { fullUrl, origin, pathWithQuery } = _getExportUrlParts(entry);
+      const method = (entry.method || 'GET').toLowerCase();
+      const hasBodyMethod = ['post', 'put', 'patch'].includes(method);
+      const hasBody = hasBodyMethod && entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
+      const bodyStr = hasBody ? JSON.stringify(entry.requestBody, null, 2).split('\n').join('\n  ') : '';
+      const endpoint = JSON.stringify(origin ? pathWithQuery : fullUrl);
+      const baseConfig = origin ? `\n  baseURL: ${JSON.stringify(origin)},` : '';
+      const authHeader = auth ? `\n    Authorization: ${JSON.stringify(auth)},` : '';
+      const requestCall = hasBody
+        ? `const { data } = await client.${method}(\n  ${endpoint},\n  ${bodyStr}\n);`
+        : `const { data } = await client.${method}(${endpoint});`;
+      return `import axios from 'axios';\n\nconst client = axios.create({${baseConfig}\n  headers: {${authHeader}\n    'Content-Type': 'application/json',\n  },\n});\n\n${requestCall}\n\nconsole.log(data);`;
     },
     python: (entry) => {
       const headers = entry.requestHeaders || {};
+      const method = (entry.method || 'GET').toLowerCase();
       const hStr = Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n');
       const body = entry.requestBody ? `\npayload = ${JSON.stringify(entry.requestBody, null, 4)}\n` : '';
       const dataArg = entry.requestBody ? ', json=payload' : '';
-      return `import requests\n\nurl = '${entry.url}'\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${entry.method.toLowerCase()}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
+      return `import requests\n\nurl = '${entry.url}'\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${method}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
     },
     go: (entry) => {
       const headers = entry.requestHeaders || {};
+      const method = entry.method || 'GET';
       const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
       let code = `package main\n\nimport (\n\t"bytes"\n\t"encoding/json"\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\turl := "${entry.url}"`;
       if (body) {
-        code += `\n\tpayload := []byte(\`${body}\`)\n\treq, _ := http.NewRequest("${entry.method}", url, bytes.NewBuffer(payload))`;
+        code += `\n\tpayload := []byte(\`${body}\`)\n\treq, _ := http.NewRequest("${method}", url, bytes.NewBuffer(payload))`;
       } else {
-        code += `\n\treq, _ := http.NewRequest("${entry.method}", url, nil)`;
+        code += `\n\treq, _ := http.NewRequest("${method}", url, nil)`;
       }
       Object.entries(headers).slice(0, 5).forEach(([k, v]) => {
         code += `\n\treq.Header.Set("${k}", "${v}")`;
@@ -4656,32 +4699,32 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       return code;
     },
     'ts-iface': (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const data = _getExportResponseObject(entry);
       const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
-      return _buildTSInterface(typeof data === 'object' ? data : {}, name);
+      return _buildTSInterface(data, name);
     },
     zod: (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const data = _getExportResponseObject(entry);
       const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
-      return `import { z } from 'zod';\n\n` + _buildZodSchema(typeof data === 'object' ? data : {}, name);
+      return `import { z } from 'zod';\n\n` + _buildZodSchema(data, name);
     },
     'py-class': (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const data = _getExportResponseObject(entry);
       const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
-      return _buildPyDataclass(typeof data === 'object' ? data : {}, name);
+      return _buildPyDataclass(data, name);
     },
     'go-struct': (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
+      const data = _getExportResponseObject(entry);
       const name = _toPascal(entry.urlPath?.split('/').pop() || 'Response') + 'Response';
-      return _buildGoStruct(typeof data === 'object' ? data : {}, name);
+      return _buildGoStruct(data, name);
     },
     jest: (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
-      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe('${entry.method} ${entry.urlPath}', () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
+      const data = _getExportResponseValue(entry);
+      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe('${entry.method || 'GET'} ${entry.urlPath || entry.url || '/'}', () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
     },
     msw: (entry) => {
-      const data = entry.responseDecrypted || entry.responseRaw || {};
-      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${entry.method.toLowerCase()}('${entry.url}', async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
+      const data = _getExportResponseValue(entry);
+      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}('${entry.url}', async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
     },
   };
 
@@ -4841,6 +4884,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     let rawCode = '';
     if (!entry) {
       rawCode = '// Select an API request from the list to generate code\n// Or use the session export buttons below to export all entries';
+    } else if (entry.type !== 'api') {
+      rawCode = '// Code generation is available for API requests only\n// Select an API entry in the list to export snippets or models';
     } else if (generator) {
       try {
         rawCode = generator(entry);
@@ -4866,7 +4911,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
   function _getRawExportCode() {
     const entry = _exportCurrentEntry;
-    if (!entry) return '';
+    if (!entry || entry.type !== 'api') return '';
     const generator = _exportGenerators[_exportSelectedFormat];
     if (!generator) return '';
     try {
