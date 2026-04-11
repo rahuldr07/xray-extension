@@ -4560,6 +4560,14 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     return entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null;
   }
 
+  function _shellQuote(value) {
+    return `'${String(value ?? '').replace(/'/g, `'\\''`)}'`;
+  }
+
+  function _pyQuote(value) {
+    return `'${String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  }
+
   function _buildTSInterface(obj, name = 'Response', depth = 0) {
     const nested = [];
     let lines = `interface ${name} {\n`;
@@ -4635,9 +4643,15 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   const _exportGenerators = {
     curl: (entry) => {
       const headers = entry.requestHeaders || {};
-      const h = Object.entries(headers).filter(([k]) => !['host', 'content-length'].includes(k.toLowerCase())).map(([k, v]) => `  -H '${k}: ${v}'`).join(' \\\n');
-      const body = entry.requestBody ? ` \\\n  --data-raw '${JSON.stringify(entry.requestBody)}'` : '';
-      return `curl -X ${entry.method || 'GET'} '${entry.url}' \\\n${h}${body} \\\n  --compressed`;
+      const h = Object.entries(headers)
+        .filter(([k]) => !['host', 'content-length'].includes(k.toLowerCase()))
+        .map(([k, v]) => `  -H ${_shellQuote(`${k}: ${v}`)}`)
+        .join(' \\\n');
+      const body = entry.requestBody
+        ? ` \\\n  --data-raw ${_shellQuote(typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody))}`
+        : '';
+      const headerBlock = h ? ` \\\n${h}` : '';
+      return `curl -X ${(entry.method || 'GET').toUpperCase()} ${_shellQuote(entry.url || '')}${headerBlock}${body} \\\n  --compressed`;
     },
     fetch: (entry) => {
       const headers = entry.requestHeaders || {};
@@ -4672,23 +4686,23 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     python: (entry) => {
       const headers = entry.requestHeaders || {};
       const method = (entry.method || 'GET').toLowerCase();
-      const hStr = Object.entries(headers).map(([k, v]) => `    '${k}': '${v}'`).join(',\n');
+      const hStr = Object.entries(headers).map(([k, v]) => `    ${_pyQuote(k)}: ${_pyQuote(v)}`).join(',\n');
       const body = entry.requestBody ? `\npayload = ${JSON.stringify(entry.requestBody, null, 4)}\n` : '';
       const dataArg = entry.requestBody ? ', json=payload' : '';
-      return `import requests\n\nurl = '${entry.url}'\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${method}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
+      return `import requests\n\nurl = ${_pyQuote(entry.url || '')}\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${method}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
     },
     go: (entry) => {
       const headers = entry.requestHeaders || {};
       const method = entry.method || 'GET';
       const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
-      let code = `package main\n\nimport (\n\t"bytes"\n\t"encoding/json"\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\turl := "${entry.url}"`;
+      let code = `package main\n\nimport (\n\t"bytes"\n\t"encoding/json"\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\turl := ${JSON.stringify(entry.url || '')}`;
       if (body) {
-        code += `\n\tpayload := []byte(\`${body}\`)\n\treq, _ := http.NewRequest("${method}", url, bytes.NewBuffer(payload))`;
+        code += `\n\tpayload := []byte(${JSON.stringify(body)})\n\treq, _ := http.NewRequest(${JSON.stringify(method)}, url, bytes.NewBuffer(payload))`;
       } else {
-        code += `\n\treq, _ := http.NewRequest("${method}", url, nil)`;
+        code += `\n\treq, _ := http.NewRequest(${JSON.stringify(method)}, url, nil)`;
       }
       Object.entries(headers).slice(0, 5).forEach(([k, v]) => {
-        code += `\n\treq.Header.Set("${k}", "${v}")`;
+        code += `\n\treq.Header.Set(${JSON.stringify(k)}, ${JSON.stringify(String(v))})`;
       });
       code += `\n\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tvar result map[string]interface{}\n\tjson.NewDecoder(resp.Body).Decode(&result)\n\tfmt.Println(result)\n}`;
       return code;
@@ -4715,11 +4729,12 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     },
     jest: (entry) => {
       const data = _getExportResponseValue(entry);
-      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe('${entry.method || 'GET'} ${entry.urlPath || entry.url || '/'}', () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
+      const describeLabel = `${entry.method || 'GET'} ${entry.urlPath || entry.url || '/'}`;
+      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe(${JSON.stringify(describeLabel)}, () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
     },
     msw: (entry) => {
       const data = _getExportResponseValue(entry);
-      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}('${entry.url}', async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
+      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}(${JSON.stringify(entry.url || '')}, async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
     },
   };
 

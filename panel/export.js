@@ -139,6 +139,7 @@ window.XRAY_Export = (() => {
   function toCurl(entry) {
     if (entry.type !== 'api') return '';
     
+    const shellQuote = (value) => `'${String(value ?? '').replace(/'/g, "'\\''")}'`;
     const parts = ['curl'];
     
     // Method
@@ -147,13 +148,13 @@ window.XRAY_Export = (() => {
     }
     
     // URL
-    parts.push(`'${entry.url}'`);
+    parts.push(shellQuote(entry.url || ''));
     
     // Headers
     Object.entries(entry.requestHeaders || {}).forEach(([name, value]) => {
       // Skip pseudo-headers and sensitive ones
       if (name.startsWith(':') || name.toLowerCase() === 'cookie') return;
-      parts.push(`-H '${name}: ${value}'`);
+      parts.push(`-H ${shellQuote(`${name}: ${value}`)}`);
     });
     
     // Body
@@ -161,7 +162,7 @@ window.XRAY_Export = (() => {
       const body = typeof entry.requestBody === 'string'
         ? entry.requestBody
         : JSON.stringify(entry.requestBody);
-      parts.push(`-d '${body.replace(/'/g, "'\\''")}'`);
+      parts.push(`-d ${shellQuote(body)}`);
     }
     
     return parts.join(' \\\n  ');
@@ -198,7 +199,7 @@ window.XRAY_Export = (() => {
     const url = entry.url || '';
     const optionsStr = JSON.stringify(options, null, 2);
     
-    return `fetch('${url}', ${optionsStr})
+    return `fetch(${JSON.stringify(url)}, ${optionsStr})
   .then(res => res.json())
   .then(data => console.log(data))
   .catch(err => console.error(err));`;
@@ -232,12 +233,12 @@ window.XRAY_Export = (() => {
     
     let code;
     if (hasBody && body) {
-      const bodyStr = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+      const bodyStr = typeof body === 'string' ? JSON.stringify(body) : JSON.stringify(body, null, 2);
       const configStr = Object.keys(config).length > 0 ? `, ${JSON.stringify(config, null, 2)}` : '';
-      code = `axios.${method}('${url}', ${bodyStr}${configStr})`;
+      code = `axios.${method}(${JSON.stringify(url)}, ${bodyStr}${configStr})`;
     } else {
       const configStr = Object.keys(config).length > 0 ? `, ${JSON.stringify(config, null, 2)}` : '';
-      code = `axios.${method}('${url}'${configStr})`;
+      code = `axios.${method}(${JSON.stringify(url)}${configStr})`;
     }
     
     return `${code}
