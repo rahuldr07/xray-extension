@@ -2079,6 +2079,11 @@ window.XRAY_Panel = (() => {
 }
 .xr-copy-btn:hover { background: #4f52d4; }
 .xr-copy-btn.copied { background: #34c759; }
+.xr-copy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.xr-copy-btn:disabled:hover { background: #6366f1; }
 .xr-copy-btn-download {
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
   background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 7px;
@@ -2086,6 +2091,14 @@ window.XRAY_Panel = (() => {
   cursor: pointer; font-family: inherit; transition: all 0.13s; letter-spacing: -0.1px;
 }
 .xr-copy-btn-download:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+.xr-copy-btn-download:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.xr-copy-btn-download:disabled:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.55);
+}
 .xr-copy-footer-spacer { flex: 1; }
 .xr-copy-footer-hint { font-size: 11px; color: rgba(255,255,255,0.18); letter-spacing: -0.05px; }
 /* Session Export */
@@ -4882,6 +4895,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     if (desc) desc.textContent = meta.desc || '';
     
     let rawCode = '';
+    let canExport = false;
     if (!entry) {
       rawCode = '// Select an API request from the list to generate code\n// Or use the session export buttons below to export all entries';
     } else if (entry.type !== 'api') {
@@ -4889,6 +4903,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     } else if (generator) {
       try {
         rawCode = generator(entry);
+        canExport = Boolean(rawCode);
       } catch (e) {
         rawCode = '// Error generating code: ' + e.message;
       }
@@ -4907,6 +4922,14 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       'jest': 'Includes error case test'
     };
     if (hint) hint.textContent = hints[_exportSelectedFormat] || '';
+    _setExportActionsEnabled(canExport);
+  }
+
+  function _setExportActionsEnabled(enabled) {
+    const copyBtn = _root.querySelector('#xr-copy-btn');
+    const downloadBtn = _root.querySelector('#xr-copy-download');
+    if (copyBtn) copyBtn.disabled = !enabled;
+    if (downloadBtn) downloadBtn.disabled = !enabled;
   }
 
   function _getRawExportCode() {
@@ -4930,6 +4953,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     if (copyBtn) {
       copyBtn.addEventListener('click', () => {
         const code = _getRawExportCode();
+        if (!code) {
+          _showToast('Select an API request to export');
+          return;
+        }
         navigator.clipboard.writeText(code).then(() => {
           copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied';
           copyBtn.classList.add('copied');
@@ -4937,6 +4964,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
             copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 11V3h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Copy';
             copyBtn.classList.remove('copied');
           }, 1600);
+        }).catch(() => {
+          _showToast('Copy failed');
         });
       });
     }
@@ -4944,6 +4973,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     if (downloadBtn) {
       downloadBtn.addEventListener('click', () => {
         const code = _getRawExportCode();
+        if (!code) {
+          _showToast('Select an API request to export');
+          return;
+        }
         const meta = _exportMeta[_exportSelectedFormat] || {};
         const filename = meta.dl || 'export.txt';
         const blob = new Blob([code], { type: 'text/plain' });
