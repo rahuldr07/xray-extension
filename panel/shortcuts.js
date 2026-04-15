@@ -27,19 +27,24 @@ window.XRAY_Shortcuts = (() => {
 
     const inInput = _isInInput(e);
 
-    // Ctrl/Cmd+Shift+X is handled by the extension command in background.js.
-    // Do not toggle locally here, otherwise it can double-toggle.
+    // Ctrl/Cmd+Shift+X — toggle locally for reliability.
+    // We mark the event so other listeners don't process it again.
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key?.toLowerCase() === 'x' || e.code === 'KeyX')) {
-      console.debug('[XRAY] Keyboard chord detected in panel, waiting for background command toggle');
+      if (e.__xrayToggleHandled) return;
+      e.__xrayToggleHandled = true;
+      e.preventDefault();
+      e.stopPropagation();
+      window.__XRAY_lastToggleShortcutTs = Date.now();
+      console.debug('[XRAY] Keyboard chord detected in panel, toggling locally');
+      _panel.toggle();
       return;
     }
 
     if (!_panel.isOpen()) return;
 
-    // Ctrl+K — fuzzy search over all entries
-    if (e.ctrlKey && e.key === 'k' && !inInput) {
-      e.preventDefault();
-      _panel.focusSearch();
+    // Ctrl/Cmd+K is owned by command-palette-v2.js.
+    if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'k' && !inInput) {
+      console.debug('[XRAY] Ctrl/Cmd+K delegated to command palette');
       return;
     }
 
@@ -56,6 +61,12 @@ window.XRAY_Shortcuts = (() => {
 
     // Escape — close panel (unless in a text input)
     if (e.key === 'Escape' && !inInput) {
+      if (e.__xrayOverlayHandled) return;
+      if (typeof _panel.closeTopOverlay === 'function' && _panel.closeTopOverlay()) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       e.preventDefault();
       _panel.hide();
       return;

@@ -4120,6 +4120,50 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     _dom.fuzzyBackdrop?.classList.remove('xr-open');
   }
 
+  function _closeTopOverlay() {
+    if (window.XRAY_CommandPalette?.isOpen?.()) {
+      console.debug('[XRAY] Escape closed command palette');
+      window.XRAY_CommandPalette.close();
+      return true;
+    }
+
+    if (_dom.copyBackdrop?.classList.contains('xr-open')) {
+      console.debug('[XRAY] Escape closed export modal');
+      _dom.copyBackdrop.classList.remove('xr-open');
+      return true;
+    }
+
+    if (_dom.settingsBackdrop?.classList.contains('xr-open')) {
+      console.debug('[XRAY] Escape closed settings modal');
+      _dom.settingsBackdrop.classList.remove('xr-open');
+      return true;
+    }
+
+    if (_dom.fuzzyBackdrop?.classList.contains('xr-open')) {
+      console.debug('[XRAY] Escape closed fuzzy search');
+      _fuzzyClose();
+      return true;
+    }
+
+    if (_state.paneSearch?.active) {
+      console.debug('[XRAY] Escape closed pane search');
+      _paneSearchClose();
+      return true;
+    }
+
+    const openMenu = _root?.querySelector('.xr-entry-menu-dropdown.xr-open');
+    if (openMenu) {
+      console.debug('[XRAY] Escape closed entry menu');
+      openMenu.classList.remove('xr-open');
+      openMenu.style.position = '';
+      openMenu.style.left = '';
+      openMenu.style.top = '';
+      return true;
+    }
+
+    return false;
+  }
+
   /* ──────────────────────────────────────────────────────────────────────────
      Export Menu (uses XRAY_Export if available)
      ────────────────────────────────────────────────────────────────────────── */
@@ -5750,6 +5794,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     hasSelection() { return !!_state.selectedId; },
     paneSearchFocus() { _paneSearchOpen(); },
+    closeTopOverlay() { return _closeTopOverlay(); },
 
     copySelected() { _copySelected(); },
 

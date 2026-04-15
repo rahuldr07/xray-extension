@@ -65,9 +65,30 @@
     }
   });
 
+  // Local fallback: handle Ctrl/Cmd+Shift+X even if background command routing fails.
+  document.addEventListener('keydown', (e) => {
+    if (!((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key?.toLowerCase() === 'x' || e.code === 'KeyX'))) {
+      return;
+    }
+    if (e.__xrayToggleHandled) return;
+
+    e.__xrayToggleHandled = true;
+    e.preventDefault();
+    e.stopPropagation();
+    window.__XRAY_lastToggleShortcutTs = Date.now();
+    console.debug('[XRAY] Local shortcut handler toggling panel');
+    _initPanel().then(() => XRAY_Panel.toggle());
+  }, true);
+
   // Receive toggle / show command from background.js
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'xray:toggle') {
+      const now = Date.now();
+      const lastLocalToggle = Number(window.__XRAY_lastToggleShortcutTs || 0);
+      if (lastLocalToggle && (now - lastLocalToggle) < 400) {
+        console.debug('[XRAY] Ignoring background toggle as duplicate of local shortcut');
+        return;
+      }
       console.debug('[XRAY] Received xray:toggle from background');
       _initPanel().then(() => XRAY_Panel.toggle());
     }

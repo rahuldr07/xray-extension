@@ -567,10 +567,16 @@ window.XRAY_HUD = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _initKeyboard() {
     function onKeyDown(e) {
-      // Ctrl/Cmd+Shift+X is handled by extension command in background.js.
-      // Keep this listener passive for that chord to avoid double toggles.
+      // Ctrl/Cmd+Shift+X — local fallback toggle for reliability.
+      // Respect shared handled marker to avoid duplicate toggles.
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyX') {
-        console.debug('[XRAY] Keyboard chord detected in HUD, waiting for background command toggle');
+        if (e.__xrayToggleHandled) return;
+        e.__xrayToggleHandled = true;
+        e.preventDefault();
+        e.stopPropagation();
+        window.__XRAY_lastToggleShortcutTs = Date.now();
+        console.debug('[XRAY] Keyboard chord detected in HUD, toggling locally');
+        _toggle();
         return;
       }
       

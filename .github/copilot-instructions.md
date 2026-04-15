@@ -263,11 +263,12 @@ Defined in `panel/shortcuts.js` and `manifest.json`:
 - `↑↓` — Navigate entries
 
 ### Themes
-Four themes available (switched via colored dots in panel header):
-1. `zinc` (default) — Catppuccin Mocha-inspired (purple/lavender)
-2. `latte` — Catppuccin Latte (light cream/mauve)
-3. `dracula` — Dracula (pink/cyan)
-4. `nord` — Nord (arctic blue)
+Five themes available (switched via Settings → Theme):
+1. `zinc` (default) — Obsidian Pro
+2. `mocha` — Graphite Pro
+3. `latte` — Frost Light
+4. `dracula` — Violet Night
+5. `nord` — Ocean Glass
 
 Theme colors defined in `panel/themes.js` as CSS custom properties.
 

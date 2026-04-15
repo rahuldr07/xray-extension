@@ -1230,8 +1230,8 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
   // Keyboard
   // ══════════════════════════════════════════════════════════════════════════
   function handleKeyDown(e) {
-    // Global: Ctrl+K to toggle
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    // Global: Ctrl/Cmd+K to toggle
+    if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === 'k') {
       e.preventDefault();
       e.stopPropagation();
       toggle();
@@ -1242,7 +1242,9 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
 
     switch (e.key) {
       case 'Escape':
+        e.__xrayOverlayHandled = true;
         e.preventDefault();
+        e.stopPropagation();
         close();
         break;
       case 'ArrowDown':
