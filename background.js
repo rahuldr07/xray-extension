@@ -3,17 +3,28 @@
 
 const _devtoolsPortsByTab = new Map();
 
-chrome.action.onClicked.addListener((tab) => {
-  if (!tab.id) return;
-  chrome.tabs.sendMessage(tab.id, { type: 'xray:toggle' }).catch(() => {
+function _sendToggle(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  chrome.tabs.sendMessage(tabId, { type: 'xray:toggle' }).catch(() => {
     // Tab may not have content script injected (e.g. chrome:// pages). Ignore.
   });
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  _sendToggle(tab?.id);
 });
 
-chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === 'toggle-xray' && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: 'xray:toggle' }).catch(() => {});
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== 'toggle-xray') return;
+
+  // Some browsers don't provide tab for command events. Fall back to active tab.
+  let tabId = Number.isInteger(tab?.id) ? tab.id : null;
+  if (!Number.isInteger(tabId)) {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    tabId = activeTab?.id;
   }
+
+  _sendToggle(tabId);
 });
 
 chrome.runtime.onConnect.addListener((port) => {

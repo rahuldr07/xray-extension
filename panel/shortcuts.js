@@ -27,8 +27,8 @@ window.XRAY_Shortcuts = (() => {
 
     const inInput = _isInInput(e);
 
-    // Ctrl+Shift+X — toggle (always fires regardless of focus)
-    if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+    // Ctrl/Cmd+Shift+X — toggle (always fires regardless of focus)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key?.toLowerCase() === 'x' || e.code === 'KeyX')) {
       e.preventDefault();
       e.stopPropagation();
       _panel.toggle();
