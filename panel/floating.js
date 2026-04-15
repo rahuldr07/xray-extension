@@ -286,87 +286,6 @@ window.XRAY_Panel = (() => {
   margin-right: 8px;
 }
 
-/* ─── Theme selector (macOS-style dots) ─────────────────────────────────────── */
-.xr-dots { 
-  display: flex; 
-  align-items: center; 
-  gap: 6px; 
-  margin-right: 6px; 
-  position: relative;
-  z-index: 1;
-}
-.xr-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid transparent;
-  opacity: 0.5;
-  transition: all var(--xr-transition, 0.15s ease);
-  flex-shrink: 0;
-  outline: 2px solid transparent;
-}
-.xr-dot:hover { 
-  opacity: 1; 
-  transform: scale(1.25);
-}
-.xr-dot.xr-active {
-  opacity: 1;
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--xr-bg), 0 0 0 3px currentColor;
-}
-
-/* Theme dropdown (glassmorphic) */
-.xr-theme-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: var(--xr-surface);
-  backdrop-filter: blur(var(--xr-blur, 12px));
-  -webkit-backdrop-filter: blur(var(--xr-blur, 12px));
-  border: 1px solid var(--xr-border-hover);
-  border-radius: var(--xr-radius-lg, 10px);
-  padding: 6px;
-  min-width: 160px;
-  z-index: 10000;
-  box-shadow: var(--xr-shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
-  display: none;
-}
-.xr-theme-dropdown.xr-open { display: flex; flex-direction: column; gap: 2px; }
-.xr-theme-dropdown button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  text-align: left;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--xr-text);
-  border-radius: var(--xr-radius, 6px);
-  transition: all var(--xr-transition, 0.15s ease);
-  font-family: inherit;
-}
-.xr-theme-dropdown button:hover { 
-  background: var(--xr-bg3); 
-}
-.xr-theme-dropdown button::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--xr-muted);
-  opacity: 0.5;
-  transition: all var(--xr-transition, 0.15s ease);
-}
-.xr-theme-dropdown button.xr-active::before {
-  background: var(--xr-accent);
-  opacity: 1;
-  box-shadow: 0 0 0 2px var(--xr-accent-muted);
-}
-
 /* Filter bar (hidden - moved to settings) */
 .xr-filter-bar {
   display: none;
@@ -2467,7 +2386,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       <line x1="12" y1="2" x2="12" y2="15"/>
     </svg>
   </button>
-  <div class="xr-dots" id="xr-dots"></div>
   <button class="xr-ibtn" id="xr-close" title="Close (Esc)">✕</button>
 </div>
 <div class="xr-body">
@@ -2565,15 +2483,15 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
       <!-- Theme -->
       <div class="xr-settings-section">
-        <div class="xr-settings-section-title">Theme</div>
+        <div class="xr-settings-section-title">🎨 Theme · macOS Premium</div>
         <div class="xr-settings-item">
           <label class="xr-settings-label">Color Scheme</label>
           <select class="xr-settings-select" id="xr-settings-theme">
-            <option value="zinc">Zinc (Dark)</option>
-            <option value="mocha">Mocha (Dark)</option>
-            <option value="latte">Latte (Light)</option>
-            <option value="dracula">Dracula (Dark)</option>
-            <option value="nord">Nord (Dark)</option>
+            <option value="zinc">Obsidian Pro (Dark)</option>
+            <option value="mocha">Graphite Pro (Dark)</option>
+            <option value="latte">Frost Light (Light)</option>
+            <option value="dracula">Violet Night (Dark)</option>
+            <option value="nord">Ocean Glass (Dark)</option>
           </select>
         </div>
       </div>
@@ -2676,69 +2594,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         Object.entries(theme.vars).forEach(([k, v]) => hudPanel.style.setProperty(k, v));
       }
     }
-    
-    // Update theme dots
-    _root.querySelectorAll('.xr-dot').forEach(d =>
-      d.classList.toggle('xr-active', d.dataset.theme === name)
-    );
   }
 
-  function _buildDots() {
-    const container = _dom.dots;
-    if (!container) return;
-    container.innerHTML = '';
-
-    // Create theme dots with dropdown
-    const dotsWrapper = document.createElement('div');
-    dotsWrapper.style.display = 'flex';
-    dotsWrapper.style.alignItems = 'center';
-    dotsWrapper.style.gap = '6px';
-    dotsWrapper.style.position = 'relative';
-
-    const themeList = window.XRAY_ThemesList || [];
-
-    // Show first dot as "picker" trigger
-    if (themeList.length > 0) {
-      const triggerDot = document.createElement('div');
-      triggerDot.className = 'xr-dot' + (_state.theme === themeList[0].id ? ' xr-active' : '');
-      triggerDot.style.background = themeList[0].dot;
-      triggerDot.title = 'Change theme';
-      triggerDot.style.cursor = 'pointer';
-
-      const dropdown = document.createElement('div');
-      dropdown.className = 'xr-theme-dropdown';
-
-      themeList.forEach(({ id, name, dot }) => {
-        const btn = document.createElement('button');
-        btn.textContent = name;
-        btn.dataset.theme = id;
-        if (id === _state.theme) btn.classList.add('xr-active');
-        btn.addEventListener('click', () => {
-          _applyTheme(id);
-          _saveTheme(id);
-          dropdown.classList.remove('xr-open');
-          _buildDots();
-        });
-        dropdown.appendChild(btn);
-      });
-
-      triggerDot.addEventListener('click', () => {
-        dropdown.classList.toggle('xr-open');
-      });
-
-      dotsWrapper.appendChild(triggerDot);
-      dotsWrapper.appendChild(dropdown);
-    }
-
-    container.appendChild(dotsWrapper);
-  }
-
-  // Close theme dropdown when clicking outside
+  // Global click handler for context menus
   document.addEventListener('click', (e) => {
-    const dropdown = _dom.dots?.querySelector('.xr-theme-dropdown');
-    if (dropdown && !_dom.dots?.contains(e.target)) {
-      dropdown.classList.remove('xr-open');
-    }
     const inEntryMenu = typeof e.target?.closest === 'function' &&
       !!e.target.closest('.xr-entry-menu, .xr-entry-menu-dropdown');
     if (!inEntryMenu) {
@@ -5696,7 +5555,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
       _dom.panel = getById('xr-panel');
       _dom.panelResize = getById('xr-panel-resize');
-      _dom.dots = getById('xr-dots');
       _dom.exportTrigger = getById('xr-export-trigger');
       _dom.closeBtn = getById('xr-close');
       _dom.listWrap = _root.querySelector('.xr-list-wrap');
@@ -5736,7 +5594,6 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         // Standalone mode
         _dom.panel.style.width = `${_state.panelWidth}px`;
       }
-      _buildDots();
       _applyTheme(_state.theme);
 
       // ── Initial render ─────────────────────────────────────────────────────
