@@ -32,11 +32,11 @@ window.XRAY_CommandPalette = (() => {
   // Data
   // ══════════════════════════════════════════════════════════════════════════
   const THEMES = [
-    { id: 'zinc', dot: '#71717a', name: 'Zinc', desc: 'Default dark' },
-    { id: 'mocha', dot: '#cba6f7', name: 'Mocha', desc: 'Catppuccin dark' },
-    { id: 'latte', dot: '#dc8a78', name: 'Latte', desc: 'Light mode' },
-    { id: 'dracula', dot: '#bd93f9', name: 'Dracula', desc: 'Classic dark' },
-    { id: 'nord', dot: '#88c0d0', name: 'Nord', desc: 'Arctic dark' },
+    { id: 'zinc', dot: '#0a84ff', name: 'Obsidian Pro', desc: 'Premium deep dark' },
+    { id: 'mocha', dot: '#8e8e93', name: 'Graphite Pro', desc: 'Neutral graphite dark' },
+    { id: 'latte', dot: '#5f8ff5', name: 'Frost Light', desc: 'Crisp premium light' },
+    { id: 'dracula', dot: '#bf5af2', name: 'Violet Night', desc: 'Vivid purple dark' },
+    { id: 'nord', dot: '#64d2ff', name: 'Ocean Glass', desc: 'Blue glass dark' },
   ];
 
   const VIEWS = [

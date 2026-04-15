@@ -567,11 +567,10 @@ window.XRAY_HUD = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _initKeyboard() {
     function onKeyDown(e) {
-      // Ctrl+Shift+X → Toggle panel
-      if (e.ctrlKey && e.shiftKey && e.code === 'KeyX') {
-        e.preventDefault();
-        e.stopPropagation();
-        _toggle();
+      // Ctrl/Cmd+Shift+X is handled by extension command in background.js.
+      // Keep this listener passive for that chord to avoid double toggles.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyX') {
+        console.debug('[XRAY] Keyboard chord detected in HUD, waiting for background command toggle');
         return;
       }
       

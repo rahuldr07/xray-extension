@@ -4,9 +4,14 @@
 const _devtoolsPortsByTab = new Map();
 
 function _sendToggle(tabId) {
-  if (!Number.isInteger(tabId) || tabId < 0) return;
+  if (!Number.isInteger(tabId) || tabId < 0) {
+    console.debug('[XRAY] toggle ignored: invalid tabId', tabId);
+    return;
+  }
+  console.debug('[XRAY] sending toggle to tab', tabId);
   chrome.tabs.sendMessage(tabId, { type: 'xray:toggle' }).catch(() => {
     // Tab may not have content script injected (e.g. chrome:// pages). Ignore.
+    console.debug('[XRAY] toggle message failed (likely unsupported page)', tabId);
   });
 }
 
@@ -16,12 +21,14 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command !== 'toggle-xray') return;
+  console.debug('[XRAY] command received', command, 'tabArg:', tab?.id ?? null);
 
   // Some browsers don't provide tab for command events. Fall back to active tab.
   let tabId = Number.isInteger(tab?.id) ? tab.id : null;
   if (!Number.isInteger(tabId)) {
     const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     tabId = activeTab?.id;
+    console.debug('[XRAY] command fallback active tab', tabId ?? null);
   }
 
   _sendToggle(tabId);

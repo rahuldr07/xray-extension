@@ -116,7 +116,7 @@ window.XRAY_Themes = (() => {
       '--xr-dot-muted': '#646b78',
     }),
 
-    latte: makeTheme('Frost Light', '#0a84ff', {
+    latte: makeTheme('Frost Light', '#5f8ff5', {
       '--xr-bg': '#f5f7fb',
       '--xr-bg-rgb': '245, 247, 251',
       '--xr-bg2': '#edf1f8',

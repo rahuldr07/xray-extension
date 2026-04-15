@@ -20,7 +20,7 @@
 | Diff view | ❌ | ✅ *(Phase 2)* |
 | Fuzzy search `Ctrl+K` | ❌ | ✅ *(Phase 3)* |
 | Keyboard shortcuts | ❌ | ✅ Full |
-| Themes (Catppuccin/Dracula/Nord) | ❌ | ✅ 4 themes |
+| Themes (macOS premium set) | ❌ | ✅ 5 themes |
 | Floating sidebar | ❌ | ✅ |
 | DevTools panel | ✅ | ✅ *(Phase 4)* |
 | Bundle size | 81 MB+ | **< 50 KB** |
@@ -81,14 +81,15 @@ jv(anyData)                   // ✅ opens panel with data
 
 ## Themes
 
-Switch themes using the coloured dots in the panel header.
+Switch themes from the **Settings → Theme** section.
 
 | Theme | Style |
 |---|---|
-| **Catppuccin Mocha** | Dark purple/lavender (default) |
-| **Catppuccin Latte** | Light cream/mauve |
-| **Dracula** | Dark pink/cyan |
-| **Nord** | Dark arctic blue |
+| **Obsidian Pro** | Deep premium dark |
+| **Graphite Pro** | Neutral graphite dark |
+| **Frost Light** | Crisp premium light |
+| **Violet Night** | Vivid purple dark |
+| **Ocean Glass** | Cool blue glass dark |
 
 ---
 

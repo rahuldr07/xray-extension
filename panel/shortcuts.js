@@ -27,11 +27,10 @@ window.XRAY_Shortcuts = (() => {
 
     const inInput = _isInInput(e);
 
-    // Ctrl/Cmd+Shift+X — toggle (always fires regardless of focus)
+    // Ctrl/Cmd+Shift+X is handled by the extension command in background.js.
+    // Do not toggle locally here, otherwise it can double-toggle.
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key?.toLowerCase() === 'x' || e.code === 'KeyX')) {
-      e.preventDefault();
-      e.stopPropagation();
-      _panel.toggle();
+      console.debug('[XRAY] Keyboard chord detected in panel, waiting for background command toggle');
       return;
     }
 

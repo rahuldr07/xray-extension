@@ -68,6 +68,7 @@
   // Receive toggle / show command from background.js
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'xray:toggle') {
+      console.debug('[XRAY] Received xray:toggle from background');
       _initPanel().then(() => XRAY_Panel.toggle());
     }
   });
