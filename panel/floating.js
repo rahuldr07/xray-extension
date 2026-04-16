@@ -4471,12 +4471,57 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     return `'${String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
   }
 
+  function _getExportRequestHeaders(entry) {
+    const source = entry?.requestHeaders || {};
+    const blocked = new Set(['host', 'content-length', 'cookie']);
+    const clean = {};
+    Object.entries(source).forEach(([name, value]) => {
+      if (!name) return;
+      const key = String(name);
+      const lower = key.toLowerCase();
+      if (key.startsWith(':') || blocked.has(lower)) return;
+      clean[key] = String(value ?? '');
+    });
+    return clean;
+  }
+
+  function _toPythonLiteral(value, depth = 0) {
+    const indent = '    '.repeat(depth);
+    const nextIndent = '    '.repeat(depth + 1);
+
+    if (value === null || value === undefined) return 'None';
+    if (typeof value === 'boolean') return value ? 'True' : 'False';
+    if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'None';
+    if (typeof value === 'string') return _pyQuote(value);
+
+    if (Array.isArray(value)) {
+      if (!value.length) return '[]';
+      const items = value.map((item) => `${nextIndent}${_toPythonLiteral(item, depth + 1)}`).join(',\n');
+      return `[\n${items}\n${indent}]`;
+    }
+
+    if (typeof value === 'object') {
+      const entries = Object.entries(value);
+      if (!entries.length) return '{}';
+      const pairs = entries
+        .map(([k, v]) => `${nextIndent}${_pyQuote(k)}: ${_toPythonLiteral(v, depth + 1)}`)
+        .join(',\n');
+      return `{\n${pairs}\n${indent}}`;
+    }
+
+    return _pyQuote(String(value));
+  }
+
   function _buildTSInterface(obj, name = 'Response', depth = 0) {
     const nested = [];
     let lines = `interface ${name} {\n`;
     Object.entries(obj || {}).forEach(([k, v]) => {
       const t = _inferType(v, k);
-      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+        const itemName = `${_toPascal(k)}Item`;
+        nested.push(_buildTSInterface(v[0], itemName, 0));
+        lines += `  ${k}: ${itemName}[];\n`;
+      } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
         nested.push(_buildTSInterface(v, _toPascal(k), 0));
         lines += `  ${k}: ${_toPascal(k)};\n`;
       } else {
@@ -4489,77 +4534,128 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
   function _buildZodSchema(obj, name = 'Response') {
     const nested = [];
-    let lines = `const ${name.charAt(0).toLowerCase() + name.slice(1)}Schema = z.object({\n`;
+    const schemaName = `${name.charAt(0).toLowerCase() + name.slice(1)}Schema`;
+    let lines = `const ${schemaName} = z.object({\n`;
     Object.entries(obj || {}).forEach(([k, v]) => {
       const t = _inferType(v, k);
-      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+        const itemName = `${_toPascal(k)}Item`;
+        const itemSchema = `${itemName.charAt(0).toLowerCase() + itemName.slice(1)}Schema`;
+        nested.push(_buildZodSchema(v[0], itemName));
+        lines += `  ${k}: z.array(${itemSchema}),\n`;
+      } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
         const subName = _toPascal(k);
+        const subSchema = `${subName.charAt(0).toLowerCase() + subName.slice(1)}Schema`;
         nested.push(_buildZodSchema(v, subName));
-        lines += `  ${k}: ${subName.charAt(0).toLowerCase() + subName.slice(1)}Schema,\n`;
+        lines += `  ${k}: ${subSchema},\n`;
       } else {
         lines += `  ${k}: ${t.zod},\n`;
       }
     });
-    lines += `});\n\ntype ${name} = z.infer<typeof ${name.charAt(0).toLowerCase() + name.slice(1)}Schema>;`;
+    lines += `});\n\ntype ${name} = z.infer<typeof ${schemaName}>;`;
     return [...nested, lines].join('\n\n');
   }
 
   function _buildPyDataclass(obj, name = 'Response') {
-    const nested = [];
     const imports = new Set(['from dataclasses import dataclass']);
-    let lines = `@dataclass\nclass ${name}:\n`;
-    Object.entries(obj || {}).forEach(([k, v]) => {
-      const t = _inferType(v, k);
-      const snake = _toSnake(k);
-      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-        nested.push(_buildPyDataclass(v, _toPascal(k)));
-        lines += `    ${snake}: ${_toPascal(k)}\n`;
-      } else {
-        if (t.py === 'datetime') imports.add('from datetime import datetime');
-        if (t.py.startsWith('List')) imports.add('from typing import List, Optional, Any');
-        lines += `    ${snake}: ${t.py}\n`;
-      }
-    });
-    return [...imports].join('\n') + '\n\n' + [...nested, lines].join('\n\n');
+    const definitions = [];
+
+    function walk(node, className) {
+      const fields = [];
+      Object.entries(node || {}).forEach(([k, v]) => {
+        const snake = _toSnake(k);
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+          const itemName = `${_toPascal(k)}Item`;
+          imports.add('from typing import Any, List');
+          walk(v[0], itemName);
+          fields.push(`    ${snake}: List[${itemName}]`);
+          return;
+        }
+
+        const t = _inferType(v, k);
+        if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+          const subName = _toPascal(k);
+          walk(v, subName);
+          fields.push(`    ${snake}: ${subName}`);
+        } else {
+          if (t.py === 'datetime') imports.add('from datetime import datetime');
+          if (t.py === 'date') imports.add('from datetime import date');
+          if (t.py.startsWith('List')) imports.add('from typing import Any, List');
+          fields.push(`    ${snake}: ${t.py}`);
+        }
+      });
+      const body = fields.length ? fields.join('\n') : '    pass';
+      definitions.push(`@dataclass\nclass ${className}:\n${body}`);
+    }
+
+    walk(obj, name);
+
+    const orderedImports = [
+      'from dataclasses import dataclass',
+      'from datetime import date',
+      'from datetime import datetime',
+      'from typing import Any, List',
+    ].filter((line) => imports.has(line));
+
+    return `${orderedImports.join('\n')}\n\n${definitions.join('\n\n')}`;
   }
 
   function _buildGoStruct(obj, name = 'Response') {
-    const nested = [];
-    let lines = `type ${name} struct {\n`;
-    const needsTime = JSON.stringify(obj).match(/\d{4}-\d{2}-\d{2}T/);
-    Object.entries(obj || {}).forEach(([k, v]) => {
-      const t = _inferType(v, k);
-      const pascal = _toPascal(k);
-      if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-        nested.push(_buildGoStruct(v, _toPascal(k)));
-        lines += `\t${pascal} ${_toPascal(k)} \`json:"${k}"\`\n`;
-      } else {
-        lines += `\t${pascal} ${t.go} \`json:"${k}"\`\n`;
-      }
-    });
-    lines += `}`;
+    const definitions = [];
+    let needsTime = false;
+
+    function walk(node, structName) {
+      const fields = [];
+      Object.entries(node || {}).forEach(([k, v]) => {
+        const pascal = _toPascal(k);
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+          const itemName = `${_toPascal(k)}Item`;
+          walk(v[0], itemName);
+          fields.push(`\t${pascal} []${itemName} \`json:"${k}"\``);
+          return;
+        }
+
+        const t = _inferType(v, k);
+        if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+          const subName = _toPascal(k);
+          walk(v, subName);
+          fields.push(`\t${pascal} ${subName} \`json:"${k}"\``);
+        } else {
+          if (t.go === 'time.Time') needsTime = true;
+          fields.push(`\t${pascal} ${t.go} \`json:"${k}"\``);
+        }
+      });
+
+      const body = fields.length ? `\n${fields.join('\n')}\n` : '\n';
+      definitions.push(`type ${structName} struct {${body}}`);
+    }
+
+    walk(obj, name);
     const imports = needsTime ? 'import (\n\t"time"\n)\n\n' : '';
-    return imports + [...nested, lines].join('\n\n');
+    return imports + definitions.join('\n\n');
   }
 
   // Code generators
   const _exportGenerators = {
     curl: (entry) => {
-      const headers = entry.requestHeaders || {};
+      const headers = _getExportRequestHeaders(entry);
+      const method = (entry.method || 'GET').toUpperCase();
+      const hasBody = entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
       const h = Object.entries(headers)
-        .filter(([k]) => !['host', 'content-length'].includes(k.toLowerCase()))
         .map(([k, v]) => `  -H ${_shellQuote(`${k}: ${v}`)}`)
         .join(' \\\n');
-      const body = entry.requestBody
+      const body = hasBody
         ? ` \\\n  --data-raw ${_shellQuote(typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody))}`
         : '';
       const headerBlock = h ? ` \\\n${h}` : '';
-      return `curl -X ${(entry.method || 'GET').toUpperCase()} ${_shellQuote(entry.url || '')}${headerBlock}${body} \\\n  --compressed`;
+      return `curl -X ${method} ${_shellQuote(entry.url || '')}${headerBlock}${body} \\\n  --compressed`;
     },
     fetch: (entry) => {
-      const headers = entry.requestHeaders || {};
+      const headers = _getExportRequestHeaders(entry);
+      const method = (entry.method || 'GET').toUpperCase();
       const hStr = JSON.stringify(headers, null, 4).split('\n').join('\n  ');
-      const hasBody = entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
+      const hasBodyMethod = !['GET', 'HEAD'].includes(method);
+      const hasBody = hasBodyMethod && entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
       const body = hasBody
         ? (typeof entry.requestBody === 'string'
           ? `\n  body: ${JSON.stringify(entry.requestBody)},`
@@ -4568,11 +4664,11 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const { fullUrl, origin, pathWithQuery } = _getExportUrlParts(entry);
       const baseDecl = origin ? `const BASE_URL = ${JSON.stringify(origin)};\n\n` : '';
       const target = origin ? `BASE_URL + ${JSON.stringify(pathWithQuery)}` : JSON.stringify(fullUrl);
-      return `${baseDecl}const response = await fetch(${target}, {\n  method: ${JSON.stringify(entry.method || 'GET')},\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
+      return `${baseDecl}const response = await fetch(${target}, {\n  method: ${JSON.stringify(method)},\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
     },
     axios: (entry) => {
-      const headers = entry.requestHeaders || {};
-      const auth = headers['Authorization'] || headers['authorization'] || '';
+      const headers = _getExportRequestHeaders(entry);
+      const auth = Object.entries(headers).find(([k]) => k.toLowerCase() === 'authorization')?.[1] || '';
       const { fullUrl, origin, pathWithQuery } = _getExportUrlParts(entry);
       const method = (entry.method || 'GET').toLowerCase();
       const hasBodyMethod = ['post', 'put', 'patch'].includes(method);
@@ -4587,27 +4683,39 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       return `import axios from 'axios';\n\nconst client = axios.create({${baseConfig}\n  headers: {${authHeader}\n    'Content-Type': 'application/json',\n  },\n});\n\n${requestCall}\n\nconsole.log(data);`;
     },
     python: (entry) => {
-      const headers = entry.requestHeaders || {};
-      const method = (entry.method || 'GET').toLowerCase();
+      const headers = _getExportRequestHeaders(entry);
+      const method = (entry.method || 'GET').toUpperCase();
       const hStr = Object.entries(headers).map(([k, v]) => `    ${_pyQuote(k)}: ${_pyQuote(v)}`).join(',\n');
-      const body = entry.requestBody ? `\npayload = ${JSON.stringify(entry.requestBody, null, 4)}\n` : '';
-      const dataArg = entry.requestBody ? ', json=payload' : '';
-      return `import requests\n\nurl = ${_pyQuote(entry.url || '')}\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.${method}(url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
+      const hasBodyMethod = !['GET', 'HEAD'].includes(method);
+      const hasBody = hasBodyMethod && entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
+      const body = hasBody ? `\npayload = ${_toPythonLiteral(entry.requestBody)}\n` : '';
+      const dataArg = hasBody
+        ? (typeof entry.requestBody === 'string' ? ', data=payload' : ', json=payload')
+        : '';
+      return `import requests\n\nurl = ${_pyQuote(entry.url || '')}\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.request(${_pyQuote(method)}, url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
     },
     go: (entry) => {
-      const headers = entry.requestHeaders || {};
-      const method = entry.method || 'GET';
-      const body = entry.requestBody ? JSON.stringify(entry.requestBody) : null;
-      let code = `package main\n\nimport (\n\t"bytes"\n\t"encoding/json"\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\turl := ${JSON.stringify(entry.url || '')}`;
-      if (body) {
-        code += `\n\tpayload := []byte(${JSON.stringify(body)})\n\treq, _ := http.NewRequest(${JSON.stringify(method)}, url, bytes.NewBuffer(payload))`;
-      } else {
-        code += `\n\treq, _ := http.NewRequest(${JSON.stringify(method)}, url, nil)`;
+      const headers = _getExportRequestHeaders(entry);
+      const method = (entry.method || 'GET').toUpperCase();
+      const hasBodyMethod = !['GET', 'HEAD'].includes(method);
+      const hasBody = hasBodyMethod && entry.requestBody !== undefined && entry.requestBody !== null && entry.requestBody !== '';
+      const payload = hasBody
+        ? (typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody))
+        : '';
+      const imports = ['encoding/json', 'fmt', 'net/http'];
+      if (hasBody) imports.unshift('bytes');
+      let code = `package main\n\nimport (\n${imports.map((pkg) => `\t${JSON.stringify(pkg)}`).join('\n')}\n)\n\nfunc main() {\n\turl := ${JSON.stringify(entry.url || '')}\n`;
+      if (hasBody) {
+        code += `\tpayload := []byte(${JSON.stringify(payload)})\n`;
       }
-      Object.entries(headers).slice(0, 5).forEach(([k, v]) => {
-        code += `\n\treq.Header.Set(${JSON.stringify(k)}, ${JSON.stringify(String(v))})`;
+      code += `\treq, err := http.NewRequest(${JSON.stringify(method)}, url, ${hasBody ? 'bytes.NewBuffer(payload)' : 'nil'})\n\tif err != nil {\n\t\tpanic(err)\n\t}\n`;
+      Object.entries(headers).forEach(([k, v]) => {
+        code += `\treq.Header.Set(${JSON.stringify(k)}, ${JSON.stringify(String(v))})\n`;
       });
-      code += `\n\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tvar result map[string]interface{}\n\tjson.NewDecoder(resp.Body).Decode(&result)\n\tfmt.Println(result)\n}`;
+      if (hasBody && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
+        code += `\treq.Header.Set("Content-Type", "application/json")\n`;
+      }
+      code += `\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tvar result map[string]interface{}\n\tif err := json.NewDecoder(resp.Body).Decode(&result); err != nil {\n\t\tpanic(err)\n\t}\n\tfmt.Println(result)\n}`;
       return code;
     },
     'ts-iface': (entry) => {
