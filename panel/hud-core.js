@@ -567,31 +567,14 @@ window.XRAY_HUD = (() => {
   // ══════════════════════════════════════════════════════════════════════════
   function _initKeyboard() {
     function onKeyDown(e) {
-      // Ctrl/Cmd+Shift+X — local fallback toggle for reliability.
-      // Respect shared handled marker to avoid duplicate toggles.
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyX') {
-        if (e.__xrayToggleHandled) return;
-        e.__xrayToggleHandled = true;
-        e.preventDefault();
-        e.stopPropagation();
-        window.__XRAY_lastToggleShortcutTs = Date.now();
-        console.debug('[XRAY] Keyboard chord detected in HUD, toggling locally');
-        _toggle();
-        return;
-      }
-      
+      // Global toggle/escape keys are handled by content/shortcuts to avoid
+      // duplicate handlers in HUD + panel layers.
+
       // Ctrl+Shift+D → Toggle dock mode
       if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
         e.preventDefault();
         e.stopPropagation();
         _setDockMode(_state.dockMode === 'right' ? 'bottom' : 'right');
-        return;
-      }
-      
-      // Escape → Close if open
-      if (e.key === 'Escape' && _state.isOpen) {
-        e.preventDefault();
-        _hide();
         return;
       }
     }

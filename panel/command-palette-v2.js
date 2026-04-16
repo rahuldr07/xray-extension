@@ -1234,6 +1234,7 @@ mark { background: rgba(245,158,11,0.22); color: var(--cp-t0); border-radius: 2p
     if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === 'k') {
       e.preventDefault();
       e.stopPropagation();
+      if (e.repeat) return;
       toggle();
       return;
     }

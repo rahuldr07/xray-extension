@@ -27,18 +27,7 @@ window.XRAY_Shortcuts = (() => {
 
     const inInput = _isInInput(e);
 
-    // Ctrl/Cmd+Shift+X — toggle locally for reliability.
-    // We mark the event so other listeners don't process it again.
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key?.toLowerCase() === 'x' || e.code === 'KeyX')) {
-      if (e.__xrayToggleHandled) return;
-      e.__xrayToggleHandled = true;
-      e.preventDefault();
-      e.stopPropagation();
-      window.__XRAY_lastToggleShortcutTs = Date.now();
-      console.debug('[XRAY] Keyboard chord detected in panel, toggling locally');
-      _panel.toggle();
-      return;
-    }
+    // Ctrl/Cmd+Shift+X is handled centrally in content/content.js + background.js.
 
     if (!_panel.isOpen()) return;
 
@@ -61,13 +50,19 @@ window.XRAY_Shortcuts = (() => {
 
     // Escape — close panel (unless in a text input)
     if (e.key === 'Escape' && !inInput) {
+      if (e.repeat) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       if (e.__xrayOverlayHandled) return;
       if (typeof _panel.closeTopOverlay === 'function' && _panel.closeTopOverlay()) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         return;
       }
       e.preventDefault();
+      e.stopImmediatePropagation();
       _panel.hide();
       return;
     }

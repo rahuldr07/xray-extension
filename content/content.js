@@ -71,10 +71,15 @@
       return;
     }
     if (e.__xrayToggleHandled) return;
+    if (e.repeat) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
 
     e.__xrayToggleHandled = true;
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     window.__XRAY_lastToggleShortcutTs = Date.now();
     console.debug('[XRAY] Local shortcut handler toggling panel');
     _initPanel().then(() => XRAY_Panel.toggle());

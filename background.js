@@ -3,35 +3,70 @@
 
 const _devtoolsPortsByTab = new Map();
 
-function _sendToggle(tabId) {
+function _addCandidateTabId(ids, tabLike) {
+  const tabId = Number(tabLike?.id);
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  if (!ids.includes(tabId)) ids.push(tabId);
+}
+
+async function _collectToggleTargets(tabArg) {
+  const ids = [];
+  _addCandidateTabId(ids, tabArg);
+
+  const queries = [
+    { active: true, currentWindow: true },
+    { active: true, lastFocusedWindow: true },
+    { active: true },
+  ];
+
+  for (const query of queries) {
+    try {
+      const tabs = await chrome.tabs.query(query);
+      tabs
+        .slice()
+        .sort((a, b) => (Number(b.lastAccessed) || 0) - (Number(a.lastAccessed) || 0))
+        .forEach((tab) => _addCandidateTabId(ids, tab));
+    } catch (err) {
+      console.debug('[XRAY] tab query failed', query, err?.message || String(err));
+    }
+  }
+
+  return ids;
+}
+
+async function _sendToggle(tabId) {
   if (!Number.isInteger(tabId) || tabId < 0) {
     console.debug('[XRAY] toggle ignored: invalid tabId', tabId);
-    return;
+    return false;
   }
   console.debug('[XRAY] sending toggle to tab', tabId);
-  chrome.tabs.sendMessage(tabId, { type: 'xray:toggle' }).catch(() => {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'xray:toggle' });
+    return true;
+  } catch (err) {
     // Tab may not have content script injected (e.g. chrome:// pages). Ignore.
-    console.debug('[XRAY] toggle message failed (likely unsupported page)', tabId);
-  });
+    console.debug('[XRAY] toggle message failed (likely unsupported page)', tabId, err?.message || String(err));
+    return false;
+  }
 }
 
 chrome.action.onClicked.addListener((tab) => {
-  _sendToggle(tab?.id);
+  void _sendToggle(tab?.id);
 });
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command !== 'toggle-xray') return;
   console.debug('[XRAY] command received', command, 'tabArg:', tab?.id ?? null);
 
-  // Some browsers don't provide tab for command events. Fall back to active tab.
-  let tabId = Number.isInteger(tab?.id) ? tab.id : null;
-  if (!Number.isInteger(tabId)) {
-    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    tabId = activeTab?.id;
-    console.debug('[XRAY] command fallback active tab', tabId ?? null);
+  // Some browsers do not provide tab for command events.
+  // Try several active-tab strategies and send to the first reachable tab.
+  const targetIds = await _collectToggleTargets(tab);
+  console.debug('[XRAY] command target candidates', targetIds);
+  for (const targetId of targetIds) {
+    if (await _sendToggle(targetId)) return;
   }
 
-  _sendToggle(tabId);
+  console.debug('[XRAY] command toggle failed: no reachable target tab');
 });
 
 chrome.runtime.onConnect.addListener((port) => {
