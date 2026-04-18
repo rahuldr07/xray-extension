@@ -4435,8 +4435,65 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     return { ts: 'unknown', zod: 'z.unknown()', py: 'Any', go: 'interface{}' };
   }
 
-  function _toPascal(s) { return (s || 'Object').replace(/(^|[-_])([a-z])/g, (_, __, c) => c.toUpperCase()).replace(/^./, c => c.toUpperCase()); }
-  function _toSnake(s) { return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, ''); }
+  const _PY_RESERVED = new Set([
+    'false', 'none', 'true', 'and', 'as', 'assert', 'async', 'await', 'break',
+    'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally',
+    'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal',
+    'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield',
+  ]);
+
+  function _uniqueName(base, usedNames, separator = '') {
+    const seed = String(base || 'Value');
+    let next = seed;
+    let n = 2;
+    while (usedNames.has(next)) {
+      next = `${seed}${separator}${n}`;
+      n += 1;
+    }
+    usedNames.add(next);
+    return next;
+  }
+
+  function _toPascal(s, fallback = 'Object') {
+    const source = String(s ?? '').trim();
+    const parts = source
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    let out = parts
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1).replace(/[^a-zA-Z0-9]/g, ''))
+      .join('');
+
+    if (!out) out = fallback;
+    if (!/^[A-Za-z_]/.test(out)) out = `N${out}`;
+    return out.replace(/[^A-Za-z0-9_]/g, '');
+  }
+
+  function _toSnake(s, fallback = 'field') {
+    const source = String(s ?? '')
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .toLowerCase()
+      .replace(/^_+|_+$/g, '');
+
+    let out = source || fallback;
+    if (/^\d/.test(out)) out = `field_${out}`;
+    if (_PY_RESERVED.has(out)) out = `${out}_`;
+    return out;
+  }
+
+  function _toGoFieldName(s, fallback = 'Field') {
+    let out = _toPascal(s, fallback).replace(/[^A-Za-z0-9]/g, '');
+    if (!out) out = fallback;
+    if (!/^[A-Za-z]/.test(out)) out = `Field${out}`;
+    return out.charAt(0).toUpperCase() + out.slice(1);
+  }
+
+  function _quoteTSKey(key) {
+    return JSON.stringify(String(key ?? ''));
+  }
 
   function _getExportUrlParts(entry) {
     const fullUrl = String(entry?.url || '');
@@ -4461,6 +4518,60 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   function _getExportResponseValue(entry) {
     if (!entry || entry.type !== 'api') return null;
     return entry.responseDecrypted ?? _tryParseRaw(entry.responseRaw) ?? entry.responseRaw ?? null;
+  }
+
+  function _getHeaderValue(headers, name) {
+    const needle = String(name || '').toLowerCase();
+    if (!headers || typeof headers !== 'object') return '';
+    for (const [k, v] of Object.entries(headers)) {
+      if (String(k).toLowerCase() === needle) return String(v ?? '');
+    }
+    return '';
+  }
+
+  function _getResponseContentType(entry) {
+    return _getHeaderValue(entry?.responseHeaders, 'content-type');
+  }
+
+  function _isJsonContentType(contentType) {
+    const c = String(contentType || '').toLowerCase();
+    return c.includes('application/json') || c.includes('+json');
+  }
+
+  function _isJsonLikeResponse(entry) {
+    if (!entry || entry.type !== 'api') return false;
+    if (_isJsonContentType(_getResponseContentType(entry))) return true;
+
+    const value = _getExportResponseValue(entry);
+    if (value && typeof value === 'object') return true;
+    if (typeof value !== 'string') return false;
+
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return false;
+
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function _toResponseText(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function _toJSLiteral(value, indent = 2) {
+    if (value === undefined) return 'null';
+    const serialized = JSON.stringify(value, null, indent);
+    return serialized === undefined ? 'null' : serialized;
   }
 
   function _shellQuote(value) {
@@ -4512,71 +4623,146 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     return _pyQuote(String(value));
   }
 
-  function _buildTSInterface(obj, name = 'Response', depth = 0) {
-    const nested = [];
-    let lines = `interface ${name} {\n`;
-    Object.entries(obj || {}).forEach(([k, v]) => {
-      const t = _inferType(v, k);
-      if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
-        const itemName = `${_toPascal(k)}Item`;
-        nested.push(_buildTSInterface(v[0], itemName, 0));
-        lines += `  ${k}: ${itemName}[];\n`;
-      } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-        nested.push(_buildTSInterface(v, _toPascal(k), 0));
-        lines += `  ${k}: ${_toPascal(k)};\n`;
-      } else {
-        lines += `  ${k}: ${t.ts};\n`;
+  function _buildTSInterface(obj, name = 'Response') {
+    const definitions = [];
+    const usedTypes = new Set();
+    const rootType = _toPascal(name, 'Response');
+
+    function walk(node, typeName) {
+      const currentType = _uniqueName(_toPascal(typeName, 'Response'), usedTypes);
+      const lines = [`interface ${currentType} {`];
+
+      Object.entries(node || {}).forEach(([k, v]) => {
+        const key = _quoteTSKey(k);
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+          const itemType = walk(v[0], `${_toPascal(k, 'Item')}Item`);
+          lines.push(`  ${key}: ${itemType}[];`);
+          return;
+        }
+        if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+          const nestedType = walk(v, _toPascal(k, 'Object'));
+          lines.push(`  ${key}: ${nestedType};`);
+          return;
+        }
+
+        const t = _inferType(v, k);
+        lines.push(`  ${key}: ${t.ts};`);
+      });
+
+      lines.push('}');
+      definitions.push(lines.join('\n'));
+      return currentType;
+    }
+
+    if (Array.isArray(obj)) {
+      if (!obj.length) return `type ${rootType} = unknown[];`;
+      const first = obj[0];
+      if (first && typeof first === 'object' && !Array.isArray(first)) {
+        const itemType = walk(first, `${rootType}Item`);
+        definitions.push(`type ${rootType} = ${itemType}[];`);
+        return definitions.join('\n\n');
       }
-    });
-    lines += `}`;
-    return [...nested, lines].join('\n\n');
+      const t = _inferType(first, rootType);
+      return `type ${rootType} = ${t.ts}[];`;
+    }
+
+    if (!obj || typeof obj !== 'object') {
+      return `type ${rootType} = unknown;`;
+    }
+
+    walk(obj, rootType);
+    return definitions.join('\n\n');
   }
 
   function _buildZodSchema(obj, name = 'Response') {
-    const nested = [];
-    const schemaName = `${name.charAt(0).toLowerCase() + name.slice(1)}Schema`;
-    let lines = `const ${schemaName} = z.object({\n`;
-    Object.entries(obj || {}).forEach(([k, v]) => {
-      const t = _inferType(v, k);
-      if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
-        const itemName = `${_toPascal(k)}Item`;
-        const itemSchema = `${itemName.charAt(0).toLowerCase() + itemName.slice(1)}Schema`;
-        nested.push(_buildZodSchema(v[0], itemName));
-        lines += `  ${k}: z.array(${itemSchema}),\n`;
-      } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-        const subName = _toPascal(k);
-        const subSchema = `${subName.charAt(0).toLowerCase() + subName.slice(1)}Schema`;
-        nested.push(_buildZodSchema(v, subName));
-        lines += `  ${k}: ${subSchema},\n`;
-      } else {
-        lines += `  ${k}: ${t.zod},\n`;
+    const definitions = [];
+    const usedTypes = new Set();
+    const schemaVar = (typeName) => `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}Schema`;
+    const rootType = _toPascal(name, 'Response');
+
+    function walk(node, typeName) {
+      const currentType = _uniqueName(_toPascal(typeName, 'Response'), usedTypes);
+      const currentSchema = schemaVar(currentType);
+      const lines = [`const ${currentSchema} = z.object({`];
+
+      Object.entries(node || {}).forEach(([k, v]) => {
+        const key = _quoteTSKey(k);
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
+          const itemType = walk(v[0], `${_toPascal(k, 'Item')}Item`);
+          lines.push(`  ${key}: z.array(${schemaVar(itemType)}),`);
+          return;
+        }
+        if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+          const nestedType = walk(v, _toPascal(k, 'Object'));
+          lines.push(`  ${key}: ${schemaVar(nestedType)},`);
+          return;
+        }
+
+        const t = _inferType(v, k);
+        lines.push(`  ${key}: ${t.zod},`);
+      });
+
+      lines.push('});');
+      lines.push('');
+      lines.push(`type ${currentType} = z.infer<typeof ${currentSchema}>;`);
+      definitions.push(lines.join('\n'));
+      return currentType;
+    }
+
+    if (Array.isArray(obj)) {
+      const rootSchema = schemaVar(rootType);
+      if (!obj.length) {
+        return `const ${rootSchema} = z.array(z.unknown());\n\ntype ${rootType} = z.infer<typeof ${rootSchema}>;`;
       }
-    });
-    lines += `});\n\ntype ${name} = z.infer<typeof ${schemaName}>;`;
-    return [...nested, lines].join('\n\n');
+      const first = obj[0];
+      if (first && typeof first === 'object' && !Array.isArray(first)) {
+        const itemType = walk(first, `${rootType}Item`);
+        definitions.push(`const ${rootSchema} = z.array(${schemaVar(itemType)});`);
+      } else {
+        const t = _inferType(first, rootType);
+        definitions.push(`const ${rootSchema} = z.array(${t.zod});`);
+      }
+      definitions.push(``);
+      definitions.push(`type ${rootType} = z.infer<typeof ${rootSchema}>;`);
+      return definitions.join('\n\n');
+    }
+
+    if (!obj || typeof obj !== 'object') {
+      const rootSchema = schemaVar(rootType);
+      return `const ${rootSchema} = z.unknown();\n\ntype ${rootType} = z.infer<typeof ${rootSchema}>;`;
+    }
+
+    walk(obj, rootType);
+    return definitions.join('\n\n');
   }
 
   function _buildPyDataclass(obj, name = 'Response') {
-    const imports = new Set(['from dataclasses import dataclass']);
+    const imports = new Set();
     const definitions = [];
+    const usedClasses = new Set();
+    const rootName = _toPascal(name, 'Response');
+    let rootAlias = '';
 
     function walk(node, className) {
+      imports.add('from dataclasses import dataclass');
+      const currentClass = _uniqueName(_toPascal(className, 'Response'), usedClasses);
+      const usedFields = new Set();
       const fields = [];
       Object.entries(node || {}).forEach(([k, v]) => {
-        const snake = _toSnake(k);
+        const snake = _uniqueName(_toSnake(k, 'field'), usedFields, '_');
         if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
-          const itemName = `${_toPascal(k)}Item`;
+          const itemName = `${_toPascal(k, 'Item')}Item`;
           imports.add('from typing import Any, List');
-          walk(v[0], itemName);
-          fields.push(`    ${snake}: List[${itemName}]`);
+          const nestedClass = walk(v[0], itemName);
+          fields.push(`    ${snake}: List[${nestedClass}]`);
           return;
         }
 
         const t = _inferType(v, k);
         if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-          const subName = _toPascal(k);
-          walk(v, subName);
-          fields.push(`    ${snake}: ${subName}`);
+          const subName = _toPascal(k, 'Object');
+          const nestedClass = walk(v, subName);
+          fields.push(`    ${snake}: ${nestedClass}`);
         } else {
           if (t.py === 'datetime') imports.add('from datetime import datetime');
           if (t.py === 'date') imports.add('from datetime import date');
@@ -4585,10 +4771,32 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         }
       });
       const body = fields.length ? fields.join('\n') : '    pass';
-      definitions.push(`@dataclass\nclass ${className}:\n${body}`);
+      definitions.push(`@dataclass\nclass ${currentClass}:\n${body}`);
+      return currentClass;
     }
 
-    walk(obj, name);
+    if (Array.isArray(obj)) {
+      imports.add('from typing import Any, List');
+      if (!obj.length) {
+        rootAlias = `${rootName} = List[Any]`;
+      } else {
+        const first = obj[0];
+        if (first && typeof first === 'object' && !Array.isArray(first)) {
+          const itemClass = walk(first, `${rootName}Item`);
+          rootAlias = `${rootName} = List[${itemClass}]`;
+        } else {
+          const t = _inferType(first, rootName);
+          if (t.py === 'datetime') imports.add('from datetime import datetime');
+          if (t.py === 'date') imports.add('from datetime import date');
+          rootAlias = `${rootName} = List[${t.py}]`;
+        }
+      }
+    } else if (obj && typeof obj === 'object') {
+      walk(obj, rootName);
+    } else {
+      imports.add('from typing import Any, List');
+      rootAlias = `${rootName} = Any`;
+    }
 
     const orderedImports = [
       'from dataclasses import dataclass',
@@ -4597,29 +4805,38 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       'from typing import Any, List',
     ].filter((line) => imports.has(line));
 
-    return `${orderedImports.join('\n')}\n\n${definitions.join('\n\n')}`;
+    const blocks = [];
+    if (definitions.length) blocks.push(definitions.join('\n\n'));
+    if (rootAlias) blocks.push(rootAlias);
+
+    const importBlock = orderedImports.length ? `${orderedImports.join('\n')}\n\n` : '';
+    return `${importBlock}${blocks.join('\n\n')}`.trimEnd();
   }
 
   function _buildGoStruct(obj, name = 'Response') {
     const definitions = [];
     let needsTime = false;
+    const usedStructNames = new Set();
+    const rootBase = _toGoFieldName(name, 'Response');
 
     function walk(node, structName) {
+      const currentStruct = _uniqueName(_toGoFieldName(structName, 'Response'), usedStructNames);
+      const usedFieldNames = new Set();
       const fields = [];
       Object.entries(node || {}).forEach(([k, v]) => {
-        const pascal = _toPascal(k);
+        const pascal = _uniqueName(_toGoFieldName(k, 'Field'), usedFieldNames);
         if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && !Array.isArray(v[0])) {
-          const itemName = `${_toPascal(k)}Item`;
-          walk(v[0], itemName);
-          fields.push(`\t${pascal} []${itemName} \`json:"${k}"\``);
+          const itemName = `${_toPascal(k, 'Item')}Item`;
+          const nestedStruct = walk(v[0], itemName);
+          fields.push(`\t${pascal} []${nestedStruct} \`json:"${k}"\``);
           return;
         }
 
         const t = _inferType(v, k);
         if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-          const subName = _toPascal(k);
-          walk(v, subName);
-          fields.push(`\t${pascal} ${subName} \`json:"${k}"\``);
+          const subName = _toPascal(k, 'Object');
+          const nestedStruct = walk(v, subName);
+          fields.push(`\t${pascal} ${nestedStruct} \`json:"${k}"\``);
         } else {
           if (t.go === 'time.Time') needsTime = true;
           fields.push(`\t${pascal} ${t.go} \`json:"${k}"\``);
@@ -4627,12 +4844,37 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       });
 
       const body = fields.length ? `\n${fields.join('\n')}\n` : '\n';
-      definitions.push(`type ${structName} struct {${body}}`);
+      definitions.push(`type ${currentStruct} struct {${body}}`);
+      return currentStruct;
     }
 
-    walk(obj, name);
+    let rootAlias = '';
+    if (Array.isArray(obj)) {
+      const rootType = _uniqueName(rootBase, usedStructNames);
+      if (!obj.length) {
+        rootAlias = `type ${rootType} []interface{}`;
+      } else {
+        const first = obj[0];
+        if (first && typeof first === 'object' && !Array.isArray(first)) {
+          const itemStruct = walk(first, `${rootType}Item`);
+          rootAlias = `type ${rootType} []${itemStruct}`;
+        } else {
+          const t = _inferType(first, rootType);
+          if (t.go === 'time.Time') needsTime = true;
+          rootAlias = `type ${rootType} []${t.go}`;
+        }
+      }
+    } else if (obj && typeof obj === 'object') {
+      walk(obj, rootBase);
+    } else {
+      const rootType = _uniqueName(rootBase, usedStructNames);
+      rootAlias = `type ${rootType} interface{}`;
+    }
+
     const imports = needsTime ? 'import (\n\t"time"\n)\n\n' : '';
-    return imports + definitions.join('\n\n');
+    const blocks = [...definitions];
+    if (rootAlias) blocks.push(rootAlias);
+    return imports + blocks.join('\n\n');
   }
 
   // Code generators
@@ -4664,7 +4906,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const { fullUrl, origin, pathWithQuery } = _getExportUrlParts(entry);
       const baseDecl = origin ? `const BASE_URL = ${JSON.stringify(origin)};\n\n` : '';
       const target = origin ? `BASE_URL + ${JSON.stringify(pathWithQuery)}` : JSON.stringify(fullUrl);
-      return `${baseDecl}const response = await fetch(${target}, {\n  method: ${JSON.stringify(method)},\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst data = await response.json();`;
+      return `${baseDecl}const response = await fetch(${target}, {\n  method: ${JSON.stringify(method)},\n  headers: ${hStr},${body}\n});\n\nif (!response.ok) {\n  throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);\n}\n\nconst contentType = (response.headers.get('content-type') || '').toLowerCase();\nconst data = (contentType.includes('application/json') || contentType.includes('+json'))\n  ? await response.json()\n  : await response.text();`;
     },
     axios: (entry) => {
       const headers = _getExportRequestHeaders(entry);
@@ -4692,7 +4934,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const dataArg = hasBody
         ? (typeof entry.requestBody === 'string' ? ', data=payload' : ', json=payload')
         : '';
-      return `import requests\n\nurl = ${_pyQuote(entry.url || '')}\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.request(${_pyQuote(method)}, url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ndata = response.json()\nprint(data)`;
+      return `import requests\n\nurl = ${_pyQuote(entry.url || '')}\nheaders = {\n${hStr}\n}${body}\n\nresponse = requests.request(${_pyQuote(method)}, url, headers=headers${dataArg})\nresponse.raise_for_status()\n\ncontent_type = (response.headers.get('content-type') or '').lower()\ndata = response.json() if ('application/json' in content_type or '+json' in content_type) else response.text\nprint(data)`;
     },
     go: (entry) => {
       const headers = _getExportRequestHeaders(entry);
@@ -4702,7 +4944,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const payload = hasBody
         ? (typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody))
         : '';
-      const imports = ['encoding/json', 'fmt', 'net/http'];
+      const imports = ['encoding/json', 'fmt', 'io', 'net/http', 'strings'];
       if (hasBody) imports.unshift('bytes');
       let code = `package main\n\nimport (\n${imports.map((pkg) => `\t${JSON.stringify(pkg)}`).join('\n')}\n)\n\nfunc main() {\n\turl := ${JSON.stringify(entry.url || '')}\n`;
       if (hasBody) {
@@ -4715,7 +4957,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       if (hasBody && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
         code += `\treq.Header.Set("Content-Type", "application/json")\n`;
       }
-      code += `\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tvar result map[string]interface{}\n\tif err := json.NewDecoder(resp.Body).Decode(&result); err != nil {\n\t\tpanic(err)\n\t}\n\tfmt.Println(result)\n}`;
+      code += `\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\n\tcontentType := strings.ToLower(resp.Header.Get("Content-Type"))\n\tif strings.Contains(contentType, "application/json") || strings.Contains(contentType, "+json") {\n\t\tvar result interface{}\n\t\tif err := json.NewDecoder(resp.Body).Decode(&result); err != nil {\n\t\t\tpanic(err)\n\t\t}\n\t\tfmt.Printf("%+v\\n", result)\n\t\treturn\n\t}\n\n\trawBody, err := io.ReadAll(resp.Body)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tfmt.Println(string(rawBody))\n}`;
       return code;
     },
     'ts-iface': (entry) => {
@@ -4740,12 +4982,21 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     },
     jest: (entry) => {
       const data = _getExportResponseValue(entry);
+      const isJsonResponse = _isJsonLikeResponse(entry);
+      const contentType = _getResponseContentType(entry) || (isJsonResponse ? 'application/json' : 'text/plain');
+      const textBody = _toResponseText(data);
+      const jsonBody = _toJSLiteral(data, 8).split('\n').join('\n      ');
       const describeLabel = `${entry.method || 'GET'} ${entry.urlPath || entry.url || '/'}`;
-      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe(${JSON.stringify(describeLabel)}, () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      json: async () => (${JSON.stringify(data, null, 8).split('\n').join('\n      ')}),\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
+      return `import { yourFunction } from '../services/api';\n\nglobal.fetch = jest.fn();\n\ndescribe(${JSON.stringify(describeLabel)}, () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: true,\n      status: ${entry.status},\n      headers: { get: (name: string) => (name?.toLowerCase() === 'content-type' ? ${JSON.stringify(contentType)} : null) },\n      json: async () => (${jsonBody}),\n      text: async () => ${JSON.stringify(textBody)},\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('returns expected data', async () => {\n    const result = await yourFunction();\n    expect(result).toBeDefined();\n  });\n\n  it('throws on error response', async () => {\n    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400 });\n    await expect(yourFunction()).rejects.toThrow();\n  });\n});`;
     },
     msw: (entry) => {
       const data = _getExportResponseValue(entry);
-      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}(${JSON.stringify(entry.url || '')}, async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${JSON.stringify(data, null, 6).split('\n').join('\n      ')},\n      { status: ${entry.status} }\n    );\n  }),\n];`;
+      const isJsonResponse = _isJsonLikeResponse(entry);
+      const contentType = _getResponseContentType(entry) || (isJsonResponse ? 'application/json' : 'text/plain');
+      if (isJsonResponse) {
+        return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}(${JSON.stringify(entry.url || '')}, async ({ request }) => {\n    // const body = await request.json();\n\n    return HttpResponse.json(\n      ${_toJSLiteral(data, 6).split('\n').join('\n      ')},\n      { status: ${entry.status}, headers: { 'Content-Type': ${JSON.stringify(contentType)} } }\n    );\n  }),\n];`;
+      }
+      return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${(entry.method || 'GET').toLowerCase()}(${JSON.stringify(entry.url || '')}, async ({ request }) => {\n    // const body = await request.text();\n\n    return new HttpResponse(\n      ${JSON.stringify(_toResponseText(data))},\n      { status: ${entry.status}, headers: { 'Content-Type': ${JSON.stringify(contentType)} } }\n    );\n  }),\n];`;
     },
   };
 
@@ -5044,100 +5295,27 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     const baseName = `xray-export-${Date.now()}`;
     const Export = window.XRAY_Export;
-    if (Export) {
-      try {
-        if (format === 'json') {
-          await Export.downloadJSON(entries, `${baseName}.json`);
-        } else if (format === 'har') {
-          await Export.downloadHAR(entries, `${baseName}.har`);
-        } else if (format === 'csv') {
-          await Export.downloadCSV(entries, `${baseName}.csv`);
-        } else {
-          throw new Error(`Unsupported export format: ${format}`);
-        }
-        _showToast(`Exported ${entries.length} entries as ${format.toUpperCase()}`);
-        return;
-      } catch (err) {
-        console.error('[XRAY] Session export failed', err);
-        _showToast('Session export failed');
+    if (!Export) {
+      console.error('[XRAY] Session export unavailable: XRAY_Export not loaded');
+      _showToast('Session export unavailable');
+      return;
+    }
+
+    try {
+      if (format === 'json') {
+        await Export.downloadJSON(entries, `${baseName}.json`);
+      } else if (format === 'har') {
+        await Export.downloadHAR(entries, `${baseName}.har`);
+      } else if (format === 'csv') {
+        await Export.downloadCSV(entries, `${baseName}.csv`);
+      } else {
+        throw new Error(`Unsupported export format: ${format}`);
       }
+      _showToast(`Exported ${entries.length} entries as ${format.toUpperCase()}`);
+    } catch (err) {
+      console.error('[XRAY] Session export failed', err);
+      _showToast('Session export failed');
     }
-
-    const csvEscape = (value) => {
-      const raw = value === undefined || value === null ? '' : String(value);
-      return `"${raw.replace(/"/g, '""')}"`;
-    };
-
-    let content = '';
-    let filename = '';
-    let mime = 'text/plain';
-
-    switch (format) {
-      case 'json':
-        content = JSON.stringify(entries, null, 2);
-        filename = `xray-export-${Date.now()}.json`;
-        mime = 'application/json';
-        break;
-      case 'har':
-        content = JSON.stringify(_buildHAR(entries), null, 2);
-        filename = `xray-export-${Date.now()}.har`;
-        mime = 'application/json';
-        break;
-      case 'csv':
-        content = 'timestamp,method,url,status,duration,size\n';
-        entries.forEach(e => {
-          content += [
-            csvEscape(new Date(e.timestamp).toISOString()),
-            csvEscape(e.method),
-            csvEscape(e.url),
-            csvEscape(e.status),
-            csvEscape(e.duration),
-            csvEscape(e.size),
-          ].join(',') + '\n';
-        });
-        filename = `xray-export-${Date.now()}.csv`;
-        mime = 'text/csv';
-        break;
-    }
-
-    const blob = new Blob([content], { type: mime });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    
-    _showToast(`Exported ${entries.length} entries as ${format.toUpperCase()}`);
-  }
-
-  function _buildHAR(entries) {
-    return {
-      log: {
-        version: '1.2',
-        creator: { name: 'XRAY DevTools', version: '1.0.0' },
-        entries: entries.map(e => ({
-          startedDateTime: new Date(e.timestamp).toISOString(),
-          time: e.duration,
-          request: {
-            method: e.method,
-            url: e.url,
-            headers: Object.entries(e.requestHeaders || {}).map(([k, v]) => ({ name: k, value: v })),
-            postData: e.requestBody ? { mimeType: 'application/json', text: JSON.stringify(e.requestBody) } : undefined,
-          },
-          response: {
-            status: e.status,
-            statusText: '',
-            headers: Object.entries(e.responseHeaders || {}).map(([k, v]) => ({ name: k, value: v })),
-            content: {
-              size: e.size,
-              mimeType: 'application/json',
-              text: typeof e.responseDecrypted === 'object' ? JSON.stringify(e.responseDecrypted) : (e.responseRaw || ''),
-            },
-          },
-          timings: { send: 0, wait: e.duration, receive: 0 },
-        })),
-      },
-    };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -5326,17 +5504,32 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   // Settings Modal
   // ══════════════════════════════════════════════════════════════════════════
 
-  function _exportAllEntries() {
-    const payload = JSON.stringify(_state.entries, null, 2);
+  async function _exportAllEntries() {
+    const entries = _state.entries || [];
+    const filename = `xray-export-${Date.now()}.json`;
+    const Export = window.XRAY_Export;
+
+    if (Export?.downloadJSON) {
+      try {
+        await Export.downloadJSON(entries, filename);
+        _showToast(`Exported ${entries.length} entries as JSON`);
+        return;
+      } catch (err) {
+        console.error('[XRAY] Export all entries failed via XRAY_Export', err);
+      }
+    }
+
+    const payload = JSON.stringify(entries, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `xray-export-${Date.now()}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 0);
+    _showToast(`Exported ${entries.length} entries as JSON`);
   }
 
   function _openSettingsModal() {
@@ -5531,7 +5724,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       _updateCounts();
       _updateSettingsStats();
     });
-    _dom.settingsExport?.addEventListener('click', () => _exportAllEntries());
+    _dom.settingsExport?.addEventListener('click', () => { void _exportAllEntries(); });
 
     _root.querySelectorAll('.xr-tab').forEach(btn => {
       btn.addEventListener('click', () => {
