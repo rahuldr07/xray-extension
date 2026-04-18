@@ -1883,7 +1883,7 @@ window.XRAY_Panel = (() => {
   display: none;
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.65);
+  background: rgba(0,0,0,.58);
   z-index: 9999;
   align-items: flex-start;
   justify-content: center;
@@ -1895,145 +1895,145 @@ window.XRAY_Panel = (() => {
 .xr-copy-modal {
   width: 100%;
   max-width: 660px;
-  background: #1c1c1e;
-  border: 0.5px solid rgba(255,255,255,0.13);
+  background: var(--xr-bg2);
+  border: 1px solid var(--xr-border);
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,.45);
 }
 /* Modal Header */
 .xr-copy-header {
   padding: 14px 16px 12px;
-  border-bottom: 0.5px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--xr-border);
+  background: var(--xr-bg);
 }
 .xr-copy-header-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .xr-copy-method {
   padding: 3px 8px; border-radius: 5px;
   font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
 }
-.xr-copy-method.m-get { background: rgba(52,199,89,0.15); color: #34c759; border: 0.5px solid rgba(52,199,89,0.25); }
-.xr-copy-method.m-post { background: rgba(10,132,255,0.15); color: #0a84ff; border: 0.5px solid rgba(10,132,255,0.25); }
-.xr-copy-method.m-put { background: rgba(255,159,10,0.15); color: #ff9f0a; border: 0.5px solid rgba(255,159,10,0.25); }
-.xr-copy-method.m-patch { background: rgba(175,82,222,0.15); color: #af52de; border: 0.5px solid rgba(175,82,222,0.25); }
-.xr-copy-method.m-delete { background: rgba(255,69,58,0.15); color: #ff453a; border: 0.5px solid rgba(255,69,58,0.25); }
-.xr-copy-method.m-log { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 0.5px solid rgba(255,255,255,0.12); }
+.xr-copy-method.m-get { background: rgba(34,197,94,0.14); color: var(--xr-success); border: 0.5px solid rgba(34,197,94,0.28); }
+.xr-copy-method.m-post { background: rgba(59,130,246,0.14); color: var(--xr-info); border: 0.5px solid rgba(59,130,246,0.28); }
+.xr-copy-method.m-put { background: rgba(245,158,11,0.14); color: var(--xr-warning); border: 0.5px solid rgba(245,158,11,0.28); }
+.xr-copy-method.m-patch { background: rgba(168,85,247,0.14); color: var(--xr-purple, var(--xr-accent)); border: 0.5px solid rgba(168,85,247,0.28); }
+.xr-copy-method.m-delete { background: rgba(239,68,68,0.14); color: var(--xr-error); border: 0.5px solid rgba(239,68,68,0.28); }
+.xr-copy-method.m-log { background: var(--xr-surface); color: var(--xr-subtext); border: 1px solid var(--xr-border); }
 .xr-copy-url {
-  font-size: 12px; color: rgba(255,255,255,0.75); letter-spacing: -0.2px;
+  font-size: 12px; color: var(--xr-subtext); letter-spacing: -0.2px;
   flex: 1; min-width: 0; word-break: break-all; line-height: 1.5;
 }
 .xr-copy-close {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.09); border-radius: 6px;
-  cursor: pointer; color: rgba(255,255,255,0.4); font-size: 14px; transition: all 0.12s; flex-shrink: 0;
+  background: var(--xr-surface); border: 1px solid var(--xr-border); border-radius: 6px;
+  cursor: pointer; color: var(--xr-muted); font-size: 14px; transition: all .15s; flex-shrink: 0;
 }
-.xr-copy-close:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+.xr-copy-close:hover { background: var(--xr-bg3); color: var(--xr-text); }
 .xr-copy-pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .xr-copy-pill {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
-  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.09);
-  border-radius: 20px; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: -0.1px;
+  background: var(--xr-surface); border: 1px solid var(--xr-border);
+  border-radius: 20px; font-size: 11px; color: var(--xr-muted); letter-spacing: -0.1px;
 }
-.xr-copy-pill b { color: rgba(255,255,255,0.7); font-weight: 500; }
-.xr-copy-pill.dec { background: rgba(52,199,89,0.1); border-color: rgba(52,199,89,0.2); color: rgba(52,199,89,0.8); }
+.xr-copy-pill b { color: var(--xr-text); font-weight: 500; }
+.xr-copy-pill.dec { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.28); color: var(--xr-success); }
 /* Two-Panel Body */
 .xr-copy-body { display: flex; height: 420px; }
 /* Left Rail */
 .xr-copy-rail {
-  width: 180px; flex-shrink: 0; border-right: 0.5px solid rgba(255,255,255,0.07);
+  width: 180px; flex-shrink: 0; border-right: 1px solid var(--xr-border);
   overflow-y: auto; padding: 8px 0;
 }
 .xr-copy-rail::-webkit-scrollbar { width: 0; }
 .xr-copy-rail-group { margin-bottom: 2px; }
 .xr-copy-rail-label {
   padding: 8px 12px 4px; font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
-  color: rgba(255,255,255,0.22); text-transform: uppercase; user-select: none;
+  color: var(--xr-muted); text-transform: uppercase; user-select: none;
 }
 .xr-copy-rail-item {
   display: flex; align-items: center; gap: 9px; padding: 7px 12px;
-  cursor: pointer; transition: background 0.07s; border-left: 2px solid transparent;
+  cursor: pointer; transition: all .15s; border-left: 2px solid transparent;
 }
-.xr-copy-rail-item:hover { background: rgba(255,255,255,0.05); }
-.xr-copy-rail-item.sel { background: rgba(99,102,241,0.14); border-left-color: #6366f1; }
-.xr-copy-rail-item.sel .xr-copy-rail-item-label { color: rgba(255,255,255,0.9); }
-.xr-copy-rail-item.sel .xr-copy-rail-item-icon { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.3); }
+.xr-copy-rail-item:hover { background: var(--xr-surface); }
+.xr-copy-rail-item.sel { background: rgba(99,102,241,0.14); border-left-color: var(--xr-ring); }
+.xr-copy-rail-item.sel .xr-copy-rail-item-label { color: var(--xr-text); }
+.xr-copy-rail-item.sel .xr-copy-rail-item-icon { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.28); color: var(--xr-accent); }
 .xr-copy-rail-item-icon {
   width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.08);
-  border-radius: 6px; flex-shrink: 0; transition: all 0.1s; color: rgba(255,255,255,0.5);
+  background: var(--xr-surface); border: 1px solid var(--xr-border);
+  border-radius: 6px; flex-shrink: 0; transition: all .15s; color: var(--xr-subtext);
 }
-.xr-copy-rail-item-label { font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: -0.1px; flex: 1; }
+.xr-copy-rail-item-label { font-size: 12px; color: var(--xr-subtext); letter-spacing: -0.1px; flex: 1; }
 .xr-copy-rail-item-badge {
   padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 500;
-  background: rgba(99,102,241,0.2); color: #a5b4fc;
+  background: rgba(99,102,241,0.2); color: var(--xr-accent);
 }
-.xr-copy-rail-sep { height: 0.5px; background: rgba(255,255,255,0.06); margin: 6px 12px; }
+.xr-copy-rail-sep { height: 1px; background: var(--xr-border); margin: 6px 12px; }
 /* Right Panel */
 .xr-copy-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
-.xr-copy-panel-head { padding: 10px 14px 8px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; }
-.xr-copy-panel-title { font-size: 13px; color: rgba(255,255,255,0.8); font-weight: 500; letter-spacing: -0.1px; }
-.xr-copy-panel-desc { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 2px; letter-spacing: -0.05px; line-height: 1.5; }
+.xr-copy-panel-head { padding: 10px 14px 8px; border-bottom: 1px solid var(--xr-border); flex-shrink: 0; }
+.xr-copy-panel-title { font-size: 13px; color: var(--xr-text); font-weight: 500; letter-spacing: -0.1px; }
+.xr-copy-panel-desc { font-size: 11px; color: var(--xr-muted); margin-top: 2px; letter-spacing: -0.05px; line-height: 1.5; }
 .xr-copy-code {
   flex: 1; overflow: auto; padding: 12px 14px;
   font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 11px; line-height: 1.7; color: rgba(255,255,255,0.78);
-  white-space: pre; tab-size: 2; background: rgba(0,0,0,0.2);
+  font-size: 11px; line-height: 1.7; color: var(--xr-text);
+  white-space: pre; tab-size: 2; background: var(--xr-bg);
 }
 .xr-copy-code::-webkit-scrollbar { width: 3px; height: 3px; }
-.xr-copy-code::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.xr-copy-code::-webkit-scrollbar-thumb { background: var(--xr-border); border-radius: 2px; }
 /* Syntax Highlighting */
-.sy-k { color: #fc5fa3; } .sy-s { color: #fc6a5d; } .sy-n { color: #d9c97c; }
-.sy-t { color: #5dd8ff; } .sy-fn { color: #a167e6; } .sy-prop { color: #41a1c0; }
-.sy-bool { color: #a167e6; } .sy-cm { color: #5c6e74; font-style: italic; }
+.sy-k { color: var(--xr-accent); } .sy-s { color: var(--xr-success); } .sy-n { color: var(--xr-warning); }
+.sy-t { color: var(--xr-info); } .sy-fn { color: var(--xr-purple, var(--xr-accent)); } .sy-prop { color: var(--xr-subtext); }
+.sy-bool { color: var(--xr-purple, var(--xr-accent)); } .sy-cm { color: var(--xr-muted); font-style: italic; }
 /* Footer */
 .xr-copy-footer {
   display: flex; align-items: center; gap: 8px; padding: 9px 14px;
-  border-top: 0.5px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); flex-shrink: 0;
+  border-top: 1px solid var(--xr-border); background: var(--xr-bg); flex-shrink: 0;
 }
 .xr-copy-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
-  background: #6366f1; border: none; border-radius: 7px; color: white;
+  background: var(--xr-ring); border: none; border-radius: 7px; color: #fff;
   font-size: 12.5px; font-weight: 500; cursor: pointer; font-family: inherit;
-  transition: all 0.15s; letter-spacing: -0.1px; flex-shrink: 0;
+  transition: all .15s; letter-spacing: -0.1px; flex-shrink: 0;
 }
-.xr-copy-btn:hover { background: #4f52d4; }
-.xr-copy-btn.copied { background: #34c759; }
+.xr-copy-btn:hover { background: var(--xr-accent); }
+.xr-copy-btn.copied { background: var(--xr-success); }
 .xr-copy-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.xr-copy-btn:disabled:hover { background: #6366f1; }
+.xr-copy-btn:disabled:hover { background: var(--xr-ring); }
 .xr-copy-btn-download {
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
-  background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 7px;
-  color: rgba(255,255,255,0.55); font-size: 12px; font-weight: 500;
+  background: var(--xr-surface); border: 1px solid var(--xr-border); border-radius: 7px;
+  color: var(--xr-subtext); font-size: 12px; font-weight: 500;
   cursor: pointer; font-family: inherit; transition: all 0.13s; letter-spacing: -0.1px;
 }
-.xr-copy-btn-download:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+.xr-copy-btn-download:hover { background: var(--xr-bg3); color: var(--xr-text); }
 .xr-copy-btn-download:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 .xr-copy-btn-download:disabled:hover {
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.55);
+  background: var(--xr-surface);
+  color: var(--xr-subtext);
 }
 .xr-copy-footer-spacer { flex: 1; }
-.xr-copy-footer-hint { font-size: 11px; color: rgba(255,255,255,0.18); letter-spacing: -0.05px; }
+.xr-copy-footer-hint { font-size: 11px; color: var(--xr-muted); letter-spacing: -0.05px; }
 /* Session Export */
 .xr-copy-session {
-  padding: 10px 16px; border-top: 0.5px solid rgba(255,255,255,0.07);
-  background: rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-top: 1px solid var(--xr-border);
+  background: var(--xr-bg); display: flex; align-items: center; gap: 8px;
 }
-.xr-copy-session-label { font-size: 11.5px; color: rgba(255,255,255,0.3); letter-spacing: -0.05px; }
+.xr-copy-session-label { font-size: 11.5px; color: var(--xr-muted); letter-spacing: -0.05px; }
 .xr-copy-session-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
-  background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.09); border-radius: 6px;
-  color: rgba(255,255,255,0.45); font-size: 11.5px; cursor: pointer; font-family: inherit;
-  transition: all 0.12s; letter-spacing: -0.1px;
+  background: var(--xr-surface); border: 1px solid var(--xr-border); border-radius: 6px;
+  color: var(--xr-subtext); font-size: 11.5px; cursor: pointer; font-family: inherit;
+  transition: all .15s; letter-spacing: -0.1px;
 }
-.xr-copy-session-btn:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.7); }
-.xr-copy-session-hint { font-size: 11px; color: rgba(255,255,255,0.18); margin-left: auto; }
+.xr-copy-session-btn:hover { background: var(--xr-bg3); color: var(--xr-text); }
+.xr-copy-session-hint { font-size: 11px; color: var(--xr-muted); margin-left: auto; }
 
 /* ─── Settings Modal ─────────────────────────────────────────────────────── */
 .xr-settings-backdrop {
@@ -2437,7 +2437,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       </div>
     </div>
     <div class="xr-copy-session" id="xr-copy-session">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:rgba(255,255,255,0.25);flex-shrink:0;"><path d="M2 4h3v8H2zM6 8h3v4H6zM10 2h4v10h-4z" stroke="currentColor" stroke-width="1.2"/></svg>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--xr-muted);flex-shrink:0;"><path d="M2 4h3v8H2zM6 8h3v4H6zM10 2h4v10h-4z" stroke="currentColor" stroke-width="1.2"/></svg>
       <span class="xr-copy-session-label">Export session</span>
       <button class="xr-copy-session-btn" id="xr-session-json">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
@@ -4780,13 +4780,26 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         .replace(/\b(\d+)\b/g, '<span class="sy-n">$1</span>');
     }
     if (['go', 'go-struct'].includes(format)) {
-      return c
-        .replace(/\/\/.+/g, '<span class="sy-cm">$&</span>')
+      let out = c;
+      const tokens = [];
+      const stash = (regex, cls) => {
+        out = out.replace(regex, (m) => {
+          const token = `@@XRAYTOK${tokens.length}@@`;
+          tokens.push(`<span class="${cls}">${m}</span>`);
+          return token;
+        });
+      };
+
+      stash(/\/\/.+/g, 'sy-cm');
+      stash(/`([^`]*)`/g, 'sy-prop');
+      stash(/"([^"\n]*)"/g, 'sy-s');
+
+      out = out
         .replace(/\b(package|import|type|struct|func|return|if|var|const|defer)\b/g, '<span class="sy-k">$1</span>')
         .replace(/\b(string|int|float64|bool|error|interface)\b/g, '<span class="sy-t">$1</span>')
-        .replace(/"([^"\n]*)"/g, '<span class="sy-s">"$1"</span>')
-        .replace(/`([^`]*)`/g, '<span class="sy-prop">`$1`</span>')
         .replace(/\b(\d+)\b/g, '<span class="sy-n">$1</span>');
+
+      return out.replace(/@@XRAYTOK(\d+)@@/g, (_, i) => tokens[Number(i)] || '');
     }
     return c;
   }
