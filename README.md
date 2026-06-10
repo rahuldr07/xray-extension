@@ -5,7 +5,11 @@
 <h1 align="center">XRAY</h1>
 
 <p align="center">
-  <strong>A React-powered API debugging extension for people who live in network traces, JSON responses, console commands, and export workflows.</strong>
+  <strong>Not another JSON viewer. XRAY is a response operations console for API debugging.</strong>
+</p>
+
+<p align="center">
+  It captures requests, understands responses, prepares context-aware operations, and turns live traffic into commands, notebook cells, exports, schemas, mocks, and test assets.
 </p>
 
 <p align="center">
@@ -13,18 +17,19 @@
     <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-89b4fa?style=for-the-badge&labelColor=181825">
   </a>
   <a href="https://react.dev/">
-    <img alt="React" src="https://img.shields.io/badge/UI-React%20%2B%20TypeScript-cba6f7?style=for-the-badge&labelColor=181825">
+    <img alt="React TypeScript" src="https://img.shields.io/badge/UI-React%20%2B%20TypeScript-cba6f7?style=for-the-badge&labelColor=181825">
   </a>
   <a href="https://tanstack.com/virtual/latest">
     <img alt="TanStack Virtual" src="https://img.shields.io/badge/Lists-TanStack%20Virtual-94e2d5?style=for-the-badge&labelColor=181825">
   </a>
   <img alt="Local first" src="https://img.shields.io/badge/Runtime-Local%20first-a6e3a1?style=for-the-badge&labelColor=181825">
+  <img alt="No remote UI assets" src="https://img.shields.io/badge/Remote%20UI%20assets-0-f9e2af?style=for-the-badge&labelColor=181825">
 </p>
 
 <p align="center">
-  <a href="#screenshots">Screenshots</a>
+  <a href="#the-debugging-loop">Debugging Loop</a>
   <span> . </span>
-  <a href="#why-xray">Why XRAY</a>
+  <a href="#product-tour">Product Tour</a>
   <span> . </span>
   <a href="#smart-response-operations">Smart Ops</a>
   <span> . </span>
@@ -35,47 +40,94 @@
 
 ---
 
-## What It Is
+## The Pitch
 
-XRAY is a browser extension that turns captured API calls into an interactive debugging workspace. It keeps the page-facing runtime vanilla JavaScript for extension safety, then renders the user experience with a bundled React + TypeScript panel.
+Chrome DevTools is powerful, but API investigation still becomes a tab-switching routine: Network panel, Console, copied JSON, external formatter, copied cURL, handmade mocks, notes somewhere else.
 
-It is built for one workflow:
+XRAY compresses that workflow into one extension surface.
 
-```txt
-capture request -> inspect response -> run safe commands -> compare data -> export artifacts
-```
+<table>
+  <tr>
+    <td width="25%"><strong>Capture</strong><br><sub>fetch, XHR, console logs, timing, size, headers.</sub></td>
+    <td width="25%"><strong>Inspect</strong><br><sub>tree, raw, grid, schema, diff, waterfall, headers.</sub></td>
+    <td width="25%"><strong>Operate</strong><br><sub>contextual commands and response-native actions.</sub></td>
+    <td width="25%"><strong>Export</strong><br><sub>cURL, fetch, axios, JSON, HAR, types, tests.</sub></td>
+  </tr>
+</table>
 
-No separate AI chat. No noisy copilot feed. Intelligence appears where it matters: directly beside the selected response.
+## The Debugging Loop
 
-## Screenshots
+<p align="center">
+  <img src="docs/assets/readme/workflow-loop.png" alt="XRAY debugging workflow: capture, understand, operate, export" width="100%" />
+</p>
 
-### Network Inspector Pro
+XRAY is designed around the moment after you click a request and ask: what can I do with this response right now?
 
-Dense request table, selected-row highlight, response drawer, quick filters, endpoint grouping, status flags, timing, size, and contextual operations.
+It answers with response-native operations. They switch views, copy generated artifacts, open the export modal, or insert prepared commands into Console or Notebook. They do not auto-run code.
+
+## Product Tour
+
+### 1. Network Inspector Pro
+
+A dense API inspector that keeps the table wide, the selected request obvious, and the response detail close.
 
 <p align="center">
   <img src="docs/assets/readme/api-network-inspector.png" alt="XRAY API Network Inspector Pro" width="100%" />
 </p>
 
-### DevTools-Style Console
+What is built in:
 
-The Console tab stays familiar: network stream on top, inline output below, command prompt pinned at the bottom, and request-aware helpers available in context.
+| Capability | Detail |
+| --- | --- |
+| Wide request table | Method, status, path, domain, type, timing, size, time, flags. |
+| One selected row | Strong highlight and one active detail drawer at a time. |
+| Smart flags | Error, Slow, Repeated, Large, Empty, Pinned. |
+| Endpoint grouping | Count, errors, average/max timing, total size, last seen. |
+| Fast lists | TanStack Virtual for long request and console streams. |
+| Detail views | Tree, raw, grid, schema, diff, visualize, waterfall, headers. |
+
+### 2. Console That Feels Familiar
+
+The Console tab starts with DevTools fundamentals: compact filters, request stream, inline output, and a pinned prompt.
 
 <p align="center">
   <img src="docs/assets/readme/console-workspace.png" alt="XRAY DevTools-style console workspace" width="100%" />
 </p>
 
-### Export Modal
+The selected request becomes command context:
 
-Export selected requests or whole sessions as debugging artifacts: cURL, fetch, axios, JSON, schema, mock data, TypeScript, Zod, Jest, MSW, CSV, and HAR.
+```js
+res
+req
+headers
+entry
+prev()
+next()
+similar()
+errors()
+slow(1000)
+schema(res)
+table(res.items || res)
+diff(prev()?.responseDecrypted, res)
+```
+
+### 3. Export Everything Useful
+
+The export modal is built for turning debugging state into real artifacts.
 
 <p align="center">
   <img src="docs/assets/readme/export-modal.png" alt="XRAY export modal" width="100%" />
 </p>
 
-### Settings And Mobile Detail
+| Request exports | Session exports |
+| --- | --- |
+| JSON, raw response, cURL, fetch, axios | Session JSON |
+| Schema, mock response, TypeScript, Zod | Session CSV |
+| Jest test, MSW handler | Session HAR |
 
-Settings are real controls, not placeholders. Mobile keeps the response detail usable with a compact bottom-sheet style layout.
+Formats that need a selected request are disabled with an explanation rather than behaving like dead controls.
+
+### 4. Settings, Mobile, Insights
 
 <table>
   <tr>
@@ -88,129 +140,91 @@ Settings are real controls, not placeholders. Mobile keeps the response detail u
   </tr>
 </table>
 
-### Local Insights
-
-XRAY surfaces deterministic session signals from captured requests: error counts, slowest requests, repeated endpoints, status mix, average latency, and payload size.
-
 <p align="center">
   <img src="docs/assets/readme/insights.png" alt="XRAY local insights tab" width="100%" />
 </p>
 
-## Why XRAY
+Settings are wired to state and runtime behavior where appropriate:
 
-Most API inspectors show the response and stop. XRAY is built around what you do next.
+- Capture fetch and XHR toggles.
+- Recording mode.
+- Max entries.
+- Slow and very-slow thresholds.
+- Default detail view.
+- Compact rows.
+- Show host in path.
+- Accent color.
+- Destructive-action confirmations.
 
-| Need | XRAY answer |
+## What Makes It Different
+
+<p align="center">
+  <img src="docs/assets/readme/feature-grid.png" alt="XRAY feature grid" width="100%" />
+</p>
+
+| Ordinary inspector | XRAY |
 | --- | --- |
-| "What happened?" | Dense request table, console stream, status flags, timing, size, and logs. |
-| "What is inside this response?" | Tree, raw, grid, schema, visualize, diff, waterfall, and headers views. |
-| "What should I try next?" | Contextual Smart Ops directly on the selected response. |
-| "Can I turn this into code?" | cURL, fetch, axios, TypeScript, Zod, Jest, MSW, mocks, HAR, CSV. |
-| "Can I debug without leaving the page?" | Floating HUD with drag, resize, collapse, and focus isolation. |
-| "Can I use a larger workspace?" | DevTools panel and pop-out window modes. |
-
-## Core Features
-
-| Area | What is included |
-| --- | --- |
-| Capture | `fetch`, XHR, console logs, warnings, errors, tables, and page output. |
-| API Inspector | Virtualized request table, endpoint groups, quick filters, selected detail drawer. |
-| Console | DevTools-style stream, command history, request-aware aliases, safe output rendering. |
-| Notebook | Saved investigation cells that can run against the selected response context. |
-| Smart Ops | Schema, Table, Visualize, Compare Previous, Diff, Similar Calls, Related Errors. |
-| Export | Request and session exports for shell, JavaScript, types, tests, mocks, CSV, and HAR. |
-| Settings | Capture toggles, thresholds, row density, default view, accent, confirmations. |
-| Modes | Floating HUD, DevTools panel, pop-out window. |
-| Safety | Bounded serialization, text-rendered data, source validation, no remote UI assets. |
+| Shows requests | Turns selected requests into executable context. |
+| Shows JSON | Adds tree, raw, grid, schema, diff, visualize, waterfall. |
+| Copies cURL | Exports cURL, fetch, axios, types, schemas, mocks, tests, HAR, CSV. |
+| Global assistant feed | Response-native operations beside the current response. |
+| One panel mode | Floating HUD, DevTools panel, and pop-out window. |
+| String rendering risk | Text-rendered output, bounded serialization, no unsafe HTML. |
 
 ## Smart Response Operations
 
-XRAY does not guess globally. It reacts to the selected response.
+XRAY does not need a separate Copilot tab to feel intelligent. The selected response gets the operations it deserves.
 
-| Response shape | Operations XRAY can surface |
+| Situation | Operations XRAY can surface |
 | --- | --- |
 | JSON object or array | Schema, Table, Visualize, Send to Console, Send to Notebook. |
-| 4xx or 5xx status | Inspect Error, Related Errors, Compare Previous. |
+| 4xx or 5xx response | Inspect Error, Related Errors, Compare Previous. |
 | Slow request | Similar Calls, Waterfall, Slow Calls. |
 | Repeated endpoint | Similar Calls, Endpoint Groups, Waterfall. |
 | Large payload | Schema, Table, Copy Full. |
 | Empty response | Headers, Request, Similar Calls. |
 | Schema drift | Compare Previous, Diff, Schema. |
 
-Operations either switch a view, copy generated text, open Export, or insert a prepared command. They never auto-run code.
+Operations stay user-controlled:
 
-## Console Helpers
-
-When a request is selected, XRAY prepares useful aliases:
-
-```js
-res
-req
-headers
-entry
-prev()
-next()
-similar()
-errors()
-slow(500)
-status(500)
-endpoint('/api/users')
-domain('api.example.com')
-schema(res)
-table(res.items || res)
-diff(prev()?.responseDecrypted, res)
-mock(entry)
+```txt
+view operation      -> switch response view
+copy operation      -> copy generated text
+console operation   -> insert command, do not run
+notebook operation  -> create a cell, do not run
+export operation    -> open export modal
 ```
 
-Example investigation flow:
+## Three Surfaces
 
-```js
-schema(res)
-table(res.items || res)
-diff(prev()?.responseDecrypted, res)
-errors()
-slow(1000)
-```
-
-## Three Ways To Use It
-
-| Mode | Open with | Best for |
+| Surface | Open with | Use it for |
 | --- | --- | --- |
 | Floating HUD | Extension icon or `Ctrl+Shift+X` | Fast debugging without leaving the page. |
-| DevTools panel | Browser DevTools -> XRAY | Long debugging sessions beside Elements, Network, and Console. |
-| Pop-out window | Window button inside XRAY | Wide inspection, exports, and comparing response details. |
+| DevTools panel | Browser DevTools -> XRAY | Long investigation beside Elements, Network, and Console. |
+| Pop-out window | Window button inside XRAY | Wide response inspection and export workflows. |
+
+The HUD is draggable, resizable, collapsible, and mounted in a closed Shadow DOM host.
 
 ## Architecture
 
-XRAY has a strict boundary: UI is React, capture/runtime stays vanilla.
+<p align="center">
+  <img src="docs/assets/readme/architecture-map.png" alt="XRAY architecture map" width="100%" />
+</p>
+
+The important boundary:
 
 ```txt
-Page MAIN world
-  content/interceptor.js
-  content/console-capture.js
-  content/console-executor.js
-  content/decrypt-bridge.js
-        |
-        v
-Isolated extension world
-  content/content.js
-  content/hud-mount.js
-  shared/store.js
-  shared/console-helpers.js
-  shared/worker-client.js
-        |
-        v
-React panel UI
-  src/panel/main.tsx       -> dist/panel-ui.js
-  src/panel/hud-main.tsx   -> dist/hud-ui.js
-  src/panel/window-main.tsx -> dist/window-ui.js
-        |
-        v
-Surfaces
-  Floating HUD
-  DevTools panel
-  Pop-out window
+React owns UI.
+Vanilla scripts own extension runtime.
 ```
+
+Why this matters:
+
+- MAIN-world interception remains simple and compatible.
+- React never needs to run inside page interception code.
+- UI can be redesigned without rewriting capture.
+- Console execution remains behind the existing hardened bridge.
+- The same React app can mount into HUD, DevTools, and pop-out surfaces.
 
 ## Tech Stack
 
@@ -317,9 +331,16 @@ foreach ($file in $files) {
 }
 ```
 
-## Design System
+## Security Notes
 
-XRAY uses a fixed Catppuccin Mocha token set inside the panel Shadow DOM:
+- Message consumers validate page message source where needed.
+- Command execution is session-scoped and result-bounded.
+- Captured strings render as text, not HTML.
+- Large and circular values serialize safely.
+- No Google Fonts, CDN scripts, or remote UI assets.
+- Shadow DOM tokens are defined with `:host`, not `:root`.
+
+## Design Tokens
 
 ```css
 :host {
@@ -339,8 +360,6 @@ XRAY uses a fixed Catppuccin Mocha token set inside the panel Shadow DOM:
   --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 ```
-
-No web font import is required. Users with JetBrains Mono get it; everyone else falls through the local stack.
 
 ## License
 
