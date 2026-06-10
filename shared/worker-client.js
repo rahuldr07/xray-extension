@@ -33,7 +33,7 @@ window.XRAY_Worker = (() => {
     }
     
     try {
-      _worker = new Worker(workerUrl);
+      _worker = _createWorker(workerUrl);
     } catch (e) {
       console.warn('[XRAY Worker] Failed to create worker:', e.message);
       // Fallback: run synchronously on main thread
@@ -72,6 +72,23 @@ window.XRAY_Worker = (() => {
     _send('init', {});
     
     return _readyPromise;
+  }
+
+  function _createWorker(workerUrl) {
+    try {
+      return new Worker(workerUrl);
+    } catch (directError) {
+      const blob = new Blob([
+        `importScripts(${JSON.stringify(workerUrl)});`,
+      ], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        return new Worker(blobUrl);
+      } catch (blobError) {
+        URL.revokeObjectURL(blobUrl);
+        throw blobError || directError;
+      }
+    }
   }
   
   // ═══════════════════════════════════════════════════════════════════════════

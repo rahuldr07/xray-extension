@@ -1,766 +1,122 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>XRAY UI Preview - New Design</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XRAY React Panel Preview</title>
   <style>
-    /* ═══════════════════════════════════════════════════════════════════════════
-       XRAY Design System v2.0 - shadcn/Linear/Vercel inspired
-       ═══════════════════════════════════════════════════════════════════════════ */
-    
-    :root {
-      /* Background layers (dark mode - zinc) */
-      --bg-base: #09090b;        /* zinc-950 */
-      --bg-surface: #18181b;     /* zinc-900 */
-      --bg-elevated: #27272a;    /* zinc-800 */
-      --bg-overlay: #3f3f46;     /* zinc-700 */
-      
-      /* Text hierarchy */
-      --text-primary: #fafafa;   /* zinc-50 */
-      --text-secondary: #a1a1aa; /* zinc-400 */
-      --text-muted: #71717a;     /* zinc-500 */
-      --text-faint: #52525b;     /* zinc-600 */
-      
-      /* Accent */
-      --accent: #3b82f6;         /* blue-500 */
-      --accent-hover: #60a5fa;   /* blue-400 */
-      --accent-muted: rgba(59, 130, 246, 0.15);
-      
-      /* Status colors */
-      --success: #22c55e;
-      --success-muted: rgba(34, 197, 94, 0.15);
-      --warning: #f59e0b;
-      --warning-muted: rgba(245, 158, 11, 0.15);
-      --error: #ef4444;
-      --error-muted: rgba(239, 68, 68, 0.15);
-      --info: #0ea5e9;
-      --info-muted: rgba(14, 165, 233, 0.15);
-      
-      /* Borders */
-      --border: rgba(63, 63, 70, 0.5);
-      --border-hover: #52525b;
-      --border-active: var(--accent);
-      
-      /* Shadows */
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-      --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-      --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
-      
-      /* Radius */
-      --radius-sm: 4px;
-      --radius-md: 6px;
-      --radius-lg: 8px;
-      --radius-xl: 12px;
-      
-      /* Spacing (4px base) */
-      --sp-1: 4px;
-      --sp-2: 8px;
-      --sp-3: 12px;
-      --sp-4: 16px;
-      --sp-5: 20px;
-      --sp-6: 24px;
-    }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
+    html,
     body {
-      font-family: 'Inter', -apple-system, system-ui, sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      background: #1a1a1a;
-      color: var(--text-primary);
-      padding: 40px;
-    }
-    
-    h2 {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-    }
-    
-    .preview-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      max-width: 1400px;
-    }
-    
-    .preview-section {
-      background: var(--bg-base);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      overflow: hidden;
-    }
-    
-    /* ═══════════════════════════════════════════════════════════════════════════
-       TABLE COMPONENT
-       ═══════════════════════════════════════════════════════════════════════════ */
-    
-    .table-container {
-      display: flex;
-      flex-direction: column;
-      height: 400px;
-    }
-    
-    .table-toolbar {
-      display: flex;
-      align-items: center;
-      gap: var(--sp-3);
-      padding: var(--sp-3) var(--sp-4);
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-    }
-    
-    .search-wrap {
-      position: relative;
-      flex: 1;
-      max-width: 240px;
-    }
-    
-    .search-input {
       width: 100%;
-      padding: 6px 12px 6px 32px;
-      background: var(--bg-base);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      color: var(--text-primary);
-      font-size: 12px;
-      font-family: inherit;
-      transition: all 0.15s;
-    }
-    
-    .search-input:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-muted);
-    }
-    
-    .search-input::placeholder {
-      color: var(--text-faint);
-    }
-    
-    .search-icon {
-      position: absolute;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      font-size: 12px;
-    }
-    
-    .kbd {
-      padding: 2px 6px;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-size: 10px;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-faint);
-    }
-    
-    .table-scroll {
-      flex: 1;
-      overflow-y: auto;
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    
-    /* Table Header */
-    thead {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    
-    th {
-      padding: var(--sp-2) var(--sp-3);
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      text-align: left;
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.15s;
-    }
-    
-    th:hover {
-      color: var(--text-secondary);
-      background: var(--bg-elevated);
-    }
-    
-    th.sorted {
-      color: var(--text-primary);
-    }
-    
-    .sort-icon {
-      margin-left: 4px;
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
-    
-    th:hover .sort-icon,
-    th.sorted .sort-icon {
-      opacity: 1;
-    }
-    
-    /* Table Rows */
-    tr {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.1s;
-    }
-    
-    tbody tr:hover {
-      background: var(--bg-surface);
-    }
-    
-    tbody tr.selected {
-      background: var(--accent-muted);
-      box-shadow: inset 3px 0 0 var(--accent);
-    }
-    
-    td {
-      padding: var(--sp-3);
-      font-size: 12px;
-      color: var(--text-secondary);
-      vertical-align: middle;
-    }
-    
-    .mono {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-    }
-    
-    /* Method Badge */
-    .method-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 48px;
-      padding: 3px 8px;
-      border-radius: var(--radius-sm);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    
-    .method-get {
-      background: var(--success-muted);
-      color: var(--success);
-    }
-    
-    .method-post {
-      background: var(--info-muted);
-      color: var(--info);
-    }
-    
-    .method-put {
-      background: var(--warning-muted);
-      color: var(--warning);
-    }
-    
-    .method-delete {
-      background: var(--error-muted);
-      color: var(--error);
-    }
-    
-    /* Status Badge */
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      font-weight: 500;
-    }
-    
-    .status-2xx {
-      background: var(--success-muted);
-      color: var(--success);
-    }
-    
-    .status-3xx {
-      background: var(--info-muted);
-      color: var(--info);
-    }
-    
-    .status-4xx {
-      background: var(--warning-muted);
-      color: var(--warning);
-    }
-    
-    .status-5xx {
-      background: var(--error-muted);
-      color: var(--error);
-    }
-    
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    
-    /* URL Cell */
-    .url-cell {
-      max-width: 300px;
+      height: 100%;
+      margin: 0;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--text-secondary);
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
     }
-    
-    .url-path {
-      color: var(--text-primary);
-    }
-    
-    /* Waterfall */
-    .waterfall-cell {
-      width: 120px;
-      padding: var(--sp-2) var(--sp-3);
-    }
-    
-    .waterfall-bar-wrap {
-      position: relative;
-      height: 16px;
-      background: var(--bg-elevated);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    
-    .waterfall-bar {
-      position: absolute;
-      height: 10px;
-      top: 3px;
-      border-radius: 2px;
-      min-width: 4px;
-    }
-    
-    .wf-success { background: var(--success); opacity: 0.8; }
-    .wf-warning { background: var(--warning); opacity: 0.8; }
-    .wf-error { background: var(--error); opacity: 0.8; }
-    
-    /* Quick Actions */
-    .actions-cell {
-      width: 80px;
-      text-align: right;
-    }
-    
-    .action-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      opacity: 0;
-      transition: all 0.15s;
-    }
-    
-    tr:hover .action-btn {
-      opacity: 1;
-    }
-    
-    .action-btn:hover {
-      background: var(--bg-elevated);
-      color: var(--text-primary);
-    }
-    
-    /* Table Footer */
-    .table-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--sp-2) var(--sp-4);
-      background: var(--bg-surface);
-      border-top: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-    
-    /* ═══════════════════════════════════════════════════════════════════════════
-       DETAIL PANEL PREVIEW
-       ═══════════════════════════════════════════════════════════════════════════ */
-    
-    .detail-panel {
-      height: 400px;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .detail-header {
-      padding: var(--sp-4);
-      border-bottom: 1px solid var(--border);
-    }
-    
-    .detail-url {
-      display: flex;
-      align-items: center;
-      gap: var(--sp-2);
-      margin-bottom: var(--sp-3);
-    }
-    
-    .detail-url-text {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      color: var(--text-primary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    
-    .detail-pills {
-      display: flex;
-      gap: var(--sp-2);
-      flex-wrap: wrap;
-    }
-    
-    .pill {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      padding: var(--sp-2) var(--sp-3);
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-    }
-    
-    .pill-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-faint);
-    }
-    
-    .pill-value {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-primary);
-    }
-    
-    .pill-value.success { color: var(--success); }
-    .pill-value.warning { color: var(--warning); }
-    .pill-value.error { color: var(--error); }
-    
-    /* Tabs */
-    .detail-tabs {
-      display: flex;
-      gap: 0;
-      padding: 0 var(--sp-4);
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-    }
-    
-    .tab-btn {
-      padding: var(--sp-3) var(--sp-4);
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--text-muted);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    
-    .tab-btn:hover {
-      color: var(--text-secondary);
-    }
-    
-    .tab-btn.active {
-      color: var(--text-primary);
-      border-bottom-color: var(--accent);
-    }
-    
-    /* View Toggle */
-    .view-toggle {
-      display: flex;
-      gap: 2px;
-      padding: var(--sp-2) var(--sp-4);
-      background: var(--bg-surface);
-    }
-    
-    .view-btn {
-      padding: 4px 10px;
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      color: var(--text-muted);
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    
-    .view-btn:hover {
-      background: var(--bg-elevated);
-      color: var(--text-secondary);
-    }
-    
-    .view-btn.active {
-      background: var(--bg-elevated);
-      border-color: var(--border);
-      color: var(--text-primary);
-    }
-    
-    /* JSON Tree */
-    .json-tree {
-      flex: 1;
-      overflow: auto;
-      padding: var(--sp-4);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    
-    .json-key { color: #93c5fd; }
-    .json-string { color: #86efac; }
-    .json-number { color: #fcd34d; }
-    .json-bool { color: #f472b6; }
-    .json-null { color: var(--text-faint); }
-    .json-bracket { color: var(--text-muted); }
-    
-    /* ═══════════════════════════════════════════════════════════════════════════
-       COMPARISON: OLD VS NEW
-       ═══════════════════════════════════════════════════════════════════════════ */
-    
-    .comparison-label {
-      text-align: center;
-      padding: var(--sp-2);
-      background: var(--bg-surface);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-    }
-    
-    .new-label { color: var(--success); }
   </style>
 </head>
 <body>
-  <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">XRAY UI v2.0 Preview</h1>
-  <p style="color: var(--text-muted); margin-bottom: 32px;">New design system based on shadcn/Linear/Vercel patterns</p>
-  
-  <div class="preview-grid">
-    <!-- API List Table -->
-    <div class="preview-section">
-      <div class="comparison-label new-label">✨ New API List Design</div>
-      <div class="table-container">
-        <div class="table-toolbar">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" class="search-input" placeholder="Filter requests...">
-          </div>
-          <span class="kbd">⌘K</span>
-        </div>
-        
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:60px">Method</th>
-                <th style="width:70px" class="sorted">Status <span class="sort-icon">↓</span></th>
-                <th>URL</th>
-                <th style="width:70px" class="mono">Time</th>
-                <th style="width:60px" class="mono">Size</th>
-                <th class="waterfall-cell">Waterfall</th>
-                <th class="actions-cell"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="selected">
-                <td><span class="method-badge method-get">GET</span></td>
-                <td><span class="status-badge status-2xx"><span class="status-dot"></span>200</span></td>
-                <td class="url-cell mono"><span class="url-path">/api/users</span></td>
-                <td class="mono">42ms</td>
-                <td class="mono">2.4KB</td>
-                <td class="waterfall-cell">
-                  <div class="waterfall-bar-wrap">
-                    <div class="waterfall-bar wf-success" style="left:5%;width:15%"></div>
-                  </div>
-                </td>
-                <td class="actions-cell">
-                  <button class="action-btn" title="Copy">📋</button>
-                  <button class="action-btn" title="Pin">⭐</button>
-                </td>
-              </tr>
-              <tr>
-                <td><span class="method-badge method-post">POST</span></td>
-                <td><span class="status-badge status-2xx"><span class="status-dot"></span>201</span></td>
-                <td class="url-cell mono"><span class="url-path">/api/orders</span></td>
-                <td class="mono">156ms</td>
-                <td class="mono">1.8KB</td>
-                <td class="waterfall-cell">
-                  <div class="waterfall-bar-wrap">
-                    <div class="waterfall-bar wf-success" style="left:20%;width:35%"></div>
-                  </div>
-                </td>
-                <td class="actions-cell">
-                  <button class="action-btn" title="Copy">📋</button>
-                  <button class="action-btn" title="Pin">☆</button>
-                </td>
-              </tr>
-              <tr>
-                <td><span class="method-badge method-get">GET</span></td>
-                <td><span class="status-badge status-4xx"><span class="status-dot"></span>404</span></td>
-                <td class="url-cell mono"><span class="url-path">/api/products/999</span></td>
-                <td class="mono">12ms</td>
-                <td class="mono">128B</td>
-                <td class="waterfall-cell">
-                  <div class="waterfall-bar-wrap">
-                    <div class="waterfall-bar wf-warning" style="left:60%;width:8%"></div>
-                  </div>
-                </td>
-                <td class="actions-cell">
-                  <button class="action-btn" title="Copy">📋</button>
-                  <button class="action-btn" title="Pin">☆</button>
-                </td>
-              </tr>
-              <tr>
-                <td><span class="method-badge method-delete">DEL</span></td>
-                <td><span class="status-badge status-5xx"><span class="status-dot"></span>500</span></td>
-                <td class="url-cell mono"><span class="url-path">/api/users/42</span></td>
-                <td class="mono">2.1s</td>
-                <td class="mono">89B</td>
-                <td class="waterfall-cell">
-                  <div class="waterfall-bar-wrap">
-                    <div class="waterfall-bar wf-error" style="left:70%;width:25%"></div>
-                  </div>
-                </td>
-                <td class="actions-cell">
-                  <button class="action-btn" title="Copy">📋</button>
-                  <button class="action-btn" title="Pin">☆</button>
-                </td>
-              </tr>
-              <tr>
-                <td><span class="method-badge method-put">PUT</span></td>
-                <td><span class="status-badge status-2xx"><span class="status-dot"></span>200</span></td>
-                <td class="url-cell mono"><span class="url-path">/api/settings</span></td>
-                <td class="mono">89ms</td>
-                <td class="mono">512B</td>
-                <td class="waterfall-cell">
-                  <div class="waterfall-bar-wrap">
-                    <div class="waterfall-bar wf-success" style="left:95%;width:5%"></div>
-                  </div>
-                </td>
-                <td class="actions-cell">
-                  <button class="action-btn" title="Copy">📋</button>
-                  <button class="action-btn" title="Pin">☆</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        
-        <div class="table-footer">
-          <span>5 requests · 2.3s total · 5.1KB</span>
-          <span>↑↓ navigate · Enter select</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Detail Panel -->
-    <div class="preview-section">
-      <div class="comparison-label new-label">✨ New Detail Panel Design</div>
-      <div class="detail-panel">
-        <div class="detail-header">
-          <div class="detail-url">
-            <span class="method-badge method-get">GET</span>
-            <span class="detail-url-text">https://api.example.com/api/users?page=1&limit=20</span>
-          </div>
-          <div class="detail-pills">
-            <div class="pill">
-              <span class="pill-label">Status</span>
-              <span class="pill-value success">200 OK</span>
-            </div>
-            <div class="pill">
-              <span class="pill-label">Time</span>
-              <span class="pill-value">42ms</span>
-            </div>
-            <div class="pill">
-              <span class="pill-label">Size</span>
-              <span class="pill-value">2.4 KB</span>
-            </div>
-            <div class="pill">
-              <span class="pill-label">Type</span>
-              <span class="pill-value">application/json</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="detail-tabs">
-          <button class="tab-btn active">Response</button>
-          <button class="tab-btn">Request</button>
-          <button class="tab-btn">Headers</button>
-          <button class="tab-btn">Timing</button>
-        </div>
-        
-        <div class="view-toggle">
-          <button class="view-btn active">Tree</button>
-          <button class="view-btn">Raw</button>
-          <button class="view-btn">Grid</button>
-        </div>
-        
-        <div class="json-tree">
-          <span class="json-bracket">{</span><br>
-          &nbsp;&nbsp;<span class="json-key">"users"</span>: <span class="json-bracket">[</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">{</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"id"</span>: <span class="json-number">1</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"John Doe"</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"email"</span>: <span class="json-string">"john@example.com"</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"active"</span>: <span class="json-bool">true</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">}</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">{</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"id"</span>: <span class="json-number">2</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"Jane Smith"</span>,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"email"</span>: <span class="json-null">null</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">}</span><br>
-          &nbsp;&nbsp;<span class="json-bracket">]</span>,<br>
-          &nbsp;&nbsp;<span class="json-key">"total"</span>: <span class="json-number">42</span>,<br>
-          &nbsp;&nbsp;<span class="json-key">"page"</span>: <span class="json-number">1</span><br>
-          <span class="json-bracket">}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <div style="margin-top: 40px; padding: 24px; background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border);">
-    <h2>Key Improvements</h2>
-    <ul style="color: var(--text-secondary); font-size: 13px; line-height: 2; list-style-position: inside;">
-      <li>✅ Softer zinc palette instead of harsh blacks</li>
-      <li>✅ Pill badges with subtle colored backgrounds</li>
-      <li>✅ Clean table with proper spacing and alignment</li>
-      <li>✅ Waterfall bars for visual timing</li>
-      <li>✅ Hover actions that appear contextually</li>
-      <li>✅ Subtle borders (zinc-700/50 opacity)</li>
-      <li>✅ Consistent 4px spacing system</li>
-      <li>✅ Proper text hierarchy (primary/secondary/muted/faint)</li>
-      <li>✅ Monospace font for data (JetBrains Mono)</li>
-      <li>✅ Sticky header during scroll</li>
-    </ul>
-  </div>
+  <div id="xray-preview-root"></div>
+  <pre id="xray-preview-error" style="display:none;margin:16px;padding:16px;border:1px solid #f38ba8;border-radius:8px;color:#f38ba8;background:#181825;white-space:pre-wrap;"></pre>
+  <script>
+    window.XRAY_Console = {
+      init() {},
+      setContext(entry) {
+        this.context = entry || null;
+      },
+      navigateHistory() {
+        return null;
+      },
+      async execute(code) {
+        const entry = this.context;
+        if (code === 'res' || code === 'res.data') {
+          return { type: 'object', result: entry?.responseDecrypted || null };
+        }
+        if (code === 'Object.keys(res)') {
+          return { type: 'object', result: Object.keys(entry?.responseDecrypted || {}) };
+        }
+        if (code === 'schema(res)') {
+          return { type: 'object', result: { branches: 'array', canCreatePullRequest: 'boolean', channel: 'string' } };
+        }
+        return { type: 'string', result: 'Preview command prepared: ' + code };
+      },
+    };
+  </script>
+  <script src="../dist/panel-ui.js"></script>
+  <script>
+    (async () => {
+      const showError = (error) => {
+        const target = document.getElementById('xray-preview-error');
+        target.style.display = 'block';
+        target.textContent = error && error.stack ? error.stack : String(error);
+      };
+      if (!window.XRAY_Panel) {
+        showError('XRAY React bundle did not expose window.XRAY_Panel. Run npm run build and reload this file.');
+        return;
+      }
+      await window.XRAY_Panel.init({
+        mountEl: document.getElementById('xray-preview-root'),
+        useShadow: false,
+        devtoolsMode: true,
+        clearMount: false,
+      });
+      window.XRAY_Panel.show();
+
+      const now = Date.now();
+      const paths = [
+        ['/rahuldr07/xray-extension/branch-and-tag-count', 200, 429, 923],
+        ['/rahuldr07/xray-extension/latest-commit', 200, 451, 1200],
+        ['/rahuldr07/xray-extension/hovercards/citation/sidebar_partial', 204, 370, 0],
+        ['/rahuldr07/xray-extension/contributors_list', 200, 369, 2600],
+        ['/rahuldr07/xray-extension/recently-touched-branches', 200, 429, 206],
+        ['/notifications/1179829401/watch_subscription', 200, 428, 1100],
+        ['/rahuldr07/xray-extension/tree-commit-info', 200, 594, 13800],
+        ['/rahuldr07/xray-extension/packages_list', 200, 477, 514],
+        ['/github-copilot/chat', 500, 980, 7600],
+        ['/github-copilot/chat/entitlement', 200, 461, 325],
+      ];
+
+      paths.forEach(([path, status, duration, size], index) => {
+        window.XRAY_Panel.add({
+          id: 'preview-' + index,
+          type: 'api',
+          method: index === 8 ? 'DELETE' : index === 3 ? 'POST' : 'GET',
+          status,
+          url: 'https://github.com' + path,
+          urlPath: path,
+          source: index % 2 ? 'xhr' : 'fetch',
+          duration,
+          size,
+          timestamp: now + index * 1000,
+          requestHeaders: { accept: 'application/json' },
+          responseHeaders: { 'content-type': 'application/json' },
+          responseDecrypted: {
+            branches: [],
+            canCreatePullRequest: true,
+            channel: 'eyJjIjoi...preview',
+            path,
+            status,
+          },
+        });
+      });
+
+      window.XRAY_Panel.add({
+        id: 'log-ready',
+        type: 'log',
+        logLevel: 'info',
+        message: 'XRAY console ready',
+        timestamp: now + 12000,
+      });
+      window.XRAY_Panel.selectEntryContext('preview-4');
+      const tab = new URLSearchParams(location.search).get('tab');
+      if (tab) window.XRAY_Panel.setActiveTab(tab);
+    })().catch((error) => {
+      const target = document.getElementById('xray-preview-error');
+      target.style.display = 'block';
+      target.textContent = error && error.stack ? error.stack : String(error);
+    });
+  </script>
 </body>
 </html>

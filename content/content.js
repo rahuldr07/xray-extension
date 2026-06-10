@@ -6,6 +6,49 @@
 
   let _panelReady = false;
   let _workerReady = false;
+  const XRAY_FOCUS_TRAP_EVENTS = [
+    'keydown', 'keyup', 'keypress', 'beforeinput', 'input',
+    'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
+    'contextmenu', 'wheel', 'touchstart', 'touchmove', 'touchend',
+  ];
+
+  function _isToggleShortcut(event) {
+    return (event.ctrlKey || event.metaKey) &&
+      event.shiftKey &&
+      (event.key?.toLowerCase() === 'x' || event.code === 'KeyX');
+  }
+
+  function _isKeyboardEvent(event) {
+    return event.type === 'keydown' ||
+      event.type === 'keyup' ||
+      event.type === 'keypress' ||
+      event.type === 'beforeinput' ||
+      event.type === 'input';
+  }
+
+  function _eventInsideXray(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    return path.some((node) => node?.id === '__xray_root__' ||
+      node?.id === 'xr-panel' ||
+      node?.classList?.contains?.('xr-hud'));
+  }
+
+  function _trapFocusedPanelEvent(event) {
+    if (!window.__XRAY_focusTrapActive) return;
+    if (_isKeyboardEvent(event) && _isToggleShortcut(event)) return;
+
+    const insideXray = _eventInsideXray(event);
+    if (insideXray) return;
+    if (!insideXray && !_isKeyboardEvent(event)) return;
+
+    if (_isKeyboardEvent(event)) event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+  }
+
+  XRAY_FOCUS_TRAP_EVENTS.forEach((type) => {
+    document.addEventListener(type, _trapFocusedPanelEvent, true);
+  });
 
   async function _initPanel() {
     if (_panelReady) return;
@@ -20,7 +63,7 @@
       });
     }
     
-    await XRAY_Panel.init();
+    await window.XRAY_Panel?.init?.();
   }
 
   function _relayToDevtools(entry) {
@@ -32,6 +75,7 @@
   // Receive captured entries from MAIN world via postMessage
   // Supports both single entries and batched entries for performance
   window.addEventListener('message', async (e) => {
+    if (e.source !== window) return;
     if (!e.data?.__xray_capture__) return;
     
     await _initPanel();
@@ -41,7 +85,7 @@
       const entries = e.data.entries;
       for (const entry of entries) {
         if (!entry) continue;
-        XRAY_Panel.add(entry);
+        window.XRAY_Panel?.add?.(entry);
         _relayToDevtools(entry);
         
         // Send to worker for indexing (non-blocking)
@@ -56,7 +100,7 @@
     const entry = e.data.entry;
     if (!entry) return;
     
-    XRAY_Panel.add(entry);
+    window.XRAY_Panel?.add?.(entry);
     _relayToDevtools(entry);
     
     // Send to worker for indexing (non-blocking)
@@ -82,7 +126,7 @@
     e.stopImmediatePropagation();
     window.__XRAY_lastToggleShortcutTs = Date.now();
     console.debug('[XRAY] Local shortcut handler toggling panel');
-    _initPanel().then(() => XRAY_Panel.toggle());
+    _initPanel().then(() => window.XRAY_Panel?.toggle?.());
   }, true);
 
   // Receive toggle / show command from background.js
@@ -95,7 +139,7 @@
         return;
       }
       console.debug('[XRAY] Received xray:toggle from background');
-      _initPanel().then(() => XRAY_Panel.toggle());
+      _initPanel().then(() => window.XRAY_Panel?.toggle?.());
     }
   });
 
@@ -110,9 +154,9 @@
         logData: data,
         pinned: false,
       };
-      XRAY_Panel.add(entry);
+      window.XRAY_Panel?.add?.(entry);
       _relayToDevtools(entry);
-      XRAY_Panel.show();
+      window.XRAY_Panel?.show?.();
     });
   };
 
@@ -123,6 +167,7 @@
       const msgId = 'fetch_' + Date.now() + '_' + Math.random().toString(36);
       
       const handler = (e) => {
+        if (e.source !== window) return;
         if (e.data?.__xray_fetch_response__ && e.data.msgId === msgId) {
           window.removeEventListener('message', handler);
           resolve(e.data.data);

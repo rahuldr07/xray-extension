@@ -1,219 +1,233 @@
-# XRAY — Encrypted API Visualizer
+# XRAY - React API Debugging Extension
 
-> A production-grade browser extension that auto-intercepts API calls, auto-decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel. Built for **Chrome & Edge** (Manifest V3).
+XRAY is a Manifest V3 browser extension for inspecting API traffic, console output, response data, exports, and request-aware debugging commands. The runtime capture layer stays vanilla JavaScript for compatibility with page execution worlds, while the user-facing panel is a bundled React + TypeScript UI.
 
-[![Phase](https://img.shields.io/badge/Phase-1%20of%206-cba6f7?style=flat-square&labelColor=1e1e2e)](https://github.com/rahuldr07/xray-extension)
-[![MV3](https://img.shields.io/badge/Manifest-V3-89b4fa?style=flat-square&labelColor=1e1e2e)](https://developer.chrome.com/docs/extensions/mv3/)
-[![License](https://img.shields.io/badge/License-MIT-a6e3a1?style=flat-square&labelColor=1e1e2e)](LICENSE)
+## What XRAY Does
 
----
+- Captures `fetch` and XHR requests from the page MAIN world.
+- Captures `console.log`, `console.warn`, `console.error`, `console.table`, and related page console events.
+- Shows a dense DevTools-style Console surface with a request table, filters, selected request context, and pinned command prompt.
+- Provides a Network Inspector Pro API tab with virtualized rows, endpoint grouping, selected-row highlighting, and a detail drawer.
+- Adds response-native Smart Ops such as Schema, Table, Visualize, Compare Previous, Copy cURL, Copy fetch, Send to Console, Send to Notebook, Related Errors, and Similar Calls.
+- Exports selected requests or full sessions as JSON, cURL, fetch, axios, schema, mock data, TypeScript, Zod, Jest, MSW, CSV, and HAR where applicable.
+- Provides Notebook, Insights, Settings, command palette, quick settings modal, and confirmation-safe destructive actions.
+- Supports three panel modes from one React app: DevTools panel, floating HUD, and pop-out window.
 
-## Why XRAY?
+## UI Modes
 
-| Feature | JSON Web Grid Inspector | **XRAY** |
-|---|---|---|
-| Auto-decrypt API responses | ❌ | ✅ |
-| Fetch + XHR interceptor | Partial | ✅ Full |
-| `console.log` capture | ❌ | ✅ |
-| Tree view | ✅ | ✅ Better |
-| Raw JSON view | ✅ | ✅ |
-| Diff view | ❌ | ✅ *(Phase 2)* |
-| Fuzzy search `Ctrl+K` | ❌ | ✅ *(Phase 3)* |
-| Keyboard shortcuts | ❌ | ✅ Full |
-| Themes (macOS premium set) | ❌ | ✅ 5 themes |
-| Floating sidebar | ❌ | ✅ |
-| DevTools panel | ✅ | ✅ *(Phase 4)* |
-| Bundle size | 81 MB+ | **< 50 KB** |
+XRAY has one React UI with three mounts:
 
----
+| Mode | How It Opens | Purpose |
+| --- | --- | --- |
+| Floating HUD | Extension icon or `Ctrl+Shift+X` | Draggable, resizable overlay on the current page. |
+| DevTools | Browser DevTools -> XRAY tab | Dedicated debugging workspace attached to the inspected tab. |
+| Pop-out Window | Window icon in the XRAY topbar | Full-window inspection surface for large API sessions. |
 
-## Installation
+The capture/runtime scripts are not React:
+
+- `content/interceptor.js` owns MAIN-world `fetch` and XHR interception.
+- `content/console-capture.js` owns MAIN-world console capture.
+- `content/console-executor.js` owns page command execution bridge.
+- `content/content.js` relays captured entries to the panel API.
+- `background.js` owns action toggles, DevTools relay, pop-out windows, and debugger-backed console execution.
+
+## Tech Stack
+
+- Browser extension: Manifest V3
+- UI: React, TypeScript, Vite
+- State: Zustand
+- Virtualization: `@tanstack/react-virtual`
+- Icons: `@tabler/icons-react`
+- Styling: Shadow DOM-safe Catppuccin Mocha CSS tokens
+- Runtime: vanilla JavaScript content scripts, background service worker, and shared helpers
+
+No remote fonts, CDN scripts, or external assets are loaded by the extension UI.
+
+## Install For Development
 
 ```bash
 git clone https://github.com/rahuldr07/xray-extension.git
+cd xray-extension
+npm install
+npm run build
 ```
 
-1. Open `edge://extensions` or `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** → select the cloned `xray-extension/` folder
-4. Done ✅
+Then load the extension:
 
-### Updating
+1. Open `chrome://extensions` or `edge://extensions`.
+2. Enable Developer mode.
+3. Click Load unpacked.
+4. Select the `xray-extension` folder.
+5. After rebuilding, click the extension reload button in the browser extensions page.
+
+The checked-in `dist/` files are used by `manifest.json`, but `npm run build` should be run after source changes.
+
+## Development Commands
 
 ```bash
-git pull
-```
-Then click the **🔄 refresh** icon on the XRAY card in extensions.
-
----
-
-## Usage
-
-```javascript
-// Auto-captured — no setup needed
-fetch('/api/users/profile')   // ✅ auto-intercepted
-console.log(myObject)         // ✅ auto-captured in LOGS tab
-
-// Manual inspect
-jv(anyData)                   // ✅ opens panel with data
+npm run dev        # Vite development server for preview pages
+npm run build      # Build dist/panel-ui.js, dist/hud-ui.js, dist/window-ui.js
+npm run typecheck  # TypeScript check
+npm test           # Regression tests
+npm run check      # typecheck + build + tests
 ```
 
----
+Useful local preview routes after `npm run dev -- --host 127.0.0.1 --port 8765`:
 
-## Keyboard Shortcuts
+- `http://127.0.0.1:8765/preview/ui-preview.html?tab=console`
+- `http://127.0.0.1:8765/preview/ui-preview.html?tab=api`
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+X` | Toggle panel open/close |
-| `Ctrl+F` | Focus search bar |
-| `↑ ↓` | Navigate entry list |
-| `T` | Tree view |
-| `R` | Raw JSON view |
-| `G` | Grid view *(Phase 2)* |
-| `D` | Diff view *(Phase 2)* |
-| `S` | Star / pin response |
-| `C` | Copy JSON |
-| `E` | Expand all nodes |
-| `W` | Collapse all nodes |
-| `Esc` | Close panel |
+For extension-style static testing of built files, serve the repo root and open:
 
----
+- `/window.html`
 
-## Themes
+## Project Structure
 
-Switch themes from the **Settings → Theme** section.
-
-| Theme | Style |
-|---|---|
-| **Obsidian Pro** | Deep premium dark |
-| **Graphite Pro** | Neutral graphite dark |
-| **Frost Light** | Crisp premium light |
-| **Violet Night** | Vivid purple dark |
-| **Ocean Glass** | Cool blue glass dark |
-
----
-
-## Architecture
-
-```
+```text
 xray-extension/
-├── manifest.json               # MV3 config, permissions
-├── background.js               # Service worker, message bridge
-├── content/
-│   ├── content.js              # ISOLATED world — panel init, event relay
-│   ├── interceptor.js          # MAIN world — fetch() + XHR hooks
-│   └── console-capture.js      # MAIN world — console.log/warn/error hijack
-├── panel/
-│   ├── floating.js             # Floating sidebar — Shadow DOM UI
-│   ├── renderer.js             # Tree / Raw view builders
-│   ├── search.js               # Entry filter engine
-│   ├── shortcuts.js            # Keyboard shortcut handlers
-│   └── themes.js               # Theme palettes + CSS vars
-├── devtools/
-│   ├── devtools.html           # Registers DevTools tab
-│   ├── devtools.js             # DevTools panel registration
-│   ├── devtools-panel.html     # DevTools panel HTML
-│   └── devtools-panel.js       # DevTools panel logic (Phase 4)
-├── settings/
-│   ├── settings.html           # Settings popup
-│   └── settings.js             # Preferences manager
-├── shared/
-│   ├── store.js                # chrome.storage wrapper
-│   ├── decrypt.js              # Pluggable decrypt function
-│   └── utils.js                # Helpers, formatters
-└── icons/
-    ├── icon16.png
-    ├── icon48.png
-    └── icon128.png
+  background.js                 # MV3 service worker, toggles, debugger eval, DevTools relay
+  manifest.json                 # MV3 scripts, permissions, web accessible bundles
+  window.html                   # Pop-out window host
+  content/
+    interceptor.js              # MAIN world fetch/XHR capture
+    console-capture.js          # MAIN world console capture
+    console-executor.js         # MAIN world command execution bridge
+    decrypt-bridge.js           # MAIN world decrypt relay
+    content.js                  # ISOLATED relay into XRAY_Panel
+    hud-mount.js                # Closed-shadow floating HUD host
+  src/panel/
+    main.tsx                    # React panel bundle entry
+    hud-main.tsx                # React HUD bundle entry
+    window-main.tsx             # React pop-out bundle entry
+    App.tsx                     # Shared React app
+    store.ts                    # Zustand panel state
+    components/                 # Console, API, detail, export, settings, notebook, insights
+    models/                     # Typed pure models for entries, exports, operations, settings
+    runtime/                    # Bridges to vanilla console/storage/capture config
+    styles.css                  # Main React UI styles
+    styles/tokens.css           # Shadow DOM :host design tokens
+    styles/hud.css              # HUD-specific sizing rules
+  shared/
+    console-helpers.js          # Request-aware console helper primitives
+    decrypt.js                  # Pluggable decrypt function
+    store.js                    # Storage wrapper
+    utils.js                    # Shared utilities
+    worker-client.js            # Worker client with extension-safe fallback
+  devtools/
+    devtools.html
+    devtools.js
+    devtools-panel.html
+  preview/
+    ui-preview.html             # Local React UI preview harness
+  test/
+    security-regressions.test.js
+  dist/
+    panel-ui.js                 # Built React panel IIFE
+    hud-ui.js                   # Built React HUD IIFE
+    window-ui.js                # Built React pop-out IIFE
 ```
 
----
+## Console Helpers
 
-## Decrypt Integration
+When a request is selected, XRAY prepares request-aware aliases and helpers for Console and Notebook workflows:
 
-XRAY reads `X-Parse-Token` from request headers and passes it to your `decrypt()` function automatically:
+```js
+res
+req
+headers
+entry
+prev()
+next()
+similar()
+errors()
+slow(500)
+status(500)
+endpoint('/api/users')
+domain('api.example.com')
+schema(res)
+table(res.items || res)
+diff(prev()?.responseDecrypted, res)
+mock(entry)
+```
 
-```javascript
-// shared/decrypt.js — plug your function in here
-function decrypt(token, encryptedData) {
-  // your decrypt logic here
-  return decryptedJSON;
+Prepared Smart Ops insert commands into Console or Notebook. They do not auto-run code.
+
+## Export Formats
+
+Selected request exports:
+
+- JSON
+- Raw response
+- cURL
+- `fetch()`
+- axios
+- schema
+- mock response
+- TypeScript type
+- Zod schema
+- Jest test
+- MSW handler
+
+Session exports:
+
+- Session JSON
+- Session CSV
+- Session HAR
+
+Formats that need a selected request are disabled in session mode with explanatory UI rather than dead buttons.
+
+## Settings
+
+Quick settings modal and full Settings tab share persisted state:
+
+- Capture fetch
+- Capture XHR
+- Recording
+- Max entries
+- Slow and very-slow thresholds
+- Default detail view
+- Compact rows
+- Show host in path
+- Accent color
+- Confirm destructive actions
+
+Capture toggles publish a small message to the vanilla MAIN-world interceptor so the UI preference affects new captured entries.
+
+## Security And Safety
+
+- Content scripts validate message source where page messages are consumed.
+- Console execution bridge uses XRAY session identifiers and bounded result serialization.
+- UI rendering avoids unsafe HTML for captured strings, logs, and response data.
+- Large and circular objects are serialized safely.
+- Shadow DOM styles use `:host` tokens, so the panel does not depend on page CSS.
+- The extension does not load web fonts or remote UI assets.
+
+## Verification Checklist
+
+Before pushing a release branch or main:
+
+```bash
+npm run typecheck
+npm run build
+npm test
+```
+
+For a complete local check:
+
+```bash
+npm run check
+```
+
+Optional syntax sweep for retained vanilla JavaScript:
+
+```powershell
+$files = rg --files -g "*.js" -g "!node_modules/**"
+foreach ($file in $files) {
+  node --check $file
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 ```
-
-The interceptor handles the rest:
-```javascript
-// Automatic flow — no manual work needed
-const token = requestHeaders['X-Parse-Token'];
-const decrypted = decrypt(token, response.data);
-// → appears in panel instantly
-```
-
----
-
-## Data Model
-
-```typescript
-interface CapturedEntry {
-  id: string;
-  type: 'api' | 'log';
-  timestamp: number;
-  // API fields
-  method?: string;
-  url?: string;
-  urlPath?: string;
-  status?: number;
-  duration?: number;
-  size?: number;
-  requestHeaders?: Record<string, string>;
-  requestBody?: any;
-  responseHeaders?: Record<string, string>;
-  responseRaw?: string;
-  responseDecrypted?: any;
-  decryptStatus?: 'ok' | 'failed' | 'none';
-  parseToken?: string;
-  // Log fields
-  logData?: any;
-  logLevel?: 'log' | 'warn' | 'error';
-  // Common
-  pinned: boolean;
-}
-```
-
----
-
-## Build Phases
-
-- [x] **Phase 1** — Interceptor + floating panel + tree/raw view + console capture
-- [ ] **Phase 2** — Grid view + Diff view
-- [ ] **Phase 3** — Fuzzy search + full keyboard shortcuts + themes polish + pin/star
-- [ ] **Phase 4** — DevTools panel + settings page + export
-- [ ] **Phase 5** — Decrypt integration
-- [ ] **Phase 6** — GitHub polish + Edge store submission
-
----
-
-## Performance Targets
-
-| Metric | Target |
-|---|---|
-| Panel render (1000-key JSON) | < 100ms |
-| Interceptor overhead per call | < 2ms |
-| Total bundle size | < 50 KB |
-| Memory (500 stored entries) | < 20 MB |
-| Page crash risk | Zero |
-
----
-
-## Security
-
-- Only reads HTTP response bodies — no cookies, passwords, or form data
-- Decrypt key (`X-Parse-Token`) never persisted — in-memory only per request
-- All errors silently caught — extension never crashes the host page
-- Original `fetch` / `XHR` / `console.log` behaviour 100% preserved
-
----
 
 ## License
 
-MIT — do whatever you want with it.
+MIT

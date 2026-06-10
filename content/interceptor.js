@@ -11,6 +11,7 @@
   const _origXHROpen = XMLHttpRequest.prototype.open;
   const _origXHRSend = XMLHttpRequest.prototype.send;
   const _origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+  const _config = { captureFetch: true, captureXhr: true };
 
   function _uid() {
     return 'xr_' + Date.now().toString(36) + '_' + (Math.random() * 1e9 | 0).toString(36);
@@ -19,6 +20,14 @@
   function _emit(entry) {
     window.postMessage({ __xray_capture__: true, entry }, '*');
   }
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (!event.data?.__xray_config__) return;
+    const config = event.data.config || {};
+    if (typeof config.captureFetch === 'boolean') _config.captureFetch = config.captureFetch;
+    if (typeof config.captureXhr === 'boolean') _config.captureXhr = config.captureXhr;
+  });
 
   function _tryDecrypt(token, data) {
     try {
@@ -52,6 +61,7 @@
 
   // ── fetch wrapper ─────────────────────────────────────────────────────────
   window.fetch = async function (...args) {
+    if (!_config.captureFetch) return _origFetch.apply(this, args);
     const id    = _uid();
     const start = Date.now();
 
@@ -126,6 +136,7 @@
 
   // ── XHR wrapper ───────────────────────────────────────────────────────────
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (!_config.captureXhr) return _origXHROpen.apply(this, [method, url, ...rest]);
     this.__xr = { id: _uid(), method: (method || 'GET').toUpperCase(), url: _resolveUrl(String(url)), reqHeaders: {}, start: 0 };
     return _origXHROpen.apply(this, [method, url, ...rest]);
   };
@@ -136,6 +147,7 @@
   };
 
   XMLHttpRequest.prototype.send = function (body) {
+    if (!_config.captureXhr) return _origXHRSend.apply(this, arguments);
     if (!this.__xr) return _origXHRSend.apply(this, arguments);
     const xr = this.__xr;
     xr.start = Date.now();

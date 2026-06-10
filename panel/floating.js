@@ -8,7 +8,7 @@ window.XRAY_Panel = (() => {
   // ── State ─────────────────────────────────────────────────────────────────
   const _state = {
     open: false,
-    activeTab: 'api',        // 'api' | 'logs' | 'console' | 'insights'
+    activeTab: 'console',    // 'api' | 'logs' | 'console' | 'notebook' | 'insights'
     activeView: 'tree',       // 'tree' | 'raw' | 'grid' | 'diff' | 'waterfall'
     activeDTab: 'response',   // 'response' | 'request' | 'headers'
     selectedId: null,
@@ -267,6 +267,12 @@ window.XRAY_Panel = (() => {
 .xr-tab.xr-active .xr-tab-badge {
   background: var(--xr-accent);
   color: #fff;
+}
+.xr-console-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
 }
 
 .xr-hspacer { flex: 1; }
@@ -1076,16 +1082,18 @@ window.XRAY_Panel = (() => {
   min-width: 0;
   overflow: hidden;
 }
-.xr-insights-pane {
+.xr-insights-pane,
+.xr-notebook-pane {
   display: none;
   flex-direction: column;
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 16px;
   background: var(--xr-bg);
 }
-.xr-insights-pane.xr-active {
+.xr-insights-pane { padding: 16px; }
+.xr-insights-pane.xr-active,
+.xr-notebook-pane.xr-active {
   display: flex;
 }
 .xr-detail-empty {
@@ -1528,6 +1536,79 @@ window.XRAY_Panel = (() => {
   border-bottom: 1px solid var(--xr-border); cursor: pointer; flex-shrink: 0;
 }
 .xr-grid-drill-back:hover { color: var(--xr-text); }
+.xr-viz-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+}
+.xr-viz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--xr-border);
+}
+.xr-viz-title { font-size: 12px; font-weight: 700; color: var(--xr-text); }
+.xr-viz-sub { font-size: 10px; color: var(--xr-muted); font-family: 'JetBrains Mono', monospace; }
+.xr-viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.xr-viz-card {
+  min-width: 0;
+  border: 1px solid var(--xr-border);
+  border-radius: var(--xr-radius-md, 6px);
+  background: var(--xr-surface);
+  padding: 10px;
+}
+.xr-viz-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--xr-subtext);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 8px;
+}
+.xr-viz-bars { display: flex; flex-direction: column; gap: 7px; }
+.xr-viz-bar-row {
+  display: grid;
+  grid-template-columns: minmax(56px, 84px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font: 600 10px/1 'JetBrains Mono', monospace;
+}
+.xr-viz-label,
+.xr-viz-value {
+  color: var(--xr-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xr-viz-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--xr-bg3);
+  overflow: hidden;
+}
+.xr-viz-bar-fill {
+  height: 100%;
+  width: var(--xr-viz-pct, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--xr-accent), var(--xr-blue));
+}
+.xr-viz-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  color: var(--xr-muted);
+  font-size: 11px;
+}
 
 /* ─── Diff view ──────────────────────────────────────────────────────────── */
 .xr-diff-wrap { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -2364,14 +2445,17 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     <span class="xr-capture-dot" id="xr-capture-dot"></span>
   </div>
   <div class="xr-tabs">
-    <button class="xr-tab xr-active" data-tab="api">
+    <button class="xr-tab" data-tab="api">
       API <span class="xr-tab-badge" id="xr-api-count">0</span>
     </button>
     <button class="xr-tab" data-tab="logs">
       Logs <span class="xr-tab-badge" id="xr-log-count">0</span>
     </button>
-    <button class="xr-tab" data-tab="console">
-      Console <span class="xr-console-icon">&gt;_</span>
+    <button class="xr-tab xr-active" data-tab="console">
+      Console <span class="xr-console-icon" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5 6 8l-2.5 2.5"/><path d="M8 10.5h4.5"/></svg></span>
+    </button>
+    <button class="xr-tab" data-tab="notebook">
+      Notebook
     </button>
     <button class="xr-tab" data-tab="insights">
       📊 Insights
@@ -2395,6 +2479,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   <div class="xr-drag-handle" id="xr-drag-handle"></div>
   <div class="xr-detail-pane" id="xr-detail-pane"></div>
   <div class="xr-console-pane" id="xr-console-pane"></div>
+  <div class="xr-notebook-pane" id="xr-notebook-pane"></div>
   <div class="xr-insights-pane" id="xr-insights-pane"></div>
 </div>
 <div class="xr-footer">
@@ -2613,6 +2698,102 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   // ══════════════════════════════════════════════════════════════════════════
   // State persistence
   // ══════════════════════════════════════════════════════════════════════════
+  const XRAY_ISOLATED_EVENTS = [
+    'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
+    'contextmenu', 'wheel', 'touchstart', 'touchmove', 'touchend',
+    'keydown', 'keyup', 'keypress', 'beforeinput', 'input',
+  ];
+  let _eventIsolationInstalled = false;
+
+  function _panelVisible() {
+    if (_isDevtoolsMode) return true;
+    if (_hudMode && window.XRAY_HUD?.isOpen) return window.XRAY_HUD.isOpen();
+    return !!_state.open;
+  }
+
+  function _eventPath(event) {
+    if (typeof event.composedPath === 'function') return event.composedPath();
+    const path = [];
+    let node = event.target;
+    while (node) {
+      path.push(node);
+      node = node.parentNode || node.host;
+    }
+    return path;
+  }
+
+  function _eventInsidePanel(event) {
+    const path = _eventPath(event);
+    if (_host && path.includes(_host)) return true;
+    if (_dom.panel && path.includes(_dom.panel)) return true;
+    if (_root && path.includes(_root)) return true;
+    return path.some((node) => {
+      try { return node && _dom.panel?.contains?.(node); } catch { return false; }
+    });
+  }
+
+  function _panelHasFocus() {
+    const active = _root?.activeElement;
+    return !!active && active !== _root && active !== document.body;
+  }
+
+  function _isToggleShortcut(event) {
+    return (event.ctrlKey || event.metaKey) &&
+      event.shiftKey &&
+      (event.key?.toLowerCase() === 'x' || event.code === 'KeyX');
+  }
+
+  function _setFocusTrapActive(active) {
+    window.__XRAY_focusTrapActive = !!active;
+  }
+
+  function _focusPanelSoon() {
+    setTimeout(() => {
+      const consoleInput = _root?.querySelector?.('.xr-console-input');
+      const searchInput = _root?.querySelector?.('#xr-fuzzy-input');
+      const target = _state.activeTab === 'console'
+        ? consoleInput
+        : _state.activeTab === 'notebook'
+          ? _root?.querySelector?.('.xr-cell-input .cm-content')
+        : searchInput || _dom.panel;
+      try { target?.focus?.({ preventScroll: true }); } catch { target?.focus?.(); }
+    }, 30);
+  }
+
+  function _trapOpenPanelEvent(event) {
+    if (!_panelVisible()) return;
+
+    const isKeyboard = event.type === 'keydown' ||
+      event.type === 'keyup' ||
+      event.type === 'keypress' ||
+      event.type === 'beforeinput' ||
+      event.type === 'input';
+    const insidePanel = _eventInsidePanel(event);
+    if (insidePanel && event.currentTarget === document) return;
+
+    if (!insidePanel && !isKeyboard) return;
+    if (isKeyboard && _isToggleShortcut(event)) return;
+
+    if (isKeyboard && !insidePanel && !_panelHasFocus()) {
+      event.preventDefault();
+      _focusPanelSoon();
+    }
+
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+  }
+
+  function _installEventIsolation() {
+    if (_eventIsolationInstalled) return;
+    _eventIsolationInstalled = true;
+
+    XRAY_ISOLATED_EVENTS.forEach((type) => {
+      document.addEventListener(type, _trapOpenPanelEvent, true);
+      _root?.addEventListener?.(type, _trapOpenPanelEvent, false);
+      _host?.addEventListener?.(type, _trapOpenPanelEvent, false);
+    });
+  }
+
   function _saveState() {
     window.XRAY_Store.set(STORE_KEY, {
       open: _state.open,
@@ -2727,8 +2908,9 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     const groupCount = opts.groupCount || 1;
     const groupExpanded = !!opts.groupExpanded;
     const groupKey = opts.groupKey || '';
+    const safeGroupKey = _escapeHtml(groupKey);
     const groupBadge = groupCount > 1
-      ? `<button class="xr-group-badge ${groupExpanded ? 'xr-open' : ''}" title="${groupExpanded ? 'Collapse group' : 'Expand group'}" data-group-key="${groupKey}">×${groupCount}</button>`
+      ? `<button class="xr-group-badge ${groupExpanded ? 'xr-open' : ''}" title="${groupExpanded ? 'Collapse group' : 'Expand group'}" data-group-key="${safeGroupKey}">×${groupCount}</button>`
       : '';
 
     if (entry.type === 'api') {
@@ -2736,6 +2918,9 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       const mClass = methodClass(entry.method || 'GET');
       const sClass = statusClass(entry.status);
       const path = shortPath(entry.url || '');
+      const safeUrl = _escapeHtml(entry.url || '');
+      const safePath = _escapeHtml(path);
+      const safeMethod = _escapeHtml(method);
       const dur = entry.duration ?? 0;
       const heat = Math.min(0.18, Math.max(0, ((Number(entry.size) || 0) / 102400) * 0.18));
       const sparkline = _buildSparklineSVG(_recentEndpointDurations(entry, 8), dur);
@@ -2746,13 +2931,13 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
-            <span class="xr-method-badge ${mClass}">${method}</span>
+            <span class="xr-method-badge ${_escapeHtml(mClass)}">${safeMethod}</span>
             <span class="xr-status ${sClass}"><span class="xr-status-icon">${_statusGlyph(entry.status)}</span>${entry.status || '—'}</span>
             ${groupBadge}
             <span style="flex:1"></span>
             <span style="font-size:9.5px;color:var(--xr-muted);font-family:'JetBrains Mono',monospace">${formatDuration(entry.duration)}</span>
           </div>
-          <div class="xr-entry-row2" title="${entry.url || ''}">${path}</div>
+          <div class="xr-entry-row2" title="${safeUrl}">${safePath}</div>
           <div class="xr-entry-row3">
             <span>${formatSize(entry.size)}</span>
             <span class="xr-sep"></span>
@@ -2777,17 +2962,20 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     } else {
       const level = (entry.logLevel || 'log').toLowerCase();
       const preview = previewJSON(entry.logData, 64);
+      const safeLevel = _escapeHtml(level.toUpperCase());
+      const safeLevelClass = _escapeHtml(`xr-m-${level}`);
+      const safePreview = _escapeHtml(preview);
       el.style.setProperty('--xr-heat', '0');
       el.innerHTML = `
         <div class="xr-entry-pin ${isPinned ? 'xr-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '⭐' : '☆'}</div>
         <div class="xr-entry-content">
           <div class="xr-entry-row1">
-            <span class="xr-method-badge xr-m-${level}">${level.toUpperCase()}</span>
+            <span class="xr-method-badge ${safeLevelClass}">${safeLevel}</span>
             ${groupBadge}
             <span style="flex:1"></span>
             <span style="font-size:9.5px;color:var(--xr-muted)">${formatTime(entry.timestamp || Date.now())}</span>
           </div>
-          <div class="xr-entry-row2" title="${String(preview)}">${preview}</div>
+          <div class="xr-entry-row2" title="${safePreview}">${safePreview}</div>
         </div>
         <div class="xr-entry-menu" title="More options">⋯</div>
       `;
@@ -3265,6 +3453,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     );
     const entry = _state.entries.find(e => e.id === id) || null;
     _renderDetail(entry);
+    if (window.XRAY_ConsoleUI?.updateContext) window.XRAY_ConsoleUI.updateContext(entry);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -3366,6 +3555,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     const views = [
       { id: 'tree', label: 'Tree' },
       { id: 'grid', label: 'Grid' },
+      { id: 'viz', label: 'Visualize' },
       { id: 'raw', label: 'Raw' },
       { id: 'diff', label: 'Diff' },
       { id: 'waterfall', label: 'Waterfall' },
@@ -3591,6 +3781,9 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         }));
       }
 
+    } else if (_state.activeView === 'viz') {
+      _renderVizView(parsed, content);
+
     } else if (_state.activeView === 'diff') {
       _renderDiffView(entry, parsed, content);
 
@@ -3637,6 +3830,147 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     }
   }
 
+  function _vizRows(data) {
+    if (Array.isArray(data)) return { rows: data, label: 'response' };
+    if (!data || typeof data !== 'object') return { rows: [], label: 'response' };
+    const arrayEntries = Object.entries(data)
+      .filter(([, value]) => Array.isArray(value))
+      .sort((a, b) => b[1].length - a[1].length);
+    if (arrayEntries.length) return { rows: arrayEntries[0][1], label: arrayEntries[0][0] };
+    return { rows: [data], label: 'object' };
+  }
+
+  function _appendVizBar(parent, label, value, pct) {
+    const row = document.createElement('div');
+    row.className = 'xr-viz-bar-row';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'xr-viz-label';
+    labelEl.textContent = String(label);
+    const track = document.createElement('div');
+    track.className = 'xr-viz-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'xr-viz-bar-fill';
+    fill.style.setProperty('--xr-viz-pct', `${Math.max(0, Math.min(100, pct))}%`);
+    track.appendChild(fill);
+    const valueEl = document.createElement('div');
+    valueEl.className = 'xr-viz-value';
+    valueEl.textContent = String(value);
+    row.append(labelEl, track, valueEl);
+    parent.appendChild(row);
+  }
+
+  function _appendVizCard(parent, title, rows) {
+    const card = document.createElement('div');
+    card.className = 'xr-viz-card';
+    const heading = document.createElement('div');
+    heading.className = 'xr-viz-card-title';
+    heading.textContent = title;
+    const bars = document.createElement('div');
+    bars.className = 'xr-viz-bars';
+    rows.forEach((row) => _appendVizBar(bars, row.label, row.value, row.pct));
+    card.append(heading, bars);
+    parent.appendChild(card);
+  }
+
+  function _renderVizView(data, content) {
+    const { rows, label } = _vizRows(data);
+    const records = rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)).slice(0, 1000);
+    const wrap = document.createElement('div');
+    wrap.className = 'xr-viz-wrap';
+
+    const header = document.createElement('div');
+    header.className = 'xr-viz-header';
+    const titleWrap = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'xr-viz-title';
+    title.textContent = 'API Data Visualization';
+    const sub = document.createElement('div');
+    sub.className = 'xr-viz-sub';
+    sub.textContent = `${label} · ${records.length} row${records.length === 1 ? '' : 's'}`;
+    titleWrap.append(title, sub);
+    header.appendChild(titleWrap);
+    wrap.appendChild(header);
+
+    if (!records.length) {
+      const empty = document.createElement('div');
+      empty.className = 'xr-viz-empty';
+      empty.textContent = 'No object rows found. Use Grid or Tree for this response.';
+      wrap.appendChild(empty);
+      content.appendChild(wrap);
+      return;
+    }
+
+    const keys = Array.from(records.reduce((set, row) => {
+      Object.keys(row).slice(0, 40).forEach((key) => set.add(key));
+      return set;
+    }, new Set()));
+    const numericColumns = keys
+      .map((key) => {
+        const values = records.map((row) => Number(row[key])).filter((value) => Number.isFinite(value));
+        if (!values.length) return null;
+        const sum = values.reduce((total, value) => total + value, 0);
+        return { key, count: values.length, sum, avg: sum / values.length, max: Math.max(...values) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+    const stringColumns = keys
+      .map((key) => {
+        const counts = new Map();
+        records.forEach((row) => {
+          const value = row[key];
+          if (typeof value !== 'string' && typeof value !== 'boolean') return;
+          const label = String(value || '(empty)').slice(0, 40);
+          counts.set(label, (counts.get(label) || 0) + 1);
+        });
+        if (!counts.size) return null;
+        return { key, counts };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.counts.size - a.counts.size)
+      .slice(0, 3);
+
+    const grid = document.createElement('div');
+    grid.className = 'xr-viz-grid';
+
+    if (numericColumns.length) {
+      const maxAvg = Math.max(...numericColumns.map((col) => Math.abs(col.avg)), 1);
+      _appendVizCard(grid, 'Numeric averages', numericColumns.map((col) => ({
+        label: col.key,
+        value: Number.isInteger(col.avg) ? col.avg : col.avg.toFixed(2),
+        pct: Math.abs(col.avg) / maxAvg * 100,
+      })));
+    }
+
+    numericColumns.forEach((col) => {
+      _appendVizCard(grid, `${col.key} range`, [
+        { label: 'max', value: Number.isInteger(col.max) ? col.max : col.max.toFixed(2), pct: 100 },
+        { label: 'avg', value: Number.isInteger(col.avg) ? col.avg : col.avg.toFixed(2), pct: Math.abs(col.avg) / Math.max(Math.abs(col.max), 1) * 100 },
+        { label: 'rows', value: col.count, pct: col.count / records.length * 100 },
+      ]);
+    });
+
+    stringColumns.forEach((col) => {
+      const values = [...col.counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const max = Math.max(...values.map(([, count]) => count), 1);
+      _appendVizCard(grid, `${col.key} distribution`, values.map(([name, count]) => ({
+        label: name,
+        value: count,
+        pct: count / max * 100,
+      })));
+    });
+
+    if (!grid.children.length) {
+      const empty = document.createElement('div');
+      empty.className = 'xr-viz-empty';
+      empty.textContent = 'No numeric or categorical fields found. Use Grid for row inspection.';
+      wrap.appendChild(empty);
+    } else {
+      wrap.appendChild(grid);
+    }
+    content.appendChild(wrap);
+  }
+
   function _renderDiffView(entry, data, content) {
     const prev = _state.diffCompareId
       ? _state.entries.find(e => e.id === _state.diffCompareId)
@@ -3649,7 +3983,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     lbl.className = 'xr-diff-compare-label';
     lbl.textContent = 'vs:';
     const sel = document.createElement('select');
-    sel.innerHTML = `<option value="">— auto (previous ${entry.urlPath || 'call'}) —</option>`;
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = `— auto (previous ${entry.urlPath || 'call'}) —`;
+    sel.appendChild(defaultOption);
     _state.entries
       .filter(e => e.id !== entry.id && e.type === 'api')
       .slice().reverse()
@@ -5689,6 +6026,33 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
   // ══════════════════════════════════════════════════════════════════════════
   // Event binding
   // ══════════════════════════════════════════════════════════════════════════
+  function _setActiveTab(tab) {
+    _state.activeTab = tab || 'console';
+    _root.querySelectorAll('.xr-tab').forEach(b =>
+      b.classList.toggle('xr-active', b.dataset.tab === _state.activeTab)
+    );
+
+    const isConsole = _state.activeTab === 'console';
+    const isNotebook = _state.activeTab === 'notebook';
+    const isInsights = _state.activeTab === 'insights';
+
+    if (_dom.listWrap) _dom.listWrap.style.display = (isConsole || isNotebook || isInsights) ? 'none' : '';
+    if (_dom.dragHandle) _dom.dragHandle.style.display = (isConsole || isNotebook || isInsights) ? 'none' : '';
+    if (_dom.detailPane) _dom.detailPane.style.display = (isConsole || isNotebook || isInsights) ? 'none' : '';
+    if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
+    if (_dom.notebookPane) _dom.notebookPane.classList.toggle('xr-active', isNotebook);
+
+    _toggleInsightsPane(isInsights);
+    if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole, isNotebook);
+
+    if (!isConsole && !isNotebook && !isInsights) {
+      _state.selectedId = null;
+      _rebuildList();
+      _renderDetail(null);
+      _updateCounts();
+    }
+  }
+
   function _bindEvents() {
     _dom.closeBtn.addEventListener('click', () => _public.hide());
 
@@ -5728,31 +6092,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     _root.querySelectorAll('.xr-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        _state.activeTab = btn.dataset.tab;
-        _root.querySelectorAll('.xr-tab').forEach(b =>
-          b.classList.toggle('xr-active', b.dataset.tab === _state.activeTab)
-        );
-
-        const isConsole = _state.activeTab === 'console';
-        const isInsights = _state.activeTab === 'insights';
-
-        // Hide/show main panes
-        if (_dom.listWrap) _dom.listWrap.style.display = (isConsole || isInsights) ? 'none' : '';
-        if (_dom.dragHandle) _dom.dragHandle.style.display = (isConsole || isInsights) ? 'none' : '';
-        if (_dom.detailPane) _dom.detailPane.style.display = (isConsole || isInsights) ? 'none' : '';
-        if (_dom.consolePane) _dom.consolePane.classList.toggle('xr-active', isConsole);
-
-        // Show/hide insights pane
-        _toggleInsightsPane(isInsights);
-
-        if (window.XRAY_ConsoleUI) window.XRAY_ConsoleUI.handleTabSwitch(isConsole);
-
-        if (!isConsole && !isInsights) {
-          _state.selectedId = null;
-          _rebuildList();
-          _renderDetail(null);
-          _updateCounts();
-        }
+        _setActiveTab(btn.dataset.tab);
       });
     });
 
@@ -5920,6 +6260,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       _dom.dragHandle = getById('xr-drag-handle');
       _dom.detailPane = getById('xr-detail-pane');
       _dom.consolePane = getById('xr-console-pane');
+      _dom.notebookPane = getById('xr-notebook-pane');
       _dom.insightsPane = getById('xr-insights-pane');
       _dom.footerCount = getById('xr-count');
       _dom.apiCount = getById('xr-api-count');
@@ -5930,6 +6271,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       _dom.fuzzyInput = getById('xr-fuzzy-input');
       _dom.fuzzyResults = getById('xr-fuzzy-results');
       _dom.copyBackdrop = getById('xr-copy-backdrop');
+      if (_dom.panel) _dom.panel.tabIndex = -1;
 
       _dom.settingsBackdrop = getById('xr-settings-backdrop');
       _dom.settingsTheme = getById('xr-settings-theme');
@@ -5961,6 +6303,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
       // ── Events + shortcuts ─────────────────────────────────────────────────
       _bindEvents();
+      _installEventIsolation();
       _bindSettingsFilters();
       _initExportModal();
       
@@ -5971,6 +6314,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       
       if (window.XRAY_Console?.init) window.XRAY_Console.init();
       if (window.XRAY_ConsoleUI?.init) window.XRAY_ConsoleUI.init(_root);
+      _setActiveTab(_state.activeTab);
 
       // ── Initialize Command Palette (⌘K) ────────────────────────────────────
       if (window.XRAY_CommandPalette?.init) {
@@ -5990,6 +6334,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       // ── Restore open state (standalone only) ───────────────────────────────
       if (!_isDevtoolsMode && !_hudMode && _state.open) {
         _dom.panel.classList.add('xr-open');
+        _setFocusTrapActive(true);
+        _focusPanelSoon();
       }
     },
 
@@ -6002,6 +6348,8 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       } else {
         _dom.panel.classList.add('xr-open');
       }
+      _setFocusTrapActive(true);
+      _focusPanelSoon();
       
       if (!_isDevtoolsMode) _saveState();
     },
@@ -6016,6 +6364,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       } else {
         _dom.panel.classList.remove('xr-open');
       }
+      _setFocusTrapActive(false);
       
       _saveState();
     },
@@ -6026,9 +6375,11 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       if (_hudMode && window.XRAY_HUD) {
         window.XRAY_HUD.toggle();
         _state.open = window.XRAY_HUD.isOpen();
+        _setFocusTrapActive(_state.open);
       } else {
         _state.open ? _public.hide() : _public.show();
       }
+      if (_state.open) _focusPanelSoon();
     },
 
     isOpen() { 
@@ -6042,6 +6393,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
       if (!entry) return;
       if (!entry.id) entry.id = window.XRAY_Utils.uid();
       _state.entries.push(entry);
+      if (window.XRAY_ConsoleUI?.addEntry) window.XRAY_ConsoleUI.addEntry(entry);
 
       // Track for N+1 detection
       if (window.XRAY_NPlusOne?.trackEntry) {
@@ -6090,7 +6442,7 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
     },
 
     setView(v) {
-      const views = ['tree', 'grid', 'raw', 'diff', 'waterfall'];
+      const views = ['tree', 'grid', 'viz', 'raw', 'diff', 'waterfall'];
       if (!views.includes(v)) return;
       if (!_state.selectedId && v === 'waterfall') {
         const latestApi = _state.entries.slice().reverse().find((e) => e.type === 'api');
@@ -6102,6 +6454,10 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
         btn.classList.toggle('xr-active', btn.dataset.view === v)
       );
       _renderContent();
+    },
+
+    setActiveTab(tab) {
+      _setActiveTab(tab);
     },
 
     focusSearch() { _fuzzyOpen(); },
@@ -6155,6 +6511,21 @@ ${window.XRAY_NPlusOne?.getCSS?.() || ''}
 
     getEntry(id) {
       return _state.entries.find(e => e.id === id) || null;
+    },
+
+    selectEntry(id) {
+      const entry = _state.entries.find(e => e.id === id);
+      if (!entry) return;
+      if (entry.type === 'api' || entry.type === 'log') {
+        _setActiveTab(entry.type === 'api' ? 'api' : 'logs');
+      }
+      _selectEntry(id);
+    },
+
+    selectEntryContext(id) {
+      const entry = _state.entries.find(e => e.id === id);
+      if (!entry) return;
+      _selectEntry(id);
     },
 
     getSelectedEntry() {

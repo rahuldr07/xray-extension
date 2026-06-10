@@ -1,152 +1,156 @@
-// content/console-executor.js — Console code executor (MAIN world)
-// Executes user code in MAIN world to avoid CSP restrictions.
+// content/console-executor.js - Console code executor (MAIN world).
 (function () {
   'use strict';
 
-  if (window.__XRAY_console_executor__) return; // Already installed
+  if (window.__XRAY_console_executor__) return;
   window.__XRAY_console_executor__ = true;
 
-  // Listen for execution requests from ISOLATED world
-  window.addEventListener('message', async (event) => {
-    if (!event.data || event.data.type !== 'XRAY_EXEC_REQUEST') return;
+  const MAX_RESULT_CHARS = 200000;
+  const VALID_NAME = /^[A-Za-z_$][\w$]*$/;
 
-    const { id, code, context } = event.data;
+  function _sessionOk(sessionId) {
+    if (sessionId !== window.__XRAY_CONSOLE_SESSION) return false;
+    return !!sessionId;
+  }
+
+  function _resultType(value) {
+    if (value === undefined) return 'undefined';
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value;
+  }
+
+  function _safeSerialize(value) {
+    const seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+    let truncated = false;
+
+    function normalize(input, depth = 0) {
+      if (depth > 8) {
+        truncated = true;
+        return '[Max depth]';
+      }
+      if (input === null || input === undefined) return input;
+      const type = typeof input;
+      if (type === 'string') {
+        if (input.length > MAX_RESULT_CHARS) {
+          truncated = true;
+          return input.slice(0, MAX_RESULT_CHARS) + `... (${input.length} chars)`;
+        }
+        return input;
+      }
+      if (type === 'number' || type === 'boolean') return input;
+      if (type === 'bigint') return input.toString() + 'n';
+      if (type === 'symbol') return String(input);
+      if (type === 'function') return `[Function: ${input.name || 'anonymous'}]`;
+      if (input instanceof Error) {
+        return { __type__: 'Error', name: input.name, message: input.message, stack: input.stack };
+      }
+      if (input instanceof Date) return { __type__: 'Date', iso: input.toISOString() };
+      if (typeof Element !== 'undefined' && input instanceof Element) {
+        return `<${input.tagName.toLowerCase()}${input.id ? '#' + input.id : ''}>`;
+      }
+      if (seen) {
+        if (seen.has(input)) return '[Circular]';
+        seen.add(input);
+      }
+      if (Array.isArray(input)) {
+        const limit = Math.min(input.length, 1000);
+        const out = input.slice(0, limit).map((item) => normalize(item, depth + 1));
+        if (input.length > limit) {
+          truncated = true;
+          out.push(`... +${input.length - limit} more`);
+        }
+        return out;
+      }
+      const out = {};
+      const keys = Object.keys(input);
+      const limit = Math.min(keys.length, 500);
+      for (let i = 0; i < limit; i++) {
+        const key = keys[i];
+        try { out[key] = normalize(input[key], depth + 1); } catch { out[key] = '[Error reading property]'; }
+      }
+      if (keys.length > limit) {
+        truncated = true;
+        out['...'] = `+${keys.length - limit} more keys`;
+      }
+      return out;
+    }
+
+    const result = normalize(value);
+    let json = '';
+    try { json = JSON.stringify(result); } catch {}
+    if (json.length > MAX_RESULT_CHARS) {
+      truncated = true;
+      return {
+        result: json.slice(0, MAX_RESULT_CHARS) + `... (${json.length} chars)`,
+        truncated,
+      };
+    }
+    return { result, truncated };
+  }
+
+  function _isExpression(code) {
+    return !code.includes(';') &&
+      !code.includes('\n') &&
+      !/^(const|let|var|if|for|while|switch|try|class|function|return)\s/.test(code.trim());
+  }
+
+  function _post(payload) {
+    window.postMessage(payload, '*');
+  }
+
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window) return;
+    if (!event.data || typeof event.data !== 'object') return;
+
+    if (event.data.type === 'XRAY_CONSOLE_SESSION') {
+      const { sessionId } = event.data;
+      if (typeof sessionId === 'string' && sessionId.startsWith('xray_console_')) {
+        window.__XRAY_CONSOLE_SESSION = sessionId;
+      }
+      return;
+    }
+
+    if (event.data.type !== 'XRAY_EXEC_REQUEST') return;
+
+    const { id, code, context, sessionId } = event.data;
+    if (!_sessionOk(sessionId)) return;
 
     try {
-      // Helper functions available in console
-      const toCSV = (arr) => {
-        if (!Array.isArray(arr) || !arr.length) return '';
-        const keys = Object.keys(arr[0]);
-        const header = keys.join(',');
-        const rows = arr.map(row => keys.map(k => {
-          let v = row[k];
-          if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) {
-            v = '"' + v.replace(/"/g, '""') + '"';
-          }
-          return v ?? '';
-        }).join(','));
-        return [header, ...rows].join('\n');
-      };
+      const helpers = window.XRAY_ConsoleHelpers;
+      const runtime = helpers?.createRuntime
+        ? helpers.createRuntime(context || {}, (text) => navigator.clipboard?.writeText?.(text))
+        : {};
+      Object.assign(runtime, context?.scope || {}, context?.pins || {});
 
-      const toTable = (arr) => ({ __xr_render: 'table', data: arr });
+      const names = Object.keys(runtime).filter((name) => VALID_NAME.test(name));
+      const values = names.map((name) => runtime[name]);
+      const body = _isExpression(code) ? `return (${code})` : code;
 
-      const diff = (a, b) => {
-        const result = { added: {}, removed: {}, changed: {} };
-        const aKeys = new Set(Object.keys(a || {}));
-        const bKeys = new Set(Object.keys(b || {}));
-        for (const k of bKeys) if (!aKeys.has(k)) result.added[k] = b[k];
-        for (const k of aKeys) {
-          if (!bKeys.has(k)) result.removed[k] = a[k];
-          else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) {
-            result.changed[k] = { from: a[k], to: b[k] };
-          }
-        }
-        return result;
-      };
+      const fn = new Function(...names, `'use strict'; return (async () => { ${body} })()`);
+      const raw = await fn(...values);
+      const serialized = _safeSerialize(raw);
 
-      const schema = (obj, depth = 0) => {
-        if (depth > 5) return 'any';
-        if (obj === null) return 'null';
-        if (Array.isArray(obj)) return obj.length ? [schema(obj[0], depth + 1)] : 'array';
-        if (typeof obj === 'object') {
-          const s = {};
-          for (const [k, v] of Object.entries(obj)) s[k] = schema(v, depth + 1);
-          return s;
-        }
-        return typeof obj;
-      };
-
-      const pick = (obj, keys) => keys.reduce((acc, k) => {
-        if (k in (obj || {})) acc[k] = obj[k];
-        return acc;
-      }, {});
-
-      const omit = (obj, keys) => Object.fromEntries(
-        Object.entries(obj || {}).filter(([k]) => !keys.includes(k))
-      );
-
-      const flatten = (obj, prefix = '') => {
-        const result = {};
-        for (const [k, v] of Object.entries(obj || {})) {
-          const key = prefix ? prefix + '.' + k : k;
-          if (v && typeof v === 'object' && !Array.isArray(v)) {
-            Object.assign(result, flatten(v, key));
-          } else {
-            result[key] = v;
-          }
-        }
-        return result;
-      };
-
-      const copy = (val) => {
-        navigator.clipboard.writeText(
-          typeof val === 'string' ? val : JSON.stringify(val, null, 2)
-        );
-        return '✓ Copied';
-      };
-
-      // Detect expression vs statement
-      const isExpr = !code.includes(';') && !code.includes('\n') &&
-        !/^(const|let|var|if|for|while|switch|try)\s/.test(code);
-      const body = isExpr ? 'return (' + code + ')' : code;
-
-      // Extract context variables
-      const {
-        $res, $req, $h, $rh, $url, $params, $status, $time, $size, $method,
-        $all, $similar, $prev, $next, $r, $curl, $fetch
-      } = context;
-
-      // Execute code
-      const fn = new Function(
-        '$res', '$req', '$h', '$rh', '$url', '$params', '$status', '$time', '$size', '$method',
-        '$all', '$similar', '$prev', '$next', '$r', '$curl', '$fetch',
-        'toCSV', 'toTable', 'diff', 'schema', 'pick', 'omit', 'flatten', 'copy',
-        'return (async () => { ' + body + ' })()'
-      );
-
-      const result = await fn(
-        $res, $req, $h, $rh, $url, $params, $status, $time, $size, $method,
-        $all, $similar, $prev, $next, $r, $curl, $fetch,
-        toCSV, toTable, diff, schema, pick, omit, flatten, copy
-      );
-
-      // Determine type
-      let resultType = typeof result;
-      if (result === undefined) resultType = 'undefined';
-      else if (result === null) resultType = 'null';
-      else if (Array.isArray(result)) resultType = 'array';
-      else if (typeof result === 'object') resultType = 'object';
-
-      // Serialize result
-      let serialized = result;
-      if (typeof result === 'object' && result !== null) {
-        try {
-          serialized = JSON.parse(JSON.stringify(result));
-        } catch {
-          serialized = String(result);
-        }
-      }
-
-      // Send result back to ISOLATED world
-      window.postMessage({
+      _post({
         type: 'XRAY_EVAL_RESULT',
+        sessionId,
         id,
         success: true,
-        resultType,
-        result: serialized
-      }, '*');
-
+        resultType: _resultType(raw),
+        result: serialized.result,
+        truncated: serialized.truncated,
+      });
     } catch (err) {
-      // Send error back
-      window.postMessage({
+      _post({
         type: 'XRAY_EVAL_RESULT',
+        sessionId,
         id,
         success: false,
         error: {
-          message: err.message,
-          stack: err.stack
-        }
-      }, '*');
+          message: err?.message || String(err),
+          stack: err?.stack || '',
+        },
+      });
     }
   });
 })();

@@ -1,0 +1,17 @@
+:host,
+.xray-app-root {
+  --xray-bg: #1e1e2e;
+  --xray-surface: #181825;
+  --xray-surface2: #313244;
+  --xray-text: #cdd6f4;
+  --xray-green: #a6e3a1;
+  --xray-blue: #89b4fa;
+  --xray-yellow: #f9e2af;
+  --xray-red: #f38ba8;
+  --xray-mauve: #cba6f7;
+  --xray-teal: #94e2d5;
+  --xray-peach: #fab387;
+  --xray-hint: #6c7086;
+  --xray-subtext: #a6adc8;
+  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}

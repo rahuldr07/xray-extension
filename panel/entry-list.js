@@ -221,6 +221,9 @@ window.XRAY_EntryList = (() => {
     const duration = entry.duration ? `${entry.duration}ms` : '0ms';
     const size = entry.size ? _formatSize(entry.size) : '0B';
     const path = entry.urlPath || _extractPath(entry.url) || entry.url || '';
+    const safeMethod = _escapeHtml(method);
+    const safeUrl = _escapeHtml(entry.url || '');
+    const safePath = _escapeHtml(path);
     const time = _formatTime(entry.timestamp);
     
     // Calculate a mock waterfall bar for now
@@ -228,9 +231,9 @@ window.XRAY_EntryList = (() => {
     const width = Math.max(Math.random() * 40, 5) + '%';
     
     return `
-      <div class="xr-col xr-col-method ${methodClass}">${method}</div>
+      <div class="xr-col xr-col-method ${_escapeHtml(methodClass)}">${safeMethod}</div>
       <div class="xr-col xr-col-status ${statusClass}"><div class="xr-status-dot"></div>${status}</div>
-      <div class="xr-col xr-col-url" title="${entry.url || ''}"><span class="xr-url-path">${path}</span></div>
+      <div class="xr-col xr-col-url" title="${safeUrl}"><span class="xr-url-path">${safePath}</span></div>
       <div class="xr-col xr-col-time">${duration}</div>
       <div class="xr-col xr-col-size">${size}</div>
       <div class="xr-col xr-col-waterfall">
@@ -248,13 +251,15 @@ window.XRAY_EntryList = (() => {
     const levelClass = `xr-log-${level}`;
     const time = _formatTime(entry.timestamp);
     const preview = _previewLogData(entry.logData);
+    const safeLevel = _escapeHtml(level);
+    const safeLevelClass = _escapeHtml(levelClass);
     
     const icon = level === 'error' ? '✕' : level === 'warn' ? '⚠' : '●';
     
     return `
       <div class="xr-entry-content">
         <div class="xr-entry-row1">
-          <span class="xr-log-level ${levelClass}">${icon} ${level}</span>
+          <span class="xr-log-level ${safeLevelClass}">${icon} ${safeLevel}</span>
           <span class="xr-entry-pin" title="Pin">★</span>
         </div>
         <div class="xr-entry-row2">${preview}</div>
