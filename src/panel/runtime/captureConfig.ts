@@ -5,6 +5,7 @@ export function publishCaptureSettings(settings: Pick<PanelSettings, 'captureFet
     window.postMessage({
       __xray_config__: true,
       source: 'xray-react-ui',
+      token: window.__XRAY_bridgeToken,
       config: {
         captureFetch: settings.captureFetch,
         captureXhr: settings.captureXhr,

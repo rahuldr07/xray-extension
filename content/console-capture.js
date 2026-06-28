@@ -29,6 +29,9 @@
   
   const _objectStore = new Map();  // id -> { weakRef, fallbackPreview }
   let _idCounter = 0;
+  const _bridgeToken = window.__XRAY_BRIDGE_TOKEN__ || _uid();
+  try { Object.defineProperty(window, '__XRAY_BRIDGE_TOKEN__', { value: _bridgeToken, configurable: false, writable: false }); } catch { window.__XRAY_BRIDGE_TOKEN__ = _bridgeToken; }
+  window.postMessage({ __xray_bridge_ready__: true, token: _bridgeToken }, '*');
 
   function _uid() {
     return 'xrl_' + (++_idCounter).toString(36) + '_' + (Date.now() % 100000).toString(36);
@@ -204,6 +207,7 @@
     // Single postMessage for all batched logs
     window.postMessage({ 
       __xray_capture__: true, 
+      token: _bridgeToken,
       batch: true,
       entries: entries 
     }, '*');
@@ -306,12 +310,14 @@
 
   window.addEventListener('message', (e) => {
     if (!e.data?.__xray_fetch_object__) return;
+    if (e.data.token !== _bridgeToken) return;
     
     const { msgId, refId } = e.data;
     const data = window.__XRAY_getLogObject__(refId);
     
     window.postMessage({
       __xray_fetch_response__: true,
+      token: _bridgeToken,
       msgId,
       data,
     }, '*');

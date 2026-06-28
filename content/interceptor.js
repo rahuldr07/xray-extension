@@ -12,18 +12,25 @@
   const _origXHRSend = XMLHttpRequest.prototype.send;
   const _origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
   const _config = { captureFetch: true, captureXhr: true };
+  const MAX_CAPTURE_TEXT_CHARS = 250000;
+  const MAX_CAPTURE_BODY_CHARS = 50000;
+  const SENSITIVE_HEADER = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-csrf-token|x-xsrf-token)$/i;
+  const _bridgeToken = window.__XRAY_BRIDGE_TOKEN__ || _uid();
+  try { Object.defineProperty(window, '__XRAY_BRIDGE_TOKEN__', { value: _bridgeToken, configurable: false, writable: false }); } catch { window.__XRAY_BRIDGE_TOKEN__ = _bridgeToken; }
+  window.postMessage({ __xray_bridge_ready__: true, token: _bridgeToken }, '*');
 
   function _uid() {
     return 'xr_' + Date.now().toString(36) + '_' + (Math.random() * 1e9 | 0).toString(36);
   }
 
   function _emit(entry) {
-    window.postMessage({ __xray_capture__: true, entry }, '*');
+    window.postMessage({ __xray_capture__: true, token: _bridgeToken, entry }, '*');
   }
 
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (!event.data?.__xray_config__) return;
+    if (event.data.token !== _bridgeToken) return;
     const config = event.data.config || {};
     if (typeof config.captureFetch === 'boolean') _config.captureFetch = config.captureFetch;
     if (typeof config.captureXhr === 'boolean') _config.captureXhr = config.captureXhr;
@@ -43,11 +50,31 @@
     const out = {};
     if (!headers) return out;
     if (headers instanceof Headers) {
-      headers.forEach((v, k) => { out[k] = v; });
+      headers.forEach((v, k) => { out[k] = _safeHeader(k, v); });
     } else if (typeof headers === 'object') {
-      Object.assign(out, headers);
+      Object.entries(headers).forEach(([k, v]) => { out[k] = _safeHeader(k, v); });
     }
     return out;
+  }
+
+  function _safeHeader(name, value) {
+    if (SENSITIVE_HEADER.test(String(name || ''))) return '[redacted]';
+    return value;
+  }
+
+  function _limitText(value, limit) {
+    if (typeof value !== 'string') return value;
+    if (value.length <= limit) return value;
+    return value.slice(0, limit) + `\n... truncated ${value.length - limit} chars`;
+  }
+
+  function _limitBody(value) {
+    if (typeof value === 'string') return _limitText(value, MAX_CAPTURE_BODY_CHARS);
+    try {
+      const text = JSON.stringify(value);
+      if (text && text.length > MAX_CAPTURE_BODY_CHARS) return _limitText(text, MAX_CAPTURE_BODY_CHARS);
+    } catch {}
+    return value;
   }
 
   // Resolve relative URLs to absolute
@@ -93,7 +120,7 @@
         source: 'fetch',
         method, url, urlPath: _path(url),
         status: 0, duration: Date.now() - start,
-        requestHeaders: reqHeaders, requestBody: reqBody,
+        requestHeaders: reqHeaders, requestBody: _limitBody(reqBody),
         responseHeaders: {}, responseRaw: null,
         responseDecrypted: null, decryptStatus: 'none',
         parseToken: null, size: 0, pinned: false,
@@ -123,9 +150,9 @@
         source: 'fetch',
         method, url, urlPath: _path(url),
         status: response.status, duration, size,
-        requestHeaders: reqHeaders, requestBody: reqBody,
+        requestHeaders: reqHeaders, requestBody: _limitBody(reqBody),
         responseHeaders: resHeaders,
-        responseRaw: raw,
+        responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
         responseDecrypted: decrypted,
         decryptStatus, parseToken: token, pinned: false,
       });
@@ -142,7 +169,7 @@
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
-    if (this.__xr) this.__xr.reqHeaders[name.toLowerCase()] = value;
+    if (this.__xr) this.__xr.reqHeaders[name.toLowerCase()] = _safeHeader(name, value);
     return _origXHRSetHeader.apply(this, arguments);
   };
 
@@ -166,7 +193,7 @@
       try {
         (this.getAllResponseHeaders() || '').trim().split('\r\n').forEach(line => {
           const idx = line.indexOf(':');
-          if (idx > 0) resHeaders[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim();
+          if (idx > 0) resHeaders[line.slice(0, idx).trim().toLowerCase()] = _safeHeader(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
         });
       } catch {}
 
@@ -183,9 +210,9 @@
         source: 'xhr',
         method: xr.method, url: xr.url, urlPath: _path(xr.url),
         status: this.status, duration, size,
-        requestHeaders: xr.reqHeaders, requestBody: reqBody,
+        requestHeaders: xr.reqHeaders, requestBody: _limitBody(reqBody),
         responseHeaders: resHeaders,
-        responseRaw: raw,
+        responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
         responseDecrypted: decrypted,
         decryptStatus, parseToken: token, pinned: false,
       });

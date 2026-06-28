@@ -155,7 +155,7 @@ function NetworkTable({ hidden }: { hidden: boolean }): React.ReactElement | nul
       <div className="xray-virtual-list" ref={parentRef}>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => (
-            <div key={item.key} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+            <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
               <NetworkRow event={events[item.index]} />
             </div>
           ))}
@@ -216,7 +216,7 @@ function ConsoleStream(): React.ReactElement {
     <section className="xray-console-stream" ref={parentRef}>
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((item) => (
-          <div key={item.key} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+          <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
             <ConsoleRow event={events[item.index]} />
           </div>
         ))}
@@ -291,22 +291,24 @@ function ConsolePrompt(): React.ReactElement {
   return (
     <div className="xray-prompt">
       <IconChevronRight {...iconProps} />
-      <input
-        value={command}
-        onChange={(event) => setConsoleDraft(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            void run();
-          } else if (event.key === 'ArrowUp' && !command) {
-            const previous = navigateConsoleHistory('up');
-            if (previous != null) setConsoleDraft(previous);
-          }
-        }}
-        placeholder={selected ? 'Try res.data, Object.keys(res), schema(res)' : 'Select a request, then try res.data'}
-      />
+      <div className="xray-prompt-command">
+        <input
+          value={command}
+          onChange={(event) => setConsoleDraft(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void run();
+            } else if (event.key === 'ArrowUp' && !command) {
+              const previous = navigateConsoleHistory('up');
+              if (previous != null) setConsoleDraft(previous);
+            }
+          }}
+          placeholder={selected ? 'Try res.data, Object.keys(res), schema(res)' : 'Select a request, then try res.data'}
+        />
+        <button className="xray-btn" onClick={() => void run()}><IconPlayerPlay {...iconProps} />Run</button>
+      </div>
       <span className="xray-context-chip">{selected ? `Selected ${selected.method || 'GET'} ${entryPath(selected)}` : 'No request selected'}</span>
-      <button className="xray-btn" onClick={() => void run()}><IconPlayerPlay {...iconProps} />Run</button>
     </div>
   );
 }

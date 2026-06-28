@@ -6,6 +6,7 @@
 
   let _panelReady = false;
   let _workerReady = false;
+  let _bridgeToken = null;
   const XRAY_FOCUS_TRAP_EVENTS = [
     'keydown', 'keyup', 'keypress', 'beforeinput', 'input',
     'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
@@ -76,7 +77,13 @@
   // Supports both single entries and batched entries for performance
   window.addEventListener('message', async (e) => {
     if (e.source !== window) return;
+    if (e.data?.__xray_bridge_ready__ && typeof e.data.token === 'string') {
+      _bridgeToken = e.data.token;
+      window.__XRAY_bridgeToken = _bridgeToken;
+      return;
+    }
     if (!e.data?.__xray_capture__) return;
+    if (!_bridgeToken || e.data.token !== _bridgeToken) return;
     
     await _initPanel();
     
@@ -168,14 +175,14 @@
       
       const handler = (e) => {
         if (e.source !== window) return;
-        if (e.data?.__xray_fetch_response__ && e.data.msgId === msgId) {
+        if (e.data?.__xray_fetch_response__ && e.data.token === _bridgeToken && e.data.msgId === msgId) {
           window.removeEventListener('message', handler);
           resolve(e.data.data);
         }
       };
       
       window.addEventListener('message', handler);
-      window.postMessage({ __xray_fetch_object__: true, msgId, refId }, '*');
+      window.postMessage({ __xray_fetch_object__: true, token: _bridgeToken, msgId, refId }, '*');
       
       // Timeout after 1 second
       setTimeout(() => {

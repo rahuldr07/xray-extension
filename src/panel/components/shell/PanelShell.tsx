@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconPictureInPicture, IconSettings, IconTerminal2 } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { PANEL_ACCENT_VALUES } from '../../models/panelSettings';
+import { PANEL_ACCENT_VALUES, PANEL_FONT_VALUES } from '../../models/panelSettings';
 import { buildSessionSummary } from '../../models/sessionSummary';
 import { formatBytes } from '../../utils';
 import { panelTabs } from './panelTabs';
@@ -51,8 +51,8 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
 
   return (
     <div
-      className={`xray-panel xray-mode-${mode} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
-      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent] } as React.CSSProperties}
+      className={`xray-panel xray-mode-${mode} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
+      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font] } as React.CSSProperties}
     >
       <header className="xray-topbar">
         <div className="xray-brand xray-drag-handle">

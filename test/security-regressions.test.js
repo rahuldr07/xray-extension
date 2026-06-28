@@ -282,8 +282,27 @@ test('React migration packages and scripts are present', () => {
   for (const dep of ['vite', '@vitejs/plugin-react', 'typescript', '@types/react', '@types/react-dom']) {
     assert.ok(pkg.devDependencies[dep], `${dep} devDependency is required`);
   }
-  for (const script of ['dev', 'build', 'typecheck', 'test', 'check']) {
+  for (const script of ['dev', 'build', 'typecheck', 'test', 'check', 'package:extension']) {
     assert.ok(pkg.scripts[script], `${script} script is required`);
+  }
+});
+
+test('extension manifest and package metadata are store-release ready', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  const pkg = JSON.parse(read('package.json'));
+  const packageScript = read('scripts/package-extension.ps1');
+
+  assert.equal(pkg.version, manifest.version, 'package and manifest versions must stay aligned');
+  assert.equal(manifest.options_ui.page, 'settings/settings.html');
+  assert.equal(manifest.options_ui.open_in_tab, true);
+  assert.match(manifest.content_security_policy.extension_pages, /script-src 'self'/);
+  assert.match(manifest.content_security_policy.extension_pages, /object-src 'self'/);
+  assert.match(packageScript, /\$allowList = @\(/);
+  for (const required of ['manifest.json', 'background.js', 'content', 'devtools', 'dist', 'icons', 'panel', 'settings', 'shared', 'workers']) {
+    assert.match(packageScript, new RegExp(`"${required.replace('.', '\\.')}"`));
+  }
+  for (const forbidden of ['node_modules', '.git', 'src', 'test', 'docs', 'output', 'preview']) {
+    assert.match(packageScript, new RegExp(`"${forbidden.replace('.', '\\.')}"`));
   }
 });
 
@@ -387,6 +406,14 @@ test('React API list parity logic is pure and covers grouping, filters, sorting,
   assert.match(entriesModel, /pinnedIds\.has\(a\.entry\.id\)/);
 });
 
+test('React virtualized rows provide TanStack measurement indexes', () => {
+  const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
+  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+
+  assert.match(entriesWorkspace, /data-index=\{item\.index\}/);
+  assert.match(consoleWorkspace, /data-index=\{item\.index\}/);
+});
+
 test('React API tab has premium request intelligence controls and mobile detail parity', () => {
   const entriesModel = read('src/panel/models/entries.ts');
   const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
@@ -398,11 +425,16 @@ test('React API tab has premium request intelligence controls and mobile detail 
   assert.match(entriesModel, /export function entryGroupStats/);
   assert.match(entriesWorkspace, /function ApiWorkspace/);
   assert.match(entriesWorkspace, /function ApiRequestRow/);
+  assert.match(entriesWorkspace, /function RequestContextPane/);
   assert.match(entriesWorkspace, /function ApiDetailDrawer/);
   assert.match(entriesWorkspace, /entryGroupStats\(entry, entries\)/);
   assert.match(entriesWorkspace, /IconFilterOff/);
   assert.match(entriesWorkspace, /quickFilters/);
   assert.match(entriesWorkspace, /ApiFlagPills/);
+  assert.match(entriesWorkspace, /xray-api-collection-pane/);
+  assert.match(entriesWorkspace, /xray-request-context-pane/);
+  assert.match(entriesWorkspace, /Captured Requests/);
+  assert.match(entriesWorkspace, /Request tabs/);
   assert.match(entriesWorkspace, /xray-api-table-head/);
   assert.match(entriesWorkspace, /xray-api-detail-drawer/);
   assert.match(store, /clearApiFilters\(\): void/);
@@ -412,7 +444,8 @@ test('React API tab has premium request intelligence controls and mobile detail 
   assert.match(store, /apiDetailOpen:\s*false/);
   assert.match(store, /methodFilters:\s*new Set<string>\(\)/);
   assert.match(styles, /\.xray-api-workspace/);
-  assert.match(styles, /grid-template-columns:\s*minmax\(420px, 1fr\) minmax\(360px, 42%\)/);
+  assert.match(styles, /grid-template-columns:\s*minmax\(360px,\s*440px\) minmax\(280px,\s*\.64fr\) minmax\(560px,\s*1\.55fr\)/);
+  assert.match(styles, /\.xray-request-context-pane/);
   assert.match(styles, /\.xray-api-row\.selected/);
   assert.match(styles, /\.xray-api-detail-drawer/);
   assert.match(styles, /\.xray-api-flag\.error/);
@@ -451,6 +484,13 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(persistence, /apiDetailOpen:\s*state\.apiDetailOpen/);
   assert.match(persistence, /methodFilters:\s*Array\.from\(state\.methodFilters\)/);
   assert.match(detail, /xray-detail-tabs/);
+  assert.match(detail, /operationGroups/);
+  assert.match(detail, /Inspect/);
+  assert.match(detail, /Transform/);
+  assert.match(detail, /Copy/);
+  assert.match(detail, /Send/);
+  assert.match(detail, /Response tabs/);
+  assert.match(detail, /View modes/);
   assert.match(detail, /xray-detail-footer/);
   assert.match(detail, /Console/);
   assert.match(detail, /Notebook/);
@@ -458,6 +498,7 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(detail, /Export/);
   assert.match(styles, /@media \(max-width: 420px\)/);
   assert.match(styles, /\.xray-detail-footer/);
+  assert.match(styles, /\.xray-detail-footer \.xray-action-btn\s*\{[\s\S]*flex:\s*1 1 calc\(50% - 8px\)/);
   assert.doesNotMatch(entriesWorkspace, /dangerouslySetInnerHTML|innerHTML/);
 });
 
@@ -738,8 +779,8 @@ test('React response detail has native contextual operations, not a separate cop
 
   assert.match(operations, /export interface ResponseOperation/);
   assert.match(operations, /export function getResponseOperations/);
-  assert.match(operations, /kind: 'view' \| 'console' \| 'notebook' \| 'copy' \| 'select'/);
-  for (const label of ['Schema', 'Table', 'Visualize', 'Compare Previous', 'Copy cURL', 'Copy fetch', 'Send to Console', 'Send to Notebook', 'Related Errors', 'Similar Calls']) {
+  assert.match(operations, /kind: 'view' \| 'console' \| 'notebook' \| 'copy' \| 'export' \| 'select'/);
+  for (const label of ['Schema', 'Table', 'Visualize', 'Compare Previous', 'Mock', 'Copy cURL', 'Copy fetch', 'Send to Console', 'Send to Notebook', 'Export', 'Related Errors', 'Similar Calls']) {
     assert.match(operations, new RegExp(label));
   }
   assert.match(detail, /insertConsoleCommand\('res'\)/);
@@ -819,7 +860,7 @@ test('React settings persist user preferences and publish capture config to vani
   const interceptor = read('content/interceptor.js');
 
   assert.match(types, /export interface PanelSettings/);
-  for (const field of ['captureFetch', 'captureXhr', 'maxEntries', 'slowThresholdMs', 'defaultDetailView', 'compactRows', 'showHostInPath', 'accent', 'confirmDestructiveActions']) {
+  for (const field of ['captureFetch', 'captureXhr', 'maxEntries', 'slowThresholdMs', 'defaultDetailView', 'compactRows', 'showHostInPath', 'accent', 'theme', 'font', 'density', 'glow', 'confirmDestructiveActions']) {
     assert.match(types, new RegExp(field));
     assert.match(settingsModel, new RegExp(field));
   }
@@ -828,11 +869,108 @@ test('React settings persist user preferences and publish capture config to vani
   assert.match(store, /updateSettings\(patch: Partial<PanelSettings>\): void/);
   assert.match(store, /publishCaptureSettings\(settings\)/);
   assert.match(captureConfig, /__xray_config__/);
+  assert.match(captureConfig, /token:\s*window\.__XRAY_bridgeToken/);
   assert.match(interceptor, /event\.source !== window/);
+  assert.match(interceptor, /event\.data\.token !== _bridgeToken/);
   assert.match(interceptor, /captureFetch/);
   assert.match(interceptor, /captureXhr/);
   assert.match(interceptor, /if \(!_config\.captureFetch\) return _origFetch/);
   assert.match(interceptor, /if \(!_config\.captureXhr\) return _origXHRSend/);
+});
+
+test('Operator UI exposes configurable theme, font, density, and glow controls', () => {
+  const types = read('src/panel/types.ts');
+  const settingsModel = read('src/panel/models/panelSettings.ts');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const styles = read('src/panel/styles.css');
+
+  assert.match(types, /export type PanelTheme = 'operator' \| 'dev-edition' \| 'midnight' \| 'light-lab'/);
+  assert.match(types, /export type PanelFont = 'jetbrains' \| 'cascadia' \| 'iosevka' \| 'system'/);
+  assert.match(types, /export type PanelDensity = 'compact' \| 'comfortable' \| 'spacious'/);
+  assert.match(settingsModel, /PANEL_FONT_VALUES/);
+  assert.match(settingsModel, /theme: 'operator'/);
+  assert.match(settingsModel, /density: 'compact'/);
+  assert.match(settingsModel, /glow: true/);
+  assert.match(settingsModal, /label="Theme"/);
+  assert.match(settingsModal, /label="Font stack"/);
+  assert.match(settingsModal, /label="Density"/);
+  assert.match(settingsModal, /label="Operator glow"/);
+  assert.match(shell, /xray-theme-\$\{settings\.theme\}/);
+  assert.match(shell, /xray-density-\$\{settings\.density\}/);
+  assert.match(shell, /xray-font-\$\{settings\.font\}/);
+  assert.match(shell, /PANEL_FONT_VALUES\[settings\.font\]/);
+  for (const className of ['xray-theme-operator', 'xray-theme-dev-edition', 'xray-theme-midnight', 'xray-theme-light-lab', 'xray-density-compact', 'xray-density-comfortable', 'xray-density-spacious']) {
+    assert.match(styles, new RegExp(`\\.${className}`));
+  }
+  assert.match(styles, /XRAY Operator UI override layer/);
+  assert.match(styles, /prefers-reduced-motion/);
+});
+
+test('Operator UI applies tab-specific Network, Detail, Console, Notebook, and Insights polish', () => {
+  const styles = read('src/panel/styles.css');
+
+  assert.match(styles, /XRAY Operator UI tab-specific polish/);
+  assert.match(styles, /\.xray-panel \.xray-network-head/);
+  assert.match(styles, /\.xray-panel \.xray-api-table-head/);
+  assert.match(styles, /\.xray-panel \.xray-network-row\.selected/);
+  assert.match(styles, /\.xray-panel \.xray-detail-tab\.active/);
+  assert.match(styles, /\.xray-panel \.xray-operation-groups/);
+  assert.match(styles, /\.xray-panel \.xray-prompt::before/);
+  assert.match(styles, /content: '>'/);
+  assert.match(styles, /\.xray-panel \.xray-statusbar/);
+  assert.match(styles, /\.xray-panel \.xray-notebook-cell::before/);
+  assert.match(styles, /\.xray-panel \.xray-insight-row:hover/);
+  assert.match(styles, /\.xray-panel \.xray-api-metric strong/);
+});
+
+test('content bridge requires a MAIN-world bridge token for capture and lazy object messages', () => {
+  const content = read('content/content.js');
+  const interceptor = read('content/interceptor.js');
+  const consoleCapture = read('content/console-capture.js');
+
+  assert.match(interceptor, /__XRAY_BRIDGE_TOKEN__/);
+  assert.match(interceptor, /__xray_bridge_ready__/);
+  assert.match(interceptor, /__xray_capture__:\s*true,\s*token:\s*_bridgeToken/);
+  assert.match(interceptor, /event\.data\.token !== _bridgeToken/);
+
+  assert.match(consoleCapture, /__XRAY_BRIDGE_TOKEN__/);
+  assert.match(consoleCapture, /__xray_bridge_ready__/);
+  assert.match(consoleCapture, /__xray_capture__:\s*true,\s*token:\s*_bridgeToken/);
+  assert.match(consoleCapture, /e\.data\.token !== _bridgeToken/);
+  assert.match(consoleCapture, /__xray_fetch_response__:\s*true,\s*token:\s*_bridgeToken/);
+
+  assert.match(content, /let _bridgeToken = null/);
+  assert.match(content, /__xray_bridge_ready__/);
+  assert.match(content, /e\.data\.token !== _bridgeToken/);
+  assert.match(content, /__xray_fetch_object__:\s*true,\s*token:\s*_bridgeToken/);
+  assert.match(content, /__xray_fetch_response__[\s\S]{0,120}e\.data\.token === _bridgeToken/);
+});
+
+test('interceptor redacts sensitive headers and bounds captured payloads before storing entries', () => {
+  const interceptor = read('content/interceptor.js');
+
+  assert.match(interceptor, /SENSITIVE_HEADER\s*=\s*\/\^\(authorization\|proxy-authorization\|cookie\|set-cookie/);
+  assert.match(interceptor, /function _safeHeader/);
+  assert.match(interceptor, /return '\[redacted\]'/);
+  assert.match(interceptor, /MAX_CAPTURE_TEXT_CHARS\s*=\s*250000/);
+  assert.match(interceptor, /MAX_CAPTURE_BODY_CHARS\s*=\s*50000/);
+  assert.match(interceptor, /function _limitText/);
+  assert.match(interceptor, /function _limitBody/);
+  assert.match(interceptor, /requestBody:\s*_limitBody\(reqBody\)/);
+  assert.match(interceptor, /responseRaw:\s*_limitText\(raw, MAX_CAPTURE_TEXT_CHARS\)/);
+  assert.match(interceptor, /reqHeaders\[name\.toLowerCase\(\)\]\s*=\s*_safeHeader\(name, value\)/);
+  assert.match(interceptor, /resHeaders\[line\.slice\(0, idx\).*_safeHeader\(line\.slice\(0, idx\)/);
+});
+
+test('React API summary uses the configured slow threshold instead of a hidden constant', () => {
+  const entriesModel = read('src/panel/models/entries.ts');
+  const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
+
+  assert.match(entriesModel, /buildApiListSummary\(entries: XrayEntry\[], pinnedIds: ReadonlySet<string>, slowThresholdMs = 500\)/);
+  assert.match(entriesModel, /slow:\s*apis\.filter\(\(entry\) => duration\(entry\) >= slowThresholdMs\)\.length/);
+  assert.match(entriesWorkspace, /settings\.slowThresholdMs/);
+  assert.match(entriesWorkspace, /buildApiListSummary\(entries, pinnedIds, slowThresholdMs\)/);
 });
 
 test('React modals use a shared safe shell for export, settings, command palette, and confirmations', () => {
@@ -865,11 +1003,13 @@ test('React response detail renders native smart operations and bounded schema d
 
   assert.match(detail, /getResponseOperations\(entry, entries\)/);
   assert.match(detail, /xray-smart-ops/);
+  assert.match(detail, /xray-operation-groups/);
   assert.match(detail, /runOperation/);
   assert.match(detail, /setDetailView\(operation\.view\)/);
   assert.match(detail, /insertConsoleCommand\(operation\.command\)/);
   assert.match(detail, /addNotebookCell\(\{ title: operation\.label/);
   assert.match(detail, /copyText\(operation\.command\)/);
+  assert.match(detail, /setExportOpen\(true\)/);
   assert.match(detail, /detailView === 'schema'/);
   assert.match(detail, /detailView === 'diff'/);
   assert.match(operations, /view:\s*'schema'/);
@@ -885,6 +1025,30 @@ test('worker client falls back to a blob wrapper when extension worker URL is bl
   assert.match(workerClient, /new Blob/);
   assert.match(workerClient, /importScripts/);
   assert.match(workerClient, /new Worker\(blobUrl\)/);
+});
+
+test('worker core owns expensive schema, diff, grid, and detail analysis operations', () => {
+  const worker = read('workers/xray-worker.js');
+  const workerClient = read('shared/worker-client.js');
+  const detail = read('src/panel/components/detail/RequestDetail.tsx');
+  const types = read('src/panel/types.ts');
+
+  assert.match(worker, /function inferSchema/);
+  assert.match(worker, /function detailAnalysis/);
+  assert.match(worker, /structuralDiff:\s*computeDiff\(previous, current\)\.slice\(0, 500\)/);
+  assert.match(worker, /engine:\s*'worker-js'/);
+  assert.match(worker, /case 'inferSchema'/);
+  assert.match(worker, /case 'detailAnalysis'/);
+
+  assert.match(workerClient, /async inferSchema\(data\)/);
+  assert.match(workerClient, /async detailAnalysis\(current, previous = null\)/);
+  assert.match(types, /detailAnalysis\(current: unknown, previous\?: unknown\): Promise<unknown>/);
+
+  assert.match(detail, /window\.XRAY_Worker\.detailAnalysis\(activeValue, previousValue\)/);
+  assert.match(detail, /workerAnalysis\?\.schema \?\? schema\(activeValue\)/);
+  assert.match(detail, /workerGrid\?: ReturnType<typeof gridRows>/);
+  assert.match(detail, /workerDiff\?: unknown/);
+  assert.match(detail, /main-thread-fallback/);
 });
 
 test('console exposes insertion hooks without a separate intelligence strip', () => {

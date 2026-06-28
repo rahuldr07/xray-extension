@@ -102,6 +102,11 @@ export function buildFetch(entry: XrayEntry | null): string {
   return `fetch(${JSON.stringify(entry.url || '')})`;
 }
 
+export function buildMockPayload(entry: XrayEntry | null): string {
+  const mock = window.XRAY_ConsoleHelpers?.buildMock?.(entry) || entryResponse(entry);
+  return safeStringify(mock, 2, 120_000);
+}
+
 export async function copyText(text: string): Promise<void> {
   try {
     await navigator.clipboard?.writeText?.(text);

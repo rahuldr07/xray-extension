@@ -290,6 +290,60 @@ function computeDiff(a, b, path = '') {
   return diffs;
 }
 
+function inferSchema(value, depth = 0, maxDepth = 10) {
+  if (depth > maxDepth) return '[Max depth]';
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return value.length ? [inferSchema(value[0], depth + 1, maxDepth)] : 'array';
+  if (value && typeof value === 'object') {
+    const out = {};
+    const keys = Object.keys(value).slice(0, 200);
+    for (const key of keys) out[key] = inferSchema(value[key], depth + 1, maxDepth);
+    if (Object.keys(value).length > keys.length) out['...'] = `+${Object.keys(value).length - keys.length} more keys`;
+    return out;
+  }
+  return typeof value;
+}
+
+function gridRows(value) {
+  const rows = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? Object.values(value).find(Array.isArray) || [value]
+      : [];
+  const objects = rows
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .slice(0, 200);
+  const columns = Array.from(objects.reduce((set, row) => {
+    Object.keys(row).slice(0, 20).forEach((key) => set.add(key));
+    return set;
+  }, new Set()));
+  return { objects, columns };
+}
+
+function detailAnalysis(current, previous = null) {
+  const started = performance.now();
+  const currentSchema = inferSchema(current);
+  const previousSchema = previous == null ? null : inferSchema(previous);
+  return {
+    schema: currentSchema,
+    diff: previous == null ? null : {
+      previous,
+      current,
+      previousSchema,
+      currentSchema,
+      structuralDiff: computeDiff(previous, current).slice(0, 500),
+    },
+    grid: gridRows(current),
+    viz: {
+      inferredType: currentSchema,
+      rows: Array.isArray(current) ? current.length : current && typeof current === 'object' ? 1 : 0,
+    },
+    stats: computeStats(current),
+    durationMs: Math.round((performance.now() - started) * 100) / 100,
+    engine: 'worker-js',
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // EXPORT: Various formats
 // ════════════════════════════════════════════════════════════════════════════
@@ -458,6 +512,16 @@ self.onmessage = async function(e) {
       case 'computeDiff': {
         const { a, b } = payload;
         result = computeDiff(a, b);
+        break;
+      }
+
+      case 'inferSchema': {
+        result = inferSchema(payload.data);
+        break;
+      }
+
+      case 'detailAnalysis': {
+        result = detailAnalysis(payload.current, payload.previous);
         break;
       }
       

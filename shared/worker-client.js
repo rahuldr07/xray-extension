@@ -187,6 +187,22 @@ window.XRAY_Worker = (() => {
       if (!_worker) return [];
       return _send('computeDiff', { a, b });
     },
+
+    /**
+     * Infer a JSON-compatible schema off the UI thread.
+     */
+    async inferSchema(data) {
+      if (!_worker) return null;
+      return _send('inferSchema', { data });
+    },
+
+    /**
+     * Compute all expensive request-detail views in one worker round trip.
+     */
+    async detailAnalysis(current, previous = null) {
+      if (!_worker) return null;
+      return _send('detailAnalysis', { current, previous });
+    },
     
     /**
      * Export entries to CSV format

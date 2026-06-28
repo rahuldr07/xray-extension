@@ -1,11 +1,11 @@
 import type { DetailView, XrayEntry } from '../types';
 import { duration, entryPath, isApi } from './entries';
-import { buildCurl, buildFetch, entryResponse, safeStringify, schema } from '../utils';
+import { buildCurl, buildFetch, buildMockPayload, entryResponse, safeStringify, schema } from '../utils';
 
 export interface ResponseOperation {
   id: string;
   label: string;
-  kind: 'view' | 'console' | 'notebook' | 'copy' | 'select';
+  kind: 'view' | 'console' | 'notebook' | 'copy' | 'export' | 'select';
   command?: string;
   view?: DetailView;
   toast?: string;
@@ -102,8 +102,10 @@ export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): R
 
   pushUnique(operations, { id: 'copy-curl', label: 'Copy cURL', kind: 'copy', command: buildCurl(entry), toast: 'cURL copied.', priority: 45 });
   pushUnique(operations, { id: 'copy-fetch', label: 'Copy fetch', kind: 'copy', command: buildFetch(entry), toast: 'fetch snippet copied.', priority: 44 });
+  pushUnique(operations, { id: 'mock', label: 'Mock', kind: 'copy', command: buildMockPayload(entry), toast: 'Mock response copied.', priority: 43 });
   pushUnique(operations, { id: 'send-console', label: 'Send to Console', kind: 'console', command: 'res', priority: 43 });
   pushUnique(operations, { id: 'send-notebook', label: 'Send to Notebook', kind: 'notebook', command: `// ${entry.method || 'GET'} ${path}\nschema(res)`, priority: 42 });
+  pushUnique(operations, { id: 'export', label: 'Export', kind: 'export', priority: 41 });
 
-  return operations.sort((a, b) => b.priority - a.priority).slice(0, 10);
+  return operations.sort((a, b) => b.priority - a.priority).slice(0, 14);
 }

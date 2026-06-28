@@ -3,16 +3,22 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   IconChevronDown,
   IconChevronRight,
+  IconClock,
   IconCopy,
+  IconDatabase,
   IconFilter,
   IconFilterOff,
   IconPin,
   IconSearch,
+  IconServer,
+  IconWorld,
 } from '@tabler/icons-react';
 import { EmptyState } from '../common/EmptyState';
 import { RequestDetail } from '../detail/RequestDetail';
+import { JsonView } from '../detail/JsonView';
 import { usePanelStore } from '../../store';
 import {
+  buildApiListSummary,
   buildEntryListItems,
   duration,
   entryGroupStats,
@@ -23,9 +29,10 @@ import {
   isApi,
   type ApiEntryFlag,
   type EntryListItem,
+  type ApiListSummary,
 } from '../../models/entries';
 import type { ApiGroupingMode, ApiQuickFilter, SortField, XrayEntry } from '../../types';
-import { copyText, formatBytes, formatTime, methodClass, preview, statusClass } from '../../utils';
+import { copyText, entryRequest, formatBytes, formatTime, methodClass, preview, statusClass } from '../../utils';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -56,6 +63,16 @@ const flagLabels: Record<ApiEntryFlag, string> = {
   empty: 'Empty',
   pinned: 'Pinned',
 };
+
+type RequestContextTab = 'request' | 'params' | 'headers' | 'body' | 'timeline';
+
+const requestContextTabs: Array<{ id: RequestContextTab; label: string }> = [
+  { id: 'request', label: 'Request' },
+  { id: 'params', label: 'Params' },
+  { id: 'headers', label: 'Headers' },
+  { id: 'body', label: 'Body' },
+  { id: 'timeline', label: 'Timeline' },
+];
 
 function useEntryListItems(mode: 'api' | 'logs'): EntryListItem[] {
   const entries = usePanelStore((state) => state.entries);
@@ -103,14 +120,16 @@ function ApiWorkspace(): React.ReactElement {
   const toggleGroup = usePanelStore((state) => state.toggleGroup);
   const pinnedIds = usePanelStore((state) => state.pinnedIds);
   const compactRows = usePanelStore((state) => state.settings.compactRows);
+  const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
   const rows = useEntryListItems('api');
   const selected = selectedId ? entries.find((entry) => entry.id === selectedId && entry.type === 'api') || null : null;
   const maxDuration = useMemo(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
+  const summary = useMemo(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
   const parentRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => compactRows ? 38 : 46,
+    estimateSize: () => compactRows ? 42 : 68,
     getItemKey: (index) => rows[index]?.key || index,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 14,
@@ -123,34 +142,38 @@ function ApiWorkspace(): React.ReactElement {
 
   return (
     <section className={`xray-api-workspace ${selected && apiDetailOpen ? 'detail-open' : ''}`}>
-      <ApiInspectorToolbar />
       <div className="xray-api-body">
-        <div className="xray-api-main">
-          <ApiTableHeader />
-          <div className="xray-api-table-scroll" ref={parentRef}>
-            <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-              {virtualizer.getVirtualItems().map((item) => {
-                const row = rows[item.index];
-                const entry = row.entry;
-                return (
-                  <div key={item.key} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
-                    <ApiRequestRow
-                      row={row}
-                      entries={entries}
-                      maxDuration={maxDuration}
-                      selected={selectedId === entry.id}
-                      pinned={pinnedIds.has(entry.id)}
-                      onSelect={() => selectApiEntry(entry)}
-                      onToggleGroup={() => row.groupKey && toggleGroup(row.groupKey)}
-                      onTogglePinned={() => togglePinned(entry.id)}
-                    />
-                  </div>
-                );
-              })}
+        <div className="xray-api-collection-pane">
+          <ApiCollectionHeader summary={summary} visibleCount={rows.length} />
+          <ApiInspectorToolbar />
+          <div className="xray-api-main">
+            <ApiTableHeader />
+            <div className="xray-api-table-scroll" ref={parentRef}>
+              <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+                {virtualizer.getVirtualItems().map((item) => {
+                  const row = rows[item.index];
+                  const entry = row.entry;
+                  return (
+                    <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+                      <ApiRequestRow
+                        row={row}
+                        entries={entries}
+                        maxDuration={maxDuration}
+                        selected={selectedId === entry.id}
+                        pinned={pinnedIds.has(entry.id)}
+                        onSelect={() => selectApiEntry(entry)}
+                        onToggleGroup={() => row.groupKey && toggleGroup(row.groupKey)}
+                        onTogglePinned={() => togglePinned(entry.id)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {!rows.length && <EmptyState label="No API requests captured" />}
             </div>
-            {!rows.length && <EmptyState label="No API requests captured" />}
           </div>
         </div>
+        <RequestContextPane entry={selected} />
         <ApiDetailDrawer entry={selected && apiDetailOpen ? selected : null} onClose={() => setApiDetailOpen(false)} />
       </div>
     </section>
@@ -184,7 +207,7 @@ function LogsWorkspace(): React.ReactElement {
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               return (
-                <div key={item.key} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+                <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
                   <LogRow row={row} selected={selectedId === row.entry.id} pinned={pinnedIds.has(row.entry.id)} onSelect={() => selectEntry(row.entry.id)} onTogglePinned={() => togglePinned(row.entry.id)} />
                 </div>
               );
@@ -196,6 +219,37 @@ function LogsWorkspace(): React.ReactElement {
       </div>
       <div className="xray-detail-panel">{selected ? <RequestDetail entry={selected} /> : <EmptyState label="Select an entry" />}</div>
     </section>
+  );
+}
+
+function ApiCollectionHeader({ summary, visibleCount }: { summary: ApiListSummary; visibleCount: number }): React.ReactElement {
+  return (
+    <div className="xray-api-collection-head">
+      <div className="xray-api-collection-title">
+        <span>Captured Requests</span>
+        <strong>{summary.total} APIs</strong>
+      </div>
+      <div className="xray-api-env-pill" title="Environment inferred from captured browser traffic">
+        <IconWorld {...iconProps} />
+        <span>Live page</span>
+      </div>
+      <div className="xray-api-summary-strip" aria-label="Captured request summary">
+        <SummaryPill tone="ok" icon={<IconDatabase {...iconProps} />} label="Visible" value={String(visibleCount)} />
+        <SummaryPill tone={summary.errors ? 'error' : 'ok'} icon={<IconServer {...iconProps} />} label="Errors" value={String(summary.errors)} />
+        <SummaryPill tone={summary.slow ? 'warn' : 'ok'} icon={<IconClock {...iconProps} />} label="Avg" value={`${Math.round(summary.avgDuration)}ms`} />
+        <SummaryPill tone="info" icon={<IconDatabase {...iconProps} />} label="Bytes" value={formatBytes(summary.totalBytes)} />
+      </div>
+    </div>
+  );
+}
+
+function SummaryPill({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: 'ok' | 'warn' | 'error' | 'info' }): React.ReactElement {
+  return (
+    <span className={`xray-api-summary-pill ${tone}`}>
+      {icon}
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </span>
   );
 }
 
@@ -271,15 +325,10 @@ function ApiTableHeader(): React.ReactElement {
   return (
     <div className="xray-api-table-head" role="row">
       <span>Method</span>
+      <span>Request</span>
       <span>Status</span>
-      <span>Path</span>
-      <span>Domain</span>
-      <span>Type</span>
       <span>Timing</span>
-      <span>Size</span>
-      <span>Time</span>
-      <span>Flags</span>
-      <span />
+      <span>Tools</span>
     </div>
   );
 }
@@ -315,6 +364,7 @@ function ApiRequestRow({
   const flags = getEntryFlags(entry, entries, pinned ? new Set([entry.id]) : new Set(), slowThresholdMs);
   const pct = Math.max(8, Math.min(100, duration(entry) / maxDuration * 100));
   const isGroup = Boolean(row.groupCount && row.groupCount > 1 && !row.groupChild);
+  const contentType = getEntryContentType(entry) || 'response';
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -330,29 +380,25 @@ function ApiRequestRow({
 
   return (
     <div
-      className={`xray-api-row ${selected ? 'selected' : ''} ${row.groupChild ? 'child' : ''} ${pinned ? 'pinned' : ''} ${isGroup ? 'group' : ''}`}
+      className={`xray-api-row ${selected ? 'selected' : ''} ${row.groupChild ? 'child' : ''} ${pinned ? 'pinned' : ''} ${isGroup ? 'group' : ''} ${status >= 400 ? 'has-error' : ''} ${duration(entry) >= slowThresholdMs ? 'has-slow' : ''}`}
       role="button"
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
     >
       <span className={`xray-method ${methodClass(entry.method)}`}>{String(entry.method || 'GET').toUpperCase().replace('DELETE', 'DEL')}</span>
-      <span className={`xray-status ${statusClass(status)}`}>{entry.status || '---'}</span>
       <span className="xray-api-path-cell">
         <span className="xray-path" title={path}>{path}</span>
         <span className="xray-entry-meta">
-          {isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : showHostInPath ? domain : getEntryContentType(entry) || 'response'}
+          {isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}`}
         </span>
+        <ApiFlagPills flags={flags} />
       </span>
-      <span className="xray-api-domain" title={domain}>{domain}</span>
-      <span className="xray-api-source">{type}</span>
+      <span className={`xray-status ${statusClass(status)}`}>{entry.status || '---'}</span>
       <span className="xray-entry-duration">
         <span className="xray-bar-track"><span className={`xray-bar ${duration(entry) >= slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`} style={{ width: `${pct}%` }} /></span>
         <span>{Math.round(duration(entry))}ms</span>
       </span>
-      <span className="xray-api-size">{formatBytes(displayBytes)}</span>
-      <span className="xray-api-time">{formatTime(entry.timestamp)}</span>
-      <ApiFlagPills flags={flags} />
       <span className="xray-api-row-actions">
         {row.groupCount && row.groupCount > 1 && (
           <button className="xray-icon-btn" aria-label={row.groupExpanded ? 'Collapse endpoint group' : 'Expand endpoint group'} onClick={(event) => { event.stopPropagation(); onToggleGroup(); }}>
@@ -377,6 +423,94 @@ function ApiFlagPills({ flags }: { flags: ApiEntryFlag[] }): React.ReactElement 
       {flags.length > visible.length && <span className="xray-api-flag more">+{flags.length - visible.length}</span>}
     </span>
   );
+}
+
+function RequestContextPane({ entry }: { entry: XrayEntry | null }): React.ReactElement {
+  const [activeTab, setActiveTab] = React.useState<RequestContextTab>('request');
+
+  React.useEffect(() => {
+    setActiveTab('request');
+  }, [entry?.id]);
+
+  if (!entry) {
+    return (
+      <aside className="xray-request-context-pane empty" aria-label="Selected request context">
+        <EmptyState label="Select a request" />
+      </aside>
+    );
+  }
+
+  const status = Number(entry.status) || 0;
+  const path = entryPath(entry);
+  const domain = getEntryDomain(entry) || 'local';
+  const query = requestQueryParams(entry);
+  const contextValue = requestContextValue(entry, activeTab, query);
+
+  return (
+    <aside className="xray-request-context-pane" aria-label="Selected request context">
+      <div className="xray-request-context-head">
+        <span className="xray-pane-kicker">Request Context</span>
+        <div className="xray-request-line">
+          <span className={`xray-method ${methodClass(entry.method)}`}>{String(entry.method || 'GET').toUpperCase()}</span>
+          <code title={String(entry.url || path)}>{path}</code>
+        </div>
+        <div className="xray-request-meta-grid">
+          <span><strong>Host</strong>{domain}</span>
+          <span><strong>Status</strong><b className={`xray-status ${statusClass(status)}`}>{entry.status || '---'}</b></span>
+          <span><strong>Time</strong>{Math.round(duration(entry))}ms</span>
+          <span><strong>Size</strong>{formatBytes(entry.size)}</span>
+        </div>
+      </div>
+      <div className="xray-detail-tabs xray-request-tabs" aria-label="Request tabs">
+        {requestContextTabs.map((tab) => (
+          <button key={tab.id} className={`xray-detail-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className="xray-request-context-content">
+        <JsonView value={contextValue} />
+      </div>
+      <div className="xray-request-context-footer">
+        <span>{String(entry.source || 'fetch').toUpperCase()}</span>
+        <span>{getEntryContentType(entry) || 'unknown content'}</span>
+      </div>
+    </aside>
+  );
+}
+
+function requestQueryParams(entry: XrayEntry): Record<string, string> {
+  const url = String(entry.url || '');
+  if (!url) return {};
+  try {
+    return Object.fromEntries(new URL(url).searchParams.entries());
+  } catch {
+    return {};
+  }
+}
+
+function requestContextValue(entry: XrayEntry, tab: RequestContextTab, query: Record<string, string>): unknown {
+  if (tab === 'params') return query;
+  if (tab === 'headers') return entry.requestHeaders || {};
+  if (tab === 'body') return entryRequest(entry);
+  if (tab === 'timeline') {
+    return {
+      startedAt: formatTime(entry.timestamp),
+      durationMs: Math.round(duration(entry)),
+      status: entry.status || null,
+      source: entry.source || 'fetch',
+      size: Number(entry.size) || 0,
+    };
+  }
+
+  return {
+    method: String(entry.method || 'GET').toUpperCase(),
+    url: entry.url || entry.urlPath || '',
+    path: entryPath(entry),
+    source: entry.source || 'fetch',
+    status: entry.status || null,
+    contentType: getEntryContentType(entry) || null,
+  };
 }
 
 function ApiDetailDrawer({ entry, onClose }: { entry: XrayEntry | null; onClose(): void }): React.ReactElement {

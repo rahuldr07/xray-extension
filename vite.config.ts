@@ -24,9 +24,11 @@ function extraIifeEntrypoints() {
   return {
     name: 'xray-extra-iife-entrypoints',
     async closeBundle() {
+      const rootDir = process.cwd();
       await Promise.all([
         buildWithEsbuild({
-          entryPoints: ['src/panel/hud-main.tsx'],
+          absWorkingDir: rootDir,
+          entryPoints: [path.join(rootDir, 'src/panel/hud-main.tsx')],
           outfile: 'dist/hud-ui.js',
           bundle: true,
           format: 'iife',
@@ -38,7 +40,8 @@ function extraIifeEntrypoints() {
           plugins: [inlineCssPlugin()],
         }),
         buildWithEsbuild({
-          entryPoints: ['src/panel/window-main.tsx'],
+          absWorkingDir: rootDir,
+          entryPoints: [path.join(rootDir, 'src/panel/window-main.tsx')],
           outfile: 'dist/window-ui.js',
           bundle: true,
           format: 'iife',

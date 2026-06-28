@@ -3,6 +3,9 @@ export type ActiveTab = 'console' | 'api' | 'logs' | 'notebook' | 'insights' | '
 export type XrayAppMode = 'devtools' | 'hud' | 'window';
 export type DetailView = 'tree' | 'grid' | 'raw' | 'schema' | 'diff' | 'viz' | 'waterfall' | 'headers';
 export type PanelAccent = 'blue' | 'mauve' | 'teal' | 'green' | 'peach';
+export type PanelTheme = 'operator' | 'dev-edition' | 'midnight' | 'light-lab';
+export type PanelFont = 'jetbrains' | 'cascadia' | 'iosevka' | 'system';
+export type PanelDensity = 'compact' | 'comfortable' | 'spacious';
 export type DetailTab = 'response' | 'request' | 'headers';
 export type ConsoleMiniTab = 'network' | 'console';
 export type NetworkFilter = 'all' | 'xhr' | 'fetch' | 'ws' | 'errors';
@@ -70,6 +73,10 @@ export interface PanelSettings {
   compactRows: boolean;
   showHostInPath: boolean;
   accent: PanelAccent;
+  theme: PanelTheme;
+  font: PanelFont;
+  density: PanelDensity;
+  glow: boolean;
   confirmDestructiveActions: boolean;
 }
 
@@ -137,7 +144,19 @@ declare global {
       isVisible(): boolean;
       updateCount(n: number): void;
     };
+    XRAY_Worker?: {
+      init(): Promise<void>;
+      isReady(): boolean;
+      whenReady(): Promise<void>;
+      addEntry(entry: XrayEntry): Promise<unknown>;
+      search(query: string, entries: XrayEntry[]): Promise<XrayEntry[]>;
+      computeStats(data: unknown): Promise<unknown>;
+      computeDiff(a: unknown, b: unknown): Promise<unknown[]>;
+      inferSchema(data: unknown): Promise<unknown>;
+      detailAnalysis(current: unknown, previous?: unknown): Promise<unknown>;
+    };
     __XRAY_focusTrapActive?: boolean;
+    __XRAY_bridgeToken?: string | null;
   }
 }
 

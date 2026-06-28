@@ -113,7 +113,7 @@ export function statusRange(entry: XrayEntry): string {
   return 'other';
 }
 
-export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet<string>): ApiListSummary {
+export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet<string>, slowThresholdMs = 500): ApiListSummary {
   const apis = entries.filter(isApi);
   const totalDuration = apis.reduce((sum, entry) => sum + duration(entry), 0);
   const endpointCounts = new Map<string, number>();
@@ -125,7 +125,7 @@ export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet
   return {
     total: apis.length,
     errors: apis.filter((entry) => Number(entry.status) >= 400).length,
-    slow: apis.filter((entry) => duration(entry) > 500).length,
+    slow: apis.filter((entry) => duration(entry) >= slowThresholdMs).length,
     pinned: apis.filter((entry) => pinnedIds.has(entry.id)).length,
     avgDuration: apis.length ? totalDuration / apis.length : 0,
     totalBytes: apis.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),

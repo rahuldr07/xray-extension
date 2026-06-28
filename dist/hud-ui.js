@@ -12832,12 +12832,21 @@ var XRAYHudUI = (() => {
   // src/panel/models/panelSettings.ts
   var DETAIL_VIEWS = ["tree", "grid", "raw", "schema", "diff", "viz", "waterfall", "headers"];
   var ACCENTS = ["blue", "mauve", "teal", "green", "peach"];
+  var THEMES = ["operator", "dev-edition", "midnight", "light-lab"];
+  var FONTS = ["jetbrains", "cascadia", "iosevka", "system"];
+  var DENSITIES = ["compact", "comfortable", "spacious"];
   var PANEL_ACCENT_VALUES = {
     blue: "#89b4fa",
     mauve: "#cba6f7",
     teal: "#94e2d5",
     green: "#a6e3a1",
     peach: "#fab387"
+  };
+  var PANEL_FONT_VALUES = {
+    jetbrains: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    cascadia: "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', monospace",
+    iosevka: "'Iosevka', 'JetBrains Mono', 'Fira Code', monospace",
+    system: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
   };
   var DEFAULT_PANEL_SETTINGS = {
     captureFetch: true,
@@ -12849,6 +12858,10 @@ var XRAYHudUI = (() => {
     compactRows: false,
     showHostInPath: true,
     accent: "blue",
+    theme: "operator",
+    font: "jetbrains",
+    density: "compact",
+    glow: true,
     confirmDestructiveActions: true
   };
   function clampNumber(value, fallback, min, max) {
@@ -12862,6 +12875,15 @@ var XRAYHudUI = (() => {
   function asAccent(value, fallback) {
     return ACCENTS.includes(value) ? value : fallback;
   }
+  function asTheme(value, fallback) {
+    return THEMES.includes(value) ? value : fallback;
+  }
+  function asFont(value, fallback) {
+    return FONTS.includes(value) ? value : fallback;
+  }
+  function asDensity(value, fallback) {
+    return DENSITIES.includes(value) ? value : fallback;
+  }
   function normalizePanelSettings(input) {
     const base = { ...DEFAULT_PANEL_SETTINGS, ...input || {} };
     return {
@@ -12874,6 +12896,10 @@ var XRAYHudUI = (() => {
       compactRows: Boolean(base.compactRows),
       showHostInPath: Boolean(base.showHostInPath),
       accent: asAccent(base.accent, DEFAULT_PANEL_SETTINGS.accent),
+      theme: asTheme(base.theme, DEFAULT_PANEL_SETTINGS.theme),
+      font: asFont(base.font, DEFAULT_PANEL_SETTINGS.font),
+      density: asDensity(base.density, DEFAULT_PANEL_SETTINGS.density),
+      glow: Boolean(base.glow),
       confirmDestructiveActions: Boolean(base.confirmDestructiveActions)
     };
   }
@@ -12933,6 +12959,7 @@ var XRAYHudUI = (() => {
       window.postMessage({
         __xray_config__: true,
         source: "xray-react-ui",
+        token: window.__XRAY_bridgeToken,
         config: {
           captureFetch: settings.captureFetch,
           captureXhr: settings.captureXhr
@@ -14608,153 +14635,177 @@ var XRAYHudUI = (() => {
   var __iconNode6 = [["path", { "d": "M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11", "key": "svg-0" }]];
   var IconBolt = createReactComponent("outline", "bolt", "Bolt", __iconNode6);
 
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconBraces.mjs
+  var __iconNode7 = [["path", { "d": "M7 4a2 2 0 0 0 -2 2v3a2 3 0 0 1 -2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2", "key": "svg-0" }], ["path", { "d": "M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0 -2 3v3a2 2 0 0 1 -2 2", "key": "svg-1" }]];
+  var IconBraces = createReactComponent("outline", "braces", "Braces", __iconNode7);
+
   // node_modules/@tabler/icons-react/dist/esm/icons/IconBrandTypescript.mjs
-  var __iconNode7 = [["path", { "d": "M15 17.5c.32 .32 .754 .5 1.207 .5h.543c.69 0 1.25 -.56 1.25 -1.25v-.25a1.5 1.5 0 0 0 -1.5 -1.5a1.5 1.5 0 0 1 -1.5 -1.5v-.25c0 -.69 .56 -1.25 1.25 -1.25h.543c.453 0 .887 .18 1.207 .5", "key": "svg-0" }], ["path", { "d": "M9 12h4", "key": "svg-1" }], ["path", { "d": "M11 12v6", "key": "svg-2" }], ["path", { "d": "M21 19v-14a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2 -2", "key": "svg-3" }]];
-  var IconBrandTypescript = createReactComponent("outline", "brand-typescript", "BrandTypescript", __iconNode7);
+  var __iconNode8 = [["path", { "d": "M15 17.5c.32 .32 .754 .5 1.207 .5h.543c.69 0 1.25 -.56 1.25 -1.25v-.25a1.5 1.5 0 0 0 -1.5 -1.5a1.5 1.5 0 0 1 -1.5 -1.5v-.25c0 -.69 .56 -1.25 1.25 -1.25h.543c.453 0 .887 .18 1.207 .5", "key": "svg-0" }], ["path", { "d": "M9 12h4", "key": "svg-1" }], ["path", { "d": "M11 12v6", "key": "svg-2" }], ["path", { "d": "M21 19v-14a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2 -2", "key": "svg-3" }]];
+  var IconBrandTypescript = createReactComponent("outline", "brand-typescript", "BrandTypescript", __iconNode8);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChartBar.mjs
-  var __iconNode8 = [["path", { "d": "M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6", "key": "svg-0" }], ["path", { "d": "M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10", "key": "svg-1" }], ["path", { "d": "M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14", "key": "svg-2" }], ["path", { "d": "M4 20h14", "key": "svg-3" }]];
-  var IconChartBar = createReactComponent("outline", "chart-bar", "ChartBar", __iconNode8);
+  var __iconNode9 = [["path", { "d": "M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6", "key": "svg-0" }], ["path", { "d": "M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10", "key": "svg-1" }], ["path", { "d": "M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14", "key": "svg-2" }], ["path", { "d": "M4 20h14", "key": "svg-3" }]];
+  var IconChartBar = createReactComponent("outline", "chart-bar", "ChartBar", __iconNode9);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCheck.mjs
-  var __iconNode9 = [["path", { "d": "M5 12l5 5l10 -10", "key": "svg-0" }]];
-  var IconCheck = createReactComponent("outline", "check", "Check", __iconNode9);
+  var __iconNode10 = [["path", { "d": "M5 12l5 5l10 -10", "key": "svg-0" }]];
+  var IconCheck = createReactComponent("outline", "check", "Check", __iconNode10);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs
-  var __iconNode10 = [["path", { "d": "M6 9l6 6l6 -6", "key": "svg-0" }]];
-  var IconChevronDown = createReactComponent("outline", "chevron-down", "ChevronDown", __iconNode10);
+  var __iconNode11 = [["path", { "d": "M6 9l6 6l6 -6", "key": "svg-0" }]];
+  var IconChevronDown = createReactComponent("outline", "chevron-down", "ChevronDown", __iconNode11);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronLeft.mjs
-  var __iconNode11 = [["path", { "d": "M15 6l-6 6l6 6", "key": "svg-0" }]];
-  var IconChevronLeft = createReactComponent("outline", "chevron-left", "ChevronLeft", __iconNode11);
+  var __iconNode12 = [["path", { "d": "M15 6l-6 6l6 6", "key": "svg-0" }]];
+  var IconChevronLeft = createReactComponent("outline", "chevron-left", "ChevronLeft", __iconNode12);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronRight.mjs
-  var __iconNode12 = [["path", { "d": "M9 6l6 6l-6 6", "key": "svg-0" }]];
-  var IconChevronRight = createReactComponent("outline", "chevron-right", "ChevronRight", __iconNode12);
+  var __iconNode13 = [["path", { "d": "M9 6l6 6l-6 6", "key": "svg-0" }]];
+  var IconChevronRight = createReactComponent("outline", "chevron-right", "ChevronRight", __iconNode13);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs
-  var __iconNode13 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M9 12l2 2l4 -4", "key": "svg-1" }]];
-  var IconCircleCheck = createReactComponent("outline", "circle-check", "CircleCheck", __iconNode13);
+  var __iconNode14 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M9 12l2 2l4 -4", "key": "svg-1" }]];
+  var IconCircleCheck = createReactComponent("outline", "circle-check", "CircleCheck", __iconNode14);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCircleX.mjs
-  var __iconNode14 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M10 10l4 4m0 -4l-4 4", "key": "svg-1" }]];
-  var IconCircleX = createReactComponent("outline", "circle-x", "CircleX", __iconNode14);
+  var __iconNode15 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M10 10l4 4m0 -4l-4 4", "key": "svg-1" }]];
+  var IconCircleX = createReactComponent("outline", "circle-x", "CircleX", __iconNode15);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconClock.mjs
-  var __iconNode15 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 7v5l3 3", "key": "svg-1" }]];
-  var IconClock = createReactComponent("outline", "clock", "Clock", __iconNode15);
+  var __iconNode16 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 7v5l3 3", "key": "svg-1" }]];
+  var IconClock = createReactComponent("outline", "clock", "Clock", __iconNode16);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconCode.mjs
+  var __iconNode17 = [["path", { "d": "M7 8l-4 4l4 4", "key": "svg-0" }], ["path", { "d": "M17 8l4 4l-4 4", "key": "svg-1" }], ["path", { "d": "M14 4l-4 16", "key": "svg-2" }]];
+  var IconCode = createReactComponent("outline", "code", "Code", __iconNode17);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCopy.mjs
-  var __iconNode16 = [["path", { "d": "M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666", "key": "svg-0" }], ["path", { "d": "M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1", "key": "svg-1" }]];
-  var IconCopy = createReactComponent("outline", "copy", "Copy", __iconNode16);
+  var __iconNode18 = [["path", { "d": "M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666", "key": "svg-0" }], ["path", { "d": "M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1", "key": "svg-1" }]];
+  var IconCopy = createReactComponent("outline", "copy", "Copy", __iconNode18);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDatabase.mjs
-  var __iconNode17 = [["path", { "d": "M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "key": "svg-0" }], ["path", { "d": "M4 6v6a8 3 0 0 0 16 0v-6", "key": "svg-1" }], ["path", { "d": "M4 12v6a8 3 0 0 0 16 0v-6", "key": "svg-2" }]];
-  var IconDatabase = createReactComponent("outline", "database", "Database", __iconNode17);
+  var __iconNode19 = [["path", { "d": "M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "key": "svg-0" }], ["path", { "d": "M4 6v6a8 3 0 0 0 16 0v-6", "key": "svg-1" }], ["path", { "d": "M4 12v6a8 3 0 0 0 16 0v-6", "key": "svg-2" }]];
+  var IconDatabase = createReactComponent("outline", "database", "Database", __iconNode19);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDeviceLaptop.mjs
-  var __iconNode18 = [["path", { "d": "M3 19l18 0", "key": "svg-0" }], ["path", { "d": "M5 7a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v8a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1l0 -8", "key": "svg-1" }]];
-  var IconDeviceLaptop = createReactComponent("outline", "device-laptop", "DeviceLaptop", __iconNode18);
+  var __iconNode20 = [["path", { "d": "M3 19l18 0", "key": "svg-0" }], ["path", { "d": "M5 7a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v8a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1l0 -8", "key": "svg-1" }]];
+  var IconDeviceLaptop = createReactComponent("outline", "device-laptop", "DeviceLaptop", __iconNode20);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDownload.mjs
-  var __iconNode19 = [["path", { "d": "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2", "key": "svg-0" }], ["path", { "d": "M7 11l5 5l5 -5", "key": "svg-1" }], ["path", { "d": "M12 4l0 12", "key": "svg-2" }]];
-  var IconDownload = createReactComponent("outline", "download", "Download", __iconNode19);
+  var __iconNode21 = [["path", { "d": "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2", "key": "svg-0" }], ["path", { "d": "M7 11l5 5l5 -5", "key": "svg-1" }], ["path", { "d": "M12 4l0 12", "key": "svg-2" }]];
+  var IconDownload = createReactComponent("outline", "download", "Download", __iconNode21);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconFileDiff.mjs
+  var __iconNode22 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2", "key": "svg-1" }], ["path", { "d": "M12 10l0 4", "key": "svg-2" }], ["path", { "d": "M10 12l4 0", "key": "svg-3" }], ["path", { "d": "M10 17l4 0", "key": "svg-4" }]];
+  var IconFileDiff = createReactComponent("outline", "file-diff", "FileDiff", __iconNode22);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFileExport.mjs
-  var __iconNode20 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3", "key": "svg-1" }]];
-  var IconFileExport = createReactComponent("outline", "file-export", "FileExport", __iconNode20);
+  var __iconNode23 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3", "key": "svg-1" }]];
+  var IconFileExport = createReactComponent("outline", "file-export", "FileExport", __iconNode23);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFilterOff.mjs
-  var __iconNode21 = [["path", { "d": "M8 4h12v2.172a2 2 0 0 1 -.586 1.414l-3.914 3.914m-.5 3.5v4l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }], ["path", { "d": "M3 3l18 18", "key": "svg-1" }]];
-  var IconFilterOff = createReactComponent("outline", "filter-off", "FilterOff", __iconNode21);
+  var __iconNode24 = [["path", { "d": "M8 4h12v2.172a2 2 0 0 1 -.586 1.414l-3.914 3.914m-.5 3.5v4l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }], ["path", { "d": "M3 3l18 18", "key": "svg-1" }]];
+  var IconFilterOff = createReactComponent("outline", "filter-off", "FilterOff", __iconNode24);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFilter.mjs
-  var __iconNode22 = [["path", { "d": "M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }]];
-  var IconFilter = createReactComponent("outline", "filter", "Filter", __iconNode22);
+  var __iconNode25 = [["path", { "d": "M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }]];
+  var IconFilter = createReactComponent("outline", "filter", "Filter", __iconNode25);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs
-  var __iconNode23 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
-  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode23);
+  var __iconNode26 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
+  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode26);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconKeyboard.mjs
-  var __iconNode24 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
-  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode24);
+  var __iconNode27 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
+  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode27);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLock.mjs
-  var __iconNode25 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
-  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode25);
+  var __iconNode28 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
+  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode28);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconNetwork.mjs
-  var __iconNode26 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
-  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode26);
+  var __iconNode29 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
+  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode29);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconNotebook.mjs
-  var __iconNode27 = [["path", { "d": "M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-11a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1m3 0v18", "key": "svg-0" }], ["path", { "d": "M13 8l2 0", "key": "svg-1" }], ["path", { "d": "M13 12l2 0", "key": "svg-2" }]];
-  var IconNotebook = createReactComponent("outline", "notebook", "Notebook", __iconNode27);
+  var __iconNode30 = [["path", { "d": "M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-11a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1m3 0v18", "key": "svg-0" }], ["path", { "d": "M13 8l2 0", "key": "svg-1" }], ["path", { "d": "M13 12l2 0", "key": "svg-2" }]];
+  var IconNotebook = createReactComponent("outline", "notebook", "Notebook", __iconNode30);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPalette.mjs
-  var __iconNode28 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
-  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode28);
+  var __iconNode31 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
+  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode31);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPictureInPicture.mjs
-  var __iconNode29 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
-  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode29);
+  var __iconNode32 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
+  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode32);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPin.mjs
-  var __iconNode30 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
-  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode30);
+  var __iconNode33 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
+  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode33);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPinnedOff.mjs
-  var __iconNode31 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
-  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode31);
+  var __iconNode34 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
+  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode34);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerPlay.mjs
-  var __iconNode32 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
-  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode32);
+  var __iconNode35 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
+  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode35);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerRecord.mjs
-  var __iconNode33 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
-  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode33);
+  var __iconNode36 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
+  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode36);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlus.mjs
-  var __iconNode34 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
-  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode34);
+  var __iconNode37 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
+  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode37);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRefresh.mjs
-  var __iconNode35 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
-  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode35);
+  var __iconNode38 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
+  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode38);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRoute.mjs
-  var __iconNode36 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
-  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode36);
+  var __iconNode39 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
+  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode39);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSearch.mjs
-  var __iconNode37 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
-  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode37);
+  var __iconNode40 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
+  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode40);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSend.mjs
-  var __iconNode38 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
-  var IconSend = createReactComponent("outline", "send", "Send", __iconNode38);
+  var __iconNode41 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
+  var IconSend = createReactComponent("outline", "send", "Send", __iconNode41);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconServer.mjs
-  var __iconNode39 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
-  var IconServer = createReactComponent("outline", "server", "Server", __iconNode39);
+  var __iconNode42 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
+  var IconServer = createReactComponent("outline", "server", "Server", __iconNode42);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSettings.mjs
-  var __iconNode40 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
-  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode40);
+  var __iconNode43 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
+  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode43);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconTable.mjs
+  var __iconNode44 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M3 10h18", "key": "svg-1" }], ["path", { "d": "M10 3v18", "key": "svg-2" }]];
+  var IconTable = createReactComponent("outline", "table", "Table", __iconNode44);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTerminal2.mjs
-  var __iconNode41 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
-  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode41);
+  var __iconNode45 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
+  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode45);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconTimeline.mjs
+  var __iconNode46 = [["path", { "d": "M4 16l6 -7l5 5l5 -6", "key": "svg-0" }], ["path", { "d": "M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }], ["path", { "d": "M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-4" }]];
+  var IconTimeline = createReactComponent("outline", "timeline", "Timeline", __iconNode46);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTrash.mjs
-  var __iconNode42 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
-  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode42);
+  var __iconNode47 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
+  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode47);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconWorld.mjs
+  var __iconNode48 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M3.6 9h16.8", "key": "svg-1" }], ["path", { "d": "M3.6 15h16.8", "key": "svg-2" }], ["path", { "d": "M11.5 3a17 17 0 0 0 0 18", "key": "svg-3" }], ["path", { "d": "M12.5 3a17 17 0 0 1 0 18", "key": "svg-4" }]];
+  var IconWorld = createReactComponent("outline", "world", "World", __iconNode48);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconX.mjs
-  var __iconNode43 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
-  var IconX = createReactComponent("outline", "x", "X", __iconNode43);
+  var __iconNode49 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
+  var IconX = createReactComponent("outline", "x", "X", __iconNode49);
 
   // src/panel/components/common/EmptyState.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime());
@@ -14853,6 +14904,10 @@ var XRAYHudUI = (() => {
     if (!entry) return "// Select an API request first";
     return `fetch(${JSON.stringify(entry.url || "")})`;
   }
+  function buildMockPayload(entry) {
+    const mock = window.XRAY_ConsoleHelpers?.buildMock?.(entry) || entryResponse(entry);
+    return safeStringify(mock, 2, 12e4);
+  }
   async function copyText(text) {
     try {
       await navigator.clipboard?.writeText?.(text);
@@ -14946,6 +15001,26 @@ var XRAYHudUI = (() => {
     if (status >= 300) return "3xx";
     if (status >= 200) return "2xx";
     return "other";
+  }
+  function buildApiListSummary(entries, pinnedIds, slowThresholdMs = 500) {
+    const apis = entries.filter(isApi);
+    const totalDuration = apis.reduce((sum, entry) => sum + duration(entry), 0);
+    const endpointCounts = /* @__PURE__ */ new Map();
+    apis.forEach((entry) => {
+      const path = entryPath(entry);
+      endpointCounts.set(path, (endpointCounts.get(path) || 0) + 1);
+    });
+    const topEndpoint = Array.from(endpointCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "No endpoint yet";
+    return {
+      total: apis.length,
+      errors: apis.filter((entry) => Number(entry.status) >= 400).length,
+      slow: apis.filter((entry) => duration(entry) >= slowThresholdMs).length,
+      pinned: apis.filter((entry) => pinnedIds.has(entry.id)).length,
+      avgDuration: apis.length ? totalDuration / apis.length : 0,
+      totalBytes: apis.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
+      topEndpoint,
+      repeatedEndpoints: Array.from(endpointCounts.values()).filter((count) => count >= 3).length
+    };
   }
   function entryGroupStats(entry, entries) {
     const group = entries.filter((candidate) => isApi(candidate) && entryPath(candidate) === entryPath(entry));
@@ -15175,21 +15250,73 @@ var XRAYHudUI = (() => {
     }
     pushUnique(operations, { id: "copy-curl", label: "Copy cURL", kind: "copy", command: buildCurl(entry), toast: "cURL copied.", priority: 45 });
     pushUnique(operations, { id: "copy-fetch", label: "Copy fetch", kind: "copy", command: buildFetch(entry), toast: "fetch snippet copied.", priority: 44 });
+    pushUnique(operations, { id: "mock", label: "Mock", kind: "copy", command: buildMockPayload(entry), toast: "Mock response copied.", priority: 43 });
     pushUnique(operations, { id: "send-console", label: "Send to Console", kind: "console", command: "res", priority: 43 });
     pushUnique(operations, { id: "send-notebook", label: "Send to Notebook", kind: "notebook", command: `// ${entry.method || "GET"} ${path}
 schema(res)`, priority: 42 });
-    return operations.sort((a, b) => b.priority - a.priority).slice(0, 10);
+    pushUnique(operations, { id: "export", label: "Export", kind: "export", priority: 41 });
+    return operations.sort((a, b) => b.priority - a.priority).slice(0, 14);
   }
 
   // src/panel/components/detail/JsonView.tsx
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+  var tokenPattern = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}\[\],:]/g;
   function JsonView({ value }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json", children: safeStringify(value) });
+    const text = safeStringify(value);
+    const lines = text.split("\n");
+    if (lines.length > 600) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: lines.map((line, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "xray-json-line", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-no", children: index + 1 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-text", children: line ? tokenizeJsonLine(line).map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
+    ] }, index)) });
+  }
+  function tokenizeJsonLine(line) {
+    const tokens = [];
+    let lastIndex = 0;
+    tokenPattern.lastIndex = 0;
+    for (let match = tokenPattern.exec(line); match; match = tokenPattern.exec(line)) {
+      if (match.index > lastIndex) tokens.push({ text: line.slice(lastIndex, match.index) });
+      const text = match[0];
+      const after = line.slice(tokenPattern.lastIndex);
+      tokens.push({ text, className: jsonTokenClass(text, after) });
+      lastIndex = tokenPattern.lastIndex;
+    }
+    if (lastIndex < line.length) tokens.push({ text: line.slice(lastIndex) });
+    return tokens;
+  }
+  function jsonTokenClass(text, after) {
+    if (text.startsWith('"')) return /^\s*:/.test(after) ? "xray-json-key" : "xray-json-string";
+    if (text === "true" || text === "false") return "xray-json-bool";
+    if (text === "null") return "xray-json-null";
+    if (/^-?\d/.test(text)) return "xray-json-number";
+    return "xray-json-punct";
   }
 
   // src/panel/components/detail/RequestDetail.tsx
   var import_jsx_runtime3 = __toESM(require_jsx_runtime());
   var iconProps = { size: 16, stroke: 1.8 };
+  var responseTabs = [
+    { id: "response", label: "Preview" },
+    { id: "headers", label: "Headers" },
+    { id: "cookies", label: "Cookies" },
+    { id: "timeline", label: "Timeline" }
+  ];
+  var viewLabels = {
+    tree: "Tree",
+    raw: "Raw",
+    grid: "Table",
+    schema: "Schema",
+    diff: "Diff",
+    viz: "Visualize",
+    waterfall: "Waterfall",
+    headers: "Headers"
+  };
+  var operationGroups = [
+    { label: "Inspect", ids: ["inspect-error", "schema", "table", "visualize", "headers", "waterfall", "request"] },
+    { label: "Transform", ids: ["compare-previous", "diff", "mock", "related-errors", "similar-calls", "slow-calls"] },
+    { label: "Copy", ids: ["copy-curl", "copy-fetch", "copy-full"] },
+    { label: "Send", ids: ["send-console", "send-notebook", "export"] }
+  ];
   function RequestDetail({ entry, compact = false, onClose }) {
     const detailView = usePanelStore((state) => state.detailView);
     const setDetailView = usePanelStore((state) => state.setDetailView);
@@ -15200,19 +15327,86 @@ schema(res)`, priority: 42 });
     const setExportOpen = usePanelStore((state) => state.setExportOpen);
     const showToast = usePanelStore((state) => state.showToast);
     const entries = usePanelStore((state) => state.entries);
-    const activeValue = detailValue(entry, detailTab);
+    const [responseTab, setResponseTab] = import_react3.default.useState("response");
+    const cookies = import_react3.default.useMemo(() => cookieSummary(entry), [entry]);
+    const hasCookies = Object.keys(cookies).length > 0;
+    const activeValue = import_react3.default.useMemo(() => {
+      if (responseTab === "headers") return headerSummary(entry);
+      if (responseTab === "cookies") return cookies;
+      if (responseTab === "timeline") return timelineSummary(entry);
+      return detailValue(entry, detailTab);
+    }, [cookies, detailTab, entry, responseTab]);
     const operations = import_react3.default.useMemo(() => getResponseOperations(entry, entries), [entries, entry]);
+    const groupedOperations = import_react3.default.useMemo(() => groupResponseOperations(operations), [operations]);
     const previous = import_react3.default.useMemo(() => previousSameEndpoint2(entry, entries), [entry, entries]);
+    const previousValue = import_react3.default.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
+    const [workerAnalysis, setWorkerAnalysis] = import_react3.default.useState(null);
+    import_react3.default.useEffect(() => {
+      setResponseTab("response");
+    }, [entry.id]);
+    import_react3.default.useEffect(() => {
+      let cancelled = false;
+      setWorkerAnalysis(null);
+      if (!window.XRAY_Worker?.detailAnalysis) return;
+      window.XRAY_Worker.detailAnalysis(activeValue, previousValue).then((analysis) => {
+        if (!cancelled && analysis && typeof analysis === "object") setWorkerAnalysis(analysis);
+      }).catch(() => {
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [activeValue, previousValue]);
+    import_react3.default.useEffect(() => {
+      if (responseTab === "cookies" && !hasCookies) setResponseTab("response");
+    }, [hasCookies, responseTab]);
+    function selectResponseTab(tab) {
+      setResponseTab(tab);
+      if (tab === "headers") {
+        setDetailTab("headers");
+        if (detailView === "headers" || detailView === "waterfall") setDetailView("tree");
+        return;
+      }
+      setDetailTab("response");
+      if (tab === "timeline") {
+        setDetailView("waterfall");
+        return;
+      }
+      if (detailView === "headers" || detailView === "waterfall") setDetailView("tree");
+    }
+    function selectDetailView(view) {
+      setDetailView(view);
+      if (view === "headers") {
+        setDetailTab("headers");
+        setResponseTab("headers");
+        return;
+      }
+      if (view === "waterfall") {
+        setDetailTab("response");
+        setResponseTab("timeline");
+        return;
+      }
+      setDetailTab("response");
+      setResponseTab("response");
+    }
     async function copyActiveValue() {
       await copyText(typeof activeValue === "string" ? activeValue : safeStringify(activeValue, 2, 5e5));
       showToast("Response copied.");
     }
     async function runOperation(operation) {
       if (operation.kind === "view") {
-        if (operation.id === "request") setDetailTab("request");
-        else if (operation.id === "headers") setDetailTab("headers");
-        else setDetailTab("response");
-        if (operation.view) setDetailView(operation.view);
+        if (operation.id === "headers" || operation.view === "headers") {
+          setResponseTab("headers");
+          setDetailTab("headers");
+          setDetailView("tree");
+        } else if (operation.view === "waterfall") {
+          setResponseTab("timeline");
+          setDetailTab("response");
+          setDetailView("waterfall");
+        } else {
+          setResponseTab("response");
+          setDetailTab(operation.id === "request" ? "request" : "response");
+          if (operation.view) setDetailView(operation.view);
+        }
         showToast(`${operation.label} opened.`);
         return;
       }
@@ -15229,41 +15423,55 @@ schema(res)`, priority: 42 });
       if (operation.kind === "copy" && operation.command) {
         await copyText(operation.command);
         showToast(operation.toast || `${operation.label} copied.`);
+        return;
+      }
+      if (operation.kind === "export") {
+        setExportOpen(true);
+        showToast("Export opened.");
       }
     }
+    const visibleResponseTabs = responseTabs.filter((tab) => tab.id !== "cookies" || hasCookies);
+    const status = Number(entry.status) || 0;
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-request-detail ${compact ? "compact" : ""}`, children: [
       !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-hero", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.method || "GET" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: entryPath(entry) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-status ${statusClass(Number(entry.status))}`, children: entry.status || entry.logLevel || "log" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
-            Math.round(duration(entry)),
-            "ms"
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-response-heading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.method || "GET" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: entryPath(entry) })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-response-chips", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-response-chip ${statusClass(status)}`, children: entry.status || entry.logLevel || "log" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-response-chip", children: [
+              Math.round(duration(entry)),
+              "ms"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-response-chip", children: formatBytes(entry.size) })
+          ] }),
           onClose && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-icon-btn", "aria-label": "Close selected request detail", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconX, { ...iconProps }) })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-nav", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-tabs", children: ["response", "request", "headers"].map((tab) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-detail-tab ${detailTab === tab ? "active" : ""}`, onClick: () => setDetailTab(tab), children: tab }, tab)) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-views", children: detailViews.map((view) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-chip ${detailView === view ? "active" : ""}`, onClick: () => setDetailView(view), children: view }, view)) })
-        ] })
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-tabs", "aria-label": "Response tabs", children: visibleResponseTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-detail-tab ${responseTab === tab.id ? "active" : ""}`, onClick: () => selectResponseTab(tab.id), children: tab.label }, tab.id)) }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-views", "aria-label": "View modes", children: detailViews.map((view) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-chip ${detailView === view ? "active" : ""}`, onClick: () => selectDetailView(view), children: viewLabels[view] || view }, view)) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-operation-groups xray-smart-ops", "aria-label": "Smart response operations", children: groupedOperations.map((group) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-operation-group", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: group.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-operation-bar", children: group.operations.map((operation) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: `xray-chip xray-operation-chip ${operation.kind}`, onClick: () => void runOperation(operation), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(OperationIcon, { operation }),
+            operation.label.replace("Send to ", "")
+          ] }, operation.id)) })
+        ] }, group.label)) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-content", children: [
-        (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: activeValue }),
-        !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GridView, { value: activeValue }),
+        (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: compact ? detailValue(entry, detailTab) : activeValue }),
+        !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GridView, { value: activeValue, workerGrid: workerAnalysis?.grid }),
         !compact && detailView === "raw" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json", children: typeof activeValue === "string" ? activeValue : safeStringify(activeValue) }),
-        !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: schema(activeValue) }),
-        !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(DiffView, { current: activeValue, previous: previous ? entryResponse(previous) : null }),
-        !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(VizView, { value: activeValue }),
+        !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: workerAnalysis?.schema ?? schema(activeValue) }),
+        !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(DiffView, { current: activeValue, previous: previousValue, workerDiff: workerAnalysis?.diff }),
+        !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(VizView, { value: activeValue, workerViz: workerAnalysis?.viz, workerMeta: workerAnalysis }),
         !compact && detailView === "waterfall" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(WaterfallView, { entry }),
-        !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: { requestHeaders: entry.requestHeaders || {}, responseHeaders: entry.responseHeaders || {} } })
+        !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: headerSummary(entry) })
       ] }),
       !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-footer", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-smart-ops", "aria-label": "Smart response operations", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "Smart" }),
-          operations.slice(0, 6).map((operation) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-chip", onClick: () => void runOperation(operation), children: operation.label }, operation.id))
-        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => insertConsoleCommand("res"), children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSend, { ...iconProps }),
           "Console"
@@ -15283,19 +15491,71 @@ schema(res)`, priority: 42 });
       ] })
     ] });
   }
+  function groupResponseOperations(operations) {
+    const seen = /* @__PURE__ */ new Set();
+    const groups = operationGroups.map((group) => {
+      const ids = group.ids;
+      const items = operations.filter((operation) => ids.includes(operation.id));
+      items.forEach((operation) => seen.add(operation.id));
+      return { label: group.label, operations: items };
+    }).filter((group) => group.operations.length);
+    const other = operations.filter((operation) => !seen.has(operation.id));
+    return other.length ? [...groups, { label: "More", operations: other }] : groups;
+  }
+  function OperationIcon({ operation }) {
+    if (operation.id === "schema") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBraces, { ...iconProps });
+    if (operation.id === "table") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTable, { ...iconProps });
+    if (operation.id === "visualize") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconChartBar, { ...iconProps });
+    if (operation.id === "diff" || operation.id === "compare-previous") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconFileDiff, { ...iconProps });
+    if (operation.id === "waterfall") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTimeline, { ...iconProps });
+    if (operation.kind === "copy") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { ...iconProps });
+    if (operation.kind === "console") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTerminal2, { ...iconProps });
+    if (operation.kind === "notebook") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconNotebook, { ...iconProps });
+    if (operation.kind === "export") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconDownload, { ...iconProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCode, { ...iconProps });
+  }
+  function headerSummary(entry) {
+    return {
+      requestHeaders: entry.requestHeaders || {},
+      responseHeaders: entry.responseHeaders || {}
+    };
+  }
+  function timelineSummary(entry) {
+    return {
+      startedAt: entry.timestamp ? new Date(entry.timestamp).toISOString() : null,
+      durationMs: Math.round(duration(entry)),
+      status: entry.status || null,
+      size: Number(entry.size) || 0,
+      source: entry.source || "fetch"
+    };
+  }
+  function cookieSummary(entry) {
+    const requestCookie = headerValue2(entry.requestHeaders, "cookie");
+    const responseCookie = headerValue2(entry.responseHeaders, "set-cookie");
+    return {
+      ...requestCookie ? { requestCookie } : {},
+      ...responseCookie ? { setCookie: responseCookie } : {}
+    };
+  }
+  function headerValue2(headers, name) {
+    if (!headers || typeof headers !== "object") return "";
+    const lowerName = name.toLowerCase();
+    const match = Object.entries(headers).find(([key]) => key.toLowerCase() === lowerName);
+    return match ? String(match[1] ?? "") : "";
+  }
   function previousSameEndpoint2(entry, entries) {
     return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryPath(candidate) === entryPath(entry)).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
   }
-  function GridView({ value }) {
-    const { objects, columns } = gridRows(value);
+  function GridView({ value, workerGrid }) {
+    const { objects, columns } = workerGrid || gridRows(value);
     if (!objects.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No object rows found" });
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("table", { className: "xray-table", children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { children: column }, column)) }) }),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tbody", { children: objects.map((row, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: preview(row[column], 160) }, column)) }, index)) })
     ] });
   }
-  function VizView({ value }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: vizSummary(value) });
+  function VizView({ value, workerViz, workerMeta }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: { ...workerViz || vizSummary(value), engine: workerMeta?.engine || "main-thread-fallback", durationMs: workerMeta?.durationMs ?? null } });
   }
   function WaterfallView({ entry }) {
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card", children: [
@@ -15309,11 +15569,11 @@ schema(res)`, priority: 42 });
       ] })
     ] });
   }
-  function DiffView({ current, previous }) {
+  function DiffView({ current, previous, workerDiff }) {
     if (previous == null) {
       return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No previous matching response" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: { previous, current, previousSchema: schema(previous), currentSchema: schema(current) } });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: workerDiff || { previous, current, previousSchema: schema(previous), currentSchema: schema(current) } });
   }
 
   // src/panel/components/api/EntriesWorkspace.tsx
@@ -15343,6 +15603,13 @@ schema(res)`, priority: 42 });
     empty: "Empty",
     pinned: "Pinned"
   };
+  var requestContextTabs = [
+    { id: "request", label: "Request" },
+    { id: "params", label: "Params" },
+    { id: "headers", label: "Headers" },
+    { id: "body", label: "Body" },
+    { id: "timeline", label: "Timeline" }
+  ];
   function useEntryListItems(mode) {
     const entries = usePanelStore((state) => state.entries);
     const query = usePanelStore((state) => state.apiSearchQuery.trim());
@@ -15386,14 +15653,16 @@ schema(res)`, priority: 42 });
     const toggleGroup = usePanelStore((state) => state.toggleGroup);
     const pinnedIds = usePanelStore((state) => state.pinnedIds);
     const compactRows = usePanelStore((state) => state.settings.compactRows);
+    const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
     const rows = useEntryListItems("api");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId && entry.type === "api") || null : null;
     const maxDuration = (0, import_react4.useMemo)(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
+    const summary = (0, import_react4.useMemo)(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
     const parentRef = (0, import_react4.useRef)(null);
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
-      estimateSize: () => compactRows ? 38 : 46,
+      estimateSize: () => compactRows ? 42 : 68,
       getItemKey: (index) => rows[index]?.key || index,
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 14
@@ -15402,16 +15671,17 @@ schema(res)`, priority: 42 });
       selectEntry(entry.id);
       setApiDetailOpen(true);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiInspectorToolbar, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-body", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-pane", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiCollectionHeader, { summary, visibleCount: rows.length }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiInspectorToolbar, {}),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-main", children: [
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiTableHeader, {}),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-table-scroll", ref: parentRef, children: [
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               const entry = row.entry;
-              return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                 ApiRequestRow,
                 {
                   row,
@@ -15427,10 +15697,11 @@ schema(res)`, priority: 42 });
             }) }),
             !rows.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No API requests captured" })
           ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
-      ] })
-    ] });
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestContextPane, { entry: selected }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
+    ] }) });
   }
   function LogsWorkspace() {
     const entries = usePanelStore((state) => state.entries);
@@ -15455,13 +15726,41 @@ schema(res)`, priority: 42 });
         /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index];
-            return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
+            return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
           }) }),
           !rows.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No logs captured" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(MobileSelectedDetail, { entry: selected })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-panel", children: selected ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestDetail, { entry: selected }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select an entry" }) })
+    ] });
+  }
+  function ApiCollectionHeader({ summary, visibleCount }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-title", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Captured Requests" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
+          summary.total,
+          " APIs"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-env-pill", title: "Environment inferred from captured browser traffic", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconWorld, { ...iconProps2 }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Live page" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-summary-strip", "aria-label": "Captured request summary", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabase, { ...iconProps2 }), label: "Visible", value: String(visibleCount) }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: summary.errors ? "error" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconServer, { ...iconProps2 }), label: "Errors", value: String(summary.errors) }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: summary.slow ? "warn" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconClock, { ...iconProps2 }), label: "Avg", value: `${Math.round(summary.avgDuration)}ms` }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: "info", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabase, { ...iconProps2 }), label: "Bytes", value: formatBytes(summary.totalBytes) })
+      ] })
+    ] });
+  }
+  function SummaryPill({ icon, label, value, tone }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: `xray-api-summary-pill ${tone}`, children: [
+      icon,
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: value })
     ] });
   }
   function ApiInspectorToolbar() {
@@ -15518,15 +15817,10 @@ schema(res)`, priority: 42 });
   function ApiTableHeader() {
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-table-head", role: "row", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Method" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Request" }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Status" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Path" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Domain" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Type" }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Timing" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Size" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Time" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Flags" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", {})
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Tools" })
     ] });
   }
   function ApiRequestRow({
@@ -15551,6 +15845,7 @@ schema(res)`, priority: 42 });
     const flags = getEntryFlags(entry, entries, pinned ? /* @__PURE__ */ new Set([entry.id]) : /* @__PURE__ */ new Set(), slowThresholdMs);
     const pct = Math.max(8, Math.min(100, duration(entry) / maxDuration * 100));
     const isGroup = Boolean(row.groupCount && row.groupCount > 1 && !row.groupChild);
+    const contentType = getEntryContentType(entry) || "response";
     function handleKeyDown(event) {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -15564,20 +15859,19 @@ schema(res)`, priority: 42 });
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       "div",
       {
-        className: `xray-api-row ${selected ? "selected" : ""} ${row.groupChild ? "child" : ""} ${pinned ? "pinned" : ""} ${isGroup ? "group" : ""}`,
+        className: `xray-api-row ${selected ? "selected" : ""} ${row.groupChild ? "child" : ""} ${pinned ? "pinned" : ""} ${isGroup ? "group" : ""} ${status >= 400 ? "has-error" : ""} ${duration(entry) >= slowThresholdMs ? "has-slow" : ""}`,
         role: "button",
         tabIndex: 0,
         onClick: onSelect,
         onKeyDown: handleKeyDown,
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-path-cell", children: [
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-path", title: path, children: path }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : showHostInPath ? domain : getEntryContentType(entry) || "response" })
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiFlagPills, { flags })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-api-domain", title: domain, children: domain }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-api-source", children: type }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-entry-duration", children: [
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-bar ${duration(entry) >= slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
@@ -15585,9 +15879,6 @@ schema(res)`, priority: 42 });
               "ms"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-api-size", children: formatBytes(displayBytes) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-api-time", children: formatTime(entry.timestamp) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiFlagPills, { flags }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-row-actions", children: [
             row.groupCount && row.groupCount > 1 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-icon-btn", "aria-label": row.groupExpanded ? "Collapse endpoint group" : "Expand endpoint group", onClick: (event) => {
               event.stopPropagation();
@@ -15613,6 +15904,85 @@ schema(res)`, priority: 42 });
         flags.length - visible.length
       ] })
     ] });
+  }
+  function RequestContextPane({ entry }) {
+    const [activeTab, setActiveTab] = import_react4.default.useState("request");
+    import_react4.default.useEffect(() => {
+      setActiveTab("request");
+    }, [entry?.id]);
+    if (!entry) {
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("aside", { className: "xray-request-context-pane empty", "aria-label": "Selected request context", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select a request" }) });
+    }
+    const status = Number(entry.status) || 0;
+    const path = entryPath(entry);
+    const domain = getEntryDomain(entry) || "local";
+    const query = requestQueryParams(entry);
+    const contextValue = requestContextValue(entry, activeTab, query);
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("aside", { className: "xray-request-context-pane", "aria-label": "Selected request context", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-context-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-pane-kicker", children: "Request Context" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-line", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase() }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { title: String(entry.url || path), children: path })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-meta-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Host" }),
+            domain
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Status" }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Time" }),
+            Math.round(duration(entry)),
+            "ms"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Size" }),
+            formatBytes(entry.size)
+          ] })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-tabs xray-request-tabs", "aria-label": "Request tabs", children: requestContextTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-detail-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: tab.label }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-request-context-content", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: contextValue }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-context-footer", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: String(entry.source || "fetch").toUpperCase() }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: getEntryContentType(entry) || "unknown content" })
+      ] })
+    ] });
+  }
+  function requestQueryParams(entry) {
+    const url = String(entry.url || "");
+    if (!url) return {};
+    try {
+      return Object.fromEntries(new URL(url).searchParams.entries());
+    } catch {
+      return {};
+    }
+  }
+  function requestContextValue(entry, tab, query) {
+    if (tab === "params") return query;
+    if (tab === "headers") return entry.requestHeaders || {};
+    if (tab === "body") return entryRequest(entry);
+    if (tab === "timeline") {
+      return {
+        startedAt: formatTime(entry.timestamp),
+        durationMs: Math.round(duration(entry)),
+        status: entry.status || null,
+        source: entry.source || "fetch",
+        size: Number(entry.size) || 0
+      };
+    }
+    return {
+      method: String(entry.method || "GET").toUpperCase(),
+      url: entry.url || entry.urlPath || "",
+      path: entryPath(entry),
+      source: entry.source || "fetch",
+      status: entry.status || null,
+      contentType: getEntryContentType(entry) || null
+    };
   }
   function ApiDetailDrawer({ entry, onClose }) {
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("aside", { className: `xray-api-detail-drawer ${entry ? "" : "empty"}`, "aria-label": "Selected API request detail", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-api-drawer-body", children: entry ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestDetail, { entry, onClose }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select a request" }) }) });
@@ -15764,7 +16134,7 @@ schema(res)`, priority: 42 });
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Time" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(NetworkRow, { event: events[item.index] }) }, item.key)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(NetworkRow, { event: events[item.index] }) }, item.key)) }),
         !events.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No matching requests" })
       ] })
     ] });
@@ -15816,7 +16186,7 @@ schema(res)`, priority: 42 });
       overscan: 10
     });
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-console-stream", ref: parentRef, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ConsoleRow, { event: events[item.index] }) }, item.key)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ConsoleRow, { event: events[item.index] }) }, item.key)) }),
       !events.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No console messages" })
     ] });
   }
@@ -15870,28 +16240,30 @@ schema(res)`, priority: 42 });
     }
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-prompt", children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronRight, { ...iconProps3 }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "input",
-        {
-          value: command,
-          onChange: (event) => setConsoleDraft(event.currentTarget.value),
-          onKeyDown: (event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void run();
-            } else if (event.key === "ArrowUp" && !command) {
-              const previous = navigateConsoleHistory("up");
-              if (previous != null) setConsoleDraft(previous);
-            }
-          },
-          placeholder: selected ? "Try res.data, Object.keys(res), schema(res)" : "Select a request, then try res.data"
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-context-chip", children: selected ? `Selected ${selected.method || "GET"} ${entryPath(selected)}` : "No request selected" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => void run(), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPlayerPlay, { ...iconProps3 }),
-        "Run"
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-prompt-command", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "input",
+          {
+            value: command,
+            onChange: (event) => setConsoleDraft(event.currentTarget.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void run();
+              } else if (event.key === "ArrowUp" && !command) {
+                const previous = navigateConsoleHistory("up");
+                if (previous != null) setConsoleDraft(previous);
+              }
+            },
+            placeholder: selected ? "Try res.data, Object.keys(res), schema(res)" : "Select a request, then try res.data"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => void run(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPlayerPlay, { ...iconProps3 }),
+          "Run"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-context-chip", children: selected ? `Selected ${selected.method || "GET"} ${entryPath(selected)}` : "No request selected" })
     ] });
   }
   function Statusbar() {
@@ -16696,6 +17068,9 @@ export const handlers = [
     { id: "about", label: "About", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconInfoCircle, { ...iconProps8 }) }
   ];
   var detailViews2 = ["tree", "raw", "grid", "schema", "diff", "waterfall", "viz", "headers"];
+  var themes = ["operator", "dev-edition", "midnight", "light-lab"];
+  var fonts = ["jetbrains", "cascadia", "iosevka", "system"];
+  var densities = ["compact", "comfortable", "spacious"];
   function SettingsModal() {
     const open = usePanelStore((state) => state.settingsOpen);
     const setOpen = usePanelStore((state) => state.setSettingsOpen);
@@ -16768,7 +17143,11 @@ export const handlers = [
             ] }),
             section === "appearance" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Appearance" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Theme", desc: "Switch the whole DevTools surface: hacker cockpit, Firefox-inspired, pure dark, or light lab.", value: settings.theme, options: themes, onChange: (value) => updateSettings({ theme: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Font stack", desc: "Choose the code-first monospace stack used across tables, JSON, and console.", value: settings.font, options: fonts, onChange: (value) => updateSettings({ font: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Density", desc: "Control global spacing, row heights, and panel chrome.", value: settings.density, options: densities, onChange: (value) => updateSettings({ density: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(AccentRow, { settings, onChange: (accent) => updateSettings({ accent }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Operator glow", desc: "Enable subtle cyan/purple terminal glow and active-focus lighting.", checked: settings.glow, onChange: (value) => updateSettings({ glow: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Compact rows", desc: "Reduce request row height for dense API sessions.", checked: settings.compactRows, onChange: (value) => updateSettings({ compactRows: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Show host in path column", desc: "Display request host below endpoint paths.", checked: settings.showHostInPath, onChange: (value) => updateSettings({ showHostInPath: value }) })
             ] }),
@@ -16791,7 +17170,7 @@ export const handlers = [
             section === "about" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "About" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "UI stack", desc: "React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Theme", desc: "Catppuccin Mocha tokens inside Shadow DOM with local font stack only." })
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Theme", desc: "Configurable Operator UI tokens inside Shadow DOM with local-only font stacks." })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-danger", children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-danger-title", children: "Danger zone" }),
@@ -16979,8 +17358,8 @@ export const handlers = [
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
       "div",
       {
-        className: `xray-panel xray-mode-${mode} ${open ? "xray-open" : ""} ${devtoolsMode ? "xray-devtools" : ""} ${settings.compactRows ? "xray-compact-rows" : ""}`,
-        style: { "--xray-accent": PANEL_ACCENT_VALUES[settings.accent] },
+        className: `xray-panel xray-mode-${mode} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? "xray-glow" : "xray-no-glow"} ${open ? "xray-open" : ""} ${devtoolsMode ? "xray-devtools" : ""} ${settings.compactRows ? "xray-compact-rows" : ""}`,
+        style: { "--xray-accent": PANEL_ACCENT_VALUES[settings.accent], "--xray-font": PANEL_FONT_VALUES[settings.font] },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("header", { className: "xray-topbar", children: [
             /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-brand xray-drag-handle", children: [
@@ -17041,7 +17420,3289 @@ export const handlers = [
   var tokens_default = ":host,\n.xray-app-root {\n  --xray-bg: #1e1e2e;\n  --xray-surface: #181825;\n  --xray-surface2: #313244;\n  --xray-text: #cdd6f4;\n  --xray-green: #a6e3a1;\n  --xray-blue: #89b4fa;\n  --xray-yellow: #f9e2af;\n  --xray-red: #f38ba8;\n  --xray-mauve: #cba6f7;\n  --xray-teal: #94e2d5;\n  --xray-peach: #fab387;\n  --xray-hint: #6c7086;\n  --xray-subtext: #a6adc8;\n  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;\n}\n";
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles.css
-  var styles_default = '* {\n  box-sizing: border-box;\n}\n\n.xray-app-root {\n  all: initial;\n  color: var(--xray-text);\n  font-family: var(--xray-font);\n}\n\n.xray-panel {\n  position: fixed;\n  top: 0;\n  right: 0;\n  z-index: 2147483647;\n  width: min(960px, 94vw);\n  height: 100vh;\n  display: none;\n  flex-direction: column;\n  color: var(--xray-text);\n  background: var(--xray-bg);\n  border-left: 1px solid rgba(108, 112, 134, .42);\n  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);\n  font: 12px/1.45 var(--xray-font);\n  overflow: hidden;\n}\n\n.xray-panel.xray-open,\n.xray-panel.xray-devtools {\n  display: flex;\n}\n\n.xray-panel.xray-devtools {\n  position: fixed;\n  inset: 0;\n  width: 100vw;\n  height: 100vh;\n  border: 0;\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-window {\n  position: fixed;\n  inset: 0;\n  width: 100vw;\n  height: 100vh;\n  border: 0;\n  box-shadow: none;\n}\n\n.xray-topbar {\n  height: 44px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0 10px;\n  background: var(--xray-surface);\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  flex-shrink: 0;\n}\n\n.xray-brand {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 140px;\n  font-weight: 900;\n  letter-spacing: .04em;\n}\n\n.xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n.xray-brand-mark {\n  width: 28px;\n  height: 28px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  color: white;\n  background: linear-gradient(135deg, var(--xray-blue), var(--xray-mauve));\n  border-radius: 8px;\n}\n\n.xray-live-dot {\n  width: 7px;\n  height: 7px;\n  border-radius: 999px;\n  background: var(--xray-hint);\n}\n\n.xray-live-dot.on {\n  background: var(--xray-green);\n  box-shadow: 0 0 0 3px rgba(166, 227, 161, .16);\n}\n\n.xray-tabs,\n.xray-console-tabs,\n.xray-filter-chips {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n}\n\n.xray-tab,\n.xray-mini-tab,\n.xray-btn,\n.xray-chip,\n.xray-icon-btn {\n  border: 1px solid transparent;\n  color: var(--xray-subtext);\n  background: transparent;\n  font: 800 12px/1 var(--xray-font);\n  cursor: pointer;\n  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;\n}\n\n.xray-tab {\n  height: 32px;\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 0 12px;\n  border-radius: 8px;\n}\n\n.xray-tab:hover,\n.xray-mini-tab:hover,\n.xray-btn:hover,\n.xray-chip:hover,\n.xray-icon-btn:hover {\n  color: var(--xray-text);\n  background: rgba(205, 214, 244, .06);\n}\n\n.xray-tab.active,\n.xray-mini-tab.active,\n.xray-chip.active {\n  color: var(--xray-text);\n  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);\n  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);\n}\n\n.xray-badge {\n  min-width: 18px;\n  height: 16px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0 5px;\n  border-radius: 999px;\n  color: var(--xray-text);\n  background: rgba(108, 112, 134, .28);\n  font-size: 9px;\n}\n\n.xray-spacer {\n  flex: 1;\n}\n\n.xray-summary {\n  max-width: 220px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: var(--xray-subtext);\n  font-size: 11px;\n}\n\n.xray-mode-switcher {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n}\n\n.xray-mode-switcher .xray-icon-btn.active {\n  color: var(--xray-blue);\n  border-color: var(--xray-blue);\n  background: rgba(137, 180, 250, .12);\n}\n\n.xray-body {\n  min-height: 0;\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n}\n\n.xray-console-head {\n  display: flex;\n  align-items: center;\n  min-height: 44px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-surface);\n}\n\n.xray-mini-tab {\n  height: 44px;\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 16px;\n  border-right: 1px solid rgba(108, 112, 134, .28);\n  border-bottom: 2px solid transparent;\n}\n\n.xray-mini-tab.active {\n  border-bottom-color: var(--xray-blue);\n}\n\n.xray-toolbar {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-left: auto;\n  padding-right: 8px;\n}\n\n.xray-btn,\n.xray-icon-btn {\n  height: 32px;\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 12px;\n  border-color: rgba(108, 112, 134, .5);\n  border-radius: 8px;\n  background: rgba(24, 24, 37, .74);\n  color: var(--xray-text);\n}\n\n.xray-btn.primary {\n  color: var(--xray-accent, var(--xray-blue));\n  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\n  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);\n}\n\n.xray-btn.danger {\n  color: var(--xray-red);\n  border-color: rgba(243, 139, 168, .42);\n  background: rgba(243, 139, 168, .08);\n}\n\n.xray-icon-btn {\n  width: 32px;\n  justify-content: center;\n  padding: 0;\n}\n\n.xray-filterbar {\n  display: grid;\n  grid-template-columns: minmax(180px, 1fr) auto;\n  gap: 8px;\n  padding: 12px;\n  background: var(--xray-surface);\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n}\n\n.xray-search {\n  position: relative;\n  min-width: 0;\n}\n\n.xray-search svg {\n  position: absolute;\n  left: 12px;\n  top: 50%;\n  transform: translateY(-50%);\n  color: var(--xray-hint);\n}\n\n.xray-input {\n  width: 100%;\n  height: 40px;\n  border: 1px solid rgba(108, 112, 134, .55);\n  border-radius: 8px;\n  outline: none;\n  padding: 0 12px 0 38px;\n  color: var(--xray-text);\n  background: rgba(49, 50, 68, .5);\n  font: 800 13px/1 var(--xray-font);\n}\n\n.xray-input:focus,\n.xray-prompt input:focus {\n  border-color: var(--xray-accent, var(--xray-blue));\n  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\n}\n\n.xray-filter-chips {\n  overflow-x: auto;\n}\n\n.xray-filter-chips.compact {\n  gap: 6px;\n  flex-wrap: wrap;\n}\n\n.xray-chip {\n  height: 40px;\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 14px;\n  border-color: rgba(108, 112, 134, .5);\n  border-radius: 8px;\n  white-space: nowrap;\n}\n\n.xray-filter-chips.compact .xray-chip {\n  height: 28px;\n  padding: 0 10px;\n  font-size: 10px;\n}\n\n.xray-network {\n  min-height: 180px;\n  max-height: min(44vh, 380px);\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-bg);\n  overflow: hidden;\n}\n\n.xray-network-head,\n.xray-network-row {\n  display: grid;\n  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;\n  align-items: center;\n  gap: 0;\n}\n\n.xray-network-head {\n  height: 28px;\n  padding: 0 12px;\n  color: var(--xray-mauve);\n  text-transform: uppercase;\n  letter-spacing: .08em;\n  font-size: 10px;\n  font-weight: 900;\n}\n\n.xray-virtual-list {\n  position: relative;\n  overflow: auto;\n  height: calc(100% - 28px);\n}\n\n.xray-network-row {\n  min-height: 32px;\n  padding: 0 12px;\n  cursor: pointer;\n  font-weight: 800;\n}\n\n.xray-network-row:hover {\n  background: rgba(205, 214, 244, .04);\n}\n\n.xray-network-row.selected {\n  background: rgba(137, 180, 250, .15);\n  box-shadow: inset 2px 0 0 var(--xray-blue);\n}\n\n.xray-method {\n  color: var(--xray-green);\n}\n\n.xray-method.post,\n.xray-method.put {\n  color: var(--xray-yellow);\n}\n\n.xray-method.delete,\n.xray-method.del {\n  color: var(--xray-red);\n}\n\n.xray-status.ok {\n  color: var(--xray-green);\n}\n\n.xray-status.warn {\n  color: var(--xray-yellow);\n}\n\n.xray-status.error {\n  color: var(--xray-red);\n}\n\n.xray-path {\n  min-width: 0;\n  color: #b4befe;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.xray-muted {\n  color: var(--xray-hint);\n}\n\n.xray-timing {\n  display: grid;\n  grid-template-columns: 1fr auto;\n  align-items: center;\n  gap: 6px;\n}\n\n.xray-bar-track {\n  height: 4px;\n  border-radius: 999px;\n  background: rgba(108, 112, 134, .34);\n  overflow: hidden;\n}\n\n.xray-bar {\n  height: 100%;\n  border-radius: 999px;\n  background: var(--xray-blue);\n}\n\n.xray-bar.slow {\n  background: var(--xray-yellow);\n}\n\n.xray-bar.error {\n  background: var(--xray-red);\n}\n\n.xray-console-stream {\n  min-height: 0;\n  flex: 1;\n  background: var(--xray-surface);\n  overflow: hidden;\n}\n\n.xray-console-row {\n  display: grid;\n  grid-template-columns: 26px minmax(0, 1fr) 86px;\n  gap: 6px;\n  align-items: start;\n  min-height: 34px;\n  padding: 7px 10px;\n  border-bottom: 1px solid rgba(108, 112, 134, .22);\n}\n\n.xray-console-row.error {\n  color: var(--xray-red);\n  background: rgba(243, 139, 168, .08);\n}\n\n.xray-console-row.command {\n  color: var(--xray-mauve);\n}\n\n.xray-console-message {\n  min-width: 0;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.xray-detail {\n  grid-column: 2 / 4;\n  min-width: 0;\n  max-height: 360px;\n  overflow: auto;\n  padding: 10px;\n  border: 1px solid rgba(108, 112, 134, .35);\n  border-radius: 8px;\n  background: rgba(24, 24, 37, .72);\n}\n\n.xray-prompt {\n  display: grid;\n  grid-template-columns: 24px minmax(0, 1fr) auto auto;\n  gap: 8px;\n  align-items: center;\n  padding: 8px 10px;\n  border-top: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-surface);\n  flex-shrink: 0;\n}\n\n.xray-prompt input {\n  height: 34px;\n  border: 1px solid rgba(108, 112, 134, .55);\n  border-radius: 8px;\n  outline: none;\n  padding: 0 10px;\n  color: var(--xray-text);\n  background: var(--xray-surface2);\n  font: 800 12px/1 var(--xray-font);\n}\n\n.xray-context-chip {\n  max-width: 260px;\n  height: 30px;\n  display: inline-flex;\n  align-items: center;\n  padding: 0 10px;\n  border: 1px solid rgba(137, 180, 250, .5);\n  border-radius: 999px;\n  color: var(--xray-text);\n  background: rgba(137, 180, 250, .12);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 11px;\n}\n\n.xray-statusbar {\n  min-height: 24px;\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 0 10px;\n  color: var(--xray-subtext);\n  background: var(--xray-bg);\n  border-top: 1px solid rgba(108, 112, 134, .35);\n  font-size: 10px;\n  font-weight: 900;\n}\n\n.xray-page {\n  min-height: 0;\n  flex: 1;\n  overflow: auto;\n  padding: 12px;\n  background: var(--xray-bg);\n}\n\n.xray-page-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 12px;\n  margin-bottom: 12px;\n}\n\n.xray-page-head h3 {\n  margin: 0 0 3px;\n}\n\n.xray-page-head p {\n  margin: 0;\n  color: var(--xray-hint);\n  font-size: 11px;\n}\n\n.xray-split {\n  min-height: 0;\n  flex: 1;\n  display: grid;\n  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);\n}\n\n.xray-list-panel {\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n  border-right: 1px solid rgba(108, 112, 134, .35);\n  overflow: hidden;\n}\n\n.xray-list-panel > .xray-virtual-list {\n  flex: 1;\n  min-height: 0;\n  height: auto;\n}\n\n.xray-list-controls {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background:\n    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),\n    var(--xray-surface);\n}\n\n.xray-api-summary {\n  display: grid;\n  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);\n  gap: 6px;\n  padding: 10px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-bg);\n}\n\n.xray-api-metric,\n.xray-api-top-endpoint {\n  min-width: 0;\n  min-height: 44px;\n  display: grid;\n  align-content: center;\n  gap: 2px;\n  padding: 7px 9px;\n  border: 1px solid rgba(108, 112, 134, .30);\n  border-radius: 8px;\n  background: rgba(24, 24, 37, .64);\n}\n\n.xray-api-top-endpoint {\n  min-height: 36px;\n}\n\n.xray-api-metric {\n  grid-template-columns: 18px minmax(0, 1fr);\n}\n\n.xray-api-metric svg {\n  grid-row: 1 / 3;\n  align-self: center;\n  color: var(--xray-blue);\n}\n\n.xray-api-metric span,\n.xray-api-top-endpoint span {\n  min-width: 0;\n  color: var(--xray-hint);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 9px;\n  font-weight: 900;\n  text-transform: uppercase;\n  letter-spacing: .07em;\n}\n\n.xray-api-metric strong,\n.xray-api-top-endpoint strong {\n  min-width: 0;\n  color: var(--xray-text);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 12px;\n}\n\n.xray-api-metric.ok strong,\n.xray-api-metric.ok svg {\n  color: var(--xray-green);\n}\n\n.xray-api-metric.warn strong,\n.xray-api-metric.warn svg {\n  color: var(--xray-yellow);\n}\n\n.xray-api-metric.error strong,\n.xray-api-metric.error svg {\n  color: var(--xray-red);\n}\n\n.xray-api-workspace {\n  min-height: 0;\n  flex: 1;\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr);\n  overflow: hidden;\n  background: var(--xray-bg);\n}\n\n.xray-api-body {\n  min-width: 0;\n  min-height: 0;\n  display: grid;\n  grid-template-columns: minmax(420px, 1fr) minmax(360px, 42%);\n  overflow: hidden;\n}\n\n.xray-api-main {\n  min-width: 0;\n  min-height: 0;\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n  border-right: 1px solid rgba(108, 112, 134, .42);\n}\n\n.xray-api-toolbar {\n  display: grid;\n  grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr);\n  gap: 8px;\n  padding: 8px 10px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background:\n    radial-gradient(circle at top left, rgba(137, 180, 250, .10), transparent 36%),\n    var(--xray-surface);\n}\n\n.xray-api-search {\n  min-width: 0;\n  height: 40px;\n  align-self: start;\n}\n\n.xray-api-primary-filters {\n  justify-content: flex-start;\n  min-width: 0;\n  flex-wrap: wrap;\n  overflow: visible;\n}\n\n.xray-api-secondary-controls {\n  grid-column: 1 / -1;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.xray-filter-label {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 900;\n  text-transform: uppercase;\n}\n\n.xray-api-table-head,\n.xray-api-row {\n  display: grid;\n  grid-template-columns: 54px 48px minmax(170px, 1fr) 58px minmax(94px, .45fr);\n  align-items: center;\n  gap: 8px;\n}\n\n.xray-api-table-head {\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  height: 32px;\n  padding: 0 12px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  color: var(--xray-mauve);\n  background: rgba(24, 24, 37, .96);\n  font: 900 10px/1 var(--xray-font);\n  text-transform: uppercase;\n  letter-spacing: .08em;\n}\n\n.xray-api-table-head > :nth-child(4),\n.xray-api-table-head > :nth-child(7),\n.xray-api-table-head > :nth-child(8),\n.xray-api-table-head > :nth-child(9),\n.xray-api-table-head > :nth-child(10),\n.xray-api-row > .xray-api-domain,\n.xray-api-row > .xray-api-size,\n.xray-api-row > .xray-api-time,\n.xray-api-row > .xray-api-flags,\n.xray-api-row > .xray-api-row-actions {\n  display: none;\n}\n\n.xray-api-table-scroll {\n  position: relative;\n  flex: 1;\n  min-height: 0;\n  overflow: auto;\n  scrollbar-width: thin;\n}\n\n.xray-api-row {\n  width: 100%;\n  min-height: 54px;\n  padding: 8px 12px;\n  border-bottom: 1px solid rgba(108, 112, 134, .18);\n  color: var(--xray-text);\n  background: transparent;\n  cursor: pointer;\n  text-align: left;\n  font: 800 11px/1.28 var(--xray-font);\n  outline: none;\n}\n\n.xray-api-row:hover,\n.xray-api-row:focus-visible {\n  background: rgba(205, 214, 244, .055);\n}\n\n.xray-api-row.selected {\n  background: rgba(137, 180, 250, .11);\n  box-shadow: inset 3px 0 0 var(--xray-blue);\n}\n\n.xray-api-row.group {\n  min-height: 52px;\n  background: rgba(24, 24, 37, .34);\n}\n\n.xray-api-row.child {\n  padding-left: 28px;\n  background: rgba(24, 24, 37, .46);\n}\n\n.xray-api-row.pinned {\n  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);\n}\n\n.xray-api-path-cell {\n  min-width: 0;\n  display: grid;\n  gap: 2px;\n}\n\n.xray-api-domain,\n.xray-api-source,\n.xray-api-size,\n.xray-api-time {\n  min-width: 0;\n  overflow: hidden;\n  color: var(--xray-subtext);\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.xray-api-source {\n  color: var(--xray-teal);\n  text-transform: uppercase;\n  font-size: 10px;\n}\n\n.xray-api-flags {\n  min-width: 0;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  overflow: hidden;\n}\n\n.xray-api-flags.muted {\n  color: var(--xray-hint);\n  font-size: 10px;\n}\n\n.xray-api-flag {\n  min-width: 0;\n  max-width: 78px;\n  padding: 3px 6px;\n  border: 1px solid rgba(108, 112, 134, .36);\n  border-radius: 999px;\n  color: var(--xray-subtext);\n  background: rgba(24, 24, 37, .72);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 9px;\n  font-weight: 900;\n  text-transform: uppercase;\n}\n\n.xray-api-flag.error {\n  color: var(--xray-red);\n  border-color: rgba(243, 139, 168, .38);\n  background: rgba(243, 139, 168, .10);\n}\n\n.xray-api-flag.slow,\n.xray-api-flag.repeated,\n.xray-api-flag.large {\n  color: var(--xray-yellow);\n  border-color: rgba(249, 226, 175, .34);\n  background: rgba(249, 226, 175, .10);\n}\n\n.xray-api-flag.empty {\n  color: var(--xray-peach);\n  border-color: rgba(250, 179, 135, .34);\n  background: rgba(250, 179, 135, .10);\n}\n\n.xray-api-flag.pinned {\n  color: var(--xray-mauve);\n  border-color: rgba(203, 166, 247, .36);\n  background: rgba(203, 166, 247, .10);\n}\n\n.xray-api-row-actions {\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 4px;\n}\n\n.xray-icon-btn {\n  width: 28px;\n  height: 26px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  border: 1px solid rgba(108, 112, 134, .36);\n  border-radius: 7px;\n  color: var(--xray-subtext);\n  background: rgba(24, 24, 37, .72);\n  cursor: pointer;\n}\n\n.xray-icon-btn:hover,\n.xray-icon-btn:focus-visible,\n.xray-icon-btn.active {\n  color: var(--xray-blue);\n  border-color: rgba(137, 180, 250, .42);\n  background: rgba(137, 180, 250, .12);\n}\n\n.xray-api-detail-drawer {\n  min-width: 0;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n  background: var(--xray-surface);\n}\n\n.xray-api-drawer-body {\n  min-height: 0;\n  flex: 1;\n  overflow: hidden;\n  padding: 0;\n}\n\n.xray-entry-row {\n  width: 100%;\n  min-height: 58px;\n  display: grid;\n  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;\n  align-items: center;\n  gap: 7px;\n  padding: 8px 10px;\n  border: 0;\n  border-bottom: 1px solid rgba(108, 112, 134, .20);\n  color: var(--xray-text);\n  background: transparent;\n  cursor: pointer;\n  text-align: left;\n  font: 800 11px/1.35 var(--xray-font);\n}\n\n.xray-entry-row:hover {\n  background: rgba(205, 214, 244, .05);\n}\n\n.xray-entry-row.selected {\n  background: rgba(137, 180, 250, .16);\n  box-shadow: inset 3px 0 0 var(--xray-blue);\n}\n\n.xray-entry-row.child {\n  padding-left: 24px;\n  background: rgba(24, 24, 37, .45);\n}\n\n.xray-entry-row.pinned {\n  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);\n}\n\n.xray-status-dot {\n  width: 7px;\n  height: 7px;\n  border-radius: 999px;\n  background: var(--xray-hint);\n}\n\n.xray-status-dot.ok {\n  background: var(--xray-green);\n  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);\n}\n\n.xray-status-dot.warn {\n  background: var(--xray-yellow);\n  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);\n}\n\n.xray-status-dot.error {\n  background: var(--xray-red);\n  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);\n}\n\n.xray-entry-main {\n  min-width: 0;\n  display: grid;\n  gap: 2px;\n}\n\n.xray-entry-meta {\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 700;\n}\n\n.xray-entry-duration {\n  min-width: 0;\n  display: grid;\n  grid-template-columns: minmax(24px, 1fr) auto;\n  align-items: center;\n  gap: 6px;\n  color: var(--xray-subtext);\n  font-size: 10px;\n}\n\n.xray-count-pill,\n.xray-pin {\n  height: 24px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0 8px;\n  border: 1px solid rgba(108, 112, 134, .40);\n  border-radius: 999px;\n  color: var(--xray-subtext);\n  background: rgba(24, 24, 37, .74);\n  font-size: 10px;\n  white-space: nowrap;\n}\n\n.xray-pin {\n  width: 26px;\n  padding: 0;\n  color: var(--xray-hint);\n}\n\n.xray-pin.active {\n  color: var(--xray-yellow);\n  border-color: rgba(249, 226, 175, .34);\n  background: rgba(249, 226, 175, .10);\n}\n\n.xray-detail-panel {\n  min-width: 0;\n  min-height: 0;\n  overflow: auto;\n  padding: 12px;\n  background: var(--xray-surface);\n}\n\n.xray-mobile-detail-panel {\n  display: none;\n}\n\n.xray-request-detail {\n  min-width: 0;\n  min-height: 0;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  background: var(--xray-bg);\n}\n\n.xray-detail-hero {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n  flex-shrink: 0;\n  margin: 0;\n  padding: 10px 12px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-surface);\n}\n\n.xray-detail-hero h3 {\n  flex: 1;\n  min-width: 0;\n  margin: 0;\n  overflow: hidden;\n  color: var(--xray-text);\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 12px;\n}\n\n.xray-detail-nav {\n  flex-shrink: 0;\n  display: grid;\n  gap: 0;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  background: rgba(24, 24, 37, .92);\n}\n\n.xray-detail-tabs,\n.xray-detail-views {\n  min-width: 0;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  overflow-x: auto;\n  scrollbar-width: none;\n}\n\n.xray-detail-tabs::-webkit-scrollbar,\n.xray-detail-views::-webkit-scrollbar {\n  display: none;\n}\n\n.xray-detail-tabs {\n  padding: 0 12px;\n}\n\n.xray-detail-tab {\n  height: 38px;\n  padding: 0 12px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  color: var(--xray-hint);\n  background: transparent;\n  cursor: pointer;\n  font: 900 11px/1 var(--xray-font);\n  text-transform: capitalize;\n}\n\n.xray-detail-tab:hover,\n.xray-detail-tab.active {\n  color: var(--xray-text);\n  border-bottom-color: var(--xray-mauve);\n}\n\n.xray-detail-views {\n  padding: 7px 12px;\n}\n\n.xray-detail-content {\n  min-width: 0;\n  min-height: 0;\n  flex: 1;\n  overflow: auto;\n  padding: 12px;\n  background: rgba(30, 30, 46, .74);\n}\n\n.xray-detail-footer {\n  flex-shrink: 0;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 9px 12px;\n  border-top: 1px solid rgba(108, 112, 134, .35);\n  background: var(--xray-surface);\n  overflow-x: auto;\n}\n\n.xray-smart-ops {\n  min-width: 0;\n  flex: 1 1 auto;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  overflow-x: auto;\n  scrollbar-width: none;\n}\n\n.xray-smart-ops::-webkit-scrollbar {\n  display: none;\n}\n\n.xray-smart-ops > span {\n  flex: 0 0 auto;\n  color: var(--xray-hint);\n  font-size: 9px;\n  font-weight: 900;\n  letter-spacing: .10em;\n  text-transform: uppercase;\n}\n\n.xray-smart-ops .xray-chip {\n  flex: 0 0 auto;\n  height: 30px;\n  padding: 0 9px;\n}\n\n.xray-action-btn {\n  min-width: 0;\n  height: 34px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  padding: 0 12px;\n  border: 1px solid rgba(108, 112, 134, .42);\n  border-radius: 8px;\n  color: var(--xray-subtext);\n  background: transparent;\n  cursor: pointer;\n  font: 900 11px/1 var(--xray-font);\n}\n\n.xray-action-btn:hover,\n.xray-action-btn:focus-visible {\n  color: var(--xray-text);\n  border-color: rgba(137, 180, 250, .44);\n  background: rgba(137, 180, 250, .10);\n}\n\n.xray-action-btn.primary {\n  color: var(--xray-accent, var(--xray-blue));\n  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);\n  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);\n}\n\n.xray-operation-groups {\n  position: sticky;\n  top: 0;\n  z-index: 2;\n  display: grid;\n  gap: 6px;\n  margin: 0 0 10px;\n  padding: 8px;\n  border: 1px solid rgba(108, 112, 134, .30);\n  border-radius: 10px;\n  background: rgba(24, 24, 37, .94);\n  backdrop-filter: blur(10px);\n}\n\n.xray-operation-group {\n  min-width: 0;\n  display: grid;\n  grid-template-columns: 72px minmax(0, 1fr);\n  align-items: center;\n  gap: 6px;\n}\n\n.xray-operation-group > span {\n  color: var(--xray-hint);\n  font-size: 9px;\n  font-weight: 900;\n  text-transform: uppercase;\n  letter-spacing: .08em;\n}\n\n.xray-operation-bar {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 6px;\n  overflow: visible;\n}\n\n.xray-operation-bar .xray-chip {\n  height: 30px;\n  padding: 0 10px;\n}\n\n.xray-api-drawer-body .xray-filter-chips {\n  flex-wrap: wrap;\n  overflow: visible;\n}\n\n.xray-card,\n.xray-modal {\n  border: 1px solid rgba(108, 112, 134, .35);\n  border-radius: 10px;\n  background: var(--xray-surface);\n}\n\n.xray-card {\n  padding: 12px;\n}\n\n.xray-card h3,\n.xray-detail-panel h3,\n.xray-page h3 {\n  margin: 0 0 10px;\n  color: var(--xray-text);\n  font-size: 13px;\n}\n\n.xray-json {\n  margin: 0;\n  color: var(--xray-text);\n  white-space: pre-wrap;\n  word-break: break-word;\n  font: 700 11px/1.55 var(--xray-font);\n}\n\n.xray-json-key {\n  color: var(--xray-blue);\n}\n\n.xray-json-string {\n  color: var(--xray-green);\n}\n\n.xray-json-number {\n  color: var(--xray-teal);\n}\n\n.xray-json-bool {\n  color: var(--xray-peach);\n}\n\n.xray-table {\n  width: 100%;\n  border-collapse: collapse;\n  font: 700 11px/1.4 var(--xray-font);\n}\n\n.xray-table th,\n.xray-table td {\n  padding: 6px 8px;\n  border: 1px solid rgba(108, 112, 134, .28);\n  text-align: left;\n  vertical-align: top;\n}\n\n.xray-table th {\n  color: var(--xray-mauve);\n  background: var(--xray-bg);\n}\n\n.xray-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 20px;\n  background: rgba(17, 17, 27, .72);\n  z-index: 2147483647;\n}\n\n.xray-modal {\n  width: min(820px, 92vw);\n  max-height: 82vh;\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n}\n\n.xray-modal h3 {\n  margin: 0;\n  color: var(--xray-text);\n  font-size: 13px;\n}\n\n.xray-modal-title-icon {\n  width: 30px;\n  height: 30px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  color: var(--xray-accent, var(--xray-blue));\n  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);\n  border-radius: 7px;\n  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);\n}\n\n.xray-export-modal {\n  width: min(980px, 94vw);\n}\n\n.xray-modal-head,\n.xray-modal-foot {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 12px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n}\n\n.xray-modal-foot {\n  border-top: 1px solid rgba(108, 112, 134, .35);\n  border-bottom: 0;\n}\n\n.xray-modal-body {\n  min-height: 0;\n  overflow: auto;\n  padding: 12px;\n}\n\n.xray-modal-subtitle,\n.xray-export-subtitle {\n  max-width: 520px;\n  margin-top: 2px;\n  color: var(--xray-hint);\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 10px;\n  font-weight: 800;\n}\n\n.xray-modal-version {\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 800;\n}\n\n.xray-export-body {\n  min-height: 0;\n  flex: 1;\n  display: grid;\n  grid-template-columns: 220px minmax(0, 1fr);\n}\n\n.xray-export-rail {\n  min-height: 0;\n  overflow: auto;\n  padding: 10px;\n  border-right: 1px solid rgba(108, 112, 134, .35);\n  background: rgba(24, 24, 37, .55);\n}\n\n.xray-export-mode {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 6px;\n  margin-bottom: 12px;\n}\n\n.xray-export-group {\n  margin-bottom: 12px;\n}\n\n.xray-export-group-label {\n  margin: 0 0 6px;\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 900;\n  letter-spacing: .08em;\n  text-transform: uppercase;\n}\n\n.xray-export-format {\n  width: 100%;\n  min-height: 38px;\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 4px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  padding: 0 10px;\n  color: var(--xray-subtext);\n  background: transparent;\n  cursor: pointer;\n  font: 800 11px/1.2 var(--xray-font);\n  text-align: left;\n}\n\n.xray-export-format:hover {\n  color: var(--xray-text);\n  background: rgba(205, 214, 244, .06);\n}\n\n.xray-export-format.active {\n  color: var(--xray-text);\n  border-color: rgba(137, 180, 250, .55);\n  background: rgba(137, 180, 250, .13);\n}\n\n.xray-export-format:disabled {\n  opacity: .42;\n  cursor: not-allowed;\n}\n\n.xray-export-format small {\n  color: var(--xray-hint);\n  font-size: 9px;\n  text-transform: uppercase;\n}\n\n.xray-export-preview {\n  min-width: 0;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n}\n\n.xray-export-preview-head {\n  display: flex;\n  gap: 10px;\n  align-items: flex-start;\n  padding: 12px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n}\n\n.xray-export-preview-head h3 {\n  margin: 0;\n  color: var(--xray-text);\n  font-size: 13px;\n}\n\n.xray-export-preview-head p {\n  margin: 3px 0 0;\n  color: var(--xray-hint);\n  font-size: 11px;\n}\n\n.xray-export-code {\n  flex: 1;\n  min-height: 0;\n  overflow: auto;\n  padding: 12px;\n  background: rgba(17, 17, 27, .54);\n}\n\n.xray-notebook-cell {\n  margin-bottom: 10px;\n}\n\n.xray-notebook-title {\n  margin-bottom: 5px;\n  color: var(--xray-subtext);\n  font-size: 10px;\n  font-weight: 900;\n  text-transform: uppercase;\n  letter-spacing: .08em;\n}\n\n.xray-textarea {\n  width: 100%;\n  min-height: 96px;\n  resize: vertical;\n  border: 1px solid rgba(108, 112, 134, .5);\n  border-radius: 8px;\n  padding: 10px;\n  color: var(--xray-text);\n  background: var(--xray-surface);\n  font: 800 12px/1.45 var(--xray-font);\n}\n\n.xray-notebook-page {\n  display: flex;\n  flex-direction: column;\n}\n\n.xray-notebook-grid {\n  display: grid;\n  gap: 10px;\n}\n\n.xray-notebook-cell {\n  border: 1px solid rgba(108, 112, 134, .35);\n  border-radius: 10px;\n  padding: 10px;\n  background: var(--xray-surface);\n}\n\n.xray-notebook-cell-head {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 8px;\n}\n\n.xray-toast {\n  position: absolute;\n  right: 14px;\n  bottom: 38px;\n  max-width: min(420px, calc(100% - 28px));\n  min-height: 34px;\n  padding: 0 12px;\n  border: 1px solid rgba(148, 226, 213, .42);\n  border-radius: 8px;\n  color: var(--xray-text);\n  background: rgba(24, 24, 37, .94);\n  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);\n  font: 800 11px/1.35 var(--xray-font);\n  cursor: pointer;\n}\n\n.xray-notebook-output {\n  max-height: 260px;\n  overflow: auto;\n  margin-top: 8px;\n  padding: 10px;\n  border: 1px solid rgba(108, 112, 134, .30);\n  border-radius: 8px;\n  background: rgba(17, 17, 27, .48);\n}\n\n.xray-notebook-output.error {\n  border-color: rgba(243, 139, 168, .38);\n}\n\n.xray-insight-grid {\n  display: grid;\n  grid-template-columns: repeat(5, minmax(0, 1fr));\n  gap: 8px;\n  margin-bottom: 12px;\n}\n\n.xray-insight-columns,\n.xray-settings-grid {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: 12px;\n}\n\n.xray-insight-row {\n  width: 100%;\n  min-height: 34px;\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  align-items: center;\n  gap: 8px;\n  border: 0;\n  border-bottom: 1px solid rgba(108, 112, 134, .20);\n  padding: 7px 0;\n  color: var(--xray-text);\n  background: transparent;\n  cursor: pointer;\n  text-align: left;\n  font: 800 11px/1.35 var(--xray-font);\n}\n\n.xray-insight-row:hover {\n  color: var(--xray-blue);\n}\n\n.xray-insight-row span {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.xray-status-mix-row {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr) 28px;\n  align-items: center;\n  gap: 8px;\n  min-height: 30px;\n  color: var(--xray-subtext);\n  font: 800 11px/1.35 var(--xray-font);\n}\n\n.xray-settings-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.xray-settings-modal {\n  width: min(620px, 94vw);\n}\n\n.xray-settings-modal-body {\n  min-height: 400px;\n  display: grid;\n  grid-template-columns: 160px minmax(0, 1fr);\n  overflow: hidden;\n}\n\n.xray-settings-nav {\n  padding: 8px 0;\n  border-right: 1px solid rgba(108, 112, 134, .35);\n  background: rgba(24, 24, 37, .72);\n}\n\n.xray-settings-nav-item {\n  width: 100%;\n  min-height: 34px;\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  border: 0;\n  border-left: 2px solid transparent;\n  padding: 0 14px;\n  color: var(--xray-hint);\n  background: transparent;\n  cursor: pointer;\n  text-align: left;\n  font: 800 11px/1 var(--xray-font);\n}\n\n.xray-settings-nav-item:hover {\n  color: var(--xray-subtext);\n  background: rgba(49, 50, 68, .55);\n}\n\n.xray-settings-nav-item.active {\n  color: var(--xray-text);\n  border-left-color: var(--xray-accent, var(--xray-mauve));\n  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);\n}\n\n.xray-settings-content {\n  min-height: 0;\n  overflow: auto;\n  padding: 16px;\n}\n\n.xray-settings-section-title {\n  margin: 0 0 10px;\n  padding-bottom: 6px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 900;\n  letter-spacing: .10em;\n  text-transform: uppercase;\n}\n\n.xray-settings-row {\n  min-height: 44px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 14px;\n  padding: 8px 0;\n  border-bottom: 1px solid rgba(69, 71, 90, .25);\n  color: var(--xray-text);\n  font: 800 11px/1.35 var(--xray-font);\n}\n\n.xray-settings-row.read-only {\n  align-items: flex-start;\n}\n\n.xray-settings-row strong,\n.xray-settings-row small {\n  display: block;\n}\n\n.xray-settings-row small {\n  margin-top: 2px;\n  color: var(--xray-hint);\n  font-size: 10px;\n  font-weight: 800;\n}\n\n.xray-toggle {\n  width: 36px;\n  height: 20px;\n  flex: 0 0 auto;\n  position: relative;\n  border: 0;\n  border-radius: 999px;\n  background: var(--xray-surface2);\n  cursor: pointer;\n}\n\n.xray-toggle::after {\n  content: "";\n  position: absolute;\n  top: 3px;\n  left: 3px;\n  width: 14px;\n  height: 14px;\n  border-radius: 999px;\n  background: var(--xray-hint);\n  transition: transform .15s ease, background .15s ease;\n}\n\n.xray-toggle.on {\n  background: var(--xray-accent, var(--xray-blue));\n}\n\n.xray-toggle.on::after {\n  transform: translateX(16px);\n  background: #fff;\n}\n\n.xray-number-input {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.xray-number-input input,\n.xray-select {\n  height: 30px;\n  border: 1px solid rgba(108, 112, 134, .45);\n  border-radius: 6px;\n  color: var(--xray-text);\n  background: var(--xray-surface2);\n  font: 800 11px/1 var(--xray-font);\n}\n\n.xray-number-input input {\n  width: 76px;\n  padding: 0 8px;\n  text-align: right;\n}\n\n.xray-select {\n  min-width: 118px;\n  padding: 0 8px;\n}\n\n.xray-color-row {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: flex-end;\n  gap: 6px;\n}\n\n.xray-color-swatch {\n  width: 23px;\n  height: 23px;\n  border: 2px solid transparent;\n  border-radius: 5px;\n  cursor: pointer;\n}\n\n.xray-color-swatch.active {\n  border-color: var(--xray-text);\n}\n\n.xray-settings-danger {\n  margin-top: 18px;\n  padding: 12px;\n  border: 1px solid rgba(243, 139, 168, .22);\n  border-radius: 8px;\n  background: rgba(243, 139, 168, .04);\n}\n\n.xray-danger-title {\n  margin-bottom: 8px;\n  color: var(--xray-red);\n  font-size: 10px;\n  font-weight: 900;\n  letter-spacing: .10em;\n  text-transform: uppercase;\n}\n\n.xray-danger-row {\n  width: 100%;\n  min-height: 32px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  border: 0;\n  border-radius: 6px;\n  padding: 0 8px;\n  color: var(--xray-red);\n  background: transparent;\n  cursor: pointer;\n  font: 800 11px/1 var(--xray-font);\n}\n\n.xray-danger-row:hover {\n  background: rgba(243, 139, 168, .08);\n}\n\n.xray-confirm-modal {\n  width: min(460px, 92vw);\n}\n\n.xray-confirm-message {\n  margin: 0;\n  color: var(--xray-subtext);\n  font: 800 12px/1.55 var(--xray-font);\n}\n\n.xray-compact-rows .xray-api-row {\n  min-height: 38px;\n}\n\n.xray-compact-rows .xray-api-row .xray-entry-meta {\n  display: none;\n}\n\n.xray-command-modal {\n  width: min(680px, 92vw);\n}\n\n.xray-command-search {\n  display: block;\n  padding: 10px;\n  border-bottom: 1px solid rgba(108, 112, 134, .35);\n}\n\n.xray-command-list {\n  display: grid;\n  gap: 4px;\n}\n\n.xray-command-row {\n  width: 100%;\n  min-height: 40px;\n  display: grid;\n  grid-template-columns: 22px minmax(0, 1fr) auto;\n  align-items: center;\n  gap: 8px;\n  border: 1px solid transparent;\n  border-radius: 8px;\n  padding: 0 10px;\n  color: var(--xray-text);\n  background: transparent;\n  cursor: pointer;\n  text-align: left;\n  font: 800 12px/1.25 var(--xray-font);\n}\n\n.xray-command-row:hover {\n  border-color: rgba(137, 180, 250, .42);\n  background: rgba(137, 180, 250, .10);\n}\n\n.xray-command-row small {\n  color: var(--xray-hint);\n  font-size: 10px;\n}\n\n@media (max-width: 760px) {\n  .xray-panel {\n    width: 100vw;\n  }\n\n  .xray-topbar {\n    gap: 6px;\n    padding: 0 8px;\n    overflow: hidden;\n  }\n\n  .xray-brand {\n    min-width: 112px;\n  }\n\n  .xray-tabs {\n    min-width: 0;\n    flex: 1;\n    overflow-x: auto;\n    scrollbar-width: none;\n  }\n\n  .xray-tabs::-webkit-scrollbar,\n  .xray-console-head::-webkit-scrollbar,\n  .xray-filter-chips::-webkit-scrollbar {\n    display: none;\n  }\n\n  .xray-tab {\n    flex: 0 0 auto;\n    padding: 0 10px;\n  }\n\n  .xray-console-head {\n    overflow-x: auto;\n  }\n\n  .xray-console-tabs,\n  .xray-toolbar {\n    flex: 0 0 auto;\n  }\n\n  .xray-toolbar {\n    padding-right: 8px;\n  }\n\n  .xray-summary,\n  .xray-network-row > :nth-child(5),\n  .xray-network-row > :nth-child(6),\n  .xray-network-head > :nth-child(5),\n  .xray-network-head > :nth-child(6) {\n    display: none;\n  }\n\n  .xray-filterbar {\n    grid-template-columns: 1fr;\n  }\n\n  .xray-filter-chips {\n    padding-bottom: 2px;\n  }\n\n  .xray-network-head,\n  .xray-network-row {\n    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;\n  }\n\n  .xray-split {\n    grid-template-columns: 1fr;\n  }\n\n  .xray-detail-panel {\n    display: none;\n  }\n\n  .xray-api-summary {\n    display: flex;\n    overflow-x: auto;\n    scrollbar-width: none;\n  }\n\n  .xray-api-summary::-webkit-scrollbar {\n    display: none;\n  }\n\n  .xray-api-metric {\n    flex: 0 0 106px;\n  }\n\n  .xray-api-top-endpoint {\n    flex: 0 0 260px;\n  }\n\n  .xray-api-workspace {\n    overflow: hidden;\n  }\n\n  .xray-api-body {\n    grid-template-columns: 1fr;\n  }\n\n  .xray-api-toolbar {\n    grid-template-columns: 1fr;\n    padding: 8px;\n  }\n\n  .xray-api-primary-filters,\n  .xray-api-secondary-controls,\n  .xray-api-secondary-controls .xray-filter-chips {\n    justify-content: flex-start;\n    overflow-x: auto;\n    scrollbar-width: none;\n  }\n\n  .xray-api-secondary-controls {\n    display: grid;\n    gap: 6px;\n  }\n\n  .xray-api-table-head,\n  .xray-api-row {\n    grid-template-columns: 52px 48px minmax(128px, 1fr) 64px minmax(88px, .8fr);\n  }\n\n  .xray-api-table-head > :nth-child(4),\n  .xray-api-table-head > :nth-child(7),\n  .xray-api-table-head > :nth-child(8),\n  .xray-api-table-head > :nth-child(9),\n  .xray-api-row > .xray-api-domain,\n  .xray-api-row > .xray-api-size,\n  .xray-api-row > .xray-api-time,\n  .xray-api-row > .xray-api-flags {\n    display: none;\n  }\n\n  .xray-api-source {\n    font-size: 9px;\n  }\n\n  .xray-api-row-actions {\n    gap: 2px;\n  }\n\n  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {\n    display: none;\n  }\n\n  .xray-api-detail-drawer {\n    position: absolute;\n    top: auto;\n    left: 0;\n    right: 0;\n    bottom: 0;\n    width: 100%;\n    min-width: 0;\n    height: min(62vh, 560px);\n    border-left: 0;\n    border-top: 1px solid rgba(137, 180, 250, .34);\n    border-radius: 14px 14px 0 0;\n    background: var(--xray-surface);\n    box-shadow: 0 -22px 44px rgba(17, 17, 27, .52);\n    z-index: 8;\n  }\n\n  .xray-api-detail-drawer.empty {\n    display: none;\n  }\n\n  .xray-entry-row {\n    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;\n  }\n\n  .xray-list-panel > .xray-virtual-list {\n    min-height: 168px;\n  }\n\n  .xray-entry-duration {\n    display: none;\n  }\n\n  .xray-mobile-detail-panel {\n    display: block;\n    flex-shrink: 0;\n    max-height: 38vh;\n    overflow: auto;\n    border-top: 1px solid rgba(108, 112, 134, .35);\n    background: var(--xray-surface);\n  }\n\n  .xray-prompt {\n    grid-template-columns: 20px minmax(120px, 1fr) auto;\n    gap: 6px;\n    padding: 8px;\n  }\n\n  .xray-context-chip {\n    display: none;\n  }\n\n  .xray-export-modal {\n    width: 96vw;\n  }\n\n  .xray-settings-modal {\n    width: 96vw;\n    max-height: 88vh;\n  }\n\n  .xray-settings-modal-body {\n    grid-template-columns: 1fr;\n    min-height: 0;\n  }\n\n  .xray-settings-nav {\n    display: flex;\n    overflow-x: auto;\n    border-right: 0;\n    border-bottom: 1px solid rgba(108, 112, 134, .35);\n  }\n\n  .xray-settings-nav-item {\n    flex: 0 0 auto;\n    width: auto;\n    border-left: 0;\n    border-bottom: 2px solid transparent;\n  }\n\n  .xray-settings-nav-item.active {\n    border-bottom-color: var(--xray-accent, var(--xray-mauve));\n  }\n\n  .xray-export-body {\n    grid-template-columns: 1fr;\n  }\n\n  .xray-export-rail {\n    display: flex;\n    gap: 8px;\n    border-right: 0;\n    border-bottom: 1px solid rgba(108, 112, 134, .35);\n    overflow-x: auto;\n  }\n\n  .xray-export-group {\n    min-width: 170px;\n    margin-bottom: 0;\n  }\n\n  .xray-export-preview-head {\n    display: grid;\n  }\n\n  .xray-insight-grid,\n  .xray-insight-columns,\n  .xray-settings-grid {\n    grid-template-columns: 1fr;\n  }\n\n  .xray-page-head {\n    display: grid;\n  }\n}\n\n@media (max-width: 420px) {\n  .xray-api-table-head,\n  .xray-api-row {\n    grid-template-columns: 46px 42px minmax(104px, 1fr) 72px;\n    gap: 5px;\n    padding-left: 8px;\n    padding-right: 8px;\n  }\n\n  .xray-api-table-head > :nth-child(5),\n  .xray-api-table-head > :nth-child(6),\n  .xray-api-row > .xray-api-source,\n  .xray-api-row > .xray-entry-duration {\n    display: none;\n  }\n\n  .xray-api-row-actions .xray-icon-btn {\n    width: 25px;\n  }\n}\n';
+  var styles_default = `* {\r
+  box-sizing: border-box;\r
+}\r
+\r
+.xray-app-root {\r
+  all: initial;\r
+  color: var(--xray-text);\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-app-root *,\r
+.xray-hud * {\r
+  scrollbar-color: rgba(108, 112, 134, .62) rgba(17, 17, 27, .44);\r
+  scrollbar-width: thin;\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar,\r
+.xray-hud *::-webkit-scrollbar {\r
+  width: 10px;\r
+  height: 10px;\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-track,\r
+.xray-hud *::-webkit-scrollbar-track {\r
+  background: rgba(17, 17, 27, .44);\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-thumb,\r
+.xray-hud *::-webkit-scrollbar-thumb {\r
+  border: 2px solid rgba(17, 17, 27, .44);\r
+  border-radius: 999px;\r
+  background: rgba(108, 112, 134, .72);\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-thumb:hover,\r
+.xray-hud *::-webkit-scrollbar-thumb:hover {\r
+  background: rgba(137, 180, 250, .72);\r
+}\r
+\r
+.xray-panel {\r
+  position: fixed;\r
+  top: 0;\r
+  right: 0;\r
+  z-index: 2147483647;\r
+  width: min(960px, 94vw);\r
+  height: 100vh;\r
+  display: none;\r
+  flex-direction: column;\r
+  color: var(--xray-text);\r
+  background: var(--xray-bg);\r
+  border-left: 1px solid rgba(108, 112, 134, .42);\r
+  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);\r
+  font: 12px/1.45 var(--xray-font);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-panel.xray-theme-operator {\r
+  --xray-bg: #0b0f14;\r
+  --xray-surface: #101720;\r
+  --xray-surface2: #151f2b;\r
+  --xray-surface3: #1b2836;\r
+  --xray-text: #d8e2ef;\r
+  --xray-subtext: #8fa1b7;\r
+  --xray-hint: #536274;\r
+  --xray-blue: #37d5ff;\r
+  --xray-mauve: #8b5cf6;\r
+  --xray-green: #38f29b;\r
+  --xray-yellow: #f6c76f;\r
+  --xray-red: #ff5c7a;\r
+  --xray-border: rgba(80, 114, 148, .42);\r
+  --xray-operator-grid: rgba(55, 213, 255, .035);\r
+}\r
+\r
+.xray-panel.xray-theme-dev-edition {\r
+  --xray-bg: #11131f;\r
+  --xray-surface: #171a2b;\r
+  --xray-surface2: #20243a;\r
+  --xray-surface3: #282d49;\r
+  --xray-text: #e1e7ff;\r
+  --xray-subtext: #a8b0cf;\r
+  --xray-hint: #6f789d;\r
+  --xray-blue: #75ddff;\r
+  --xray-mauve: #b18cff;\r
+  --xray-green: #62e6a8;\r
+  --xray-yellow: #ffd37a;\r
+  --xray-red: #ff6f91;\r
+  --xray-border: rgba(124, 138, 189, .36);\r
+  --xray-operator-grid: rgba(177, 140, 255, .04);\r
+}\r
+\r
+.xray-panel.xray-theme-midnight {\r
+  --xray-bg: #05070a;\r
+  --xray-surface: #090d12;\r
+  --xray-surface2: #0f151d;\r
+  --xray-surface3: #151d29;\r
+  --xray-text: #d7f7ff;\r
+  --xray-subtext: #83a4ad;\r
+  --xray-hint: #49626b;\r
+  --xray-blue: #00e5ff;\r
+  --xray-mauve: #7c3aed;\r
+  --xray-green: #00ff95;\r
+  --xray-yellow: #ffd166;\r
+  --xray-red: #ff3b6b;\r
+  --xray-border: rgba(0, 229, 255, .28);\r
+  --xray-operator-grid: rgba(0, 229, 255, .045);\r
+}\r
+\r
+.xray-panel.xray-theme-light-lab {\r
+  --xray-bg: #edf3fb;\r
+  --xray-surface: #f8fbff;\r
+  --xray-surface2: #e6eef9;\r
+  --xray-surface3: #d9e5f5;\r
+  --xray-text: #172033;\r
+  --xray-subtext: #526173;\r
+  --xray-hint: #75869a;\r
+  --xray-blue: #006adc;\r
+  --xray-mauve: #7048e8;\r
+  --xray-green: #087f5b;\r
+  --xray-yellow: #b7791f;\r
+  --xray-red: #d6336c;\r
+  --xray-border: rgba(82, 97, 115, .28);\r
+  --xray-operator-grid: rgba(0, 106, 220, .035);\r
+}\r
+\r
+.xray-panel.xray-density-compact {\r
+  --xray-density-scale: .88;\r
+  --xray-row-h: 42px;\r
+  --xray-chrome-h: 40px;\r
+}\r
+\r
+.xray-panel.xray-density-comfortable {\r
+  --xray-density-scale: 1;\r
+  --xray-row-h: 52px;\r
+  --xray-chrome-h: 46px;\r
+}\r
+\r
+.xray-panel.xray-density-spacious {\r
+  --xray-density-scale: 1.14;\r
+  --xray-row-h: 64px;\r
+  --xray-chrome-h: 52px;\r
+}\r
+\r
+.xray-panel::before {\r
+  content: '';\r
+  position: absolute;\r
+  inset: 0;\r
+  pointer-events: none;\r
+  background:\r
+    linear-gradient(90deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
+    linear-gradient(180deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent), transparent 32%),\r
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--xray-mauve) 12%, transparent), transparent 30%);\r
+  background-size: 28px 28px, 28px 28px, auto, auto;\r
+  opacity: .8;\r
+}\r
+\r
+.xray-panel.xray-no-glow::before {\r
+  opacity: .28;\r
+}\r
+\r
+.xray-panel > * {\r
+  position: relative;\r
+  z-index: 1;\r
+}\r
+\r
+.xray-panel.xray-open,\r
+.xray-panel.xray-devtools {\r
+  display: flex;\r
+}\r
+\r
+.xray-panel.xray-devtools {\r
+  position: fixed;\r
+  inset: 0;\r
+  width: 100vw;\r
+  height: 100vh;\r
+  border: 0;\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-panel.xray-mode-window {\r
+  position: fixed;\r
+  inset: 0;\r
+  width: 100vw;\r
+  height: 100vh;\r
+  border: 0;\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-topbar {\r
+  height: var(--xray-chrome-h, 44px);\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 0 10px;\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
+  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));\r
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-brand {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-width: 140px;\r
+  font-weight: 900;\r
+  letter-spacing: .12em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-drag-handle {\r
+  cursor: grab;\r
+}\r
+\r
+.xray-drag-handle:active {\r
+  cursor: grabbing;\r
+}\r
+\r
+.xray-brand-mark {\r
+  width: 28px;\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  color: white;\r
+  background: linear-gradient(135deg, var(--xray-accent, var(--xray-blue)), var(--xray-mauve));\r
+  border-radius: 7px;\r
+  box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);\r
+}\r
+\r
+.xray-live-dot {\r
+  width: 7px;\r
+  height: 7px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+}\r
+\r
+.xray-live-dot.on {\r
+  background: var(--xray-green);\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 18%, transparent), 0 0 16px color-mix(in srgb, var(--xray-green) 55%, transparent);\r
+}\r
+\r
+.xray-tabs,\r
+.xray-console-tabs,\r
+.xray-filter-chips {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-tab,\r
+.xray-mini-tab,\r
+.xray-btn,\r
+.xray-chip,\r
+.xray-icon-btn {\r
+  border: 1px solid transparent;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  font: 800 12px/1 var(--xray-font);\r
+  cursor: pointer;\r
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;\r
+}\r
+\r
+.xray-tab {\r
+  height: calc(var(--xray-chrome-h, 44px) - 12px);\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 0 12px;\r
+  border-radius: 7px;\r
+  text-transform: uppercase;\r
+  letter-spacing: .04em;\r
+  font-size: calc(11px * var(--xray-density-scale, 1));\r
+}\r
+\r
+.xray-tab:hover,\r
+.xray-mini-tab:hover,\r
+.xray-btn:hover,\r
+.xray-chip:hover,\r
+.xray-icon-btn:hover {\r
+  color: var(--xray-text);\r
+  background: rgba(205, 214, 244, .06);\r
+}\r
+\r
+.xray-tab.active,\r
+.xray-mini-tab.active,\r
+.xray-chip.active {\r
+  color: var(--xray-text);\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);\r
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 16%, transparent), 0 0 22px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-no-glow .xray-tab.active,\r
+.xray-no-glow .xray-mini-tab.active,\r
+.xray-no-glow .xray-chip.active,\r
+.xray-no-glow .xray-brand-mark,\r
+.xray-no-glow .xray-live-dot.on {\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-badge {\r
+  min-width: 18px;\r
+  height: 16px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 0 5px;\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: rgba(108, 112, 134, .28);\r
+  font-size: 9px;\r
+}\r
+\r
+.xray-spacer {\r
+  flex: 1;\r
+}\r
+\r
+.xray-summary {\r
+  max-width: 220px;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-subtext);\r
+  font-size: calc(10px * var(--xray-density-scale, 1));\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-mode-switcher {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+}\r
+\r
+.xray-mode-switcher .xray-icon-btn.active {\r
+  color: var(--xray-blue);\r
+  border-color: var(--xray-blue);\r
+  background: rgba(137, 180, 250, .12);\r
+}\r
+\r
+.xray-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background: color-mix(in srgb, var(--xray-bg) 96%, var(--xray-accent) 4%);\r
+}\r
+\r
+.xray-console-head {\r
+  display: flex;\r
+  align-items: center;\r
+  min-height: 44px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-mini-tab {\r
+  height: 44px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 16px;\r
+  border-right: 1px solid rgba(108, 112, 134, .28);\r
+  border-bottom: 2px solid transparent;\r
+}\r
+\r
+.xray-mini-tab.active {\r
+  border-bottom-color: var(--xray-blue);\r
+}\r
+\r
+.xray-toolbar {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  margin-left: auto;\r
+  padding-right: 8px;\r
+}\r
+\r
+.xray-btn,\r
+.xray-icon-btn {\r
+  height: 32px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 12px;\r
+  border-color: rgba(108, 112, 134, .5);\r
+  border-radius: 8px;\r
+  background: rgba(24, 24, 37, .74);\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-btn.primary {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);\r
+}\r
+\r
+.xray-btn.danger {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .42);\r
+  background: rgba(243, 139, 168, .08);\r
+}\r
+\r
+.xray-icon-btn {\r
+  width: 32px;\r
+  justify-content: center;\r
+  padding: 0;\r
+}\r
+\r
+.xray-filterbar {\r
+  display: grid;\r
+  grid-template-columns: minmax(180px, 1fr) auto;\r
+  gap: 8px;\r
+  padding: 12px;\r
+  background: var(--xray-surface);\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-search {\r
+  position: relative;\r
+  min-width: 0;\r
+}\r
+\r
+.xray-search svg {\r
+  position: absolute;\r
+  left: 12px;\r
+  top: 50%;\r
+  transform: translateY(-50%);\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-input {\r
+  width: 100%;\r
+  height: 40px;\r
+  border: 1px solid rgba(108, 112, 134, .55);\r
+  border-radius: 8px;\r
+  outline: none;\r
+  padding: 0 12px 0 38px;\r
+  color: var(--xray-text);\r
+  background: rgba(49, 50, 68, .5);\r
+  font: 800 13px/1 var(--xray-font);\r
+}\r
+\r
+.xray-input:focus,\r
+.xray-prompt input:focus {\r
+  border-color: var(--xray-accent, var(--xray-blue));\r
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
+}\r
+\r
+.xray-filter-chips {\r
+  overflow-x: auto;\r
+}\r
+\r
+.xray-filter-chips.compact {\r
+  gap: 6px;\r
+  flex-wrap: wrap;\r
+}\r
+\r
+.xray-chip {\r
+  height: 40px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 14px;\r
+  border-color: rgba(108, 112, 134, .5);\r
+  border-radius: 8px;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-filter-chips.compact .xray-chip {\r
+  height: 28px;\r
+  padding: 0 10px;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-network {\r
+  min-height: 180px;\r
+  max-height: min(44vh, 380px);\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-bg);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-network-head,\r
+.xray-network-row {\r
+  display: grid;\r
+  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;\r
+  align-items: center;\r
+  gap: 0;\r
+}\r
+\r
+.xray-network-head {\r
+  height: 28px;\r
+  padding: 0 12px;\r
+  color: var(--xray-mauve);\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-virtual-list {\r
+  position: relative;\r
+  overflow: auto;\r
+  height: calc(100% - 28px);\r
+}\r
+\r
+.xray-network-row {\r
+  min-height: 32px;\r
+  padding: 0 12px;\r
+  cursor: pointer;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-network-row:hover {\r
+  background: rgba(205, 214, 244, .04);\r
+}\r
+\r
+.xray-network-row.selected {\r
+  background: rgba(137, 180, 250, .15);\r
+  box-shadow: inset 2px 0 0 var(--xray-blue);\r
+}\r
+\r
+.xray-method {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-method.post,\r
+.xray-method.put {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-method.delete,\r
+.xray-method.del {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-status.ok {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-status.warn {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-status.error {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-path {\r
+  min-width: 0;\r
+  color: #b4befe;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-muted {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-timing {\r
+  display: grid;\r
+  grid-template-columns: 1fr auto;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-bar-track {\r
+  height: 4px;\r
+  border-radius: 999px;\r
+  background: rgba(108, 112, 134, .34);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-bar {\r
+  height: 100%;\r
+  border-radius: 999px;\r
+  background: var(--xray-blue);\r
+}\r
+\r
+.xray-bar.slow {\r
+  background: var(--xray-yellow);\r
+}\r
+\r
+.xray-bar.error {\r
+  background: var(--xray-red);\r
+}\r
+\r
+.xray-console-stream {\r
+  min-height: 0;\r
+  flex: 1;\r
+  background: var(--xray-surface);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-console-row {\r
+  display: grid;\r
+  grid-template-columns: 26px minmax(0, 1fr) 86px;\r
+  gap: 6px;\r
+  align-items: start;\r
+  min-height: 34px;\r
+  padding: 7px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .22);\r
+}\r
+\r
+.xray-console-row.error {\r
+  color: var(--xray-red);\r
+  background: rgba(243, 139, 168, .08);\r
+}\r
+\r
+.xray-console-row.command {\r
+  color: var(--xray-mauve);\r
+}\r
+\r
+.xray-console-message {\r
+  min-width: 0;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+.xray-detail {\r
+  grid-column: 2 / 4;\r
+  min-width: 0;\r
+  max-height: 360px;\r
+  overflow: auto;\r
+  padding: 10px;\r
+  border: 1px solid rgba(108, 112, 134, .35);\r
+  border-radius: 8px;\r
+  background: rgba(24, 24, 37, .72);\r
+}\r
+\r
+.xray-prompt {\r
+  display: grid;\r
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 8px 10px;\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-prompt input {\r
+  height: 34px;\r
+  border: 1px solid rgba(108, 112, 134, .55);\r
+  border-radius: 8px;\r
+  outline: none;\r
+  padding: 0 10px;\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface2);\r
+  font: 800 12px/1 var(--xray-font);\r
+}\r
+\r
+.xray-context-chip {\r
+  max-width: 260px;\r
+  height: 30px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  padding: 0 10px;\r
+  border: 1px solid rgba(137, 180, 250, .5);\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: rgba(137, 180, 250, .12);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-statusbar {\r
+  min-height: 24px;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 14px;\r
+  padding: 0 10px;\r
+  color: var(--xray-subtext);\r
+  background: var(--xray-bg);\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-page {\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-page-head {\r
+  display: flex;\r
+  align-items: flex-start;\r
+  gap: 12px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-page-head h3 {\r
+  margin: 0 0 3px;\r
+}\r
+\r
+.xray-page-head p {\r
+  margin: 0;\r
+  color: var(--xray-hint);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-split {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);\r
+}\r
+\r
+.xray-list-panel {\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-list-panel > .xray-virtual-list {\r
+  flex: 1;\r
+  min-height: 0;\r
+  height: auto;\r
+}\r
+\r
+.xray-list-controls {\r
+  display: grid;\r
+  gap: 8px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background:\r
+    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),\r
+    var(--xray-surface);\r
+}\r
+\r
+.xray-api-summary {\r
+  display: grid;\r
+  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);\r
+  gap: 6px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-api-metric,\r
+.xray-api-top-endpoint {\r
+  min-width: 0;\r
+  min-height: 44px;\r
+  display: grid;\r
+  align-content: center;\r
+  gap: 2px;\r
+  padding: 7px 9px;\r
+  border: 1px solid rgba(108, 112, 134, .30);\r
+  border-radius: 8px;\r
+  background: rgba(24, 24, 37, .64);\r
+}\r
+\r
+.xray-api-top-endpoint {\r
+  min-height: 36px;\r
+}\r
+\r
+.xray-api-metric {\r
+  grid-template-columns: 18px minmax(0, 1fr);\r
+}\r
+\r
+.xray-api-metric svg {\r
+  grid-row: 1 / 3;\r
+  align-self: center;\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-api-metric span,\r
+.xray-api-top-endpoint span {\r
+  min-width: 0;\r
+  color: var(--xray-hint);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+  letter-spacing: .07em;\r
+}\r
+\r
+.xray-api-metric strong,\r
+.xray-api-top-endpoint strong {\r
+  min-width: 0;\r
+  color: var(--xray-text);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-api-metric.ok strong,\r
+.xray-api-metric.ok svg {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-api-metric.warn strong,\r
+.xray-api-metric.warn svg {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-metric.error strong,\r
+.xray-api-metric.error svg {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-api-workspace {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+  background:\r
+    linear-gradient(180deg, rgba(17, 17, 27, .24), transparent 180px),\r
+    var(--xray-bg);\r
+}\r
+\r
+.xray-api-body {\r
+  position: relative;\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  grid-template-columns: minmax(360px, 440px) minmax(280px, .64fr) minmax(560px, 1.55fr);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-collection-pane,\r
+.xray-request-context-pane,\r
+.xray-api-detail-drawer {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-collection-pane {\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(17, 17, 27, .42);\r
+}\r
+\r
+.xray-api-collection-head {\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  gap: 8px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .32);\r
+  background:\r
+    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),\r
+    rgba(24, 24, 37, .88);\r
+}\r
+\r
+.xray-api-collection-title {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+}\r
+\r
+.xray-api-collection-title span,\r
+.xray-pane-kicker,\r
+.xray-api-summary-pill span {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-api-collection-title strong {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 14px;\r
+}\r
+\r
+.xray-api-env-pill {\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 0 9px;\r
+  border: 1px solid rgba(148, 226, 213, .30);\r
+  border-radius: 7px;\r
+  color: var(--xray-teal);\r
+  background: rgba(148, 226, 213, .08);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-api-summary-strip {\r
+  grid-column: 1 / -1;\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: repeat(4, minmax(0, 1fr));\r
+  gap: 6px;\r
+}\r
+\r
+.xray-api-summary-pill {\r
+  min-width: 0;\r
+  height: 38px;\r
+  display: grid;\r
+  grid-template-columns: 16px minmax(0, 1fr);\r
+  align-content: center;\r
+  align-items: center;\r
+  gap: 1px 6px;\r
+  padding: 5px 7px;\r
+  border: 1px solid rgba(108, 112, 134, .30);\r
+  border-radius: 7px;\r
+  background: rgba(30, 30, 46, .66);\r
+}\r
+\r
+.xray-api-summary-pill svg {\r
+  grid-row: 1 / 3;\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-api-summary-pill strong {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-api-summary-pill.ok svg,\r
+.xray-api-summary-pill.ok strong {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-api-summary-pill.warn svg,\r
+.xray-api-summary-pill.warn strong {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-summary-pill.error svg,\r
+.xray-api-summary-pill.error strong {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-api-main {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1 1 auto;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-toolbar {\r
+  display: grid;\r
+  grid-template-columns: 1fr;\r
+  gap: 8px;\r
+  padding: 8px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(24, 24, 37, .72);\r
+}\r
+\r
+.xray-api-search {\r
+  min-width: 0;\r
+  height: 36px;\r
+  align-self: start;\r
+}\r
+\r
+.xray-api-search .xray-input {\r
+  height: 36px;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-api-primary-filters {\r
+  justify-content: flex-start;\r
+  min-width: 0;\r
+  flex-wrap: wrap;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-api-secondary-controls {\r
+  display: grid;\r
+  gap: 8px;\r
+  min-width: 0;\r
+}\r
+\r
+.xray-filter-label {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-api-table-head,\r
+.xray-api-row {\r
+  display: grid;\r
+  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;\r
+  align-items: center;\r
+  gap: 7px;\r
+}\r
+\r
+.xray-api-table-head {\r
+  position: sticky;\r
+  top: 0;\r
+  z-index: 2;\r
+  height: 30px;\r
+  padding: 0 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  color: var(--xray-hint);\r
+  background: rgba(24, 24, 37, .96);\r
+  font: 900 10px/1 var(--xray-font);\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-api-table-scroll {\r
+  position: relative;\r
+  flex: 1;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  scrollbar-width: thin;\r
+}\r
+\r
+.xray-api-row {\r
+  width: 100%;\r
+  min-height: 68px;\r
+  padding: 9px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .18);\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.28 var(--xray-font);\r
+  outline: none;\r
+  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;\r
+}\r
+\r
+.xray-api-row:hover,\r
+.xray-api-row:focus-visible {\r
+  background: rgba(205, 214, 244, .055);\r
+}\r
+\r
+.xray-api-row.selected {\r
+  background:\r
+    linear-gradient(90deg, rgba(137, 180, 250, .27), rgba(137, 180, 250, .08)),\r
+    rgba(49, 50, 68, .42);\r
+  box-shadow:\r
+    inset 4px 0 0 var(--xray-blue),\r
+    inset 0 0 0 1px rgba(137, 180, 250, .30),\r
+    0 8px 22px rgba(0, 0, 0, .14);\r
+}\r
+\r
+.xray-api-row.has-error {\r
+  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);\r
+}\r
+\r
+.xray-api-row.has-slow:not(.has-error) {\r
+  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);\r
+}\r
+\r
+.xray-api-row.selected.has-error,\r
+.xray-api-row.selected.has-slow {\r
+  box-shadow:\r
+    inset 4px 0 0 var(--xray-blue),\r
+    inset 0 0 0 1px rgba(137, 180, 250, .30),\r
+    0 8px 22px rgba(0, 0, 0, .14);\r
+}\r
+\r
+.xray-api-row.group {\r
+  background: rgba(24, 24, 37, .55);\r
+}\r
+\r
+.xray-api-row.child {\r
+  padding-left: 24px;\r
+  background: rgba(24, 24, 37, .46);\r
+}\r
+\r
+.xray-api-row.pinned {\r
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);\r
+}\r
+\r
+.xray-api-path-cell {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-api-flags {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 4px;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-flags.muted {\r
+  display: none;\r
+}\r
+\r
+.xray-api-flag {\r
+  min-width: 0;\r
+  max-width: 78px;\r
+  padding: 3px 6px;\r
+  border: 1px solid rgba(108, 112, 134, .36);\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(24, 24, 37, .72);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-method.post {\r
+  color: var(--xray-teal);\r
+}\r
+\r
+.xray-method.patch {\r
+  color: var(--xray-peach);\r
+}\r
+\r
+.xray-method.put {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-flag.error {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .38);\r
+  background: rgba(243, 139, 168, .10);\r
+}\r
+\r
+.xray-api-flag.slow,\r
+.xray-api-flag.repeated,\r
+.xray-api-flag.large {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .34);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-api-flag.empty {\r
+  color: var(--xray-peach);\r
+  border-color: rgba(250, 179, 135, .34);\r
+  background: rgba(250, 179, 135, .10);\r
+}\r
+\r
+.xray-api-flag.pinned {\r
+  color: var(--xray-mauve);\r
+  border-color: rgba(203, 166, 247, .36);\r
+  background: rgba(203, 166, 247, .10);\r
+}\r
+\r
+.xray-api-row-actions {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: flex-end;\r
+  gap: 4px;\r
+  opacity: .62;\r
+  transition: opacity .15s ease;\r
+}\r
+\r
+.xray-api-row:hover .xray-api-row-actions,\r
+.xray-api-row:focus-visible .xray-api-row-actions,\r
+.xray-api-row.selected .xray-api-row-actions {\r
+  opacity: 1;\r
+}\r
+\r
+.xray-icon-btn {\r
+  width: 28px;\r
+  height: 26px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  border: 1px solid rgba(108, 112, 134, .36);\r
+  border-radius: 7px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(24, 24, 37, .72);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-icon-btn:hover,\r
+.xray-icon-btn:focus-visible,\r
+.xray-icon-btn.active {\r
+  color: var(--xray-blue);\r
+  border-color: rgba(137, 180, 250, .42);\r
+  background: rgba(137, 180, 250, .12);\r
+}\r
+\r
+.xray-request-context-pane {\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background:\r
+    linear-gradient(180deg, rgba(49, 50, 68, .30), transparent 160px),\r
+    rgba(24, 24, 37, .78);\r
+}\r
+\r
+.xray-request-context-pane.empty {\r
+  justify-content: center;\r
+}\r
+\r
+.xray-request-context-head {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 10px;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-request-line {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-request-line code {\r
+  min-width: 0;\r
+  height: 32px;\r
+  display: flex;\r
+  align-items: center;\r
+  overflow: hidden;\r
+  padding: 0 10px;\r
+  border: 1px solid rgba(108, 112, 134, .44);\r
+  border-radius: 7px;\r
+  color: var(--xray-text);\r
+  background: rgba(30, 30, 46, .76);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-request-meta-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(2, minmax(0, 1fr));\r
+  gap: 6px;\r
+}\r
+\r
+.xray-request-meta-grid span {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+  padding: 7px 8px;\r
+  border: 1px solid rgba(108, 112, 134, .28);\r
+  border-radius: 7px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(30, 30, 46, .48);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-request-meta-grid strong {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  text-transform: uppercase;\r
+  letter-spacing: .07em;\r
+}\r
+\r
+.xray-request-context-content {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: rgba(30, 30, 46, .45);\r
+}\r
+\r
+.xray-request-context-content .xray-json-editor {\r
+  min-width: 0;\r
+}\r
+\r
+.xray-request-context-content .xray-json-line-text {\r
+  overflow-wrap: anywhere;\r
+}\r
+\r
+.xray-request-context-footer {\r
+  flex-shrink: 0;\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 8px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .30);\r
+  color: var(--xray-hint);\r
+  background: rgba(17, 17, 27, .35);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-request-context-footer span {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-request-tabs {\r
+  flex-shrink: 0;\r
+  padding: 0 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .30);\r
+  background: rgba(17, 17, 27, .30);\r
+}\r
+\r
+.xray-api-detail-drawer {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-api-drawer-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: hidden;\r
+  padding: 0;\r
+}\r
+\r
+.xray-entry-row {\r
+  width: 100%;\r
+  min-height: 58px;\r
+  display: grid;\r
+  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 8px 10px;\r
+  border: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-entry-row:hover {\r
+  background: rgba(205, 214, 244, .05);\r
+}\r
+\r
+.xray-entry-row.selected {\r
+  background: rgba(137, 180, 250, .16);\r
+  box-shadow: inset 3px 0 0 var(--xray-blue);\r
+}\r
+\r
+.xray-entry-row.child {\r
+  padding-left: 24px;\r
+  background: rgba(24, 24, 37, .45);\r
+}\r
+\r
+.xray-entry-row.pinned {\r
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);\r
+}\r
+\r
+.xray-status-dot {\r
+  width: 7px;\r
+  height: 7px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+}\r
+\r
+.xray-status-dot.ok {\r
+  background: var(--xray-green);\r
+  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);\r
+}\r
+\r
+.xray-status-dot.warn {\r
+  background: var(--xray-yellow);\r
+  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);\r
+}\r
+\r
+.xray-status-dot.error {\r
+  background: var(--xray-red);\r
+  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);\r
+}\r
+\r
+.xray-entry-main {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+}\r
+\r
+.xray-entry-meta {\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 700;\r
+}\r
+\r
+.xray-entry-duration {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: minmax(24px, 1fr) auto;\r
+  align-items: center;\r
+  gap: 6px;\r
+  color: var(--xray-subtext);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-count-pill,\r
+.xray-pin {\r
+  height: 24px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 0 8px;\r
+  border: 1px solid rgba(108, 112, 134, .40);\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(24, 24, 37, .74);\r
+  font-size: 10px;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-pin {\r
+  width: 26px;\r
+  padding: 0;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-pin.active {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .34);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-detail-panel {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-mobile-detail-panel {\r
+  display: none;\r
+}\r
+\r
+.xray-request-detail {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  height: 100%;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background:\r
+    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),\r
+    var(--xray-bg);\r
+}\r
+\r
+.xray-detail-hero {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-width: 0;\r
+  flex-shrink: 0;\r
+  margin: 0;\r
+  padding: 10px 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-response-heading {\r
+  flex: 1;\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-response-heading h3 {\r
+  min-width: 0;\r
+  margin: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-response-chips {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-response-chip {\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  padding: 0 9px;\r
+  border: 1px solid rgba(108, 112, 134, .32);\r
+  border-radius: 7px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(30, 30, 46, .68);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-response-chip.ok {\r
+  color: var(--xray-green);\r
+  border-color: rgba(166, 227, 161, .30);\r
+  background: rgba(166, 227, 161, .10);\r
+}\r
+\r
+.xray-response-chip.warn {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .30);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-response-chip.error {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .30);\r
+  background: rgba(243, 139, 168, .10);\r
+}\r
+\r
+.xray-detail-nav {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(24, 24, 37, .92);\r
+}\r
+\r
+.xray-detail-tabs,\r
+.xray-detail-views {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+  overflow-x: auto;\r
+  scrollbar-width: none;\r
+}\r
+\r
+.xray-detail-tabs::-webkit-scrollbar,\r
+.xray-detail-views::-webkit-scrollbar {\r
+  display: none;\r
+}\r
+\r
+.xray-detail-tabs {\r
+  padding: 0 12px;\r
+}\r
+\r
+.xray-detail-tab {\r
+  height: 38px;\r
+  padding: 0 12px;\r
+  border: 0;\r
+  border-bottom: 2px solid transparent;\r
+  color: var(--xray-hint);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 900 11px/1 var(--xray-font);\r
+  text-transform: capitalize;\r
+}\r
+\r
+.xray-detail-tab:hover,\r
+.xray-detail-tab.active {\r
+  color: var(--xray-text);\r
+  border-bottom-color: var(--xray-mauve);\r
+}\r
+\r
+.xray-detail-views {\r
+  padding: 7px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .20);\r
+}\r
+\r
+.xray-detail-content {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background:\r
+    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),\r
+    rgba(30, 30, 46, .74);\r
+}\r
+\r
+.xray-detail-footer {\r
+  flex-shrink: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 9px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+  overflow-x: auto;\r
+}\r
+\r
+.xray-smart-ops {\r
+  min-width: 0;\r
+}\r
+\r
+.xray-action-btn {\r
+  min-width: 0;\r
+  height: 34px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  gap: 6px;\r
+  padding: 0 12px;\r
+  border: 1px solid rgba(108, 112, 134, .42);\r
+  border-radius: 8px;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 900 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-action-btn:hover,\r
+.xray-action-btn:focus-visible {\r
+  color: var(--xray-text);\r
+  border-color: rgba(137, 180, 250, .44);\r
+  background: rgba(137, 180, 250, .10);\r
+}\r
+\r
+.xray-action-btn.primary {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);\r
+}\r
+\r
+.xray-operation-groups {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 6px;\r
+  padding: 8px 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(17, 17, 27, .45);\r
+}\r
+\r
+.xray-operation-group {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: 72px minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-operation-group > span {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-operation-bar {\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-operation-bar .xray-chip {\r
+  min-width: 0;\r
+  height: 30px;\r
+  padding: 0 10px;\r
+  border-radius: 7px;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-operation-chip.view {\r
+  color: var(--xray-mauve);\r
+  border-color: rgba(203, 166, 247, .28);\r
+  background: rgba(203, 166, 247, .07);\r
+}\r
+\r
+.xray-operation-chip.console {\r
+  color: var(--xray-blue);\r
+  border-color: rgba(137, 180, 250, .30);\r
+  background: rgba(137, 180, 250, .08);\r
+}\r
+\r
+.xray-operation-chip.notebook {\r
+  color: var(--xray-teal);\r
+  border-color: rgba(148, 226, 213, .30);\r
+  background: rgba(148, 226, 213, .08);\r
+}\r
+\r
+.xray-operation-chip.copy {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-operation-chip.export {\r
+  color: var(--xray-peach);\r
+  border-color: rgba(250, 179, 135, .32);\r
+  background: rgba(250, 179, 135, .08);\r
+}\r
+\r
+.xray-api-drawer-body .xray-filter-chips {\r
+  flex-wrap: wrap;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-card,\r
+.xray-modal {\r
+  border: 1px solid rgba(108, 112, 134, .35);\r
+  border-radius: 10px;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-card {\r
+  padding: 12px;\r
+}\r
+\r
+.xray-card h3,\r
+.xray-detail-panel h3,\r
+.xray-page h3 {\r
+  margin: 0 0 10px;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-json {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+  font: 700 11px/1.6 var(--xray-font);\r
+}\r
+\r
+.xray-json-editor {\r
+  min-width: max-content;\r
+  padding: 10px 0;\r
+  border: 1px solid rgba(108, 112, 134, .22);\r
+  border-radius: 8px;\r
+  background:\r
+    linear-gradient(90deg, rgba(17, 17, 27, .84) 0 42px, rgba(24, 24, 37, .52) 42px),\r
+    rgba(17, 17, 27, .52);\r
+  box-shadow: inset 0 1px 0 rgba(205, 214, 244, .04);\r
+}\r
+\r
+.xray-json-line {\r
+  display: grid;\r
+  grid-template-columns: 42px minmax(0, 1fr);\r
+  min-height: 18px;\r
+}\r
+\r
+.xray-json-line:hover {\r
+  background: rgba(137, 180, 250, .06);\r
+}\r
+\r
+.xray-json-line-no {\r
+  padding: 0 10px 0 0;\r
+  color: var(--xray-hint);\r
+  text-align: right;\r
+  user-select: none;\r
+  border-right: 1px solid rgba(108, 112, 134, .20);\r
+}\r
+\r
+.xray-json-line-text {\r
+  min-width: 0;\r
+  padding: 0 12px;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+.xray-json-key {\r
+  color: var(--xray-mauve);\r
+}\r
+\r
+.xray-json-string {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-json-number {\r
+  color: var(--xray-teal);\r
+}\r
+\r
+.xray-json-bool {\r
+  color: var(--xray-peach);\r
+}\r
+\r
+.xray-json-null {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-json-punct {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-table {\r
+  width: 100%;\r
+  border-collapse: collapse;\r
+  font: 700 11px/1.4 var(--xray-font);\r
+}\r
+\r
+.xray-table th,\r
+.xray-table td {\r
+  padding: 6px 8px;\r
+  border: 1px solid rgba(108, 112, 134, .28);\r
+  text-align: left;\r
+  vertical-align: top;\r
+}\r
+\r
+.xray-table th {\r
+  color: var(--xray-mauve);\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-modal-backdrop {\r
+  position: fixed;\r
+  inset: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 20px;\r
+  background: rgba(17, 17, 27, .72);\r
+  z-index: 2147483647;\r
+}\r
+\r
+.xray-modal {\r
+  width: min(820px, 92vw);\r
+  max-height: 82vh;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-modal h3 {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-modal-title-icon {\r
+  width: 30px;\r
+  height: 30px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);\r
+  border-radius: 7px;\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);\r
+}\r
+\r
+.xray-export-modal {\r
+  width: min(980px, 94vw);\r
+}\r
+\r
+.xray-modal-head,\r
+.xray-modal-foot {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-modal-foot {\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  border-bottom: 0;\r
+}\r
+\r
+.xray-modal-body {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+}\r
+\r
+.xray-modal-subtitle,\r
+.xray-export-subtitle {\r
+  max-width: 520px;\r
+  margin-top: 2px;\r
+  color: var(--xray-hint);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-modal-version {\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-export-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  grid-template-columns: 220px minmax(0, 1fr);\r
+}\r
+\r
+.xray-export-rail {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 10px;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(24, 24, 37, .55);\r
+}\r
+\r
+.xray-export-mode {\r
+  display: grid;\r
+  grid-template-columns: 1fr 1fr;\r
+  gap: 6px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-export-group {\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-export-group-label {\r
+  margin: 0 0 6px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-export-format {\r
+  width: 100%;\r
+  min-height: 38px;\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  margin-bottom: 4px;\r
+  border: 1px solid transparent;\r
+  border-radius: 8px;\r
+  padding: 0 10px;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 800 11px/1.2 var(--xray-font);\r
+  text-align: left;\r
+}\r
+\r
+.xray-export-format:hover {\r
+  color: var(--xray-text);\r
+  background: rgba(205, 214, 244, .06);\r
+}\r
+\r
+.xray-export-format.active {\r
+  color: var(--xray-text);\r
+  border-color: rgba(137, 180, 250, .55);\r
+  background: rgba(137, 180, 250, .13);\r
+}\r
+\r
+.xray-export-format:disabled {\r
+  opacity: .42;\r
+  cursor: not-allowed;\r
+}\r
+\r
+.xray-export-format small {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-export-preview {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-export-preview-head {\r
+  display: flex;\r
+  gap: 10px;\r
+  align-items: flex-start;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-export-preview-head h3 {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-export-preview-head p {\r
+  margin: 3px 0 0;\r
+  color: var(--xray-hint);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-export-code {\r
+  flex: 1;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: rgba(17, 17, 27, .54);\r
+}\r
+\r
+.xray-notebook-cell {\r
+  margin-bottom: 10px;\r
+}\r
+\r
+.xray-notebook-title {\r
+  margin-bottom: 5px;\r
+  color: var(--xray-subtext);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-textarea {\r
+  width: 100%;\r
+  min-height: 96px;\r
+  resize: vertical;\r
+  border: 1px solid rgba(108, 112, 134, .5);\r
+  border-radius: 8px;\r
+  padding: 10px;\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface);\r
+  font: 800 12px/1.45 var(--xray-font);\r
+}\r
+\r
+.xray-notebook-page {\r
+  display: flex;\r
+  flex-direction: column;\r
+}\r
+\r
+.xray-notebook-grid {\r
+  display: grid;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-notebook-cell {\r
+  border: 1px solid rgba(108, 112, 134, .35);\r
+  border-radius: 10px;\r
+  padding: 10px;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-notebook-cell-head {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  margin-bottom: 8px;\r
+}\r
+\r
+.xray-toast {\r
+  position: absolute;\r
+  right: 14px;\r
+  bottom: 38px;\r
+  max-width: min(420px, calc(100% - 28px));\r
+  min-height: 34px;\r
+  padding: 0 12px;\r
+  border: 1px solid rgba(148, 226, 213, .42);\r
+  border-radius: 8px;\r
+  color: var(--xray-text);\r
+  background: rgba(24, 24, 37, .94);\r
+  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-notebook-output {\r
+  max-height: 260px;\r
+  overflow: auto;\r
+  margin-top: 8px;\r
+  padding: 10px;\r
+  border: 1px solid rgba(108, 112, 134, .30);\r
+  border-radius: 8px;\r
+  background: rgba(17, 17, 27, .48);\r
+}\r
+\r
+.xray-notebook-output.error {\r
+  border-color: rgba(243, 139, 168, .38);\r
+}\r
+\r
+.xray-insight-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(5, minmax(0, 1fr));\r
+  gap: 8px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-insight-columns,\r
+.xray-settings-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(3, minmax(0, 1fr));\r
+  gap: 12px;\r
+}\r
+\r
+.xray-insight-row {\r
+  width: 100%;\r
+  min-height: 34px;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  border: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
+  padding: 7px 0;\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-insight-row:hover {\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-insight-row span {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-status-mix-row {\r
+  display: grid;\r
+  grid-template-columns: 42px minmax(0, 1fr) 28px;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-height: 30px;\r
+  color: var(--xray-subtext);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-settings-actions {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-settings-modal {\r
+  width: min(620px, 94vw);\r
+}\r
+\r
+.xray-settings-modal-body {\r
+  min-height: 400px;\r
+  display: grid;\r
+  grid-template-columns: 160px minmax(0, 1fr);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-settings-nav {\r
+  padding: 8px 0;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(24, 24, 37, .72);\r
+}\r
+\r
+.xray-settings-nav-item {\r
+  width: 100%;\r
+  min-height: 34px;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 9px;\r
+  border: 0;\r
+  border-left: 2px solid transparent;\r
+  padding: 0 14px;\r
+  color: var(--xray-hint);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-settings-nav-item:hover {\r
+  color: var(--xray-subtext);\r
+  background: rgba(49, 50, 68, .55);\r
+}\r
+\r
+.xray-settings-nav-item.active {\r
+  color: var(--xray-text);\r
+  border-left-color: var(--xray-accent, var(--xray-mauve));\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);\r
+}\r
+\r
+.xray-settings-content {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 16px;\r
+}\r
+\r
+.xray-settings-section-title {\r
+  margin: 0 0 10px;\r
+  padding-bottom: 6px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .10em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-settings-row {\r
+  min-height: 44px;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  gap: 14px;\r
+  padding: 8px 0;\r
+  border-bottom: 1px solid rgba(69, 71, 90, .25);\r
+  color: var(--xray-text);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-settings-row.read-only {\r
+  align-items: flex-start;\r
+}\r
+\r
+.xray-settings-row strong,\r
+.xray-settings-row small {\r
+  display: block;\r
+}\r
+\r
+.xray-settings-row small {\r
+  margin-top: 2px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-toggle {\r
+  width: 36px;\r
+  height: 20px;\r
+  flex: 0 0 auto;\r
+  position: relative;\r
+  border: 0;\r
+  border-radius: 999px;\r
+  background: var(--xray-surface2);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-toggle::after {\r
+  content: "";\r
+  position: absolute;\r
+  top: 3px;\r
+  left: 3px;\r
+  width: 14px;\r
+  height: 14px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+  transition: transform .15s ease, background .15s ease;\r
+}\r
+\r
+.xray-toggle.on {\r
+  background: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-toggle.on::after {\r
+  transform: translateX(16px);\r
+  background: #fff;\r
+}\r
+\r
+.xray-number-input {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-number-input input,\r
+.xray-select {\r
+  height: 30px;\r
+  border: 1px solid rgba(108, 112, 134, .45);\r
+  border-radius: 6px;\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface2);\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-number-input input {\r
+  width: 76px;\r
+  padding: 0 8px;\r
+  text-align: right;\r
+}\r
+\r
+.xray-select {\r
+  min-width: 118px;\r
+  padding: 0 8px;\r
+}\r
+\r
+.xray-color-row {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  justify-content: flex-end;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-color-swatch {\r
+  width: 23px;\r
+  height: 23px;\r
+  border: 2px solid transparent;\r
+  border-radius: 5px;\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-color-swatch.active {\r
+  border-color: var(--xray-text);\r
+}\r
+\r
+.xray-settings-danger {\r
+  margin-top: 18px;\r
+  padding: 12px;\r
+  border: 1px solid rgba(243, 139, 168, .22);\r
+  border-radius: 8px;\r
+  background: rgba(243, 139, 168, .04);\r
+}\r
+\r
+.xray-danger-title {\r
+  margin-bottom: 8px;\r
+  color: var(--xray-red);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .10em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-danger-row {\r
+  width: 100%;\r
+  min-height: 32px;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  border: 0;\r
+  border-radius: 6px;\r
+  padding: 0 8px;\r
+  color: var(--xray-red);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-danger-row:hover {\r
+  background: rgba(243, 139, 168, .08);\r
+}\r
+\r
+.xray-confirm-modal {\r
+  width: min(460px, 92vw);\r
+}\r
+\r
+.xray-confirm-message {\r
+  margin: 0;\r
+  color: var(--xray-subtext);\r
+  font: 800 12px/1.55 var(--xray-font);\r
+}\r
+\r
+.xray-compact-rows .xray-api-row {\r
+  min-height: 42px;\r
+}\r
+\r
+.xray-compact-rows .xray-api-row .xray-entry-meta,\r
+.xray-compact-rows .xray-api-row .xray-api-flags {\r
+  display: none;\r
+}\r
+\r
+.xray-command-modal {\r
+  width: min(680px, 92vw);\r
+}\r
+\r
+.xray-command-search {\r
+  display: block;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-command-list {\r
+  display: grid;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-command-row {\r
+  width: 100%;\r
+  min-height: 40px;\r
+  display: grid;\r
+  grid-template-columns: 22px minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  border: 1px solid transparent;\r
+  border-radius: 8px;\r
+  padding: 0 10px;\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 12px/1.25 var(--xray-font);\r
+}\r
+\r
+.xray-command-row:hover {\r
+  border-color: rgba(137, 180, 250, .42);\r
+  background: rgba(137, 180, 250, .10);\r
+}\r
+\r
+.xray-command-row small {\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+}\r
+\r
+@media (max-width: 1700px) {\r
+  .xray-api-body {\r
+    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-request-context-pane {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-summary-strip {\r
+    grid-template-columns: repeat(2, minmax(0, 1fr));\r
+  }\r
+}\r
+\r
+@media (max-width: 760px) {\r
+  .xray-panel {\r
+    width: 100vw;\r
+  }\r
+\r
+  .xray-topbar {\r
+    gap: 6px;\r
+    padding: 0 8px;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-brand {\r
+    min-width: 112px;\r
+  }\r
+\r
+  .xray-tabs {\r
+    min-width: 0;\r
+    flex: 1;\r
+    overflow-x: auto;\r
+    scrollbar-width: none;\r
+  }\r
+\r
+  .xray-tabs::-webkit-scrollbar,\r
+  .xray-console-head::-webkit-scrollbar,\r
+  .xray-filter-chips::-webkit-scrollbar {\r
+    display: none;\r
+  }\r
+\r
+  .xray-tab {\r
+    flex: 0 0 auto;\r
+    padding: 0 10px;\r
+  }\r
+\r
+  .xray-console-head {\r
+    overflow-x: auto;\r
+  }\r
+\r
+  .xray-console-tabs,\r
+  .xray-toolbar {\r
+    flex: 0 0 auto;\r
+  }\r
+\r
+  .xray-toolbar {\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-summary,\r
+  .xray-network-row > :nth-child(5),\r
+  .xray-network-row > :nth-child(6),\r
+  .xray-network-head > :nth-child(5),\r
+  .xray-network-head > :nth-child(6) {\r
+    display: none;\r
+  }\r
+\r
+  .xray-filterbar {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-filter-chips {\r
+    padding-bottom: 2px;\r
+  }\r
+\r
+  .xray-network-head,\r
+  .xray-network-row {\r
+    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;\r
+  }\r
+\r
+  .xray-split {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-detail-panel {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-workspace {\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-body {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-api-toolbar {\r
+    grid-template-columns: 1fr;\r
+    padding: 8px;\r
+  }\r
+\r
+  .xray-api-collection-pane {\r
+    border-right: 0;\r
+  }\r
+\r
+  .xray-api-collection-head {\r
+    grid-template-columns: minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-api-env-pill {\r
+    justify-self: start;\r
+  }\r
+\r
+  .xray-api-summary-strip {\r
+    display: flex;\r
+    overflow-x: auto;\r
+    scrollbar-width: none;\r
+  }\r
+\r
+  .xray-api-summary-strip::-webkit-scrollbar {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-summary-pill {\r
+    flex: 0 0 112px;\r
+  }\r
+\r
+  .xray-api-primary-filters,\r
+  .xray-api-secondary-controls,\r
+  .xray-api-secondary-controls .xray-filter-chips {\r
+    justify-content: flex-start;\r
+    overflow-x: auto;\r
+    scrollbar-width: none;\r
+  }\r
+\r
+  .xray-api-secondary-controls {\r
+    display: grid;\r
+    gap: 6px;\r
+  }\r
+\r
+  .xray-api-table-head,\r
+  .xray-api-row {\r
+    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;\r
+  }\r
+\r
+  .xray-api-table-head > :nth-child(4),\r
+  .xray-api-row > .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-row-actions {\r
+    gap: 2px;\r
+  }\r
+\r
+  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-detail-drawer {\r
+    position: absolute;\r
+    top: auto;\r
+    left: 0;\r
+    right: 0;\r
+    bottom: 0;\r
+    width: 100%;\r
+    max-width: 100%;\r
+    min-width: 0;\r
+    height: min(68vh, 560px);\r
+    border-left: 0;\r
+    border-top: 1px solid rgba(137, 180, 250, .34);\r
+    border-radius: 14px 14px 0 0;\r
+    background: var(--xray-surface);\r
+    box-shadow: 0 -22px 44px rgba(17, 17, 27, .52);\r
+    z-index: 8;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-drawer-body,\r
+  .xray-request-detail,\r
+  .xray-detail-content {\r
+    max-width: 100%;\r
+    overflow-x: hidden;\r
+  }\r
+\r
+  .xray-detail-content .xray-json-editor {\r
+    min-width: 0;\r
+  }\r
+\r
+  .xray-json-line {\r
+    grid-template-columns: 34px minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-json-line-no {\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-json-line-text {\r
+    padding: 0 9px;\r
+    overflow-wrap: anywhere;\r
+  }\r
+\r
+  .xray-detail-tabs,\r
+  .xray-detail-views,\r
+  .xray-operation-bar {\r
+    max-width: 100%;\r
+  }\r
+\r
+  .xray-detail-views {\r
+    display: grid;\r
+    grid-template-columns: repeat(2, minmax(0, 1fr));\r
+    overflow-x: visible;\r
+  }\r
+\r
+  .xray-detail-views .xray-chip {\r
+    min-width: 0;\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-operation-group {\r
+    grid-template-columns: 1fr;\r
+    align-items: start;\r
+  }\r
+\r
+  .xray-operation-bar {\r
+    display: grid;\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-operation-bar .xray-chip {\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-detail-footer {\r
+    display: grid;\r
+    grid-template-columns: 1fr;\r
+    overflow-x: visible;\r
+    align-items: stretch;\r
+  }\r
+\r
+  .xray-detail-footer .xray-action-btn {\r
+    min-width: 0;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-detail-drawer.empty {\r
+    display: none;\r
+  }\r
+\r
+  .xray-entry-row {\r
+    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;\r
+  }\r
+\r
+  .xray-list-panel > .xray-virtual-list {\r
+    min-height: 168px;\r
+  }\r
+\r
+  .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-mobile-detail-panel {\r
+    display: block;\r
+    flex-shrink: 0;\r
+    max-height: 38vh;\r
+    overflow: auto;\r
+    border-top: 1px solid rgba(108, 112, 134, .35);\r
+    background: var(--xray-surface);\r
+  }\r
+\r
+  .xray-prompt {\r
+    grid-template-columns: 20px minmax(120px, 1fr) auto;\r
+    gap: 6px;\r
+    padding: 8px;\r
+  }\r
+\r
+  .xray-context-chip {\r
+    display: none;\r
+  }\r
+\r
+  .xray-export-modal {\r
+    width: 96vw;\r
+  }\r
+\r
+  .xray-settings-modal {\r
+    width: 96vw;\r
+    max-height: 88vh;\r
+  }\r
+\r
+  .xray-settings-modal-body {\r
+    grid-template-columns: 1fr;\r
+    min-height: 0;\r
+  }\r
+\r
+  .xray-settings-nav {\r
+    display: flex;\r
+    overflow-x: auto;\r
+    border-right: 0;\r
+    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  }\r
+\r
+  .xray-settings-nav-item {\r
+    flex: 0 0 auto;\r
+    width: auto;\r
+    border-left: 0;\r
+    border-bottom: 2px solid transparent;\r
+  }\r
+\r
+  .xray-settings-nav-item.active {\r
+    border-bottom-color: var(--xray-accent, var(--xray-mauve));\r
+  }\r
+\r
+  .xray-export-body {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-export-rail {\r
+    display: flex;\r
+    gap: 8px;\r
+    border-right: 0;\r
+    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+    overflow-x: auto;\r
+  }\r
+\r
+  .xray-export-group {\r
+    min-width: 170px;\r
+    margin-bottom: 0;\r
+  }\r
+\r
+  .xray-export-preview-head {\r
+    display: grid;\r
+  }\r
+\r
+  .xray-insight-grid,\r
+  .xray-insight-columns,\r
+  .xray-settings-grid {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-page-head {\r
+    display: grid;\r
+  }\r
+}\r
+\r
+@media (max-width: 420px) {\r
+  .xray-api-table-head,\r
+  .xray-api-row {\r
+    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;\r
+    gap: 5px;\r
+    padding-left: 8px;\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-api-table-head > :nth-child(4),\r
+  .xray-api-row > .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-response-chips,\r
+  .xray-detail-footer {\r
+    flex-wrap: wrap;\r
+  }\r
+\r
+  .xray-detail-footer {\r
+    overflow-x: visible;\r
+    align-items: stretch;\r
+  }\r
+\r
+  .xray-detail-footer .xray-action-btn {\r
+    flex: 1 1 calc(50% - 8px);\r
+  }\r
+\r
+  .xray-detail-views {\r
+    flex-wrap: wrap;\r
+    overflow-x: visible;\r
+  }\r
+\r
+  .xray-detail-views .xray-chip {\r
+    flex: 1 1 auto;\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-operation-group {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-api-row-actions .xray-icon-btn {\r
+    width: 25px;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
+   XRAY Operator UI override layer\r
+   Configurable developer cockpit skin applied across existing tabs.\r
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-panel .xray-api-workspace,\r
+.xray-panel .xray-console-workspace,\r
+.xray-panel .xray-notebook,\r
+.xray-panel .xray-insights,\r
+.xray-panel .xray-settings-page,\r
+.xray-panel .xray-logs-workspace {\r
+  background:\r
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-bg) 92%, var(--xray-accent) 8%), var(--xray-bg));\r
+}\r
+\r
+.xray-panel .xray-api-collection-pane,\r
+.xray-panel .xray-api-detail-pane,\r
+.xray-panel .xray-console-main,\r
+.xray-panel .xray-notebook-cell,\r
+.xray-panel .xray-card,\r
+.xray-panel .xray-settings-card,\r
+.xray-panel .xray-modal-card {\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);\r
+}\r
+\r
+.xray-panel .xray-api-row,\r
+.xray-panel .xray-entry-row,\r
+.xray-panel .xray-console-row,\r
+.xray-panel .xray-log-row {\r
+  min-height: var(--xray-row-h, 52px);\r
+  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));\r
+  transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;\r
+}\r
+\r
+.xray-panel .xray-api-row:hover,\r
+.xray-panel .xray-entry-row:hover,\r
+.xray-panel .xray-console-row:hover,\r
+.xray-panel .xray-log-row:hover {\r
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 9%, transparent), color-mix(in srgb, var(--xray-surface2) 72%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);\r
+}\r
+\r
+.xray-glow .xray-api-row.selected,\r
+.xray-glow .xray-entry-row.selected,\r
+.xray-glow .xray-console-row.selected,\r
+.xray-glow .xray-log-row.selected {\r
+  box-shadow: inset 3px 0 0 var(--xray-accent), 0 0 28px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-panel .xray-method,\r
+.xray-panel .xray-status,\r
+.xray-panel .xray-response-chip,\r
+.xray-panel .xray-chip,\r
+.xray-panel .xray-badge {\r
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);\r
+  font-weight: 900;\r
+  letter-spacing: .06em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-method.get { color: var(--xray-green); }\r
+.xray-panel .xray-method.post { color: var(--xray-blue); }\r
+.xray-panel .xray-method.put,\r
+.xray-panel .xray-method.patch { color: var(--xray-yellow); }\r
+.xray-panel .xray-method.delete { color: var(--xray-red); }\r
+\r
+.xray-panel .xray-input,\r
+.xray-panel .xray-select,\r
+.xray-panel textarea,\r
+.xray-panel input,\r
+.xray-panel select {\r
+  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  color: var(--xray-text);\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-panel .xray-input:focus,\r
+.xray-panel .xray-select:focus,\r
+.xray-panel textarea:focus,\r
+.xray-panel input:focus,\r
+.xray-panel select:focus {\r
+  outline: none;\r
+  border-color: var(--xray-accent);\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+}\r
+\r
+.xray-panel .xray-json,\r
+.xray-panel .xray-json-editor,\r
+.xray-panel pre,\r
+.xray-panel code,\r
+.xray-panel kbd {\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-panel .xray-json,\r
+.xray-panel .xray-json-editor {\r
+  background:\r
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),\r
+    color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  border-radius: 10px;\r
+}\r
+\r
+.xray-panel .xray-json-line-no {\r
+  color: color-mix(in srgb, var(--xray-hint) 82%, transparent);\r
+  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
+}\r
+\r
+.xray-panel .xray-json-key { color: var(--xray-blue); }\r
+.xray-panel .xray-json-string { color: var(--xray-green); }\r
+.xray-panel .xray-json-number { color: var(--xray-peach); }\r
+.xray-panel .xray-json-bool { color: var(--xray-mauve); }\r
+.xray-panel .xray-json-null { color: var(--xray-hint); }\r
+\r
+.xray-panel .xray-detail-hero,\r
+.xray-panel .xray-console-head,\r
+.xray-panel .xray-api-toolbar,\r
+.xray-panel .xray-api-command-bar,\r
+.xray-panel .xray-detail-nav {\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-detail-tabs button,\r
+.xray-panel .xray-view-btn,\r
+.xray-panel .xray-operation-btn,\r
+.xray-panel .xray-action-btn,\r
+.xray-panel .xray-btn,\r
+.xray-panel .xray-icon-btn {\r
+  border-radius: 7px;\r
+}\r
+\r
+.xray-panel .xray-operation-btn,\r
+.xray-panel .xray-action-btn.primary,\r
+.xray-panel .xray-btn.primary {\r
+  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);\r
+}\r
+\r
+.xray-glow .xray-operation-btn:hover,\r
+.xray-glow .xray-action-btn.primary:hover,\r
+.xray-glow .xray-btn.primary:hover {\r
+  box-shadow: 0 0 24px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+}\r
+\r
+.xray-panel .xray-settings-section-title,\r
+.xray-panel .xray-danger-title,\r
+.xray-panel h3,\r
+.xray-panel h4 {\r
+  text-transform: uppercase;\r
+  letter-spacing: .12em;\r
+  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);\r
+}\r
+\r
+.xray-panel.xray-density-compact .xray-api-row,\r
+.xray-panel.xray-density-compact .xray-console-row,\r
+.xray-panel.xray-density-compact .xray-settings-row {\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-panel.xray-density-spacious .xray-api-row,\r
+.xray-panel.xray-density-spacious .xray-console-row,\r
+.xray-panel.xray-density-spacious .xray-settings-row {\r
+  font-size: 13px;\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-panel *,\r
+  .xray-panel *::before,\r
+  .xray-panel *::after {\r
+    transition: none !important;\r
+    animation: none !important;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
+   XRAY Operator UI tab-specific polish\r
+   Firefox DevTools density + terminal-grade inspector ergonomics.\r
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-panel .xray-filterbar {\r
+  gap: 10px;\r
+  padding: 14px;\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  background: color-mix(in srgb, var(--xray-surface) 84%, transparent);\r
+}\r
+\r
+.xray-panel .xray-search {\r
+  min-height: 38px;\r
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  border-radius: 9px;\r
+  background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);\r
+}\r
+\r
+.xray-panel .xray-network-head,\r
+.xray-panel .xray-api-table-head {\r
+  min-height: 32px;\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .14em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-network-row,\r
+.xray-panel .xray-api-row {\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-panel .xray-network-row.selected,\r
+.xray-panel .xray-api-row.selected {\r
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+}\r
+\r
+.xray-panel .xray-path,\r
+.xray-panel .xray-api-path,\r
+.xray-panel .xray-response-heading h3 {\r
+  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent) 14%);\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-panel .xray-bar-track {\r
+  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);\r
+  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-panel .xray-bar {\r
+  background: linear-gradient(90deg, var(--xray-accent), var(--xray-green));\r
+  box-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 28%, transparent);\r
+}\r
+\r
+.xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }\r
+.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }\r
+\r
+.xray-panel .xray-request-detail {\r
+  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);\r
+}\r
+\r
+.xray-panel .xray-detail-hero {\r
+  padding: calc(14px * var(--xray-density-scale, 1));\r
+  box-shadow: inset 3px 0 0 var(--xray-accent);\r
+}\r
+\r
+.xray-panel .xray-detail-tab,\r
+.xray-panel .xray-detail-views .xray-chip {\r
+  height: 30px;\r
+  border: 1px solid transparent;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  font: 900 10px/1 var(--xray-font);\r
+  letter-spacing: .1em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-detail-tab.active,\r
+.xray-panel .xray-detail-views .xray-chip.active {\r
+  color: var(--xray-text);\r
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-panel .xray-operation-groups {\r
+  padding: 10px 12px;\r
+  background: color-mix(in srgb, var(--xray-surface) 75%, transparent);\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-operation-group-label {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  letter-spacing: .14em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-operation-btn {\r
+  min-height: 30px;\r
+  color: var(--xray-text);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-panel .xray-console-head {\r
+  min-height: var(--xray-chrome-h, 44px);\r
+}\r
+\r
+.xray-panel .xray-console-tabs .xray-mini-tab {\r
+  text-transform: none;\r
+  letter-spacing: .04em;\r
+}\r
+\r
+.xray-panel .xray-console-row {\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-panel .xray-prompt {\r
+  gap: 10px;\r
+  padding: 10px 12px;\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));\r
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-prompt::before {\r
+  content: '>';\r
+  color: var(--xray-accent);\r
+  font: 900 18px/1 var(--xray-font);\r
+  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+}\r
+\r
+.xray-panel .xray-prompt .xray-input {\r
+  min-height: 40px;\r
+  border-radius: 10px;\r
+}\r
+\r
+.xray-panel .xray-statusbar {\r
+  min-height: 28px;\r
+  padding: 0 12px;\r
+  color: var(--xray-subtext);\r
+  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);\r
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: lowercase;\r
+}\r
+\r
+.xray-panel .xray-page-head {\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));\r
+}\r
+\r
+.xray-panel .xray-page-head h3 {\r
+  margin: 0;\r
+  font-size: 14px;\r
+}\r
+\r
+.xray-panel .xray-page-head p {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-panel .xray-notebook-grid,\r
+.xray-panel .xray-insight-columns,\r
+.xray-panel .xray-insight-grid {\r
+  padding: 14px;\r
+}\r
+\r
+.xray-panel .xray-notebook-cell {\r
+  position: relative;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-panel .xray-notebook-cell::before,\r
+.xray-panel .xray-card::before,\r
+.xray-panel .xray-api-metric::before {\r
+  content: '';\r
+  position: absolute;\r
+  inset: 0 auto 0 0;\r
+  width: 3px;\r
+  background: linear-gradient(180deg, var(--xray-accent), transparent);\r
+  opacity: .75;\r
+}\r
+\r
+.xray-panel .xray-notebook-cell-head,\r
+.xray-panel .xray-notebook-title {\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-textarea {\r
+  min-height: 132px;\r
+  line-height: 1.6;\r
+  tab-size: 2;\r
+}\r
+\r
+.xray-panel .xray-insight-row {\r
+  border: 1px solid transparent;\r
+  border-radius: 9px;\r
+  background: color-mix(in srgb, var(--xray-surface2) 44%, transparent);\r
+}\r
+\r
+.xray-panel .xray-insight-row:hover {\r
+  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);\r
+}\r
+\r
+.xray-panel .xray-api-metric {\r
+  position: relative;\r
+  overflow: hidden;\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));\r
+}\r
+\r
+.xray-panel .xray-api-metric strong {\r
+  font-size: 18px;\r
+  color: var(--xray-text);\r
+  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);\r
+}\r
+\r
+/* XRAY Operator UI prompt layout hardening */\r
+.xray-panel .xray-prompt {\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);\r
+  gap: 10px;\r
+  align-items: center;\r
+  padding: 10px 14px;\r
+  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);\r
+  background:\r
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),\r
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);\r
+}\r
+\r
+.xray-panel .xray-prompt::before {\r
+  display: none;\r
+}\r
+\r
+.xray-panel .xray-prompt > svg {\r
+  color: var(--xray-accent-2);\r
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));\r
+}\r
+\r
+.xray-panel .xray-prompt-command {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  gap: 10px;\r
+  align-items: center;\r
+}\r
+\r
+.xray-panel .xray-prompt input {\r
+  min-width: 0;\r
+  width: 100%;\r
+  height: 38px;\r
+  padding: 0 13px;\r
+  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));\r
+  border-radius: 11px;\r
+  color: var(--xray-text);\r
+  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);\r
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);\r
+  font: inherit;\r
+}\r
+\r
+.xray-panel .xray-prompt input:focus {\r
+  outline: none;\r
+  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
+}\r
+\r
+.xray-panel .xray-context-chip {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  justify-self: end;\r
+  max-width: min(28vw, 460px);\r
+  padding: 8px 13px;\r
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);\r
+}\r
+\r
+@media (max-width: 860px) {\r
+  .xray-panel .xray-prompt {\r
+    grid-template-columns: auto minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-panel .xray-prompt-command {\r
+    grid-column: 2 / -1;\r
+  }\r
+\r
+  .xray-panel .xray-context-chip {\r
+    grid-column: 2 / -1;\r
+    justify-self: stretch;\r
+    max-width: none;\r
+  }\r
+}\r
+\r
+`;
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles\hud.css
   var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: 10px;\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: 10px;\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: 10px 10px 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n@media (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
@@ -17141,6 +20802,7 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/icons/IconArrowUpRight.mjs:
 @tabler/icons-react/dist/esm/icons/IconArrowsMaximize.mjs:
 @tabler/icons-react/dist/esm/icons/IconBolt.mjs:
+@tabler/icons-react/dist/esm/icons/IconBraces.mjs:
 @tabler/icons-react/dist/esm/icons/IconBrandTypescript.mjs:
 @tabler/icons-react/dist/esm/icons/IconChartBar.mjs:
 @tabler/icons-react/dist/esm/icons/IconCheck.mjs:
@@ -17150,10 +20812,12 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs:
 @tabler/icons-react/dist/esm/icons/IconCircleX.mjs:
 @tabler/icons-react/dist/esm/icons/IconClock.mjs:
+@tabler/icons-react/dist/esm/icons/IconCode.mjs:
 @tabler/icons-react/dist/esm/icons/IconCopy.mjs:
 @tabler/icons-react/dist/esm/icons/IconDatabase.mjs:
 @tabler/icons-react/dist/esm/icons/IconDeviceLaptop.mjs:
 @tabler/icons-react/dist/esm/icons/IconDownload.mjs:
+@tabler/icons-react/dist/esm/icons/IconFileDiff.mjs:
 @tabler/icons-react/dist/esm/icons/IconFileExport.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilterOff.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilter.mjs:
@@ -17175,8 +20839,11 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/icons/IconSend.mjs:
 @tabler/icons-react/dist/esm/icons/IconServer.mjs:
 @tabler/icons-react/dist/esm/icons/IconSettings.mjs:
+@tabler/icons-react/dist/esm/icons/IconTable.mjs:
 @tabler/icons-react/dist/esm/icons/IconTerminal2.mjs:
+@tabler/icons-react/dist/esm/icons/IconTimeline.mjs:
 @tabler/icons-react/dist/esm/icons/IconTrash.mjs:
+@tabler/icons-react/dist/esm/icons/IconWorld.mjs:
 @tabler/icons-react/dist/esm/icons/IconX.mjs:
 @tabler/icons-react/dist/esm/tabler-icons-react.mjs:
   (**

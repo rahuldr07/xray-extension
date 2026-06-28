@@ -14,7 +14,7 @@ import {
 } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
 import { PANEL_ACCENT_VALUES } from '../../models/panelSettings';
-import type { DetailView, PanelAccent, PanelSettings } from '../../types';
+import type { DetailView, PanelAccent, PanelDensity, PanelFont, PanelSettings, PanelTheme } from '../../types';
 import { ModalShell } from '../common/ModalShell';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
@@ -32,6 +32,9 @@ const navItems: Array<{ id: SettingsSection; label: string; icon: React.ReactNod
 ];
 
 const detailViews: DetailView[] = ['tree', 'raw', 'grid', 'schema', 'diff', 'waterfall', 'viz', 'headers'];
+const themes: PanelTheme[] = ['operator', 'dev-edition', 'midnight', 'light-lab'];
+const fonts: PanelFont[] = ['jetbrains', 'cascadia', 'iosevka', 'system'];
+const densities: PanelDensity[] = ['compact', 'comfortable', 'spacious'];
 
 export function SettingsModal(): React.ReactElement | null {
   const open = usePanelStore((state) => state.settingsOpen);
@@ -115,7 +118,11 @@ export function SettingsModal(): React.ReactElement | null {
           {section === 'appearance' && (
             <>
               <SettingsSectionTitle label="Appearance" />
+              <SelectRow label="Theme" desc="Switch the whole DevTools surface: hacker cockpit, Firefox-inspired, pure dark, or light lab." value={settings.theme} options={themes} onChange={(value) => updateSettings({ theme: value as PanelTheme })} />
+              <SelectRow label="Font stack" desc="Choose the code-first monospace stack used across tables, JSON, and console." value={settings.font} options={fonts} onChange={(value) => updateSettings({ font: value as PanelFont })} />
+              <SelectRow label="Density" desc="Control global spacing, row heights, and panel chrome." value={settings.density} options={densities} onChange={(value) => updateSettings({ density: value as PanelDensity })} />
               <AccentRow settings={settings} onChange={(accent) => updateSettings({ accent })} />
+              <ToggleRow label="Operator glow" desc="Enable subtle cyan/purple terminal glow and active-focus lighting." checked={settings.glow} onChange={(value) => updateSettings({ glow: value })} />
               <ToggleRow label="Compact rows" desc="Reduce request row height for dense API sessions." checked={settings.compactRows} onChange={(value) => updateSettings({ compactRows: value })} />
               <ToggleRow label="Show host in path column" desc="Display request host below endpoint paths." checked={settings.showHostInPath} onChange={(value) => updateSettings({ showHostInPath: value })} />
             </>
@@ -146,7 +153,7 @@ export function SettingsModal(): React.ReactElement | null {
             <>
               <SettingsSectionTitle label="About" />
               <InfoRow label="UI stack" desc="React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." />
-              <InfoRow label="Theme" desc="Catppuccin Mocha tokens inside Shadow DOM with local font stack only." />
+              <InfoRow label="Theme" desc="Configurable Operator UI tokens inside Shadow DOM with local-only font stacks." />
             </>
           )}
           <div className="xray-settings-danger">
