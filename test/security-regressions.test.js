@@ -12,6 +12,33 @@ test('content bridge ignores postMessage events from non-window sources', () => 
   assert.match(content, /e\.source\s*!==\s*window/);
 });
 
+test('overlay focus trap blocks page single-key shortcuts before document handlers', () => {
+  const content = read('content/content.js');
+  const manifest = read('manifest.json');
+
+  assert.match(manifest, /"run_at":\s*"document_start"/);
+  assert.match(content, /const XRAY_FOCUS_TRAP_TARGETS = \[window, document\]/);
+  assert.match(content, /XRAY_FOCUS_TRAP_TARGETS\.forEach/);
+  assert.match(content, /target\.addEventListener\(type, _trapFocusedPanelEvent, true\)/);
+  assert.match(content, /if \(!window\.__XRAY_focusTrapActive\) return/);
+  assert.match(content, /if \(_isKeyboardEvent\(event\)\) event\.preventDefault\(\)/);
+  assert.match(content, /event\.stopImmediatePropagation\(\)/);
+});
+
+test('overlay focus trap preserves XRAY toggle and browser modifier shortcuts', () => {
+  const content = read('content/content.js');
+  const bridge = read('src/panel/bridge/panelApi.ts');
+
+  assert.match(content, /function _isBrowserShortcut\(event\)/);
+  assert.match(content, /!event\.ctrlKey && !event\.metaKey && !event\.altKey/);
+  assert.match(content, /if \(_isToggleShortcut\(event\)\) return false/);
+  assert.match(content, /if \(_isKeyboardEvent\(event\) && _isBrowserShortcut\(event\)\) return/);
+  assert.match(content, /if \(_isKeyboardEvent\(event\) && _isToggleShortcut\(event\)\) return/);
+  assert.match(bridge, /function focusPanelInput\(deps: PanelApiDeps\)/);
+  assert.match(bridge, /querySelector<HTMLElement>\('\.xray-prompt input, \.xray-input, button, \[tabindex\]:not\(\[tabindex="-1"\]\)'\)/);
+  assert.match(bridge, /if \(nextOpen\) focusPanelInput\(deps\)/);
+});
+
 test('console executor ignores postMessage events from non-window sources', () => {
   const executor = read('content/console-executor.js');
   assert.match(executor, /event\.source\s*!==\s*window/);
@@ -1093,7 +1120,8 @@ test('open floating panel traps focus and input events away from the page', () =
   assert.match(floating, /__XRAY_focusTrapActive/);
   assert.match(content, /XRAY_FOCUS_TRAP_EVENTS/);
   assert.match(content, /_trapFocusedPanelEvent/);
-  assert.match(content, /document\.addEventListener\(type,\s*_trapFocusedPanelEvent,\s*true\)/);
+  assert.match(content, /XRAY_FOCUS_TRAP_TARGETS/);
+  assert.match(content, /target\.addEventListener\(type,\s*_trapFocusedPanelEvent,\s*true\)/);
 });
 
 test('shared console helpers build request-aware runtime helpers', () => {

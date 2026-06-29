@@ -12,6 +12,7 @@
     'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
     'contextmenu', 'wheel', 'touchstart', 'touchmove', 'touchend',
   ];
+  const XRAY_FOCUS_TRAP_TARGETS = [window, document];
 
   function _isToggleShortcut(event) {
     return (event.ctrlKey || event.metaKey) &&
@@ -27,6 +28,12 @@
       event.type === 'input';
   }
 
+  function _isBrowserShortcut(event) {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) return false;
+    if (_isToggleShortcut(event)) return false;
+    return true;
+  }
+
   function _eventInsideXray(event) {
     const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
     return path.some((node) => node?.id === '__xray_root__' ||
@@ -37,6 +44,7 @@
   function _trapFocusedPanelEvent(event) {
     if (!window.__XRAY_focusTrapActive) return;
     if (_isKeyboardEvent(event) && _isToggleShortcut(event)) return;
+    if (_isKeyboardEvent(event) && _isBrowserShortcut(event)) return;
 
     const insideXray = _eventInsideXray(event);
     if (insideXray) return;
@@ -48,7 +56,9 @@
   }
 
   XRAY_FOCUS_TRAP_EVENTS.forEach((type) => {
-    document.addEventListener(type, _trapFocusedPanelEvent, true);
+    XRAY_FOCUS_TRAP_TARGETS.forEach((target) => {
+      target.addEventListener(type, _trapFocusedPanelEvent, true);
+    });
   });
 
   async function _initPanel() {

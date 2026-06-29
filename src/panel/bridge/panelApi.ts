@@ -20,6 +20,14 @@ function setOpenState(open: boolean): void {
   usePanelStore.getState().setOpen(open);
 }
 
+function focusPanelInput(deps: PanelApiDeps): void {
+  window.setTimeout(() => {
+    const root = deps.getSearchRoot();
+    const target = root.querySelector<HTMLElement>('.xray-prompt input, .xray-input, button, [tabindex]:not([tabindex="-1"])');
+    target?.focus?.();
+  }, 0);
+}
+
 export function createPanelApi(deps: PanelApiDeps): XrayPanelApi {
   function ensureInit(): void {
     ensureConsoleRuntime();
@@ -38,6 +46,7 @@ export function createPanelApi(deps: PanelApiDeps): XrayPanelApi {
     show() {
       ensureInit();
       setOpenState(true);
+      focusPanelInput(deps);
     },
     hide() {
       setOpenState(false);
@@ -45,7 +54,9 @@ export function createPanelApi(deps: PanelApiDeps): XrayPanelApi {
     toggle() {
       ensureInit();
       const store = usePanelStore.getState();
-      setOpenState(!store.open);
+      const nextOpen = !store.open;
+      setOpenState(nextOpen);
+      if (nextOpen) focusPanelInput(deps);
     },
     isOpen() {
       return usePanelStore.getState().open;
