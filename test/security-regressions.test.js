@@ -429,9 +429,10 @@ test('React API tab has premium request intelligence controls and mobile detail 
   assert.match(store, /apiDetailOpen:\s*false/);
   assert.match(store, /methodFilters:\s*new Set<string>\(\)/);
   assert.match(styles, /\.xray-api-workspace/);
-  // list track is driven by --xray-api-split (draggable divider), falling back
-  // to the original auto min/max
-  assert.match(styles, /grid-template-columns:\s*var\(--xray-api-split,\s*minmax\(360px,\s*440px\)\) minmax\(280px,\s*\.64fr\) minmax\(560px,\s*1\.55fr\)/);
+  // list track = minmax(min, --xray-api-split): the divider caps the width but
+  // the list still yields to the detail pane's min when the panel shrinks, so
+  // an outer resize can't starve the inner panes
+  assert.match(styles, /grid-template-columns:\s*minmax\(260px,\s*var\(--xray-api-split,\s*440px\)\) minmax\(260px,\s*\.64fr\) minmax\(400px,\s*1\.55fr\)/);
   assert.match(styles, /\.xray-pane-divider/);
   assert.match(styles, /\.xray-request-context-pane/);
   assert.match(styles, /\.xray-api-row\.selected/);

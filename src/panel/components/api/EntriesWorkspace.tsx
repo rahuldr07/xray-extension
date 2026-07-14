@@ -19,7 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { CollapsibleSection } from '../common/CollapsibleSection';
 import { EmptyState } from '../common/EmptyState';
-import { PaneDivider } from '../common/PaneDivider';
+import { PaneDivider, usePaneSplit } from '../common/PaneDivider';
 import { RequestDetail } from '../detail/RequestDetail';
 import { LogDetail } from '../detail/LogDetail';
 import { JsonView } from '../detail/JsonView';
@@ -203,20 +203,12 @@ function ApiWorkspace(): React.ReactElement {
 
   const handleTogglePinned = useCallback((id: string) => togglePinned(id), [togglePinned]);
 
-  // Draggable list/detail split. `apiSplit` (0 = auto) drives the grid's first
-  // column via a CSS var so container queries can still override the whole grid
-  // at narrow widths; `liveSplit` is the un-committed drag width. The pane is
-  // measured so the divider starts from the real current width in auto mode.
-  const paneRef = useRef<HTMLDivElement | null>(null);
-  const [liveSplit, setLiveSplit] = useState<number | null>(null);
-  const [measured, setMeasured] = useState(420);
-  useEffect(() => {
-    if (paneRef.current) setMeasured(Math.round(paneRef.current.getBoundingClientRect().width));
-  }, [apiSplit]);
-  const effectiveSplit = liveSplit ?? (apiSplit || measured);
-  const splitVar = (liveSplit ?? apiSplit) > 0
-    ? ({ '--xray-api-split': `${liveSplit ?? apiSplit}px` } as React.CSSProperties)
-    : undefined;
+  // Draggable list/detail split. apiSplit (0 = auto) drives the grid's first
+  // column via a CSS var; the hook keeps the divider's max and the applied
+  // width clamped to the CURRENT container width so an outer resize can never
+  // starve the detail pane. Container queries still override the whole grid
+  // when the panel stacks.
+  const split = usePaneSplit({ stored: apiSplit, varName: '--xray-api-split', minList: 260, minRest: 340 });
 
   // Arrow-key navigation through the (possibly grouped) request rows, like the
   // DevTools network panel. Navigation only moves the selection — Enter opens
@@ -242,16 +234,16 @@ function ApiWorkspace(): React.ReactElement {
 
   return (
     <section className={`xray-api-workspace ${selected && apiDetailOpen ? 'detail-open' : ''}`}>
-      <div className="xray-api-body" style={splitVar}>
-        <div className="xray-api-collection-pane" ref={paneRef}>
+      <div className="xray-api-body" style={split.splitStyle} ref={split.containerRef}>
+        <div className="xray-api-collection-pane" ref={split.paneRef}>
           <PaneDivider
             label="Resize request list"
-            value={effectiveSplit}
-            min={280}
-            max={1000}
-            onLiveChange={setLiveSplit}
-            onCommit={(next) => { setLiveSplit(null); updateSettings({ apiSplit: next }); }}
-            onReset={() => { setLiveSplit(null); updateSettings({ apiSplit: 0 }); }}
+            value={split.value}
+            min={split.min}
+            max={split.max}
+            onLiveChange={split.setLive}
+            onCommit={(next) => { split.setLive(null); updateSettings({ apiSplit: next }); }}
+            onReset={() => { split.setLive(null); updateSettings({ apiSplit: 0 }); }}
           />
           <ApiCollectionHeader summary={summary} visibleCount={rows.length} />
           <ApiInspectorToolbar summary={summary} />
@@ -304,19 +296,10 @@ function LogsWorkspace(): React.ReactElement {
   const pinnedIds = usePanelStore((state) => state.pinnedIds);
   const logsSplit = usePanelStore((state) => state.settings.logsSplit);
   const updateSettings = usePanelStore((state) => state.updateSettings);
+  const logsSplitState = usePaneSplit({ stored: logsSplit, varName: '--xray-logs-split', minList: 240, minRest: 300 });
   const rows = useEntryListItems('logs');
   const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const listPaneRef = useRef<HTMLDivElement | null>(null);
-  const [liveSplit, setLiveSplit] = useState<number | null>(null);
-  const [measured, setMeasured] = useState(360);
-  useEffect(() => {
-    if (listPaneRef.current) setMeasured(Math.round(listPaneRef.current.getBoundingClientRect().width));
-  }, [logsSplit]);
-  const effectiveSplit = liveSplit ?? (logsSplit || measured);
-  const splitVar = (liveSplit ?? logsSplit) > 0
-    ? ({ '--xray-logs-split': `${liveSplit ?? logsSplit}px` } as React.CSSProperties)
-    : undefined;
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -327,16 +310,16 @@ function LogsWorkspace(): React.ReactElement {
   });
 
   return (
-    <section className="xray-split" style={splitVar}>
-      <div className="xray-list-panel" ref={listPaneRef}>
+    <section className="xray-split" style={logsSplitState.splitStyle} ref={logsSplitState.containerRef}>
+      <div className="xray-list-panel" ref={logsSplitState.paneRef}>
         <PaneDivider
           label="Resize log list"
-          value={effectiveSplit}
-          min={240}
-          max={900}
-          onLiveChange={setLiveSplit}
-          onCommit={(next) => { setLiveSplit(null); updateSettings({ logsSplit: next }); }}
-          onReset={() => { setLiveSplit(null); updateSettings({ logsSplit: 0 }); }}
+          value={logsSplitState.value}
+          min={logsSplitState.min}
+          max={logsSplitState.max}
+          onLiveChange={logsSplitState.setLive}
+          onCommit={(next) => { logsSplitState.setLive(null); updateSettings({ logsSplit: next }); }}
+          onReset={() => { logsSplitState.setLive(null); updateSettings({ logsSplit: 0 }); }}
         />
         <ListControls mode="logs" />
         <div className="xray-virtual-list" ref={parentRef}>

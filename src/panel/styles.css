@@ -976,7 +976,10 @@
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: var(--xray-logs-split, minmax(280px, 42%)) minmax(0, 1fr);
+  /* Split is the MAX of a minmax, never a fixed track: the list caps at the
+     dragged width but yields down to its min when the panel shrinks, so a wide
+     split can't starve the detail pane. */
+  grid-template-columns: minmax(240px, var(--xray-logs-split, 42%)) minmax(300px, 1fr);
 }
 
 .xray-list-panel {
@@ -1098,7 +1101,7 @@
   /* First track = list pane. --xray-api-split (set inline when the user drags
      the divider) replaces the auto min/max; container queries below override
      the whole property, so the split is dropped when the panel stacks. */
-  grid-template-columns: var(--xray-api-split, minmax(360px, 440px)) minmax(280px, .64fr) minmax(560px, 1.55fr);
+  grid-template-columns: minmax(260px, var(--xray-api-split, 440px)) minmax(260px, .64fr) minmax(400px, 1.55fr);
   overflow: hidden;
 }
 
@@ -2690,7 +2693,7 @@
 
 @container xray (max-width: 1700px) {
   .xray-api-body {
-    grid-template-columns: var(--xray-api-split, minmax(400px, 480px)) minmax(0, 1fr);
+    grid-template-columns: minmax(260px, var(--xray-api-split, 480px)) minmax(340px, 1fr);
   }
 
   .xray-request-context-pane {
@@ -5466,7 +5469,7 @@
 }
 
 .xray-api-workspace:not(.detail-open) .xray-api-body {
-  grid-template-columns: var(--xray-api-split, minmax(360px, 1fr)) minmax(280px, 1.1fr);
+  grid-template-columns: minmax(260px, var(--xray-api-split, 1fr)) minmax(300px, 1.1fr);
 }
 
 /* Nothing selected at all: the (auto-hidden) context pane frees its column too. */

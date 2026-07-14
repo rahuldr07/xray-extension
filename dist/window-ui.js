@@ -16105,10 +16105,40 @@ ${lines}
   // src/panel/components/common/PaneDivider.tsx
   var import_react3 = __toESM(require_react());
   var import_jsx_runtime3 = __toESM(require_jsx_runtime());
+  function usePaneSplit(options) {
+    const { stored, varName, minList, minRest } = options;
+    const containerRef = import_react3.default.useRef(null);
+    const paneRef = import_react3.default.useRef(null);
+    const [live, setLive] = import_react3.default.useState(null);
+    const [containerWidth, setContainerWidth] = import_react3.default.useState(0);
+    const [measuredPane, setMeasuredPane] = import_react3.default.useState(0);
+    import_react3.default.useEffect(() => {
+      const container = containerRef.current;
+      if (!container || typeof ResizeObserver === "undefined") return;
+      const update = () => {
+        setContainerWidth(Math.round(container.getBoundingClientRect().width));
+        if (paneRef.current) setMeasuredPane(Math.round(paneRef.current.getBoundingClientRect().width));
+      };
+      update();
+      const observer = new ResizeObserver(update);
+      observer.observe(container);
+      return () => observer.disconnect();
+    }, []);
+    const max = containerWidth > 0 ? Math.max(minList, containerWidth - minRest) : Math.max(minList, 1200);
+    const desired = live ?? (stored || measuredPane || minList);
+    const value = Math.min(max, Math.max(minList, desired));
+    const active = live ?? stored;
+    const splitStyle = active > 0 ? { [varName]: `${Math.min(max, Math.max(minList, active))}px` } : void 0;
+    return { containerRef, paneRef, value, max, min: minList, splitStyle, setLive };
+  }
   function PaneDivider({ label, value, min, max, step = 24, onLiveChange, onCommit, onReset }) {
     const drag = import_react3.default.useRef(null);
+    const raf = import_react3.default.useRef(0);
     const [dragging, setDragging] = import_react3.default.useState(false);
     const clamp = (width) => Math.max(min, Math.min(max, Math.round(width)));
+    import_react3.default.useEffect(() => () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    }, []);
     function onPointerDown(event) {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -16120,13 +16150,21 @@ ${lines}
     function onPointerMove(event) {
       const state = drag.current;
       if (!state) return;
-      const next = clamp(state.width + (event.clientX - state.startX));
-      onLiveChange(next);
+      const clientX = event.clientX;
+      if (raf.current) return;
+      raf.current = requestAnimationFrame(() => {
+        raf.current = 0;
+        if (drag.current) onLiveChange(clamp(state.width + (clientX - state.startX)));
+      });
     }
     function commit(event) {
       const state = drag.current;
       if (!state) return;
       drag.current = null;
+      if (raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = 0;
+      }
       setDragging(false);
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -17420,14 +17458,7 @@ ${lines}
       if (groupKey) toggleGroup(groupKey);
     }, [toggleGroup]);
     const handleTogglePinned = (0, import_react7.useCallback)((id) => togglePinned(id), [togglePinned]);
-    const paneRef = (0, import_react7.useRef)(null);
-    const [liveSplit, setLiveSplit] = (0, import_react7.useState)(null);
-    const [measured, setMeasured] = (0, import_react7.useState)(420);
-    (0, import_react7.useEffect)(() => {
-      if (paneRef.current) setMeasured(Math.round(paneRef.current.getBoundingClientRect().width));
-    }, [apiSplit]);
-    const effectiveSplit = liveSplit ?? (apiSplit || measured);
-    const splitVar = (liveSplit ?? apiSplit) > 0 ? { "--xray-api-split": `${liveSplit ?? apiSplit}px` } : void 0;
+    const split = usePaneSplit({ stored: apiSplit, varName: "--xray-api-split", minList: 260, minRest: 340 });
     function handleListKeyDown(event) {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
       if (!rows.length) return;
@@ -17447,22 +17478,22 @@ ${lines}
       selectEntry(next.entry.id, { openDetail: false });
       virtualizer.scrollToIndex(nextIndex, { align: "auto" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-api-body", style: splitVar, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-api-collection-pane", ref: paneRef, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-api-body", style: split.splitStyle, ref: split.containerRef, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-api-collection-pane", ref: split.paneRef, children: [
         /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           PaneDivider,
           {
             label: "Resize request list",
-            value: effectiveSplit,
-            min: 280,
-            max: 1e3,
-            onLiveChange: setLiveSplit,
+            value: split.value,
+            min: split.min,
+            max: split.max,
+            onLiveChange: split.setLive,
             onCommit: (next) => {
-              setLiveSplit(null);
+              split.setLive(null);
               updateSettings({ apiSplit: next });
             },
             onReset: () => {
-              setLiveSplit(null);
+              split.setLive(null);
               updateSettings({ apiSplit: 0 });
             }
           }
@@ -17512,17 +17543,10 @@ ${lines}
     const pinnedIds = usePanelStore((state) => state.pinnedIds);
     const logsSplit = usePanelStore((state) => state.settings.logsSplit);
     const updateSettings = usePanelStore((state) => state.updateSettings);
+    const logsSplitState = usePaneSplit({ stored: logsSplit, varName: "--xray-logs-split", minList: 240, minRest: 300 });
     const rows = useEntryListItems("logs");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
     const parentRef = (0, import_react7.useRef)(null);
-    const listPaneRef = (0, import_react7.useRef)(null);
-    const [liveSplit, setLiveSplit] = (0, import_react7.useState)(null);
-    const [measured, setMeasured] = (0, import_react7.useState)(360);
-    (0, import_react7.useEffect)(() => {
-      if (listPaneRef.current) setMeasured(Math.round(listPaneRef.current.getBoundingClientRect().width));
-    }, [logsSplit]);
-    const effectiveSplit = liveSplit ?? (logsSplit || measured);
-    const splitVar = (liveSplit ?? logsSplit) > 0 ? { "--xray-logs-split": `${liveSplit ?? logsSplit}px` } : void 0;
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
@@ -17531,22 +17555,22 @@ ${lines}
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 10
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-split", style: splitVar, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-list-panel", ref: listPaneRef, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-split", style: logsSplitState.splitStyle, ref: logsSplitState.containerRef, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-list-panel", ref: logsSplitState.paneRef, children: [
         /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           PaneDivider,
           {
             label: "Resize log list",
-            value: effectiveSplit,
-            min: 240,
-            max: 900,
-            onLiveChange: setLiveSplit,
+            value: logsSplitState.value,
+            min: logsSplitState.min,
+            max: logsSplitState.max,
+            onLiveChange: logsSplitState.setLive,
             onCommit: (next) => {
-              setLiveSplit(null);
+              logsSplitState.setLive(null);
               updateSettings({ logsSplit: next });
             },
             onReset: () => {
-              setLiveSplit(null);
+              logsSplitState.setLive(null);
               updateSettings({ logsSplit: 0 });
             }
           }
@@ -19361,7 +19385,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 08:17 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 08:40 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -22054,7 +22078,10 @@ ${bodyLine}
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: var(--xray-logs-split, minmax(280px, 42%)) minmax(0, 1fr);
+  /* Split is the MAX of a minmax, never a fixed track: the list caps at the
+     dragged width but yields down to its min when the panel shrinks, so a wide
+     split can't starve the detail pane. */
+  grid-template-columns: minmax(240px, var(--xray-logs-split, 42%)) minmax(300px, 1fr);
 }
 
 .xray-list-panel {
@@ -22176,7 +22203,7 @@ ${bodyLine}
   /* First track = list pane. --xray-api-split (set inline when the user drags
      the divider) replaces the auto min/max; container queries below override
      the whole property, so the split is dropped when the panel stacks. */
-  grid-template-columns: var(--xray-api-split, minmax(360px, 440px)) minmax(280px, .64fr) minmax(560px, 1.55fr);
+  grid-template-columns: minmax(260px, var(--xray-api-split, 440px)) minmax(260px, .64fr) minmax(400px, 1.55fr);
   overflow: hidden;
 }
 
@@ -23768,7 +23795,7 @@ ${bodyLine}
 
 @container xray (max-width: 1700px) {
   .xray-api-body {
-    grid-template-columns: var(--xray-api-split, minmax(400px, 480px)) minmax(0, 1fr);
+    grid-template-columns: minmax(260px, var(--xray-api-split, 480px)) minmax(340px, 1fr);
   }
 
   .xray-request-context-pane {
@@ -26544,7 +26571,7 @@ ${bodyLine}
 }
 
 .xray-api-workspace:not(.detail-open) .xray-api-body {
-  grid-template-columns: var(--xray-api-split, minmax(360px, 1fr)) minmax(280px, 1.1fr);
+  grid-template-columns: minmax(260px, var(--xray-api-split, 1fr)) minmax(300px, 1.1fr);
 }
 
 /* Nothing selected at all: the (auto-hidden) context pane frees its column too. */
