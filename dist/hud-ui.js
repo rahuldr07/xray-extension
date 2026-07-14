@@ -768,7 +768,7 @@ var XRAYHudUI = (() => {
   var require_react_dom_production = __commonJS({
     "node_modules/react-dom/cjs/react-dom.production.js"(exports) {
       "use strict";
-      var React17 = require_react();
+      var React18 = require_react();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
         if (1 < arguments.length) {
@@ -808,7 +808,7 @@ var XRAYHudUI = (() => {
           implementation
         };
       }
-      var ReactSharedInternals = React17.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React18.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       function getCrossOriginStringAs(as, input) {
         if ("font" === as) return "";
         if ("string" === typeof input)
@@ -944,7 +944,7 @@ var XRAYHudUI = (() => {
     "node_modules/react-dom/cjs/react-dom-client.production.js"(exports) {
       "use strict";
       var Scheduler = require_scheduler();
-      var React17 = require_react();
+      var React18 = require_react();
       var ReactDOM = require_react_dom();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
@@ -1135,7 +1135,7 @@ var XRAYHudUI = (() => {
         return null;
       }
       var isArrayImpl = Array.isArray;
-      var ReactSharedInternals = React17.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React18.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var sharedNotPendingObject = {
         pending: false,
@@ -12581,7 +12581,7 @@ var XRAYHudUI = (() => {
           0 === i && attemptExplicitHydrationTarget(target);
         }
       };
-      var isomorphicReactPackageVersion$jscomp$inline_1840 = React17.version;
+      var isomorphicReactPackageVersion$jscomp$inline_1840 = React18.version;
       if ("19.2.6" !== isomorphicReactPackageVersion$jscomp$inline_1840)
         throw Error(
           formatProdErrorMessage(
@@ -13331,7 +13331,9 @@ ${lines}
     hacker: false,
     confirmDestructiveActions: true,
     panelWidth: 960,
-    dockSide: "right"
+    dockSide: "right",
+    apiSplit: 0,
+    logsSplit: 0
   };
   function asDetailView(value, fallback) {
     return DETAIL_VIEWS.includes(value) ? value : fallback;
@@ -13373,7 +13375,11 @@ ${lines}
       hacker: Boolean(base.hacker),
       confirmDestructiveActions: Boolean(base.confirmDestructiveActions),
       panelWidth: clampNumber(base.panelWidth, DEFAULT_PANEL_SETTINGS.panelWidth, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX),
-      dockSide: asDockSide(base.dockSide, DEFAULT_PANEL_SETTINGS.dockSide)
+      dockSide: asDockSide(base.dockSide, DEFAULT_PANEL_SETTINGS.dockSide),
+      // 0 = automatic (the CSS grid's default track sizing); any other value is a
+      // user-dragged split width in px.
+      apiSplit: clampNumber(base.apiSplit, DEFAULT_PANEL_SETTINGS.apiSplit, 0, 2e3),
+      logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2e3)
     };
   }
 
@@ -14389,7 +14395,7 @@ ${lines}
   }
 
   // src/panel/components/api/EntriesWorkspace.tsx
-  var import_react6 = __toESM(require_react());
+  var import_react7 = __toESM(require_react());
 
   // node_modules/@tanstack/react-virtual/dist/esm/index.js
   var React2 = __toESM(require_react(), 1);
@@ -16043,8 +16049,67 @@ ${lines}
     ] });
   }
 
+  // src/panel/components/common/PaneDivider.tsx
+  var import_react3 = __toESM(require_react());
+  var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+  function PaneDivider({ label, value, min, max, step = 24, onLiveChange, onCommit, onReset }) {
+    const drag = import_react3.default.useRef(null);
+    const [dragging, setDragging] = import_react3.default.useState(false);
+    const clamp = (width) => Math.max(min, Math.min(max, Math.round(width)));
+    function onPointerDown(event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      drag.current = { startX: event.clientX, width: value };
+      setDragging(true);
+      onLiveChange(value);
+    }
+    function onPointerMove(event) {
+      const state = drag.current;
+      if (!state) return;
+      const next = clamp(state.width + (event.clientX - state.startX));
+      onLiveChange(next);
+    }
+    function commit(event) {
+      const state = drag.current;
+      if (!state) return;
+      drag.current = null;
+      setDragging(false);
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+      }
+      onCommit(clamp(state.width + (event.clientX - state.startX)));
+    }
+    function onKeyDown(event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      onCommit(clamp(value + (event.key === "ArrowRight" ? step : -step)));
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "div",
+      {
+        className: `xray-pane-divider ${dragging ? "dragging" : ""}`,
+        role: "separator",
+        "aria-orientation": "vertical",
+        "aria-label": `${label} \u2014 drag, or use arrow keys`,
+        "aria-valuenow": value,
+        "aria-valuemin": min,
+        "aria-valuemax": max,
+        tabIndex: 0,
+        onPointerDown,
+        onPointerMove,
+        onPointerUp: commit,
+        onPointerCancel: commit,
+        onKeyDown,
+        onDoubleClick: onReset,
+        title: "Drag to resize \xB7 double-click to reset"
+      }
+    );
+  }
+
   // src/panel/components/detail/RequestDetail.tsx
-  var import_react4 = __toESM(require_react());
+  var import_react5 = __toESM(require_react());
 
   // src/panel/models/detail.ts
   function duration2(entry) {
@@ -16411,11 +16476,11 @@ ${lines}
   }
 
   // src/panel/components/detail/JsonView.tsx
-  var import_react3 = __toESM(require_react());
-  var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+  var import_react4 = __toESM(require_react());
+  var import_jsx_runtime3 = __toESM(require_jsx_runtime());
   var tokenPattern = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}\[\],:]/g;
-  var JsonView = import_react3.default.memo(function JsonView2({ value }) {
-    const { text, tokenLines } = (0, import_react3.useMemo)(() => {
+  var JsonView = import_react4.default.memo(function JsonView2({ value }) {
+    const { text, tokenLines } = (0, import_react4.useMemo)(() => {
       const stringified = safeStringify(value);
       const lines = stringified.split("\n");
       return {
@@ -16423,10 +16488,10 @@ ${lines}
         tokenLines: lines.length > 600 ? null : lines.map((line) => tokenizeJsonLine(line))
       };
     }, [value]);
-    if (!tokenLines) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: tokenLines.map((tokens, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "xray-json-line", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-no", children: index + 1 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-text", children: tokens.length ? tokens.map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
+    if (!tokenLines) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: tokenLines.map((tokens, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-json-line", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-json-line-no", children: index + 1 }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-json-line-text", children: tokens.length ? tokens.map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
     ] }, index)) });
   });
   function tokenizeJsonLine(line) {
@@ -16452,7 +16517,7 @@ ${lines}
   }
 
   // src/panel/components/detail/RequestDetail.tsx
-  var import_jsx_runtime3 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
   var iconProps = { size: 16, stroke: 1.8 };
   var responseTabs = [
     { id: "response", label: "Preview" },
@@ -16498,31 +16563,31 @@ ${lines}
     const replayEntry = usePanelStore((state) => state.replayEntry);
     const openReplayEditor = usePanelStore((state) => state.openReplayEditor);
     const openExplain = usePanelStore((state) => state.openExplain);
-    const [responseTab, setResponseTab] = import_react4.default.useState("response");
-    const cookies = import_react4.default.useMemo(() => cookieSummary(entry), [entry]);
+    const [responseTab, setResponseTab] = import_react5.default.useState("response");
+    const cookies = import_react5.default.useMemo(() => cookieSummary(entry), [entry]);
     const hasCookies = Object.keys(cookies).length > 0;
-    const jwts = import_react4.default.useMemo(() => extractJwts(entry), [entry]);
+    const jwts = import_react5.default.useMemo(() => extractJwts(entry), [entry]);
     const hasFrames = Array.isArray(entry.wsFrames);
     const hasInitiator = Array.isArray(entry.initiator) && entry.initiator.length > 0;
-    const driftFrom = import_react4.default.useMemo(
+    const driftFrom = import_react5.default.useMemo(
       () => entry.driftFromId ? usePanelStore.getState().entries.find((candidate) => candidate.id === entry.driftFromId) || null : null,
       [entry.driftFromId, entriesLength]
     );
-    const activeValue = import_react4.default.useMemo(() => {
+    const activeValue = import_react5.default.useMemo(() => {
       if (responseTab === "headers") return headerSummary(entry);
       if (responseTab === "cookies") return cookies;
       if (responseTab === "timeline") return timelineSummary(entry);
       return detailValue(entry, detailTab);
     }, [cookies, detailTab, entry, responseTab]);
-    const operations = import_react4.default.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries), [entry, entriesLength]);
-    const groupedOperations = import_react4.default.useMemo(() => groupResponseOperations(operations), [operations]);
-    const previous = import_react4.default.useMemo(
+    const operations = import_react5.default.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries), [entry, entriesLength]);
+    const groupedOperations = import_react5.default.useMemo(() => groupResponseOperations(operations), [operations]);
+    const previous = import_react5.default.useMemo(
       () => driftFrom ?? previousSameEndpoint2(entry, usePanelStore.getState().entries),
       [driftFrom, entry, entriesLength]
     );
-    const previousValue = import_react4.default.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
-    const [workerAnalysis, setWorkerAnalysis] = import_react4.default.useState(null);
-    import_react4.default.useEffect(() => {
+    const previousValue = import_react5.default.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
+    const [workerAnalysis, setWorkerAnalysis] = import_react5.default.useState(null);
+    import_react5.default.useEffect(() => {
       setResponseTab((tab) => {
         if (tab === "frames" && !hasFrames) return "response";
         if (tab === "initiator" && !hasInitiator) return "response";
@@ -16530,7 +16595,7 @@ ${lines}
         return tab;
       });
     }, [entry.id, hasFrames, hasInitiator, jwts.length]);
-    import_react4.default.useEffect(() => {
+    import_react5.default.useEffect(() => {
       let cancelled = false;
       setWorkerAnalysis(null);
       if (!window.XRAY_Worker?.detailAnalysis) return;
@@ -16542,7 +16607,7 @@ ${lines}
         cancelled = true;
       };
     }, [activeValue, previousValue]);
-    import_react4.default.useEffect(() => {
+    import_react5.default.useEffect(() => {
       if (responseTab === "cookies" && !hasCookies) setResponseTab("response");
     }, [hasCookies, responseTab]);
     function selectResponseTab(tab) {
@@ -16629,92 +16694,92 @@ ${lines}
     function replayNow() {
       replayEntry(entry);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-request-detail ${compact ? "compact" : ""}`, children: [
-      !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-hero", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-response-heading", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.method || "GET" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: entryPath(entry) })
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: `xray-request-detail ${compact ? "compact" : ""}`, children: [
+      !compact && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-detail-hero", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-response-heading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.method || "GET" }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: entryPath(entry) })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-response-chips", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-response-chip ${statusClass(status)}`, children: entry.status || entry.logLevel || "log" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-response-chip", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-response-chips", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-response-chip ${statusClass(status)}`, children: entry.status || entry.logLevel || "log" }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-response-chip", children: [
               Math.round(duration(entry)),
               "ms"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-response-chip", children: formatBytes(entry.size) })
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-response-chip", children: formatBytes(entry.size) })
           ] }),
-          onClose && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-icon-btn", "aria-label": "Close selected request detail", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconX, { ...iconProps }) })
+          onClose && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-icon-btn", "aria-label": "Close selected request detail", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconX, { ...iconProps }) })
         ] }),
-        driftFrom && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-drift-banner", role: "status", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRoute, { ...iconProps }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "Response schema changed versus the previous call to this endpoint." }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-chip", onClick: () => {
+        driftFrom && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-drift-banner", role: "status", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconRoute, { ...iconProps }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Response schema changed versus the previous call to this endpoint." }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-chip", onClick: () => {
             setResponseTab("response");
             setDetailTab("response");
             setDetailView("diff");
           }, children: "View diff" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-actionbar", "aria-label": "Request actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: replayNow, title: "Replay this request from the page", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRepeat, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-detail-actionbar", "aria-label": "Request actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: replayNow, title: "Replay this request from the page", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconRepeat, { ...iconProps }),
             "Replay"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openReplayEditor(entry), title: "Edit method, headers, or body then replay", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRepeat, { ...iconProps }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openReplayEditor(entry), title: "Edit method, headers, or body then replay", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconRepeat, { ...iconProps }),
             "Edit & Replay"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openExplain(entry), title: "Explain this request with AI", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSparkles, { ...iconProps }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openExplain(entry), title: "Explain this request with AI", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconSparkles, { ...iconProps }),
             "Explain"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => usePanelStore.getState().addRule({ label: `${entry.method || "GET"} ${entryPath(entry)}`, match: { url: String(entry.urlPath || entry.url || ""), method: String(entry.method || "") }, action: { type: "mock", status: Number(entry.status) || 200, body: typeof entryResponse(entry) === "string" ? String(entryResponse(entry)) : safeStringify(entryResponse(entry), 2, 1e5), headers: {}, delayMs: 0 } }), title: "Create a mock rule from this response", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconPlugConnected, { ...iconProps }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => usePanelStore.getState().addRule({ label: `${entry.method || "GET"} ${entryPath(entry)}`, match: { url: String(entry.urlPath || entry.url || ""), method: String(entry.method || "") }, action: { type: "mock", status: Number(entry.status) || 200, body: typeof entryResponse(entry) === "string" ? String(entryResponse(entry)) : safeStringify(entryResponse(entry), 2, 1e5), headers: {}, delayMs: 0 } }), title: "Create a mock rule from this response", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconPlugConnected, { ...iconProps }),
             "Mock this"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-nav", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-tabs", "aria-label": "Response tabs", children: visibleResponseTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-detail-tab ${responseTab === tab.id ? "active" : ""}`, onClick: () => selectResponseTab(tab.id), children: tab.label }, tab.id)) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-views", "aria-label": "View modes", children: detailViews.map((view) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-chip ${detailView === view ? "active" : ""}`, onClick: () => selectDetailView(view), children: viewLabels[view] || view }, view)) })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-detail-nav", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-tabs", "aria-label": "Response tabs", children: visibleResponseTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-detail-tab ${responseTab === tab.id ? "active" : ""}`, onClick: () => selectResponseTab(tab.id), children: tab.label }, tab.id)) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-views", "aria-label": "View modes", children: detailViews.map((view) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${detailView === view ? "active" : ""}`, onClick: () => selectDetailView(view), children: viewLabels[view] || view }, view)) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-operation-groups xray-smart-ops", "aria-label": "Smart response operations", children: groupedOperations.map((group) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-operation-group", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: group.label }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-operation-bar", children: group.operations.map((operation) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: `xray-chip xray-operation-chip ${operation.kind}`, onClick: () => void runOperation(operation), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(OperationIcon, { operation }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-operation-groups xray-smart-ops", "aria-label": "Smart response operations", children: groupedOperations.map((group) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-operation-group", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: group.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-operation-bar", children: group.operations.map((operation) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: `xray-chip xray-operation-chip ${operation.kind}`, onClick: () => void runOperation(operation), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(OperationIcon, { operation }),
             operation.label.replace("Send to ", "")
           ] }, operation.id)) })
         ] }, group.label)) })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-content", children: [
-        !compact && responseTab === "frames" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(FramesView, { frames: entry.wsFrames || [], state: entry.wsState }),
-        !compact && responseTab === "initiator" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(InitiatorView, { entry }),
-        !compact && responseTab === "tokens" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(TokensView, { jwts }),
-        (compact || responseTab !== "frames" && responseTab !== "initiator" && responseTab !== "tokens") && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-          (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(TreeContent, { compact, entry, detailTab, responseTab, activeValue, hasFrames }),
-          !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GridView, { value: activeValue, workerGrid: workerAnalysis?.grid }),
-          !compact && detailView === "raw" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RawView, { value: activeValue }),
-          !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(SchemaView, { value: activeValue, workerSchema: workerAnalysis?.schema }),
-          !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(DiffView, { current: activeValue, previous: previousValue, baselineId: driftFrom?.id || null, baselineIsDrift: !!driftFrom }),
-          !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(VizView, { value: activeValue }),
-          !compact && detailView === "waterfall" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(WaterfallView, { entry }),
-          !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(HeadersView, { entry })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-detail-content", children: [
+        !compact && responseTab === "frames" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FramesView, { frames: entry.wsFrames || [], state: entry.wsState }),
+        !compact && responseTab === "initiator" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(InitiatorView, { entry }),
+        !compact && responseTab === "tokens" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TokensView, { jwts }),
+        (compact || responseTab !== "frames" && responseTab !== "initiator" && responseTab !== "tokens") && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+          (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TreeContent, { compact, entry, detailTab, responseTab, activeValue, hasFrames }),
+          !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(GridView, { value: activeValue, workerGrid: workerAnalysis?.grid }),
+          !compact && detailView === "raw" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RawView, { value: activeValue }),
+          !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SchemaView, { value: activeValue, workerSchema: workerAnalysis?.schema }),
+          !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(DiffView, { current: activeValue, previous: previousValue, baselineId: driftFrom?.id || null, baselineIsDrift: !!driftFrom }),
+          !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(VizView, { value: activeValue }),
+          !compact && detailView === "waterfall" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(WaterfallView, { entry }),
+          !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(HeadersView, { entry })
         ] })
       ] }),
-      !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-footer", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => insertConsoleCommand("res"), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSend, { ...iconProps }),
+      !compact && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-detail-footer", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-action-btn", onClick: () => insertConsoleCommand("res"), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconSend, { ...iconProps }),
           "Console"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => saveSnippet({ title: `${entry.method || "GET"} ${entryPath(entry)}`, code: "schema(res)" }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBookmark, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-action-btn", onClick: () => saveSnippet({ title: `${entry.method || "GET"} ${entryPath(entry)}`, code: "schema(res)" }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconBookmark, { ...iconProps }),
           "Snippet"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => void copyActiveValue(), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-action-btn", onClick: () => void copyActiveValue(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCopy, { ...iconProps }),
           "Copy"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn primary", onClick: () => setExportOpen(true), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconDownload, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-action-btn primary", onClick: () => setExportOpen(true), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDownload, { ...iconProps }),
           "Export"
         ] })
       ] })
@@ -16732,16 +16797,16 @@ ${lines}
     return other.length ? [...groups, { label: "More", operations: other }] : groups;
   }
   function OperationIcon({ operation }) {
-    if (operation.id === "schema") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBraces, { ...iconProps });
-    if (operation.id === "table") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTable, { ...iconProps });
-    if (operation.id === "visualize") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconChartBar, { ...iconProps });
-    if (operation.id === "diff" || operation.id === "compare-previous") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconFileDiff, { ...iconProps });
-    if (operation.id === "waterfall") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTimeline, { ...iconProps });
-    if (operation.kind === "copy") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { ...iconProps });
-    if (operation.kind === "console") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTerminal2, { ...iconProps });
-    if (operation.kind === "snippet") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBookmark, { ...iconProps });
-    if (operation.kind === "export") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconDownload, { ...iconProps });
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCode, { ...iconProps });
+    if (operation.id === "schema") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconBraces, { ...iconProps });
+    if (operation.id === "table") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconTable, { ...iconProps });
+    if (operation.id === "visualize") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconChartBar, { ...iconProps });
+    if (operation.id === "diff" || operation.id === "compare-previous") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconFileDiff, { ...iconProps });
+    if (operation.id === "waterfall") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconTimeline, { ...iconProps });
+    if (operation.kind === "copy") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCopy, { ...iconProps });
+    if (operation.kind === "console") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconTerminal2, { ...iconProps });
+    if (operation.kind === "snippet") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconBookmark, { ...iconProps });
+    if (operation.kind === "export") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDownload, { ...iconProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCode, { ...iconProps });
   }
   function headerSummary(entry) {
     return {
@@ -16777,49 +16842,49 @@ ${lines}
     return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryGroupPath(candidate) === groupPath).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
   }
   function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasFrames }) {
-    if (compact) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: detailValue(entry, detailTab) });
-    if (responseTab === "headers") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(HeadersView, { entry });
-    if (typeof activeValue === "string") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json xray-json-text", children: activeValue });
+    if (compact) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: detailValue(entry, detailTab) });
+    if (responseTab === "headers") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(HeadersView, { entry });
+    if (typeof activeValue === "string") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json xray-json-text", children: activeValue });
     if (activeValue == null && hasFrames && responseTab === "response") {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "Streaming entry", hint: "This is a WebSocket/SSE stream \u2014 open the Frames tab to inspect the messages." });
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Streaming entry", hint: "This is a WebSocket/SSE stream \u2014 open the Frames tab to inspect the messages." });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: activeValue });
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: activeValue });
   }
   function RawView({ value }) {
-    const text = import_react4.default.useMemo(() => typeof value === "string" ? value : safeStringify(value), [value]);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json", children: text });
+    const text = import_react5.default.useMemo(() => typeof value === "string" ? value : safeStringify(value), [value]);
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json", children: text });
   }
   function SchemaView({ value, workerSchema }) {
-    const inferred = import_react4.default.useMemo(() => workerSchema ?? schema(value), [workerSchema, value]);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: inferred });
+    const inferred = import_react5.default.useMemo(() => workerSchema ?? schema(value), [workerSchema, value]);
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: inferred });
   }
   function HeadersView({ entry }) {
-    const [filter, setFilter] = import_react4.default.useState("");
+    const [filter, setFilter] = import_react5.default.useState("");
     const showToast = usePanelStore((state) => state.showToast);
-    const sections = import_react4.default.useMemo(() => [
+    const sections = import_react5.default.useMemo(() => [
       { label: "Request headers", headers: Object.entries(entry.requestHeaders || {}) },
       { label: "Response headers", headers: Object.entries(entry.responseHeaders || {}) }
     ], [entry]);
     const trimmed = filter.trim().toLowerCase();
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-headers-view", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { className: "xray-search xray-headers-filter", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSearch, { ...iconProps }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("input", { className: "xray-input", placeholder: "Filter headers...", value: filter, onChange: (event) => setFilter(event.currentTarget.value) })
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-headers-view", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "xray-search xray-headers-filter", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconSearch, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("input", { className: "xray-input", placeholder: "Filter headers...", value: filter, onChange: (event) => setFilter(event.currentTarget.value) })
       ] }),
       sections.map((section) => {
         const rows = section.headers.filter(([key, value]) => !trimmed || key.toLowerCase().includes(trimmed) || String(value ?? "").toLowerCase().includes(trimmed));
-        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "xray-headers-section", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("h4", { children: [
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "xray-headers-section", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("h4", { children: [
             section.label,
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-muted", children: [
               " ",
               rows.length
             ] })
           ] }),
-          rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { className: "xray-muted", children: trimmed ? "No headers match." : "No headers captured." }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-headers-grid", children: rows.map(([key, value]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-header-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-header-name", children: key }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-header-value", title: String(value ?? ""), children: String(value ?? "") }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+          rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "xray-muted", children: trimmed ? "No headers match." : "No headers captured." }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-headers-grid", children: rows.map(([key, value]) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-header-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-header-name", children: key }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-header-value", title: String(value ?? ""), children: String(value ?? "") }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
               "button",
               {
                 className: "xray-icon-btn",
@@ -16828,7 +16893,7 @@ ${lines}
                   void copyText(String(value ?? ""));
                   showToast(`${key} copied.`);
                 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { size: 13, stroke: 2 })
+                children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCopy, { size: 13, stroke: 2 })
               }
             )
           ] }, key)) })
@@ -16838,29 +16903,29 @@ ${lines}
   }
   function GridView({ value, workerGrid }) {
     const { objects, columns } = workerGrid || gridRows(value);
-    if (!objects.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No object rows found" });
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("table", { className: "xray-table", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("th", { children: column }, column)) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tbody", { children: objects.map((row, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: preview(row[column], 160) }, column)) }, index)) })
+    if (!objects.length) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No object rows found" });
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("table", { className: "xray-table", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { children: column }, column)) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tbody", { children: objects.map((row, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: preview(row[column], 160) }, column)) }, index)) })
     ] });
   }
   function VizView({ value }) {
-    const spec = import_react4.default.useMemo(() => buildVizSpec(value), [value]);
+    const spec = import_react5.default.useMemo(() => buildVizSpec(value), [value]);
     if (spec.kind === "none" || !spec.bars.length) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: spec.title });
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: spec.title });
     }
     const denom = spec.maxAbs || 1;
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz", role: "figure", "aria-label": spec.title, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: spec.title }),
-        spec.subtitle && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-muted", children: spec.subtitle })
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-viz", role: "figure", "aria-label": spec.title, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-viz-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: spec.title }),
+        spec.subtitle && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-muted", children: spec.subtitle })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-viz-bars", children: spec.bars.map((bar, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz-row", title: `${bar.label}: ${formatVizValue(bar.value)}`, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-label", children: bar.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-track", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-viz-fill ${bar.negative ? "negative" : ""}`, style: { width: `${Math.max(2, Math.abs(bar.value) / denom * 100)}%` } }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-value", children: formatVizValue(bar.value) })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-viz-bars", children: spec.bars.map((bar, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-viz-row", title: `${bar.label}: ${formatVizValue(bar.value)}`, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-viz-label", children: bar.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-viz-track", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-viz-fill ${bar.negative ? "negative" : ""}`, style: { width: `${Math.max(2, Math.abs(bar.value) / denom * 100)}%` } }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-viz-value", children: formatVizValue(bar.value) })
       ] }, index)) }),
-      spec.truncated > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { className: "xray-muted xray-viz-foot", children: [
+      spec.truncated > 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("p", { className: "xray-muted xray-viz-foot", children: [
         "+",
         spec.truncated,
         " more not shown"
@@ -16870,17 +16935,17 @@ ${lines}
   function WaterfallView({ entry }) {
     const { phases, totalMs, real } = timingPhases(entry);
     const denom = Math.max(1, totalMs);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card xray-waterfall-card", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-waterfall-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "Timing" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-card xray-waterfall-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-waterfall-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "Timing" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-muted", children: [
           real ? "Resource Timing" : "Wall clock",
           " \xB7 ",
           Math.round(totalMs),
           "ms"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-waterfall-track", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-waterfall-track", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
         "span",
         {
           className: `xray-waterfall-seg ${phase.className}`,
@@ -16889,15 +16954,15 @@ ${lines}
         },
         phase.label
       )) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("ul", { className: "xray-waterfall-legend", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-waterfall-dot ${phase.className}` }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: phase.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("strong", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("ul", { className: "xray-waterfall-legend", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-waterfall-dot ${phase.className}` }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: phase.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
           Math.round(phase.ms),
           "ms"
         ] })
       ] }, phase.label)) }),
-      entry.timing?.transferSize ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { className: "xray-muted", children: [
+      entry.timing?.transferSize ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("p", { className: "xray-muted", children: [
         "Transfer size ",
         formatBytes(entry.timing.transferSize)
       ] }) : null
@@ -16905,25 +16970,25 @@ ${lines}
   }
   function FramesView({ frames, state }) {
     if (!frames.length) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: state === "connecting" ? "Waiting for stream frames\u2026" : "No frames captured" });
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: state === "connecting" ? "Waiting for stream frames\u2026" : "No frames captured" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-frames", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-frames-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-ws-state ${state || ""}`, children: state || "stream" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-frames", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-frames-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-ws-state ${state || ""}`, children: state || "stream" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-muted", children: [
           frames.length,
           " frames"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-frames-list", children: frames.slice().reverse().map((frame, index) => (
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-frames-list", children: frames.slice().reverse().map((frame, index) => (
         // Frames append-only: keying by original position keeps existing DOM
         // rows stable when a new frame arrives (reversed indexes rewrote all
         // 200 rows per flush).
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-frame-row ${frame.dir}`, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-frame-dir ${frame.dir}`, children: frame.dir === "in" ? "\u2193 in" : "\u2191 out" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-frame-time", children: formatTime(frame.ts) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-frame-size", children: formatBytes(frame.size) }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-frame-preview", children: frame.preview })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: `xray-frame-row ${frame.dir}`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-frame-dir ${frame.dir}`, children: frame.dir === "in" ? "\u2193 in" : "\u2191 out" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-frame-time", children: formatTime(frame.ts) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-frame-size", children: formatBytes(frame.size) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { className: "xray-frame-preview", children: frame.preview })
         ] }, frames.length - index)
       )) })
     ] });
@@ -16936,16 +17001,16 @@ ${lines}
   function InitiatorView({ entry }) {
     const showToast = usePanelStore((state) => state.showToast);
     const initiator = entry.initiator || [];
-    if (!initiator.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No initiator captured" });
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "Call stack" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { className: "xray-muted", children: "Where this request was initiated from on the page." }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("ol", { className: "xray-initiator-list", children: initiator.map((frame, index) => {
+    if (!initiator.length) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No initiator captured" });
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "Call stack" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "xray-muted", children: "Where this request was initiated from on the page." }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("ol", { className: "xray-initiator-list", children: initiator.map((frame, index) => {
         const parsed = parseInitiatorFrame(frame);
-        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { className: "xray-initiator-frame", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-initiator-fn", children: parsed.fn }),
-          parsed.location && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-initiator-loc", title: parsed.location, children: parsed.location }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("li", { className: "xray-initiator-frame", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-initiator-fn", children: parsed.fn }),
+          parsed.location && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { className: "xray-initiator-loc", title: parsed.location, children: parsed.location }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
             "button",
             {
               className: "xray-icon-btn",
@@ -16954,7 +17019,7 @@ ${lines}
                 void copyText(frame);
                 showToast("Frame copied.");
               },
-              children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { size: 13, stroke: 2 })
+              children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCopy, { size: 13, stroke: 2 })
             }
           )
         ] }, index);
@@ -16962,53 +17027,53 @@ ${lines}
     ] });
   }
   function TokensView({ jwts }) {
-    if (!jwts.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No JWT tokens found" });
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-tokens", children: jwts.map((jwt, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card xray-token-card", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-token-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-token-source", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconKey, { ...iconProps }),
+    if (!jwts.length) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No JWT tokens found" });
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-tokens", children: jwts.map((jwt, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-card xray-token-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-token-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-token-source", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconKey, { ...iconProps }),
           jwtSourceLabel(jwt.source)
         ] }),
-        jwt.expiresAt && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: `xray-token-exp ${jwt.expired ? "expired" : "valid"}`, children: [
+        jwt.expiresAt && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: `xray-token-exp ${jwt.expired ? "expired" : "valid"}`, children: [
           jwt.expired ? "Expired" : "Valid",
           " \xB7 exp ",
           jwt.expiresAt
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-token-body", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-token-label", children: "Header" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: jwt.header })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-token-body", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-token-label", children: "Header" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: jwt.header })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-token-label", children: "Payload" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: jwt.payload })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-token-label", children: "Payload" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: jwt.payload })
         ] })
       ] })
     ] }, index)) });
   }
-  var DiffView = import_react4.default.memo(function DiffView2({ current, previous, baselineId, baselineIsDrift }) {
+  var DiffView = import_react5.default.memo(function DiffView2({ current, previous, baselineId, baselineIsDrift }) {
     const selectEntry = usePanelStore((state) => state.selectEntry);
-    const lines = import_react4.default.useMemo(() => previous == null ? [] : structuralDiff(previous, current), [previous, current]);
+    const lines = import_react5.default.useMemo(() => previous == null ? [] : structuralDiff(previous, current), [previous, current]);
     if (previous == null) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No previous matching response", hint: "A second call to this endpoint (or a recorded drift baseline) is needed to diff against." });
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No previous matching response", hint: "A second call to this endpoint (or a recorded drift baseline) is needed to diff against." });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-diff", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-diff-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-muted", children: lines.length ? `${lines.length} difference${lines.length === 1 ? "" : "s"} vs ${baselineIsDrift ? "the drift baseline" : "the previous call"}` : "No structural differences" }),
-        baselineId && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-chip", onClick: () => selectEntry(baselineId), children: "Jump to baseline" })
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-diff", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-diff-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-muted", children: lines.length ? `${lines.length} difference${lines.length === 1 ? "" : "s"} vs ${baselineIsDrift ? "the drift baseline" : "the previous call"}` : "No structural differences" }),
+        baselineId && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-chip", onClick: () => selectEntry(baselineId), children: "Jump to baseline" })
       ] }),
-      lines.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-diff-lines", children: lines.map((line, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-diff-line ${line.kind}`, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-diff-kind", children: line.kind === "added" ? "+" : line.kind === "removed" ? "\u2212" : "\xB1" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-path", children: line.path || "(root)" }),
-        line.kind !== "added" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-before", children: preview(line.before, 90) }),
-        line.kind !== "removed" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-after", children: preview(line.after, 90) })
+      lines.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-diff-lines", children: lines.map((line, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: `xray-diff-line ${line.kind}`, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-diff-kind", children: line.kind === "added" ? "+" : line.kind === "removed" ? "\u2212" : "\xB1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { className: "xray-diff-path", children: line.path || "(root)" }),
+        line.kind !== "added" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { className: "xray-diff-before", children: preview(line.before, 90) }),
+        line.kind !== "removed" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { className: "xray-diff-after", children: preview(line.after, 90) })
       ] }, index)) })
     ] });
   });
 
   // src/panel/components/detail/LogDetail.tsx
-  var import_react5 = __toESM(require_react());
+  var import_react6 = __toESM(require_react());
 
   // src/panel/runtime/logObjects.ts
   function findRef(value) {
@@ -17041,15 +17106,15 @@ ${lines}
   }
 
   // src/panel/components/detail/LogDetail.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime5 = __toESM(require_jsx_runtime());
   var iconProps2 = { size: 16, stroke: 1.8 };
   function LogDetail({ entry }) {
     const previewData = entry.logData !== void 0 ? entry.logData : entry.args ?? entry.message ?? null;
     const refs = Array.isArray(entry.objectRefs) ? entry.objectRefs.filter((ref) => typeof ref === "string") : [];
     const canExpand = (refs.length > 0 || hasLazyRef(previewData)) && canFetchLogObjects();
-    const [full, setFull] = import_react5.default.useState(void 0);
-    const [loading, setLoading] = import_react5.default.useState(false);
-    import_react5.default.useEffect(() => {
+    const [full, setFull] = import_react6.default.useState(void 0);
+    const [loading, setLoading] = import_react6.default.useState(false);
+    import_react6.default.useEffect(() => {
       setFull(void 0);
       setLoading(false);
     }, [entry.id]);
@@ -17060,26 +17125,26 @@ ${lines}
       setFull(resolved.length === 1 ? resolved[0] : resolved);
     }
     const level = entry.logLevel || "log";
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-log-detail", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-log-detail-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: `xray-log-level ${level}`, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconTerminal2, { ...iconProps2 }),
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-log-detail", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-log-detail-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: `xray-log-level ${level}`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconTerminal2, { ...iconProps2 }),
           level
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) }),
-        canExpand && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-btn xray-log-load", disabled: loading, onClick: () => void loadFull(), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabaseImport, { ...iconProps2 }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) }),
+        canExpand && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn xray-log-load", disabled: loading, onClick: () => void loadFull(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDatabaseImport, { ...iconProps2 }),
           loading ? "Loading\u2026" : full === void 0 ? "Load full object" : "Reload"
         ] })
       ] }),
-      entry.message && typeof entry.message === "string" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-log-message", children: preview(entry.message, 400) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-log-detail-body", children: full !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: full }) : previewData == null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No log payload" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: previewData }) }),
-      canExpand && full === void 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "xray-muted xray-log-hint", children: "This is a lightweight preview. Load the full object to inspect deep or truncated values." })
+      entry.message && typeof entry.message === "string" && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-log-message", children: preview(entry.message, 400) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-log-detail-body", children: full !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: full }) : previewData == null ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No log payload" }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: previewData }) }),
+      canExpand && full === void 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { className: "xray-muted xray-log-hint", children: "This is a lightweight preview. Load the full object to inspect deep or truncated values." })
     ] });
   }
 
   // src/panel/components/api/EntriesWorkspace.tsx
-  var import_jsx_runtime5 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime6 = __toESM(require_jsx_runtime());
   var iconProps3 = { size: 16, stroke: 1.8 };
   var quickFilters = [
     { id: "errors", label: "Errors" },
@@ -17135,7 +17200,7 @@ ${lines}
     const apiQuickFilter = usePanelStore((state) => state.apiQuickFilter);
     const apiGroupingMode = usePanelStore((state) => state.apiGroupingMode);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-    return (0, import_react6.useMemo)(() => buildEntryListItems({
+    return (0, import_react7.useMemo)(() => buildEntryListItems({
       mode,
       entries,
       query,
@@ -17152,8 +17217,8 @@ ${lines}
     }), [apiGroupingMode, apiQuickFilter, entries, expandedGroups, methodFilters, mode, pinnedIds, query, slowThresholdMs, sortField, sortOrder, statusFilters, typeFilters]);
   }
   function EntriesWorkspace({ mode }) {
-    if (mode === "api") return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiWorkspace, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogsWorkspace, {});
+    if (mode === "api") return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiWorkspace, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogsWorkspace, {});
   }
   function ApiWorkspace() {
     const entries = usePanelStore((state) => state.entries);
@@ -17169,13 +17234,15 @@ ${lines}
     const showHostInPath = usePanelStore((state) => state.settings.showHostInPath);
     const sortField = usePanelStore((state) => state.sortField);
     const sortOrder = usePanelStore((state) => state.sortOrder);
+    const apiSplit = usePanelStore((state) => state.settings.apiSplit);
+    const updateSettings = usePanelStore((state) => state.updateSettings);
     const rows = useEntryListItems("api");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId && entry.type === "api") || null : null;
-    const maxDuration = (0, import_react6.useMemo)(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
-    const summary = (0, import_react6.useMemo)(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
-    const parentRef = (0, import_react6.useRef)(null);
-    const getItemKey = (0, import_react6.useCallback)((index) => rows[index]?.key || index, [rows]);
-    const estimateSize = (0, import_react6.useCallback)(() => compactRows ? 42 : 68, [compactRows]);
+    const maxDuration = (0, import_react7.useMemo)(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
+    const summary = (0, import_react7.useMemo)(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
+    const parentRef = (0, import_react7.useRef)(null);
+    const getItemKey = (0, import_react7.useCallback)((index) => rows[index]?.key || index, [rows]);
+    const estimateSize = (0, import_react7.useCallback)(() => compactRows ? 42 : 68, [compactRows]);
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
@@ -17184,10 +17251,10 @@ ${lines}
       overscan: 14
     });
     const followsTop = sortField === "timestamp" && sortOrder === "desc";
-    const awayFromTopRef = (0, import_react6.useRef)(false);
-    const [newCount, setNewCount] = (0, import_react6.useState)(0);
-    const lastTotalRef = (0, import_react6.useRef)(0);
-    (0, import_react6.useEffect)(() => {
+    const awayFromTopRef = (0, import_react7.useRef)(false);
+    const [newCount, setNewCount] = (0, import_react7.useState)(0);
+    const lastTotalRef = (0, import_react7.useRef)(0);
+    (0, import_react7.useEffect)(() => {
       const total = summary.total;
       const delta = total - lastTotalRef.current;
       lastTotalRef.current = total;
@@ -17195,27 +17262,35 @@ ${lines}
         setNewCount((count) => count + delta);
       }
     }, [summary.total, followsTop]);
-    const handleListScroll = (0, import_react6.useCallback)(() => {
+    const handleListScroll = (0, import_react7.useCallback)(() => {
       const el = parentRef.current;
       if (!el) return;
       const away = el.scrollTop > 120;
       awayFromTopRef.current = away;
       if (!away) setNewCount(0);
     }, []);
-    const jumpToTop = (0, import_react6.useCallback)(() => {
+    const jumpToTop = (0, import_react7.useCallback)(() => {
       setNewCount(0);
       awayFromTopRef.current = false;
       const el = parentRef.current;
       if (el) el.scrollTop = 0;
     }, []);
-    const handleSelect = (0, import_react6.useCallback)((entry) => {
+    const handleSelect = (0, import_react7.useCallback)((entry) => {
       selectEntry(entry.id);
       setApiDetailOpen(true);
     }, [selectEntry, setApiDetailOpen]);
-    const handleToggleGroup = (0, import_react6.useCallback)((groupKey) => {
+    const handleToggleGroup = (0, import_react7.useCallback)((groupKey) => {
       if (groupKey) toggleGroup(groupKey);
     }, [toggleGroup]);
-    const handleTogglePinned = (0, import_react6.useCallback)((id) => togglePinned(id), [togglePinned]);
+    const handleTogglePinned = (0, import_react7.useCallback)((id) => togglePinned(id), [togglePinned]);
+    const paneRef = (0, import_react7.useRef)(null);
+    const [liveSplit, setLiveSplit] = (0, import_react7.useState)(null);
+    const [measured, setMeasured] = (0, import_react7.useState)(420);
+    (0, import_react7.useEffect)(() => {
+      if (paneRef.current) setMeasured(Math.round(paneRef.current.getBoundingClientRect().width));
+    }, [apiSplit]);
+    const effectiveSplit = liveSplit ?? (apiSplit || measured);
+    const splitVar = (liveSplit ?? apiSplit) > 0 ? { "--xray-api-split": `${liveSplit ?? apiSplit}px` } : void 0;
     function handleListKeyDown(event) {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
       if (!rows.length) return;
@@ -17235,17 +17310,35 @@ ${lines}
       selectEntry(next.entry.id, { openDetail: false });
       virtualizer.scrollToIndex(nextIndex, { align: "auto" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-pane", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiCollectionHeader, { summary, visibleCount: rows.length }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiInspectorToolbar, { summary }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-main", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiTableHeader, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-table-scroll", ref: parentRef, tabIndex: 0, role: "listbox", "aria-label": "Captured requests", onKeyDown: handleListKeyDown, onScroll: handleListScroll, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-body", style: splitVar, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-collection-pane", ref: paneRef, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          PaneDivider,
+          {
+            label: "Resize request list",
+            value: effectiveSplit,
+            min: 280,
+            max: 1e3,
+            onLiveChange: setLiveSplit,
+            onCommit: (next) => {
+              setLiveSplit(null);
+              updateSettings({ apiSplit: next });
+            },
+            onReset: () => {
+              setLiveSplit(null);
+              updateSettings({ apiSplit: 0 });
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiCollectionHeader, { summary, visibleCount: rows.length }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiInspectorToolbar, { summary }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-main", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiTableHeader, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-table-scroll", ref: parentRef, tabIndex: 0, role: "listbox", "aria-label": "Captured requests", onKeyDown: handleListKeyDown, onScroll: handleListScroll, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               const entry = row.entry;
-              return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                 ApiRequestRow,
                 {
                   row,
@@ -17261,17 +17354,17 @@ ${lines}
                 }
               ) }, item.key);
             }) }),
-            !rows.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No API requests yet", hint: "Browse the page or trigger a call \u2014 fetch, XHR, GraphQL, and WebSocket traffic streams in here live. Press Ctrl/\u2318+K to jump anywhere." })
+            !rows.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(EmptyState, { label: "No API requests yet", hint: "Browse the page or trigger a call \u2014 fetch, XHR, GraphQL, and WebSocket traffic streams in here live. Press Ctrl/\u2318+K to jump anywhere." })
           ] }),
-          newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-newmsg-pill xray-newreq-pill", onClick: jumpToTop, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowUp, { size: 14, stroke: 2 }),
+          newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-newmsg-pill xray-newreq-pill", onClick: jumpToTop, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowUp, { size: 14, stroke: 2 }),
             newCount,
             " new"
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestContextPane, { entry: selected }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(RequestContextPane, { entry: selected }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
     ] }) });
   }
   function LogsWorkspace() {
@@ -17280,9 +17373,19 @@ ${lines}
     const selectEntry = usePanelStore((state) => state.selectEntry);
     const togglePinned = usePanelStore((state) => state.togglePinned);
     const pinnedIds = usePanelStore((state) => state.pinnedIds);
+    const logsSplit = usePanelStore((state) => state.settings.logsSplit);
+    const updateSettings = usePanelStore((state) => state.updateSettings);
     const rows = useEntryListItems("logs");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
-    const parentRef = (0, import_react6.useRef)(null);
+    const parentRef = (0, import_react7.useRef)(null);
+    const listPaneRef = (0, import_react7.useRef)(null);
+    const [liveSplit, setLiveSplit] = (0, import_react7.useState)(null);
+    const [measured, setMeasured] = (0, import_react7.useState)(360);
+    (0, import_react7.useEffect)(() => {
+      if (listPaneRef.current) setMeasured(Math.round(listPaneRef.current.getBoundingClientRect().width));
+    }, [logsSplit]);
+    const effectiveSplit = liveSplit ?? (logsSplit || measured);
+    const splitVar = (liveSplit ?? logsSplit) > 0 ? { "--xray-logs-split": `${liveSplit ?? logsSplit}px` } : void 0;
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
@@ -17291,47 +17394,65 @@ ${lines}
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 10
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-split", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-list-panel", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ListControls, { mode: "logs" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-split", style: splitVar, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-list-panel", ref: listPaneRef, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          PaneDivider,
+          {
+            label: "Resize log list",
+            value: effectiveSplit,
+            min: 240,
+            max: 900,
+            onLiveChange: setLiveSplit,
+            onCommit: (next) => {
+              setLiveSplit(null);
+              updateSettings({ logsSplit: next });
+            },
+            onReset: () => {
+              setLiveSplit(null);
+              updateSettings({ logsSplit: 0 });
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ListControls, { mode: "logs" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index];
-            return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
+            return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
           }) }),
-          !rows.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No logs captured", hint: "Page console.log output and captured objects land here \u2014 trigger some activity on the page to populate the list." })
+          !rows.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(EmptyState, { label: "No logs captured", hint: "Page console.log output and captured objects land here \u2014 trigger some activity on the page to populate the list." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(MobileSelectedDetail, { entry: selected })
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(MobileSelectedDetail, { entry: selected })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail-panel", children: selected ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogDetail, { entry: selected }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Select an entry", hint: "Pick a log on the left to inspect its arguments and expand nested objects." }) })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail-panel", children: selected ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogDetail, { entry: selected }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(EmptyState, { label: "Select an entry", hint: "Pick a log on the left to inspect its arguments and expand nested objects." }) })
     ] });
   }
   function ApiCollectionHeader({ summary, visibleCount }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-title", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Captured Requests" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("strong", { children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-collection-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-collection-title", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Captured Requests" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("strong", { children: [
           summary.total,
           " APIs"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-env-pill", title: "Environment inferred from captured browser traffic", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconWorld, { ...iconProps3 }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Live page" })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-env-pill", title: "Environment inferred from captured browser traffic", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconWorld, { ...iconProps3 }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Live page" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-summary-strip", "aria-label": "Captured request summary", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDatabase, { ...iconProps3 }), label: "Visible", value: String(visibleCount) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: summary.errors ? "error" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconServer, { ...iconProps3 }), label: "Errors", value: String(summary.errors) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: summary.slow ? "warn" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconClock, { ...iconProps3 }), label: "Avg", value: `${Math.round(summary.avgDuration)}ms` }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: "info", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDatabase, { ...iconProps3 }), label: "Bytes", value: formatBytes(summary.totalBytes) })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-summary-strip", "aria-label": "Captured request summary", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SummaryPill, { tone: "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconDatabase, { ...iconProps3 }), label: "Visible", value: String(visibleCount) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SummaryPill, { tone: summary.errors ? "error" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconServer, { ...iconProps3 }), label: "Errors", value: String(summary.errors) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SummaryPill, { tone: summary.slow ? "warn" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconClock, { ...iconProps3 }), label: "Avg", value: `${Math.round(summary.avgDuration)}ms` }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SummaryPill, { tone: "info", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconDatabase, { ...iconProps3 }), label: "Bytes", value: formatBytes(summary.totalBytes) })
       ] })
     ] });
   }
   function SummaryPill({ icon, label, value, tone }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: `xray-api-summary-pill ${tone}`, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: `xray-api-summary-pill ${tone}`, children: [
       icon,
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: value })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: value })
     ] });
   }
   function ApiInspectorToolbar({ summary }) {
@@ -17352,7 +17473,7 @@ ${lines}
     const sortField = usePanelStore((state) => state.sortField);
     const sortOrder = usePanelStore((state) => state.sortOrder);
     const entries = usePanelStore((state) => state.entries);
-    const driftCount = (0, import_react6.useMemo)(() => entries.reduce((count, entry) => count + (entry.driftFromId ? 1 : 0), 0), [entries]);
+    const driftCount = (0, import_react7.useMemo)(() => entries.reduce((count, entry) => count + (entry.driftFromId ? 1 : 0), 0), [entries]);
     const pickQuickFilter = (id) => setApiQuickFilter(apiQuickFilter === id ? "all" : id);
     const chipCount = (id) => {
       if (id === "errors") return summary.errors;
@@ -17364,40 +17485,40 @@ ${lines}
     };
     const renderQuickChip = (filter) => {
       const count = chipCount(filter.id);
-      return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-chip ${apiQuickFilter === filter.id ? "active" : ""}`, onClick: () => pickQuickFilter(filter.id), "aria-pressed": apiQuickFilter === filter.id, children: [
+      return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${apiQuickFilter === filter.id ? "active" : ""}`, onClick: () => pickQuickFilter(filter.id), "aria-pressed": apiQuickFilter === filter.id, children: [
         filter.label,
-        count != null && count > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-chip-count", children: count })
+        count != null && count > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-chip-count", children: count })
       ] }, filter.id);
     };
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-toolbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "xray-search xray-api-search", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconSearch, { ...iconProps3 }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: "Filter method, status, path, domain, source, content type..." })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search xray-api-search", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps3 }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: "Filter method, status, path, domain, source, content type..." })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips xray-api-primary-filters", "aria-label": "Primary API filters", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${apiQuickFilter === "all" && !methodFilters.size && !typeFilters.size && !statusFilters.size ? "active" : ""}`, onClick: clearApiFilters, children: "All" }),
-        ["GET", "POST"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${methodFilters.has(method) ? "active" : ""}`, onClick: () => toggleMethod(method), children: method }, method)),
-        ["xhr", "fetch"].map((type) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${typeFilters.has(type) ? "active" : ""}`, onClick: () => toggleType(type), children: type === "xhr" ? "XHR" : "Fetch" }, type)),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-filter-chips xray-api-primary-filters", "aria-label": "Primary API filters", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-chip ${apiQuickFilter === "all" && !methodFilters.size && !typeFilters.size && !statusFilters.size ? "active" : ""}`, onClick: clearApiFilters, children: "All" }),
+        ["GET", "POST"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-chip ${methodFilters.has(method) ? "active" : ""}`, onClick: () => toggleMethod(method), children: method }, method)),
+        ["xhr", "fetch"].map((type) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-chip ${typeFilters.has(type) ? "active" : ""}`, onClick: () => toggleType(type), children: type === "xhr" ? "XHR" : "Fetch" }, type)),
         quickFilters.map(renderQuickChip)
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-secondary-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "Status and source filters", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-filter-label", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconFilter, { ...iconProps3 }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-secondary-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "Status and source filters", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-filter-label", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconFilter, { ...iconProps3 }),
             "Match"
           ] }),
-          ["2xx", "3xx", "4xx", "5xx"].map((status) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${statusFilters.has(status) ? "active" : ""}`, onClick: () => toggleStatus(status), children: status }, status)),
+          ["2xx", "3xx", "4xx", "5xx"].map((status) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-chip ${statusFilters.has(status) ? "active" : ""}`, onClick: () => toggleStatus(status), children: status }, status)),
           secondaryQuickFilters.map(renderQuickChip)
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "API sort and grouping", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-filter-label", children: "Sort" }),
-          sortOptions.map((field) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-chip ${sortField === field.id ? "active" : ""}`, onClick: () => setSort(field.id), "aria-pressed": sortField === field.id, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "API sort and grouping", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-filter-label", children: "Sort" }),
+          sortOptions.map((field) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${sortField === field.id ? "active" : ""}`, onClick: () => setSort(field.id), "aria-pressed": sortField === field.id, children: [
             field.label,
-            sortField === field.id && (sortOrder === "asc" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowUp, { size: 13, stroke: 2.2 }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowDown, { size: 13, stroke: 2.2 }))
+            sortField === field.id && (sortOrder === "asc" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowUp, { size: 13, stroke: 2.2 }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowDown, { size: 13, stroke: 2.2 }))
           ] }, field.id)),
-          ["flat", "endpoint"].map((grouping) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${apiGroupingMode === grouping ? "active" : ""}`, onClick: () => setApiGroupingMode(grouping), children: grouping === "flat" ? "Flat" : "Endpoint Groups" }, grouping)),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-chip", onClick: clearApiFilters, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconFilterOff, { ...iconProps3 }),
+          ["flat", "endpoint"].map((grouping) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-chip ${apiGroupingMode === grouping ? "active" : ""}`, onClick: () => setApiGroupingMode(grouping), children: grouping === "flat" ? "Flat" : "Endpoint Groups" }, grouping)),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-chip", onClick: clearApiFilters, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconFilterOff, { ...iconProps3 }),
             "Reset"
           ] })
         ] })
@@ -17405,15 +17526,15 @@ ${lines}
     ] });
   }
   function ApiTableHeader() {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-table-head", role: "row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Method" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Request" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Status" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Timing" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Tools" })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-api-table-head", role: "row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Method" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Request" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Status" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Timing" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Tools" })
     ] });
   }
-  var ApiRequestRow = import_react6.default.memo(function ApiRequestRow2({
+  var ApiRequestRow = import_react7.default.memo(function ApiRequestRow2({
     row,
     entries,
     maxDuration,
@@ -17447,7 +17568,7 @@ ${lines}
       event.stopPropagation();
       await copyText(String(entry.url || path));
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
       "div",
       {
         className: `xray-api-row ${selected ? "selected" : ""} ${row.groupChild ? "child" : ""} ${pinned ? "pinned" : ""} ${isGroup ? "group" : ""} ${status >= 400 ? "has-error" : ""} ${duration(entry) >= slowThresholdMs ? "has-slow" : ""}`,
@@ -17457,88 +17578,88 @@ ${lines}
         onClick: () => onSelect(entry),
         onKeyDown: handleKeyDown,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-path-cell", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-path", title: String(entry.url || path), children: label }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiFlagPills, { flags })
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-api-path-cell", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-path", title: String(entry.url || path), children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ApiFlagPills, { flags })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-entry-duration", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-bar ${duration(entry) >= slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-entry-duration", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-bar ${duration(entry) >= slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
               Math.round(duration(entry)),
               "ms"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-row-actions", children: [
-            row.groupCount && row.groupCount > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": row.groupExpanded ? "Collapse endpoint group" : "Expand endpoint group", onClick: (event) => {
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-api-row-actions", children: [
+            row.groupCount && row.groupCount > 1 && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": row.groupExpanded ? "Collapse endpoint group" : "Expand endpoint group", onClick: (event) => {
               event.stopPropagation();
               onToggleGroup(row.groupKey);
-            }, children: row.groupExpanded ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronDown, { ...iconProps3 }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronRight, { ...iconProps3 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": "Copy request URL", onClick: (event) => void copyPath(event), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconCopy, { ...iconProps3 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-icon-btn ${pinned ? "active" : ""}`, tabIndex: -1, "aria-label": pinned ? "Unpin request" : "Pin request", onClick: (event) => {
+            }, children: row.groupExpanded ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronDown, { ...iconProps3 }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronRight, { ...iconProps3 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": "Copy request URL", onClick: (event) => void copyPath(event), children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconCopy, { ...iconProps3 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-icon-btn ${pinned ? "active" : ""}`, tabIndex: -1, "aria-label": pinned ? "Unpin request" : "Pin request", onClick: (event) => {
               event.stopPropagation();
               onTogglePinned(entry.id);
-            }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPin, { ...iconProps3 }) })
+            }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPin, { ...iconProps3 }) })
           ] })
         ]
       }
     );
   });
   function ApiFlagPills({ flags }) {
-    if (!flags.length) return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-api-flags muted", children: "None" });
+    if (!flags.length) return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-api-flags muted", children: "None" });
     const visible = flags.slice(0, 3);
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-flags", title: flags.map((flag) => flagLabels[flag]).join(", "), children: [
-      visible.map((flag) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-api-flag ${flag}`, children: flagLabels[flag] }, flag)),
-      flags.length > visible.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-flag more", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-api-flags", title: flags.map((flag) => flagLabels[flag]).join(", "), children: [
+      visible.map((flag) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-api-flag ${flag}`, children: flagLabels[flag] }, flag)),
+      flags.length > visible.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-api-flag more", children: [
         "+",
         flags.length - visible.length
       ] })
     ] });
   }
-  var RequestContextPane = import_react6.default.memo(function RequestContextPane2({ entry }) {
-    const [activeTab, setActiveTab] = import_react6.default.useState("request");
-    const query = (0, import_react6.useMemo)(() => entry ? requestQueryParams(entry) : {}, [entry]);
-    const contextValue = (0, import_react6.useMemo)(() => entry ? requestContextValue(entry, activeTab, query) : null, [entry, activeTab, query]);
+  var RequestContextPane = import_react7.default.memo(function RequestContextPane2({ entry }) {
+    const [activeTab, setActiveTab] = import_react7.default.useState("request");
+    const query = (0, import_react7.useMemo)(() => entry ? requestQueryParams(entry) : {}, [entry]);
+    const contextValue = (0, import_react7.useMemo)(() => entry ? requestContextValue(entry, activeTab, query) : null, [entry, activeTab, query]);
     if (!entry) {
-      return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("aside", { className: "xray-request-context-pane empty", "aria-label": "Selected request context", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Select a request", hint: "Pick a request from the list to inspect its response, headers, timing, and smart operations." }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("aside", { className: "xray-request-context-pane empty", "aria-label": "Selected request context", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(EmptyState, { label: "Select a request", hint: "Pick a request from the list to inspect its response, headers, timing, and smart operations." }) });
     }
     const status = Number(entry.status) || 0;
     const path = entryPath(entry);
     const domain = getEntryDomain(entry) || "local";
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("aside", { className: "xray-request-context-pane", "aria-label": "Selected request context", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-context-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-pane-kicker", children: "Request Context" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-line", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase() }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { title: String(entry.url || path), children: path })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("aside", { className: "xray-request-context-pane", "aria-label": "Selected request context", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-request-context-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-pane-kicker", children: "Request Context" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-request-line", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase() }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("code", { title: String(entry.url || path), children: path })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-meta-grid", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Host" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-request-meta-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "Host" }),
             domain
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Status" }),
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" })
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "Status" }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("b", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Time" }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "Time" }),
             Math.round(duration(entry)),
             "ms"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Size" }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "Size" }),
             formatBytes(entry.size)
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail-tabs xray-request-tabs", "aria-label": "Request tabs", children: requestContextTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-detail-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: tab.label }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-request-context-content", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: contextValue }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-context-footer", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: String(entry.source || "fetch").toUpperCase() }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: getEntryContentType(entry) || "unknown content" })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail-tabs xray-request-tabs", "aria-label": "Request tabs", children: requestContextTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: `xray-detail-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: tab.label }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-request-context-content", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(JsonView, { value: contextValue }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-request-context-footer", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: String(entry.source || "fetch").toUpperCase() }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: getEntryContentType(entry) || "unknown content" })
       ] })
     ] });
   });
@@ -17574,7 +17695,7 @@ ${lines}
     };
   }
   function ApiDetailDrawer({ entry, onClose }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("aside", { className: `xray-api-detail-drawer ${entry ? "" : "empty"}`, "aria-label": "Selected API request detail", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-api-drawer-body", children: entry ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestDetail, { entry, onClose }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Nothing selected", hint: "Choose a request to open the detail drawer \u2014 preview, schema, diff, replay, and more." }) }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("aside", { className: `xray-api-detail-drawer ${entry ? "" : "empty"}`, "aria-label": "Selected API request detail", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-api-drawer-body", children: entry ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(RequestDetail, { entry, onClose }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(EmptyState, { label: "Nothing selected", hint: "Choose a request to open the detail drawer \u2014 preview, schema, diff, replay, and more." }) }) });
   }
   function LogRow({
     row,
@@ -17585,44 +17706,44 @@ ${lines}
   }) {
     const entry = row.entry;
     const status = Number(entry.status) || 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-entry-row ${selected ? "selected" : ""} ${pinned ? "pinned" : ""}`, onClick: onSelect, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status-dot ${statusClass(status)}` }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.logLevel || "log" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: formatTime(entry.timestamp) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-entry-main", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-path", children: preview(entry.message ?? entry.logData, 160) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-pin ${pinned ? "active" : ""}`, onClick: (event) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-entry-row ${selected ? "selected" : ""} ${pinned ? "pinned" : ""}`, onClick: onSelect, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-status-dot ${statusClass(status)}` }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.logLevel || "log" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: formatTime(entry.timestamp) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-entry-main", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-path", children: preview(entry.message ?? entry.logData, 160) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-pin ${pinned ? "active" : ""}`, onClick: (event) => {
         event.stopPropagation();
         onTogglePinned();
-      }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPin, { ...iconProps3 }) })
+      }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPin, { ...iconProps3 }) })
     ] });
   }
   function MobileSelectedDetail({ entry }) {
     if (!entry) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-mobile-detail-panel", children: entry.type === "log" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogDetail, { entry }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestDetail, { entry }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-mobile-detail-panel", children: entry.type === "log" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogDetail, { entry }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(RequestDetail, { entry }) });
   }
   function ListControls({ mode }) {
     const query = usePanelStore((state) => state.apiSearchQuery);
     const setQuery = usePanelStore((state) => state.setApiSearchQuery);
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-list-controls", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "xray-search", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconSearch, { ...iconProps3 }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: mode === "api" ? "Search path, method, status..." : "Search logs..." })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-list-controls", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps3 }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: mode === "api" ? "Search path, method, status..." : "Search logs..." })
     ] }) });
   }
 
   // src/panel/components/console/ConsoleWorkspace.tsx
-  var import_react7 = __toESM(require_react());
-  var import_jsx_runtime6 = __toESM(require_jsx_runtime());
+  var import_react8 = __toESM(require_react());
+  var import_jsx_runtime7 = __toESM(require_jsx_runtime());
   var iconProps4 = { size: 16, stroke: 1.8 };
   var networkFilters = [
-    { id: "all", label: "All", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconFilter, { ...iconProps4 }) },
-    { id: "xhr", label: "XHR", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowUpRight, { ...iconProps4 }) },
-    { id: "fetch", label: "Fetch", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowDownLeft, { ...iconProps4 }) },
-    { id: "ws", label: "WS", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconRefresh, { ...iconProps4 }) },
-    { id: "errors", label: "Errors", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconCircleX, { ...iconProps4 }) }
+    { id: "all", label: "All", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconFilter, { ...iconProps4 }) },
+    { id: "xhr", label: "XHR", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconArrowUpRight, { ...iconProps4 }) },
+    { id: "fetch", label: "Fetch", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconArrowDownLeft, { ...iconProps4 }) },
+    { id: "ws", label: "WS", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconRefresh, { ...iconProps4 }) },
+    { id: "errors", label: "Errors", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCircleX, { ...iconProps4 }) }
   ];
   var miniTabs = [
-    { id: "network", label: "Network", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconNetwork, { ...iconProps4 }) },
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTerminal2, { ...iconProps4 }) }
+    { id: "network", label: "Network", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconNetwork, { ...iconProps4 }) },
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconTerminal2, { ...iconProps4 }) }
   ];
   var consoleLevelFilters = [
     { id: "all", label: "All" },
@@ -17645,7 +17766,7 @@ ${lines}
     const events = usePanelStore((state) => state.consoleEvents);
     const filter = usePanelStore((state) => state.networkFilter);
     const query = usePanelStore((state) => state.searchQuery.trim().toLowerCase());
-    return (0, import_react7.useMemo)(() => events.filter((event) => {
+    return (0, import_react8.useMemo)(() => events.filter((event) => {
       if (event.type !== "network") return false;
       const entry = eventEntry(event);
       if (!entry) return false;
@@ -17659,7 +17780,7 @@ ${lines}
   }
   function useConsoleEvents() {
     const events = usePanelStore((state) => state.consoleEvents);
-    return (0, import_react7.useMemo)(() => events.filter((event) => event.type !== "network"), [events]);
+    return (0, import_react8.useMemo)(() => events.filter((event) => event.type !== "network"), [events]);
   }
   function ConsoleWorkspace() {
     const mini = usePanelStore((state) => state.consoleMiniTab);
@@ -17674,10 +17795,10 @@ ${lines}
     const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
     const networkFilter = usePanelStore((state) => state.networkFilter);
     const setNetworkFilter = usePanelStore((state) => state.setNetworkFilter);
-    const [levelFilter, setLevelFilter] = (0, import_react7.useState)("all");
-    const [consoleQuery, setConsoleQuery] = (0, import_react7.useState)("");
+    const [levelFilter, setLevelFilter] = (0, import_react8.useState)("all");
+    const [consoleQuery, setConsoleQuery] = (0, import_react8.useState)("");
     const consoleEvents = useConsoleEvents();
-    const levelCounts = (0, import_react7.useMemo)(() => {
+    const levelCounts = (0, import_react8.useMemo)(() => {
       const counts = { all: consoleEvents.length, log: 0, warn: 0, error: 0, result: 0 };
       for (const event of consoleEvents) {
         if (matchesLevel(event, "error")) counts.error += 1;
@@ -17687,24 +17808,24 @@ ${lines}
       }
       return counts;
     }, [consoleEvents]);
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_jsx_runtime6.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-console-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-console-tabs", children: miniTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-mini-tab ${mini === tab.id ? "active" : ""}`, onClick: () => setMini(tab.id), children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-console-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-console-tabs", children: miniTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: `xray-mini-tab ${mini === tab.id ? "active" : ""}`, onClick: () => setMini(tab.id), children: [
           tab.icon,
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: tab.label })
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: tab.label })
         ] }, tab.id)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-toolbar", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", onClick: () => requestConfirmation({
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-toolbar", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", onClick: () => requestConfirmation({
             title: "Clear console stream?",
             message: "This clears the React console stream only. Captured API entries remain available.",
             confirmLabel: "Clear console",
             tone: "danger",
             onConfirm: clearConsole
           }), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTrash, { ...iconProps4 }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconTrash, { ...iconProps4 }),
             "Clear"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
             "button",
             {
               className: `xray-btn ${recording ? "xray-live" : "xray-paused"}`,
@@ -17712,45 +17833,45 @@ ${lines}
               "aria-pressed": recording,
               onClick: () => setRecording(!recording),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPlayerRecord, { ...iconProps4 }),
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconPlayerRecord, { ...iconProps4 }),
                 recording ? "Live" : pausedCount > 0 ? `Paused \xB7 ${pausedCount} new` : "Paused"
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", onClick: () => setExportOpen(true), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconDownload, { ...iconProps4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", onClick: () => setExportOpen(true), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconDownload, { ...iconProps4 }),
             "Export"
           ] })
         ] })
       ] }),
-      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-filterbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", placeholder: "Filter by path, method, status...", value: searchQuery, onChange: (event) => setSearchQuery(event.currentTarget.value) })
+      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-filterbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("label", { className: "xray-search", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconSearch, { ...iconProps4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("input", { className: "xray-input", placeholder: "Filter by path, method, status...", value: searchQuery, onChange: (event) => setSearchQuery(event.currentTarget.value) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-filter-chips", children: networkFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${networkFilter === filter.id ? "active" : ""}`, onClick: () => setNetworkFilter(filter.id), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-filter-chips", children: networkFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: `xray-chip ${networkFilter === filter.id ? "active" : ""}`, onClick: () => setNetworkFilter(filter.id), children: [
           filter.icon,
           filter.label
         ] }, filter.id)) })
       ] }),
-      mini === "console" && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-filterbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", placeholder: "Filter console messages...", value: consoleQuery, onChange: (event) => setConsoleQuery(event.currentTarget.value) })
+      mini === "console" && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-filterbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("label", { className: "xray-search", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconSearch, { ...iconProps4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("input", { className: "xray-input", placeholder: "Filter console messages...", value: consoleQuery, onChange: (event) => setConsoleQuery(event.currentTarget.value) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-filter-chips", children: consoleLevelFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${levelFilter === filter.id ? "active" : ""}`, onClick: () => setLevelFilter(filter.id), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-filter-chips", children: consoleLevelFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: `xray-chip ${levelFilter === filter.id ? "active" : ""}`, onClick: () => setLevelFilter(filter.id), children: [
           filter.label,
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-chip-count", children: levelCounts[filter.id] })
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-chip-count", children: levelCounts[filter.id] })
         ] }, filter.id)) })
       ] }),
-      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(NetworkTable, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsoleStream, { levelFilter, query: consoleQuery, onClearFilter: () => {
+      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(NetworkTable, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ConsoleStream, { levelFilter, query: consoleQuery, onClearFilter: () => {
         setLevelFilter("all");
         setConsoleQuery("");
       } }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SnippetBar, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsolePrompt, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Statusbar, {})
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(SnippetBar, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ConsolePrompt, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Statusbar, {})
     ] });
   }
   function SnippetBar() {
@@ -17760,12 +17881,12 @@ ${lines}
     const renameSnippet = usePanelStore((state) => state.renameSnippet);
     const saveSnippet = usePanelStore((state) => state.saveSnippet);
     const draft = usePanelStore((state) => state.consoleDraft);
-    const [naming, setNaming] = (0, import_react7.useState)(false);
-    const [nameText, setNameText] = (0, import_react7.useState)("");
-    const [renamingId, setRenamingId] = (0, import_react7.useState)(null);
-    const [renameText, setRenameText] = (0, import_react7.useState)("");
-    const [undoSnippet, setUndoSnippet] = (0, import_react7.useState)(null);
-    const undoTimer = (0, import_react7.useRef)(void 0);
+    const [naming, setNaming] = (0, import_react8.useState)(false);
+    const [nameText, setNameText] = (0, import_react8.useState)("");
+    const [renamingId, setRenamingId] = (0, import_react8.useState)(null);
+    const [renameText, setRenameText] = (0, import_react8.useState)("");
+    const [undoSnippet, setUndoSnippet] = (0, import_react8.useState)(null);
+    const undoTimer = (0, import_react8.useRef)(void 0);
     function confirmSave() {
       saveSnippet({ code: draft, title: nameText.trim() || void 0 });
       setNaming(false);
@@ -17781,15 +17902,15 @@ ${lines}
       renameSnippet(id, renameText);
       setRenamingId(null);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-snippet-bar", "aria-label": "Saved console snippets", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-label", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconBookmark, { ...iconProps4 }),
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-snippet-bar", "aria-label": "Saved console snippets", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-snippet-label", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconBookmark, { ...iconProps4 }),
         "Snippets"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-snippet-chips", children: [
-        snippets.length === 0 && !undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: "Save reusable commands here." }),
-        snippets.map((snippet) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-chip", children: [
-          renamingId === snippet.id ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-snippet-chips", children: [
+        snippets.length === 0 && !undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-muted", children: "Save reusable commands here." }),
+        snippets.map((snippet) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-snippet-chip", children: [
+          renamingId === snippet.id ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
             "input",
             {
               className: "xray-input xray-snippet-rename",
@@ -17803,7 +17924,7 @@ ${lines}
               },
               onBlur: () => confirmRename(snippet.id)
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          ) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
             "button",
             {
               className: "xray-snippet-load",
@@ -17818,15 +17939,15 @@ Double-click to rename`,
               children: snippet.title || snippet.code
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-snippet-remove", "aria-label": "Delete snippet", onClick: () => handleRemove(snippet), children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconX, { size: 12, stroke: 2 }) })
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-snippet-remove", "aria-label": "Delete snippet", onClick: () => handleRemove(snippet), children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconX, { size: 12, stroke: 2 }) })
         ] }, snippet.id)),
-        undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn xray-snippet-undo", onClick: () => {
+        undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-btn xray-snippet-undo", onClick: () => {
           saveSnippet({ code: undoSnippet.code, title: undoSnippet.title });
           setUndoSnippet(null);
         }, children: "Undo delete" })
       ] }),
-      naming ? /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-chip xray-snippet-naming", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      naming ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-snippet-chip xray-snippet-naming", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           "input",
           {
             className: "xray-input xray-snippet-rename",
@@ -17843,9 +17964,9 @@ Double-click to rename`,
             }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: confirmSave, children: "Save" })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn xray-snippet-save", disabled: !draft.trim(), title: draft.trim() ? "Save current command as a snippet" : "Type a command to save it", onClick: () => setNaming(true), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconBookmarkPlus, { ...iconProps4 }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-btn", onClick: confirmSave, children: "Save" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn xray-snippet-save", disabled: !draft.trim(), title: draft.trim() ? "Save current command as a snippet" : "Type a command to save it", onClick: () => setNaming(true), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconBookmarkPlus, { ...iconProps4 }),
         "Save"
       ] })
     ] });
@@ -17857,8 +17978,8 @@ Double-click to rename`,
     const setNetworkFilter = usePanelStore((state) => state.setNetworkFilter);
     const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
     const filtered = networkFilter !== "all" || searchQuery.trim().length > 0;
-    const parentRef = (0, import_react7.useRef)(null);
-    const maxDuration = (0, import_react7.useMemo)(() => Math.max(100, ...events.map(eventDuration)), [events]);
+    const parentRef = (0, import_react8.useRef)(null);
+    const maxDuration = (0, import_react8.useMemo)(() => Math.max(100, ...events.map(eventDuration)), [events]);
     const virtualizer = useVirtualizer({
       count: events.length,
       getScrollElement: () => parentRef.current,
@@ -17867,23 +17988,23 @@ Double-click to rename`,
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 8
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-network", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-network-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Method" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Status" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Path" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Timing" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Size" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Time" })
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-network", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-network-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Method" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Status" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Path" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Timing" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Size" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "Time" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(NetworkRow, { event: events[item.index], maxDuration }) }, item.key)) }),
-        !events.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(NetworkRow, { event: events[item.index], maxDuration }) }, item.key)) }),
+        !events.length && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           EmptyState,
           {
             label: filtered ? "No matching requests" : "No network activity yet",
             hint: filtered ? "Nothing matches the current filter and search." : "Trigger a request on the page \u2014 fetch, XHR, and WebSocket traffic streams in here live.",
-            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: () => {
+            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-btn", onClick: () => {
               setNetworkFilter("all");
               setSearchQuery("");
             }, children: "Clear filter" }) : void 0
@@ -17892,20 +18013,20 @@ Double-click to rename`,
       ] })
     ] });
   }
-  var NetworkRow = import_react7.default.memo(function NetworkRow2({ event, maxDuration }) {
+  var NetworkRow = import_react8.default.memo(function NetworkRow2({ event, maxDuration }) {
     const entry = eventEntry(event);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
     const selectedId = usePanelStore((state) => state.selectedId);
     const expandedId = usePanelStore((state) => state.expandedId);
     const selectEntry = usePanelStore((state) => state.selectEntry);
     const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
-    if (!entry) return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", {});
+    if (!entry) return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", {});
     const status = Number(entry.status) || 0;
     const isSelected = selectedId === entry.id;
     const isExpanded = expandedId === event.id;
     const pct = Math.max(6, Math.min(100, duration(entry) / maxDuration * 100));
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
         "div",
         {
           className: `xray-network-row ${isSelected ? "selected" : ""}`,
@@ -17924,37 +18045,37 @@ Double-click to rename`,
             }
           },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: status || "---" }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-path", title: String(entry.url || ""), children: entryPath(entry) }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-timing", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-bar ${duration(entry) > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: status || "---" }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-path", title: String(entry.url || ""), children: entryPath(entry) }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-timing", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: `xray-bar ${duration(entry) > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
                 Math.round(duration(entry)),
                 "ms"
               ] })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) })
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) })
           ]
         }
       ),
-      isExpanded && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(RequestDetail, { entry, compact: true }) })
+      isExpanded && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(RequestDetail, { entry, compact: true }) })
     ] });
   });
   function ConsoleStream({ levelFilter, query, onClearFilter }) {
     const events = useConsoleEvents();
     const expandedId = usePanelStore((state) => state.expandedId);
-    const parentRef = (0, import_react7.useRef)(null);
-    const pinnedRef = (0, import_react7.useRef)(true);
-    const lastTotalRef = (0, import_react7.useRef)(0);
-    const [pinnedUi, setPinnedUi] = (0, import_react7.useState)(true);
-    const [newCount, setNewCount] = (0, import_react7.useState)(0);
-    const filteredEvents = (0, import_react7.useMemo)(() => {
+    const parentRef = (0, import_react8.useRef)(null);
+    const pinnedRef = (0, import_react8.useRef)(true);
+    const lastTotalRef = (0, import_react8.useRef)(0);
+    const [pinnedUi, setPinnedUi] = (0, import_react8.useState)(true);
+    const [newCount, setNewCount] = (0, import_react8.useState)(0);
+    const filteredEvents = (0, import_react8.useMemo)(() => {
       const trimmed = query.trim().toLowerCase();
       return events.filter((event) => matchesLevel(event, levelFilter) && (!trimmed || event.message.toLowerCase().includes(trimmed)));
     }, [events, levelFilter, query]);
-    const rows = (0, import_react7.useMemo)(() => {
+    const rows = (0, import_react8.useMemo)(() => {
       const out = [];
       for (const event of filteredEvents) {
         const prev = out[out.length - 1];
@@ -17974,7 +18095,7 @@ Double-click to rename`,
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 10
     });
-    const scrollToBottom = (0, import_react7.useCallback)(() => {
+    const scrollToBottom = (0, import_react8.useCallback)(() => {
       if (rows.length) virtualizer.scrollToIndex(rows.length - 1, { align: "end" });
       const pin = () => {
         const el = parentRef.current;
@@ -17986,7 +18107,7 @@ Double-click to rename`,
       });
       window.setTimeout(pin, 80);
     }, [rows.length, virtualizer]);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react8.useEffect)(() => {
       const total = filteredEvents.length;
       const delta = total - lastTotalRef.current;
       lastTotalRef.current = total;
@@ -17995,7 +18116,7 @@ Double-click to rename`,
         else setNewCount((count) => count + delta);
       }
     }, [filteredEvents.length, scrollToBottom]);
-    const handleScroll = (0, import_react7.useCallback)(() => {
+    const handleScroll = (0, import_react8.useCallback)(() => {
       const el = parentRef.current;
       if (!el) return;
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
@@ -18004,43 +18125,43 @@ Double-click to rename`,
       if (atBottom) setNewCount(0);
     }, []);
     const filtered = levelFilter !== "all" || query.trim().length > 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-console-stream-wrap", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-console-stream", ref: parentRef, onScroll: handleScroll, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsoleRow, { event: rows[item.index].event, count: rows[item.index].count }) }, item.key)) }),
-        !rows.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-console-stream-wrap", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-console-stream", ref: parentRef, onScroll: handleScroll, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ConsoleRow, { event: rows[item.index].event, count: rows[item.index].count }) }, item.key)) }),
+        !rows.length && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           EmptyState,
           {
             label: filtered ? "No matching messages" : "No console messages",
             hint: filtered ? "Nothing matches the current level filter and search." : "console.log / warn / error from the page appear here, alongside results from commands you run below.",
-            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: onClearFilter, children: "Clear filter" }) : void 0
+            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-btn", onClick: onClearFilter, children: "Clear filter" }) : void 0
           }
         )
       ] }),
-      !pinnedUi && newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-newmsg-pill", onClick: () => {
+      !pinnedUi && newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-newmsg-pill", onClick: () => {
         setNewCount(0);
         pinnedRef.current = true;
         setPinnedUi(true);
         scrollToBottom();
       }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowDown, { size: 14, stroke: 2 }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconArrowDown, { size: 14, stroke: 2 }),
         newCount,
         " new"
       ] })
     ] });
   }
-  var ConsoleRow = import_react7.default.memo(function ConsoleRow2({ event, count }) {
+  var ConsoleRow = import_react8.default.memo(function ConsoleRow2({ event, count }) {
     const expandedId = usePanelStore((state) => state.expandedId);
     const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
     const isExpanded = expandedId === event.id;
     const canExpand = event.type === "result" || event.type === "error" || event.data !== void 0 || !!event.args?.some((arg) => arg && typeof arg === "object");
-    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTerminal2, { ...iconProps4 });
+    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconTerminal2, { ...iconProps4 });
     const logEntry = isExpanded && event.type === "log" && event.entryId ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null : null;
-    const expandedData = (0, import_react7.useMemo)(
+    const expandedData = (0, import_react8.useMemo)(
       () => isExpanded && !logEntry ? stripXrayRefs(event.data ?? event.args ?? event.message) : null,
       [isExpanded, logEntry, event]
     );
     const errorStack = event.type === "error" && event.data && typeof event.data === "object" ? String(event.data.stack || "") : "";
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
       "div",
       {
         className: `xray-console-row ${event.type} ${event.level}`,
@@ -18055,17 +18176,17 @@ Double-click to rename`,
           }
         } : void 0,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-console-message", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-console-message", children: [
             event.message,
-            count > 1 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-repeat-badge", title: `${count} identical consecutive messages`, children: [
+            count > 1 && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-repeat-badge", title: `${count} identical consecutive messages`, children: [
               "\xD7",
               count
             ] }),
-            event.truncated && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-truncated-badge", title: "The result was truncated to fit the transfer limit", children: "truncated" })
+            event.truncated && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-truncated-badge", title: "The result was truncated to fit the transfer limit", children: "truncated" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
-          isExpanded && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail", children: logEntry ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogDetail, { entry: logEntry }) : errorStack ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("pre", { className: "xray-error-stack", children: errorStack }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(JsonView, { value: expandedData }) })
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
+          isExpanded && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-detail", children: logEntry ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(LogDetail, { entry: logEntry }) : errorStack ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "xray-error-stack", children: errorStack }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(JsonView, { value: expandedData }) })
         ]
       }
     );
@@ -18076,11 +18197,11 @@ Double-click to rename`,
     const command = usePanelStore((state) => state.consoleDraft);
     const setConsoleDraft = usePanelStore((state) => state.setConsoleDraft);
     const setMini = usePanelStore((state) => state.setConsoleMiniTab);
-    const [running, setRunning] = (0, import_react7.useState)(false);
-    const [announcement, setAnnouncement] = (0, import_react7.useState)("");
-    const inputRef = (0, import_react7.useRef)(null);
-    const historyRef = (0, import_react7.useRef)({ active: false, draft: "" });
-    (0, import_react7.useEffect)(() => {
+    const [running, setRunning] = (0, import_react8.useState)(false);
+    const [announcement, setAnnouncement] = (0, import_react8.useState)("");
+    const inputRef = (0, import_react8.useRef)(null);
+    const historyRef = (0, import_react8.useRef)({ active: false, draft: "" });
+    (0, import_react8.useEffect)(() => {
       const el = inputRef.current;
       if (!el) return;
       el.style.height = "auto";
@@ -18160,10 +18281,10 @@ Double-click to rename`,
         historyRef.current = { active: false, draft: "" };
       }
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-prompt", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronRight, { ...iconProps4 }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-prompt-command", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-prompt", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconChevronRight, { ...iconProps4 }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-prompt-command", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           "textarea",
           {
             ref: inputRef,
@@ -18178,13 +18299,13 @@ Double-click to rename`,
             "aria-label": "Console command"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn xray-prompt-help", title: "Show the console helpers cheatsheet ($help)", onClick: () => void run("$help"), children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconHelp, { ...iconProps4 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", disabled: running, onClick: () => void run(), children: [
-          running ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconRefresh, { ...iconProps4, className: "xray-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPlayerPlay, { ...iconProps4 }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-btn xray-prompt-help", title: "Show the console helpers cheatsheet ($help)", onClick: () => void run("$help"), children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconHelp, { ...iconProps4 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", disabled: running, onClick: () => void run(), children: [
+          running ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconRefresh, { ...iconProps4, className: "xray-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconPlayerPlay, { ...iconProps4 }),
           running ? "Running\u2026" : "Run"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         "button",
         {
           className: "xray-context-chip",
@@ -18193,36 +18314,36 @@ Double-click to rename`,
           children: selected ? `Selected ${selected.method || "GET"} ${entryPath(selected)}` : "No request selected"
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-visually-hidden", "aria-live": "polite", children: announcement })
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-visually-hidden", "aria-live": "polite", children: announcement })
     ] });
   }
   function Statusbar() {
     const entries = usePanelStore((state) => state.entries);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-    const stats = (0, import_react7.useMemo)(() => {
+    const stats = (0, import_react8.useMemo)(() => {
       const apis = entries.filter(isApi);
       const errors = apis.filter((entry) => Number(entry.status) >= 400);
       const slow = apis.filter((entry) => duration(entry) > slowThresholdMs);
       const avg = apis.length ? apis.reduce((sum, entry) => sum + duration(entry), 0) / apis.length : 0;
       return { total: apis.length, errors: errors.length, slow: slow.length, avg };
     }, [entries, slowThresholdMs]);
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("footer", { className: "xray-statusbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-green)" }, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("footer", { className: "xray-statusbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: { color: "var(--xray-green)" }, children: [
         stats.total - stats.errors,
         " ok"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-red)" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: { color: "var(--xray-red)" }, children: [
         stats.errors,
         " errors"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-yellow)" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: { color: "var(--xray-yellow)" }, children: [
         stats.slow,
         " slow (>",
         slowThresholdMs,
         "ms)"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-spacer" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-spacer" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
         stats.total,
         " requests - avg ",
         Math.round(stats.avg),
@@ -18232,7 +18353,7 @@ Double-click to rename`,
   }
 
   // src/panel/components/export/ExportModal.tsx
-  var import_react9 = __toESM(require_react());
+  var import_react10 = __toESM(require_react());
 
   // src/panel/models/export.ts
   var exportGroups = [
@@ -18566,8 +18687,8 @@ ${bodyLine}
   }
 
   // src/panel/components/common/ModalShell.tsx
-  var import_react8 = __toESM(require_react());
-  var import_jsx_runtime7 = __toESM(require_jsx_runtime());
+  var import_react9 = __toESM(require_react());
+  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
   var iconProps5 = { size: 16, stroke: 1.8 };
   function focusableElements(root) {
     return Array.from(root.querySelectorAll(
@@ -18575,8 +18696,8 @@ ${bodyLine}
     )).filter((element) => element.offsetParent !== null || element === document.activeElement);
   }
   function ModalShell({ title, subtitle, icon, className = "", children, footer, onClose }) {
-    const dialogRef = (0, import_react8.useRef)(null);
-    (0, import_react8.useEffect)(() => {
+    const dialogRef = (0, import_react9.useRef)(null);
+    (0, import_react9.useEffect)(() => {
       const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const dialog = dialogRef.current;
       const first = dialog ? focusableElements(dialog)[0] : null;
@@ -18609,7 +18730,7 @@ ${bodyLine}
         previous?.focus();
       };
     }, [onClose]);
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-modal-backdrop", onMouseDown: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-modal-backdrop", onMouseDown: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
       "section",
       {
         ref: dialogRef,
@@ -18619,24 +18740,24 @@ ${bodyLine}
         "aria-label": title,
         onMouseDown: (event) => event.stopPropagation(),
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("header", { className: "xray-modal-head", children: [
-            icon && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-modal-title-icon", children: icon }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: title }),
-              subtitle && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-modal-subtitle", children: subtitle })
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("header", { className: "xray-modal-head", children: [
+            icon && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-modal-title-icon", children: icon }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: title }),
+              subtitle && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-modal-subtitle", children: subtitle })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-spacer" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-icon-btn", onClick: onClose, "aria-label": `Close ${title}`, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconX, { ...iconProps5 }) })
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "xray-icon-btn", onClick: onClose, "aria-label": `Close ${title}`, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconX, { ...iconProps5 }) })
           ] }),
           children,
-          footer && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("footer", { className: "xray-modal-foot", children: footer })
+          footer && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("footer", { className: "xray-modal-foot", children: footer })
         ]
       }
     ) });
   }
 
   // src/panel/components/export/ExportModal.tsx
-  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
   var iconProps6 = { size: 16, stroke: 1.8 };
   function isSessionFormat(format) {
     return format.startsWith("session-");
@@ -18649,15 +18770,15 @@ ${bodyLine}
     const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
     const saveSnippet = usePanelStore((state) => state.saveSnippet);
     const restoreEntries = usePanelStore((state) => state.restoreEntries);
-    const fileInputRef = (0, import_react9.useRef)(null);
+    const fileInputRef = (0, import_react10.useRef)(null);
     const selected = selectedEntry();
-    const [mode, setMode] = (0, import_react9.useState)("session");
-    const [format, setFormat] = (0, import_react9.useState)("curl");
+    const [mode, setMode] = (0, import_react10.useState)("session");
+    const [format, setFormat] = (0, import_react10.useState)("curl");
     const selectedForExport = mode === "selected" ? selected : null;
-    const text = (0, import_react9.useMemo)(() => exportText(selectedForExport, entries, format), [entries, format, selectedForExport]);
+    const text = (0, import_react10.useMemo)(() => exportText(selectedForExport, entries, format), [entries, format, selectedForExport]);
     const meta = exportMeta[format];
     const filename = filenameForExport(selectedForExport, format);
-    (0, import_react9.useEffect)(() => {
+    (0, import_react10.useEffect)(() => {
       if (!open) return;
       const nextMode = selected ? "selected" : "session";
       setMode(nextMode);
@@ -18705,56 +18826,56 @@ ${bodyLine}
       }
     }
     const subtitle = mode === "selected" && selected ? `${selected.method || "GET"} ${selected.urlPath || selected.url || ""}` : `${entries.length} captured entries`;
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       ModalShell,
       {
         title: mode === "selected" ? "Export selected request" : "Export session",
         subtitle,
-        icon: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconFileExport, { ...iconProps6 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconFileExport, { ...iconProps6 }),
         className: "xray-export-modal",
         onClose: () => setOpen(false),
-        footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-muted", children: [
+        footer: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "xray-muted", children: [
             text.length.toLocaleString(),
             " chars"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("input", { ref: fileInputRef, type: "file", accept: ".har,.json,application/json", style: { display: "none" }, onChange: (event) => void handleImportFile(event) }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: () => fileInputRef.current?.click(), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconFileImport, { ...iconProps6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("input", { ref: fileInputRef, type: "file", accept: ".har,.json,application/json", style: { display: "none" }, onChange: (event) => void handleImportFile(event) }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { className: "xray-btn", onClick: () => fileInputRef.current?.click(), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconFileImport, { ...iconProps6 }),
             "Import HAR / session"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-spacer" }),
-          mode === "selected" && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: sendToConsole, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconSend, { ...iconProps6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "xray-spacer" }),
+          mode === "selected" && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { className: "xray-btn", onClick: sendToConsole, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconSend, { ...iconProps6 }),
               "Console"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: sendToSnippets, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconBookmark, { ...iconProps6 }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { className: "xray-btn", onClick: sendToSnippets, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconBookmark, { ...iconProps6 }),
               "Snippet"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: () => void copyCurrent(), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconCopy, { ...iconProps6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { className: "xray-btn", onClick: () => void copyCurrent(), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconCopy, { ...iconProps6 }),
             "Copy"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn primary", onClick: downloadCurrent, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconDownload, { ...iconProps6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { className: "xray-btn primary", onClick: downloadCurrent, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconDownload, { ...iconProps6 }),
             "Download"
           ] })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("nav", { className: "xray-export-rail", "aria-label": "Export formats", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-mode", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: `xray-chip ${mode === "selected" ? "active" : ""}`, disabled: !selected, title: selected ? "Use selected request" : "Select an API request first", onClick: () => switchMode("selected"), children: "Selected" }),
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: `xray-chip ${mode === "session" ? "active" : ""}`, onClick: () => switchMode("session"), children: "Session" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "xray-export-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("nav", { className: "xray-export-rail", "aria-label": "Export formats", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "xray-export-mode", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: `xray-chip ${mode === "selected" ? "active" : ""}`, disabled: !selected, title: selected ? "Use selected request" : "Select an API request first", onClick: () => switchMode("selected"), children: "Selected" }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: `xray-chip ${mode === "session" ? "active" : ""}`, onClick: () => switchMode("session"), children: "Session" })
             ] }),
-            exportGroups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-group", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-export-group-label", children: group.label }),
+            exportGroups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "xray-export-group", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "xray-export-group-label", children: group.label }),
               group.formats.map((item) => {
                 const disabled = mode === "session" ? !isSessionFormat(item) : isSessionFormat(item) || !selected;
                 const disabledReason = !selected && !isSessionFormat(item) ? "Select a request first" : mode === "session" && !isSessionFormat(item) ? "Switch to Selected mode" : isSessionFormat(item) && mode === "selected" ? "Switch to Session mode" : void 0;
-                return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+                return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
                   "button",
                   {
                     disabled,
@@ -18762,8 +18883,8 @@ ${bodyLine}
                     title: disabledReason,
                     onClick: () => setFormat(item),
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: exportMeta[item].title }),
-                      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("small", { children: exportMeta[item].extension })
+                      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: exportMeta[item].title }),
+                      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("small", { children: exportMeta[item].extension })
                     ]
                   },
                   item
@@ -18771,15 +18892,15 @@ ${bodyLine}
               })
             ] }, group.label))
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "xray-export-preview", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("header", { className: "xray-export-preview-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: meta.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { children: meta.desc })
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: "xray-export-preview", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("header", { className: "xray-export-preview-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { children: meta.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { children: meta.desc })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-count-pill", children: filename })
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "xray-count-pill", children: filename })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("pre", { className: "xray-json xray-export-code", children: text })
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("pre", { className: "xray-json xray-export-code", children: text })
           ] })
         ] })
       }
@@ -18787,27 +18908,27 @@ ${bodyLine}
   }
 
   // src/panel/components/common/ConfirmationModal.tsx
-  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime());
   var iconProps7 = { size: 17, stroke: 1.8 };
   function ConfirmationModal() {
     const request = usePanelStore((state) => state.pendingConfirmation);
     const close = usePanelStore((state) => state.closeConfirmation);
     const confirm = usePanelStore((state) => state.confirmPending);
     if (!request) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       ModalShell,
       {
         title: request.title,
         subtitle: "Confirm this action before XRAY changes the current session.",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconAlertTriangle, { ...iconProps7 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconAlertTriangle, { ...iconProps7 }),
         className: "xray-confirm-modal",
         onClose: close,
-        footer: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "xray-spacer" }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: "xray-btn", onClick: close, children: request.cancelLabel || "Cancel" }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: `xray-btn ${request.tone === "danger" ? "danger" : "primary"}`, onClick: confirm, children: request.confirmLabel })
+        footer: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "xray-spacer" }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { className: "xray-btn", onClick: close, children: request.cancelLabel || "Cancel" }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { className: `xray-btn ${request.tone === "danger" ? "danger" : "primary"}`, onClick: confirm, children: request.confirmLabel })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "xray-modal-body", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { className: "xray-confirm-message", children: request.message }) })
+        children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "xray-modal-body", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { className: "xray-confirm-message", children: request.message }) })
       }
     );
   }
@@ -18865,18 +18986,18 @@ ${bodyLine}
   }
 
   // src/panel/components/shell/panelTabs.tsx
-  var import_jsx_runtime10 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime11 = __toESM(require_jsx_runtime());
   var iconProps8 = { size: 16, stroke: 1.8 };
   var panelTabs = [
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconTerminal2, { ...iconProps8 }) },
-    { id: "api", label: "API", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconNetwork, { ...iconProps8 }) },
-    { id: "logs", label: "Logs", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconCircleCheck, { ...iconProps8 }) },
-    { id: "rules", label: "Rules", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconPlugConnected, { ...iconProps8 }) },
-    { id: "insights", label: "Insights", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconChartBar, { ...iconProps8 }) }
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconTerminal2, { ...iconProps8 }) },
+    { id: "api", label: "API", icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconNetwork, { ...iconProps8 }) },
+    { id: "logs", label: "Logs", icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconCircleCheck, { ...iconProps8 }) },
+    { id: "rules", label: "Rules", icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconPlugConnected, { ...iconProps8 }) },
+    { id: "insights", label: "Insights", icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconChartBar, { ...iconProps8 }) }
   ];
 
   // src/panel/components/insights/Insights.tsx
-  var import_jsx_runtime11 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime12 = __toESM(require_jsx_runtime());
   function Insights() {
     const entries = usePanelStore((state) => state.entries);
     const setApiSearchQuery = usePanelStore((state) => state.setApiSearchQuery);
@@ -18886,63 +19007,63 @@ ${bodyLine}
       setApiSearchQuery(path);
       setActiveTab("api");
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("header", { className: "xray-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Insights" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "Deterministic local signals from captured requests. No external AI service is used." })
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-page", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("header", { className: "xray-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Insights" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "Deterministic local signals from captured requests. No external AI service is used." })
       ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-insight-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconDatabase, { ...iconProps8 }), label: "Requests", value: String(summary.requests) }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconAlertTriangle, { ...iconProps8 }), label: "Errors", value: String(summary.errors), tone: summary.errors ? "error" : "ok" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconBolt, { ...iconProps8 }), label: "Slow", value: String(summary.slow), tone: summary.slow ? "warn" : "ok" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconClock, { ...iconProps8 }), label: "Average", value: `${Math.round(summary.avgDuration)}ms` }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconServer, { ...iconProps8 }), label: "Payload", value: formatBytes(summary.totalBytes) })
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-insight-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconDatabase, { ...iconProps8 }), label: "Requests", value: String(summary.requests) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconAlertTriangle, { ...iconProps8 }), label: "Errors", value: String(summary.errors), tone: summary.errors ? "error" : "ok" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconBolt, { ...iconProps8 }), label: "Slow", value: String(summary.slow), tone: summary.slow ? "warn" : "ok" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconClock, { ...iconProps8 }), label: "Average", value: `${Math.round(summary.avgDuration)}ms` }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconServer, { ...iconProps8 }), label: "Payload", value: formatBytes(summary.totalBytes) })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-insight-columns", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Repeated endpoints" }),
-          summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconRoute, { ...iconProps8 }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: item.path }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-insight-columns", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Repeated endpoints" }),
+          summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconRoute, { ...iconProps8 }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: item.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
               item.count,
               "x"
             ] })
-          ] }, item.path)) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "xray-muted", children: "No repeated endpoint pattern above threshold." })
+          ] }, item.path)) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { className: "xray-muted", children: "No repeated endpoint pattern above threshold." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Slowest requests" }),
-          summary.topSlowRequests.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-method", children: item.method }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: item.path }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Slowest requests" }),
+          summary.topSlowRequests.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-method", children: item.method }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: item.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
               Math.round(item.duration),
               "ms"
             ] })
           ] }, item.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Status mix" }),
-          Object.entries(summary.statusCounts).map(([bucket, count]) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-status-mix-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: bucket }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-bar", style: { width: `${Math.max(8, count / Math.max(1, summary.requests) * 100)}%` } }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: count })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Status mix" }),
+          Object.entries(summary.statusCounts).map(([bucket, count]) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-status-mix-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: bucket }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-bar", style: { width: `${Math.max(8, count / Math.max(1, summary.requests) * 100)}%` } }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: count })
           ] }, bucket))
         ] })
       ] })
     ] });
   }
   function InsightMetric({ icon, label, value, tone = "" }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: `xray-api-metric ${tone}`, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: `xray-api-metric ${tone}`, children: [
       icon,
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: value })
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: value })
     ] });
   }
 
   // src/panel/components/rules/Rules.tsx
-  var import_react10 = __toESM(require_react());
-  var import_jsx_runtime12 = __toESM(require_jsx_runtime());
+  var import_react11 = __toESM(require_react());
+  var import_jsx_runtime13 = __toESM(require_jsx_runtime());
   var actionTypes = [
     { id: "mock", label: "Mock response" },
     { id: "delay", label: "Add delay" },
@@ -18954,8 +19075,8 @@ ${bodyLine}
     const addRule = usePanelStore((state) => state.addRule);
     const setRules = usePanelStore((state) => state.setRules);
     const showToast = usePanelStore((state) => state.showToast);
-    const [importOpen, setImportOpen] = (0, import_react10.useState)(false);
-    const [importText, setImportText] = (0, import_react10.useState)("");
+    const [importOpen, setImportOpen] = (0, import_react11.useState)(false);
+    const [importText, setImportText] = (0, import_react11.useState)("");
     function exportRules() {
       if (!rules.length) {
         showToast("No rules to export.");
@@ -18975,35 +19096,35 @@ ${bodyLine}
       setImportOpen(false);
       showToast(`Imported ${parsed.length} rule${parsed.length === 1 ? "" : "s"}.`);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-page xray-rules-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("header", { className: "xray-page-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Traffic Rules" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "Intercept matching requests to mock responses, inject latency, or force failures. Rules run in the page before the real network call." })
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "xray-page xray-rules-page", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("header", { className: "xray-page-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "Traffic Rules" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { children: "Intercept matching requests to mock responses, inject latency, or force failures. Rules run in the page before the real network call." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn primary", onClick: () => addRule(), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPlus, { ...iconProps8 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn primary", onClick: () => addRule(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPlus, { ...iconProps8 }),
           "New rule"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rules-toolbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-rules-toolbar-label", children: "Presets" }),
-        RULE_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-chip", onClick: () => {
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-rules-toolbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-rules-toolbar-label", children: "Presets" }),
+        RULE_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-chip", onClick: () => {
           addRule(preset.rule);
           showToast(`Added preset \u201C${preset.label}\u201D.`);
         }, children: preset.label }, preset.label)),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-spacer" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-chip", onClick: exportRules, title: "Copy all rules as portable JSON", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconCopy, { ...iconProps8 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: exportRules, title: "Copy all rules as portable JSON", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCopy, { ...iconProps8 }),
           "Export"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((value) => !value), title: "Paste a rule set to load", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconClipboard, { ...iconProps8 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((value) => !value), title: "Paste a rule set to load", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconClipboard, { ...iconProps8 }),
           "Import"
         ] })
       ] }),
-      importOpen && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rules-import", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      importOpen && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-rules-import", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
           "textarea",
           {
             className: "xray-input xray-rules-import-field",
@@ -19013,22 +19134,22 @@ ${bodyLine}
             onChange: (event) => setImportText(event.currentTarget.value)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-btn primary", onClick: importRules, children: "Load rules" })
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-btn primary", onClick: importRules, children: "Load rules" })
       ] }),
-      !rules.length ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-card xray-rules-empty", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPlugConnected, { size: 22, stroke: 1.6 }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "No rules yet. Create one here, or use \u201CMock this\u201D on any captured response to seed a rule from real traffic." })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "xray-rules-list", children: rules.map((rule) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RuleCard, { rule }, rule.id)) })
+      !rules.length ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-card xray-rules-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPlugConnected, { size: 22, stroke: 1.6 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { children: "No rules yet. Create one here, or use \u201CMock this\u201D on any captured response to seed a rule from real traffic." })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-rules-list", children: rules.map((rule) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RuleCard, { rule }, rule.id)) })
     ] });
   }
   function RuleCard({ rule }) {
     const updateRule = usePanelStore((state) => state.updateRule);
     const removeRule = usePanelStore((state) => state.removeRule);
     const toggleRule = usePanelStore((state) => state.toggleRule);
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: `xray-card xray-rule-card ${rule.enabled ? "" : "disabled"}`, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rule-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: `xray-toggle ${rule.enabled ? "on" : ""}`, "aria-label": "Toggle rule", "aria-pressed": rule.enabled, onClick: () => toggleRule(rule.id) }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: `xray-card xray-rule-card ${rule.enabled ? "" : "disabled"}`, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-rule-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: `xray-toggle ${rule.enabled ? "on" : ""}`, "aria-label": "Toggle rule", "aria-pressed": rule.enabled, onClick: () => toggleRule(rule.id) }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
           "input",
           {
             className: "xray-input xray-rule-label",
@@ -19037,37 +19158,37 @@ ${bodyLine}
             placeholder: "Rule name"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-rule-summary", children: ruleSummary(rule) }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-icon-btn", "aria-label": "Delete rule", onClick: () => removeRule(rule.id), children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconTrash, { ...iconProps8 }) })
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-rule-summary", children: ruleSummary(rule) }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-icon-btn", "aria-label": "Delete rule", onClick: () => removeRule(rule.id), children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps8 }) })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rule-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "URL contains / re:pattern" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", value: rule.match.url, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, url: event.currentTarget.value } }), placeholder: "/api/users or re:\\\\/v2\\\\/.*" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-rule-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "URL contains / re:pattern" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { className: "xray-input", value: rule.match.url, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, url: event.currentTarget.value } }), placeholder: "/api/users or re:\\\\/v2\\\\/.*" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Method" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("select", { className: "xray-select", value: rule.match.method, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, method: event.currentTarget.value } }), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: "ANY" }),
-            ["GET", "POST", "PUT", "PATCH", "DELETE"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: method, children: method }, method))
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Method" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("select", { className: "xray-select", value: rule.match.method, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, method: event.currentTarget.value } }), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: "", children: "ANY" }),
+            ["GET", "POST", "PUT", "PATCH", "DELETE"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: method, children: method }, method))
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Action" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { className: "xray-select", value: rule.action.type, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, type: event.currentTarget.value } }), children: actionTypes.map((action) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: action.id, children: action.label }, action.id)) })
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Action" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("select", { className: "xray-select", value: rule.action.type, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, type: event.currentTarget.value } }), children: actionTypes.map((action) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: action.id, children: action.label }, action.id)) })
         ] }),
-        rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Status" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", type: "number", min: 100, max: 599, value: rule.action.status, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } }) })
+        rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Status" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { className: "xray-input", type: "number", min: 100, max: 599, value: rule.action.status, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } }) })
         ] }),
-        (rule.action.type === "mock" || rule.action.type === "delay") && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Delay (ms)" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", type: "number", min: 0, max: 6e4, step: 100, value: rule.action.delayMs, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, delayMs: Number(event.currentTarget.value) } }) })
+        (rule.action.type === "mock" || rule.action.type === "delay") && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Delay (ms)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { className: "xray-input", type: "number", min: 0, max: 6e4, step: 100, value: rule.action.delayMs, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, delayMs: Number(event.currentTarget.value) } }) })
         ] })
       ] }),
-      rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Response body" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Response body" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
           "textarea",
           {
             className: "xray-input xray-rule-body",
@@ -19082,26 +19203,26 @@ ${bodyLine}
   }
 
   // src/panel/components/settings/SettingsModal.tsx
-  var import_react11 = __toESM(require_react());
+  var import_react12 = __toESM(require_react());
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 07:28 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 07:38 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
-  var import_jsx_runtime13 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime14 = __toESM(require_jsx_runtime());
   var iconProps9 = { size: 16, stroke: 1.8 };
   var SUPPORTS_EYEDROPPER = typeof window !== "undefined" && "EyeDropper" in window;
   var navItems = [
-    { id: "general", label: "General", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconAdjustments, { ...iconProps9 }) },
-    { id: "capture", label: "Capture", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconNetwork, { ...iconProps9 }) },
-    { id: "session", label: "Session", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDatabase, { ...iconProps9 }) },
-    { id: "appearance", label: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPalette, { ...iconProps9 }) },
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTerminal2, { ...iconProps9 }) },
-    { id: "ai", label: "AI", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSparkles, { ...iconProps9 }) },
-    { id: "decrypt", label: "Decrypt", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconLock, { ...iconProps9 }) },
-    { id: "shortcuts", label: "Shortcuts", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconKeyboard, { ...iconProps9 }) },
-    { id: "about", label: "About", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconInfoCircle, { ...iconProps9 }) }
+    { id: "general", label: "General", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconAdjustments, { ...iconProps9 }) },
+    { id: "capture", label: "Capture", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconNetwork, { ...iconProps9 }) },
+    { id: "session", label: "Session", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconDatabase, { ...iconProps9 }) },
+    { id: "appearance", label: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconPalette, { ...iconProps9 }) },
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconTerminal2, { ...iconProps9 }) },
+    { id: "ai", label: "AI", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconSparkles, { ...iconProps9 }) },
+    { id: "decrypt", label: "Decrypt", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconLock, { ...iconProps9 }) },
+    { id: "shortcuts", label: "Shortcuts", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconKeyboard, { ...iconProps9 }) },
+    { id: "about", label: "About", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconInfoCircle, { ...iconProps9 }) }
   ];
   var AI_MODELS = {
     anthropic: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"],
@@ -19191,8 +19312,8 @@ ${bodyLine}
     const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
     const showToast = usePanelStore((state) => state.showToast);
     const settingsSection = usePanelStore((state) => state.settingsSection);
-    const [section, setSection] = (0, import_react11.useState)("general");
-    import_react11.default.useEffect(() => {
+    const [section, setSection] = (0, import_react12.useState)("general");
+    import_react12.default.useEffect(() => {
       if (open) setSection(settingsSection);
     }, [open, settingsSection]);
     if (!open) return null;
@@ -19215,123 +19336,123 @@ ${bodyLine}
         showToast("Captured data cleared.");
       });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
       ModalShell,
       {
         title: "Settings",
         subtitle: "Runtime controls and UI preferences",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSettings, { ...iconProps9 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconSettings, { ...iconProps9 }),
         className: "xray-settings-modal",
         onClose: () => setOpen(false),
-        footer: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-modal-version", children: "XRAY React UI - local deterministic runtime" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-spacer" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-btn", onClick: () => setOpen(false), children: "Cancel" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn primary", onClick: () => {
+        footer: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-modal-version", children: "XRAY React UI - local deterministic runtime" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-spacer" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { className: "xray-btn", onClick: () => setOpen(false), children: "Cancel" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn primary", onClick: () => {
             setOpen(false);
             showToast("Settings saved.");
           }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { ...iconProps9 }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconCheck, { ...iconProps9 }),
             "Save"
           ] })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-modal-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("nav", { className: "xray-settings-nav", "aria-label": "Settings sections", children: navItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: `xray-settings-nav-item ${section === item.id ? "active" : ""}`, onClick: () => setSection(item.id), children: [
+        children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-modal-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("nav", { className: "xray-settings-nav", "aria-label": "Settings sections", children: navItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: `xray-settings-nav-item ${section === item.id ? "active" : ""}`, onClick: () => setSection(item.id), children: [
             item.icon,
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: item.label })
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: item.label })
           ] }, item.id)) }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-content", children: [
-            section === "general" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "General" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Stream to console live", desc: "Append newly captured events to the console stream as they arrive. Pausing this does not stop capture \u2014 that's under Capture.", checked: recording, onChange: setRecording }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Default detail view", desc: "View opened when selecting a request.", value: settings.defaultDetailView, options: detailViews2, onChange: (value) => updateSettings({ defaultDetailView: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Confirm destructive actions", desc: "Ask before clearing data, pins, or settings.", checked: settings.confirmDestructiveActions, onChange: (value) => updateSettings({ confirmDestructiveActions: value }) })
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-content", children: [
+            section === "general" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "General" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Stream to console live", desc: "Append newly captured events to the console stream as they arrive. Pausing this does not stop capture \u2014 that's under Capture.", checked: recording, onChange: setRecording }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SelectRow, { label: "Default detail view", desc: "View opened when selecting a request.", value: settings.defaultDetailView, options: detailViews2, onChange: (value) => updateSettings({ defaultDetailView: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Confirm destructive actions", desc: "Ask before clearing data, pins, or settings.", checked: settings.confirmDestructiveActions, onChange: (value) => updateSettings({ confirmDestructiveActions: value }) })
             ] }),
-            section === "capture" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Capture" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Intercept fetch", desc: "Capture native fetch() requests from the page.", checked: settings.captureFetch, onChange: (value) => updateSettings({ captureFetch: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Intercept XHR", desc: "Capture XMLHttpRequest calls from the page.", checked: settings.captureXhr, onChange: (value) => updateSettings({ captureXhr: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Capture WebSocket & SSE", desc: "Stream WebSocket and Server-Sent Event frames into the timeline.", checked: settings.captureWs, onChange: (value) => updateSettings({ captureWs: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NumberRow, { label: "Max entries", desc: "Trim oldest entries after this limit.", value: settings.maxEntries, min: 50, max: 5e3, step: 50, suffix: "entries", onChange: (value) => updateSettings({ maxEntries: value }) })
+            section === "capture" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Capture" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Intercept fetch", desc: "Capture native fetch() requests from the page.", checked: settings.captureFetch, onChange: (value) => updateSettings({ captureFetch: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Intercept XHR", desc: "Capture XMLHttpRequest calls from the page.", checked: settings.captureXhr, onChange: (value) => updateSettings({ captureXhr: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Capture WebSocket & SSE", desc: "Stream WebSocket and Server-Sent Event frames into the timeline.", checked: settings.captureWs, onChange: (value) => updateSettings({ captureWs: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(NumberRow, { label: "Max entries", desc: "Trim oldest entries after this limit.", value: settings.maxEntries, min: 50, max: 5e3, step: 50, suffix: "entries", onChange: (value) => updateSettings({ maxEntries: value }) })
             ] }),
-            section === "session" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Session" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Captured data", desc: `${entries.length} entries \xB7 ${consoleEvents.length} console events \xB7 ${pinnedIds.size} pinned.` }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Export session" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Open the export modal for JSON, CSV, HAR, and per-request formats." })
+            section === "session" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Session" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Captured data", desc: `${entries.length} entries \xB7 ${consoleEvents.length} console events \xB7 ${pinnedIds.size} pinned.` }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Export session" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Open the export modal for JSON, CSV, HAR, and per-request formats." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => {
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn", onClick: () => {
                   setOpen(false);
                   setExportOpen(true);
                 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDownload, { ...iconProps9 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconDownload, { ...iconProps9 }),
                   "Export"
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear API filters" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Reset search, quick filters, method/status/source, sort, and grouping." })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Clear API filters" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Reset search, quick filters, method/status/source, sort, and grouping." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => {
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn", onClick: () => {
                   clearApiFilters();
                   showToast("API filters cleared.");
                 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconFilterOff, { ...iconProps9 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconFilterOff, { ...iconProps9 }),
                   "Clear filters"
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear pinned" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Remove all pinned request markers." })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Clear pinned" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Remove all pinned request markers." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear pinned requests?", "This removes all pinned request markers.", "Clear pinned", () => {
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear pinned requests?", "This removes all pinned request markers.", "Clear pinned", () => {
                   clearPinned();
                   showToast("Pinned requests cleared.");
                 }), children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPinnedOff, { ...iconProps9 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconPinnedOff, { ...iconProps9 }),
                   "Clear pinned"
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear console stream" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Clear console UI events but keep captured API entries." })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Clear console stream" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Clear console UI events but keep captured API entries." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear console stream?", "This clears console UI events but keeps captured API entries.", "Clear console", () => {
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear console stream?", "This clears console UI events but keeps captured API entries.", "Clear console", () => {
                   clearConsole();
                   showToast("Console stream cleared.");
                 }), children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps9 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconTrash, { ...iconProps9 }),
                   "Clear console"
                 ] })
               ] })
             ] }),
-            section === "ai" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "AI (bring your own key)" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Local & private", desc: "Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background \u2014 nothing is sent anywhere else." }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Provider", desc: "Which model provider to use for Explain.", value: aiSettings.provider, options: ["anthropic", "openai"], onChange: (value) => setAiSettings({ provider: value, model: AI_MODELS[value][0] }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Model", desc: "Model used for request explanations.", value: aiSettings.model, options: AI_MODELS[aiSettings.provider], onChange: (value) => setAiSettings({ model: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "API key" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Stored locally. Used only for Explain requests." })
+            section === "ai" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "AI (bring your own key)" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Local & private", desc: "Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background \u2014 nothing is sent anywhere else." }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SelectRow, { label: "Provider", desc: "Which model provider to use for Explain.", value: aiSettings.provider, options: ["anthropic", "openai"], onChange: (value) => setAiSettings({ provider: value, model: AI_MODELS[value][0] }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SelectRow, { label: "Model", desc: "Model used for request explanations.", value: aiSettings.model, options: AI_MODELS[aiSettings.provider], onChange: (value) => setAiSettings({ model: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "API key" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Stored locally. Used only for Explain requests." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { className: "xray-input", type: "password", value: aiSettings.apiKey, placeholder: "sk-...", onChange: (event) => setAiSettings({ apiKey: event.currentTarget.value }), autoComplete: "off" })
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", type: "password", value: aiSettings.apiKey, placeholder: "sk-...", onChange: (event) => setAiSettings({ apiKey: event.currentTarget.value }), autoComplete: "off" })
               ] })
             ] }),
-            section === "appearance" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Appearance" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row xray-theme-picker-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Theme" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Pick a preset, or build your own with full color freedom. Themes only restyle this panel \u2014 never the page or the extension." })
+            section === "appearance" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Appearance" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row xray-theme-picker-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Theme" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Pick a preset, or build your own with full color freedom. Themes only restyle this panel \u2014 never the page or the extension." })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-theme-grid", children: [
-                  THEME_PREVIEWS.map((preview2) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-theme-grid", children: [
+                  THEME_PREVIEWS.map((preview2) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
                     "button",
                     {
                       className: `xray-theme-swatch ${settings.theme === preview2.id ? "active" : ""}`,
@@ -19339,14 +19460,14 @@ ${bodyLine}
                       onClick: () => updateSettings(preview2.accentPref ? { theme: preview2.id, accent: preview2.accentPref } : { theme: preview2.id }),
                       "aria-pressed": settings.theme === preview2.id,
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: preview2.accent } }),
-                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-label", children: preview2.label }),
-                        settings.theme === preview2.id && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { size: 13, stroke: 2.6 })
+                        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: preview2.accent } }),
+                        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-theme-swatch-label", children: preview2.label }),
+                        settings.theme === preview2.id && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconCheck, { size: 13, stroke: 2.6 })
                       ]
                     },
                     preview2.id
                   )),
-                  /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+                  /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
                     "button",
                     {
                       className: `xray-theme-swatch ${settings.theme === "custom" ? "active" : ""}`,
@@ -19354,59 +19475,59 @@ ${bodyLine}
                       onClick: () => updateSettings({ theme: "custom" }),
                       "aria-pressed": settings.theme === "custom",
                       children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: settings.customTheme.accent } }),
-                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-label", children: "Custom" }),
-                        settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { size: 13, stroke: 2.6 })
+                        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: settings.customTheme.accent } }),
+                        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-theme-swatch-label", children: "Custom" }),
+                        settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconCheck, { size: 13, stroke: 2.6 })
                       ]
                     }
                   )
                 ] })
               ] }),
-              settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(CustomThemeEditor, {}),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Font stack", desc: "Choose the code-first monospace stack used across tables, JSON, and console.", value: settings.font, options: fonts, onChange: (value) => updateSettings({ font: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Density", desc: "Control global spacing, row heights, and panel chrome.", value: settings.density, options: densities, onChange: (value) => updateSettings({ density: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RangeRow, { label: "Corner radius", desc: "Roundness of cards, buttons, inputs, and drawers.", value: settings.radius, min: 0, max: 20, step: 1, suffix: "px", onChange: (value) => updateSettings({ radius: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(AccentRow, { settings, onChange: (accent) => updateSettings({ accent }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Operator glow", desc: "Enable subtle cyan/purple terminal glow and active-focus lighting.", checked: settings.glow, onChange: (value) => updateSettings({ glow: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Hacker mode", desc: "CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it \u2014 it styles the panel behind this dialog. Respects reduced-motion.", checked: settings.hacker, onChange: (value) => {
+              settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(CustomThemeEditor, {}),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SelectRow, { label: "Font stack", desc: "Choose the code-first monospace stack used across tables, JSON, and console.", value: settings.font, options: fonts, onChange: (value) => updateSettings({ font: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SelectRow, { label: "Density", desc: "Control global spacing, row heights, and panel chrome.", value: settings.density, options: densities, onChange: (value) => updateSettings({ density: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(RangeRow, { label: "Corner radius", desc: "Roundness of cards, buttons, inputs, and drawers.", value: settings.radius, min: 0, max: 20, step: 1, suffix: "px", onChange: (value) => updateSettings({ radius: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(AccentRow, { settings, onChange: (accent) => updateSettings({ accent }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Operator glow", desc: "Enable subtle cyan/purple terminal glow and active-focus lighting.", checked: settings.glow, onChange: (value) => updateSettings({ glow: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Hacker mode", desc: "CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it \u2014 it styles the panel behind this dialog. Respects reduced-motion.", checked: settings.hacker, onChange: (value) => {
                 updateSettings({ hacker: value });
                 showToast(value ? "Hacker mode ON \u2014 close Settings to see the CRT." : "Hacker mode off.");
               } }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Compact rows", desc: "Reduce request row height for dense API sessions.", checked: settings.compactRows, onChange: (value) => updateSettings({ compactRows: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Show host in path column", desc: "Display request host below endpoint paths.", checked: settings.showHostInPath, onChange: (value) => updateSettings({ showHostInPath: value }) })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Compact rows", desc: "Reduce request row height for dense API sessions.", checked: settings.compactRows, onChange: (value) => updateSettings({ compactRows: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ToggleRow, { label: "Show host in path column", desc: "Display request host below endpoint paths.", checked: settings.showHostInPath, onChange: (value) => updateSettings({ showHostInPath: value }) })
             ] }),
-            section === "console" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Console" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NumberRow, { label: "Slow threshold", desc: "Highlight requests above this in yellow.", value: settings.slowThresholdMs, min: 100, max: 5e3, step: 50, suffix: "ms", onChange: (value) => updateSettings({ slowThresholdMs: value }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NumberRow, { label: "Very slow threshold", desc: "Reserved red threshold for heavier timing views.", value: settings.verySlowThresholdMs, min: 200, max: 1e4, step: 100, suffix: "ms", onChange: (value) => updateSettings({ verySlowThresholdMs: value }) })
+            section === "console" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Console" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(NumberRow, { label: "Slow threshold", desc: "Highlight requests above this in yellow.", value: settings.slowThresholdMs, min: 100, max: 5e3, step: 50, suffix: "ms", onChange: (value) => updateSettings({ slowThresholdMs: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(NumberRow, { label: "Very slow threshold", desc: "Reserved red threshold for heavier timing views.", value: settings.verySlowThresholdMs, min: 200, max: 1e4, step: 100, suffix: "ms", onChange: (value) => updateSettings({ verySlowThresholdMs: value }) })
             ] }),
-            section === "decrypt" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Decrypt" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Runtime boundary", desc: "Decrypt bridge stays in the vanilla runtime. React only displays decrypted fields when the runtime provides them." }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Network access", desc: "No AI provider or remote analysis is used by this settings surface." })
+            section === "decrypt" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Decrypt" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Runtime boundary", desc: "Decrypt bridge stays in the vanilla runtime. React only displays decrypted fields when the runtime provides them." }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Network access", desc: "No AI provider or remote analysis is used by this settings surface." })
             ] }),
-            section === "shortcuts" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Shortcuts" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + X", label: "Toggle XRAY" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + K", label: "Open command palette" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + F", label: "Find in traffic (search bodies)" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Esc", label: "Close modal or panel surface" })
+            section === "shortcuts" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "Shortcuts" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + X", label: "Toggle XRAY" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + K", label: "Open command palette" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + F", label: "Find in traffic (search bodies)" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ShortcutRow, { keys: "Esc", label: "Close modal or panel surface" })
             ] }),
-            section === "about" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "About" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Version", desc: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}` }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "UI stack", desc: "React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Theme", desc: "Fully token-driven themes (5 presets + a custom Theme Studio) scoped to the panel via inline CSS variables." })
+            section === "about" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SettingsSectionTitle, { label: "About" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Version", desc: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}` }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "UI stack", desc: "React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(InfoRow, { label: "Theme", desc: "Fully token-driven themes (5 presets + a custom Theme Studio) scoped to the panel via inline CSS variables." })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-danger", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-danger-title", children: "Danger zone" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-danger-row", onClick: clearAll, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Clear all captured sessions" }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps9 })
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-danger", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-danger-title", children: "Danger zone" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-danger-row", onClick: clearAll, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Clear all captured sessions" }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconTrash, { ...iconProps9 })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-danger-row", onClick: resetAll, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Reset all settings to defaults" }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconRefresh, { ...iconProps9 })
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-danger-row", onClick: resetAll, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Reset all settings to defaults" }),
+                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconRefresh, { ...iconProps9 })
               ] })
             ] })
           ] })
@@ -19421,8 +19542,8 @@ ${bodyLine}
     const hacker = usePanelStore((state) => state.settings.hacker);
     const updateSettings = usePanelStore((state) => state.updateSettings);
     const showToast = usePanelStore((state) => state.showToast);
-    const [importText, setImportText] = (0, import_react11.useState)("");
-    const [importOpen, setImportOpen] = (0, import_react11.useState)(false);
+    const [importText, setImportText] = (0, import_react12.useState)("");
+    const [importOpen, setImportOpen] = (0, import_react12.useState)(false);
     const resolved = resolveThemeColors(custom);
     const overrideCount = OVERRIDE_KEYS.filter((key) => isTokenOverridden(custom, key)).length;
     function setTheme(theme) {
@@ -19468,37 +19589,37 @@ ${bodyLine}
       setImportOpen(false);
       showToast("Theme imported.");
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-theme", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ThemePreview, { theme: custom }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-toolbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "dark")), title: "Build a dark theme around the current accent", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconWand, { ...iconProps9 }),
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-theme", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ThemePreview, { theme: custom }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-toolbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "dark")), title: "Build a dark theme around the current accent", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconWand, { ...iconProps9 }),
           "Dark from accent"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "light")), title: "Build a light theme around the current accent", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconWand, { ...iconProps9 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "light")), title: "Build a light theme around the current accent", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconWand, { ...iconProps9 }),
           "Light from accent"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(randomTheme(Math.random())), title: "Roll a coherent random theme", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDice, { ...iconProps9 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(randomTheme(Math.random())), title: "Roll a coherent random theme", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconDice, { ...iconProps9 }),
           "Surprise me"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-spacer" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: copyShareCode, title: "Copy a portable share code (colors + font + radius + effects)", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconShare, { ...iconProps9 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: copyShareCode, title: "Copy a portable share code (colors + font + radius + effects)", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconShare, { ...iconProps9 }),
           "Share"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: copyCss, title: "Copy this theme as CSS variables", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCopy, { ...iconProps9 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: copyCss, title: "Copy this theme as CSS variables", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconCopy, { ...iconProps9 }),
           "CSS"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((v) => !v), title: "Paste a theme to load", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconClipboard, { ...iconProps9 }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((v) => !v), title: "Paste a theme to load", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconClipboard, { ...iconProps9 }),
           "Import"
         ] })
       ] }),
-      importOpen && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-import", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+      importOpen && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-import", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           "textarea",
           {
             className: "xray-input xray-custom-import-field",
@@ -19508,22 +19629,22 @@ ${bodyLine}
             onChange: (event) => setImportText(event.currentTarget.value)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-btn primary", onClick: importFromText, children: "Load theme" })
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { className: "xray-btn primary", onClick: importFromText, children: "Load theme" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ContrastReport, { theme: custom }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-presets", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-presets-label", children: "Start from" }),
-        CUSTOM_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(preset.theme), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-preset-dot", style: { background: preset.theme.accent } }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ContrastReport, { theme: custom }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-presets", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-custom-presets-label", children: "Start from" }),
+        CUSTOM_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(preset.theme), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-custom-preset-dot", style: { background: preset.theme.accent } }),
           preset.label
         ] }, preset.label))
       ] }),
-      CUSTOM_GROUPS.map((group) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-group", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-group-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-group-title", children: group.title }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-group-hint", children: group.hint })
+      CUSTOM_GROUPS.map((group) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-group-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-custom-group-title", children: group.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-custom-group-hint", children: group.hint })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-custom-grid", children: group.fields.map((field) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-custom-grid", children: group.fields.map((field) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           TokenField,
           {
             label: field.label,
@@ -19539,50 +19660,50 @@ ${bodyLine}
           field.key
         )) })
       ] }, group.title)),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-footnote", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: overrideCount > 0 ? `${overrideCount} token${overrideCount === 1 ? "" : "s"} pinned \xB7 the rest auto-derive from your base colors.` : "Every token auto-derives from your four base colors \u2014 pin any swatch for full control." }),
-        overrideCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: resetOverrides, title: "Revert every token to auto-derived", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconArrowBackUp, { ...iconProps9 }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-custom-footnote", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: overrideCount > 0 ? `${overrideCount} token${overrideCount === 1 ? "" : "s"} pinned \xB7 the rest auto-derive from your base colors.` : "Every token auto-derives from your four base colors \u2014 pin any swatch for full control." }),
+        overrideCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-chip", onClick: resetOverrides, title: "Revert every token to auto-derived", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconArrowBackUp, { ...iconProps9 }),
           "Reset all to auto"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "xray-custom-note", children: "Themes are applied as inline CSS variables on this panel only \u2014 they never touch the page or the extension's capture runtime." })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("p", { className: "xray-custom-note", children: "Themes are applied as inline CSS variables on this panel only \u2014 they never touch the page or the extension's capture runtime." })
     ] });
   }
   function ThemePreview({ theme }) {
     const vars = buildCustomThemeVars(theme);
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-theme-preview", style: vars, "aria-label": "Live theme preview", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-bar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-dot" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-brand", children: "CONSOLE" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-tab active", children: "Network" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-tab", children: "Console" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-grow" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-btn", children: "Explain" })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-theme-preview", style: vars, "aria-label": "Live theme preview", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-bar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-dot" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-brand", children: "CONSOLE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-tab active", children: "Network" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-tab", children: "Console" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-grow" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-btn", children: "Explain" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-rows", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method get", children: "GET" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/users" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code ok", children: "200" })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-rows", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-method get", children: "GET" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-path", children: "/api/users" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-code ok", children: "200" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row selected", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method post", children: "POST" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/session/login" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code warn", children: "302" })
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-row selected", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-method post", children: "POST" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-path", children: "/api/session/login" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-code warn", children: "302" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method delete", children: "DELETE" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/cart/item" }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code err", children: "500" })
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-method delete", children: "DELETE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-path", children: "/api/cart/item" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-code err", children: "500" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-badges", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge green", children: "success" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge yellow", children: "slow" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge red", children: "error" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge blue", children: "info" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge mauve", children: "graphql" })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-tp-badges", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-badge green", children: "success" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-badge yellow", children: "slow" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-badge red", children: "error" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-badge blue", children: "info" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-tp-badge mauve", children: "graphql" })
       ] })
     ] });
   }
@@ -19596,31 +19717,31 @@ ${bodyLine}
       { label: "Accent on background", ratio: contrastRatio(c.accent, c.bg) },
       { label: "Text on accent", ratio: contrastRatio(c.text, c.accent) }
     ];
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-contrast", "aria-label": "WCAG contrast", "aria-live": "polite", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-contrast-title", children: "Contrast" }),
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-contrast", "aria-label": "WCAG contrast", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-contrast-title", children: "Contrast" }),
       rows.map((row) => {
         const grade = contrastGrade(row.ratio);
         const tone = grade === "Fail" ? "fail" : grade === "AA Large" ? "warn" : "ok";
-        return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-contrast-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-contrast-label", children: row.label }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("strong", { children: [
+        return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-contrast-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-contrast-label", children: row.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("strong", { children: [
             row.ratio.toFixed(2),
             ":1"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: `xray-contrast-grade ${tone}`, children: grade })
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: `xray-contrast-grade ${tone}`, children: grade })
         ] }, row.label);
       })
     ] });
   }
   function RangeRow({ label, desc, value, min, max, step, suffix, onChange }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: desc })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-range-control", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { type: "range", className: "xray-range", value, min, max, step, onChange: (event) => onChange(Number(event.currentTarget.value)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("small", { className: "xray-range-value", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "xray-range-control", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { type: "range", className: "xray-range", value, min, max, step, onChange: (event) => onChange(Number(event.currentTarget.value)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("small", { className: "xray-range-value", children: [
           value,
           suffix
         ] })
@@ -19628,8 +19749,8 @@ ${bodyLine}
     ] });
   }
   function TokenField({ label, value, overridden, onChange, onReset, onCopy }) {
-    const [text, setText] = (0, import_react11.useState)(value);
-    import_react11.default.useEffect(() => {
+    const [text, setText] = (0, import_react12.useState)(value);
+    import_react12.default.useEffect(() => {
       setText(value);
     }, [value]);
     function commit(raw) {
@@ -19646,8 +19767,8 @@ ${bodyLine}
       } catch {
       }
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: `xray-token-field ${overridden ? "pinned" : "auto"}`, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: `xray-token-field ${overridden ? "pinned" : "auto"}`, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
         "input",
         {
           type: "color",
@@ -19660,12 +19781,12 @@ ${bodyLine}
           "aria-label": `${label} color`
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-meta", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-label", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "xray-token-meta", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "xray-token-label", children: [
           label,
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-token-state", children: overridden ? "pinned" : "auto" })
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-token-state", children: overridden ? "pinned" : "auto" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           "input",
           {
             className: `xray-input xray-custom-hex ${isHex(text) ? "" : "invalid"}`,
@@ -19678,8 +19799,8 @@ ${bodyLine}
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-actions", children: [
-        SUPPORTS_EYEDROPPER && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "xray-token-actions", children: [
+        SUPPORTS_EYEDROPPER && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           "button",
           {
             type: "button",
@@ -19687,10 +19808,10 @@ ${bodyLine}
             onClick: pickFromScreen,
             title: `Pick ${label} from screen`,
             "aria-label": `Pick ${label} color from screen`,
-            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconColorPicker, { size: 14, stroke: 1.8 })
+            children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconColorPicker, { size: 14, stroke: 1.8 })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           "button",
           {
             type: "button",
@@ -19698,10 +19819,10 @@ ${bodyLine}
             onClick: onCopy,
             title: `Copy ${label} hex`,
             "aria-label": `Copy ${label} hex`,
-            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCopy, { size: 14, stroke: 1.8 })
+            children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconCopy, { size: 14, stroke: 1.8 })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           "button",
           {
             type: "button",
@@ -19710,52 +19831,52 @@ ${bodyLine}
             disabled: !overridden,
             title: overridden ? `Revert ${label} to auto` : `${label} is auto-derived`,
             "aria-label": `Revert ${label} to auto`,
-            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconArrowBackUp, { size: 14, stroke: 1.8 })
+            children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconArrowBackUp, { size: 14, stroke: 1.8 })
           }
         )
       ] })
     ] });
   }
   function SettingsSectionTitle({ label }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-settings-section-title", children: label });
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-settings-section-title", children: label });
   }
   function ToggleRow({ label, desc, checked, onChange }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: desc })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: `xray-toggle ${checked ? "on" : ""}`, "aria-label": label, "aria-pressed": checked, onClick: () => onChange(!checked) })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { className: `xray-toggle ${checked ? "on" : ""}`, "aria-label": label, "aria-pressed": checked, onClick: () => onChange(!checked) })
     ] });
   }
   function NumberRow({ label, desc, value, min, max, step, suffix, onChange }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: desc })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-number-input", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { type: "number", value, min, max, step, onChange: (event) => onChange(Number(event.currentTarget.value)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: suffix })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { className: "xray-number-input", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { type: "number", value, min, max, step, onChange: (event) => onChange(Number(event.currentTarget.value)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: suffix })
       ] })
     ] });
   }
   function SelectRow({ label, desc, value, options, onChange }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: desc })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("select", { className: "xray-select", value, onChange: (event) => onChange(event.currentTarget.value), children: options.map((option) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: option, children: option }, option)) })
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("select", { className: "xray-select", value, onChange: (event) => onChange(event.currentTarget.value), children: options.map((option) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("option", { value: option, children: option }, option)) })
     ] });
   }
   function AccentRow({ settings, onChange }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Accent color" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Selections, active states, and primary actions." })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: "Accent color" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "Selections, active states, and primary actions." })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-color-row", children: Object.keys(PANEL_ACCENT_VALUES).map((accent) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-color-row", children: Object.keys(PANEL_ACCENT_VALUES).map((accent) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
         "button",
         {
           className: `xray-color-swatch ${settings.accent === accent ? "active" : ""}`,
@@ -19768,21 +19889,21 @@ ${bodyLine}
     ] });
   }
   function InfoRow({ label, desc }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-settings-row read-only", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-settings-row read-only", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: desc })
     ] }) });
   }
   function ShortcutRow({ keys, label }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("kbd", { children: keys })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("strong", { children: label }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("kbd", { children: keys })
     ] });
   }
 
   // src/panel/components/replay/ReplayModal.tsx
-  var import_react12 = __toESM(require_react());
-  var import_jsx_runtime14 = __toESM(require_jsx_runtime());
+  var import_react13 = __toESM(require_react());
+  var import_jsx_runtime15 = __toESM(require_jsx_runtime());
   var iconProps10 = { size: 16, stroke: 1.8 };
   var METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
   function headersToText(headers) {
@@ -19808,17 +19929,17 @@ ${bodyLine}
     const entry = usePanelStore((state) => state.replayEditorEntry);
     const close = usePanelStore((state) => state.closeReplayEditor);
     const replayEntry = usePanelStore((state) => state.replayEntry);
-    const initial = (0, import_react12.useMemo)(() => entry ? {
+    const initial = (0, import_react13.useMemo)(() => entry ? {
       method: String(entry.method || "GET").toUpperCase(),
       url: String(entry.url || entry.urlPath || ""),
       headers: headersToText(entry.requestHeaders),
       body: bodyToText(entry)
     } : null, [entry]);
-    const [method, setMethod] = (0, import_react12.useState)("GET");
-    const [url, setUrl] = (0, import_react12.useState)("");
-    const [headers, setHeaders] = (0, import_react12.useState)("");
-    const [body, setBody] = (0, import_react12.useState)("");
-    import_react12.default.useEffect(() => {
+    const [method, setMethod] = (0, import_react13.useState)("GET");
+    const [url, setUrl] = (0, import_react13.useState)("");
+    const [headers, setHeaders] = (0, import_react13.useState)("");
+    const [body, setBody] = (0, import_react13.useState)("");
+    import_react13.default.useEffect(() => {
       if (!initial) return;
       setMethod(initial.method);
       setUrl(initial.url);
@@ -19837,35 +19958,35 @@ ${bodyLine}
       });
       close();
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       ModalShell,
       {
         title: "Edit & Replay",
         subtitle: `${entry.method || "GET"} ${entryPath(entry)}`,
-        icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconRepeat, { ...iconProps10 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconRepeat, { ...iconProps10 }),
         className: "xray-replay-modal",
         onClose: close,
-        footer: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-muted", children: "Replays run from the inspected page and are recaptured as new entries." }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-spacer" }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { className: "xray-btn", onClick: close, children: "Cancel" }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn primary", onClick: send, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconSend, { ...iconProps10 }),
+        footer: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-muted", children: "Replays run from the inspected page and are recaptured as new entries." }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-spacer" }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-btn", onClick: close, children: "Cancel" }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { className: "xray-btn primary", onClick: send, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconSend, { ...iconProps10 }),
             "Send replay"
           ] })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-replay-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-replay-line", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("select", { className: "xray-select", value: method, onChange: (event) => setMethod(event.currentTarget.value), children: METHODS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("option", { value: item, children: item }, item)) }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", value: url, onChange: (event) => setUrl(event.currentTarget.value), placeholder: "https://api.example.com/endpoint" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-replay-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-replay-line", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("select", { className: "xray-select", value: method, onChange: (event) => setMethod(event.currentTarget.value), children: METHODS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: item, children: item }, item)) }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("input", { className: "xray-input", value: url, onChange: (event) => setUrl(event.currentTarget.value), placeholder: "https://api.example.com/endpoint" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Headers (one per line)" }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("textarea", { className: "xray-input xray-replay-headers", spellCheck: false, value: headers, onChange: (event) => setHeaders(event.currentTarget.value), placeholder: "content-type: application/json" })
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("label", { className: "xray-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: "Headers (one per line)" }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("textarea", { className: "xray-input xray-replay-headers", spellCheck: false, value: headers, onChange: (event) => setHeaders(event.currentTarget.value), placeholder: "content-type: application/json" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Body" }),
-            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("textarea", { className: "xray-input xray-replay-bodyfield", spellCheck: false, value: body, onChange: (event) => setBody(event.currentTarget.value), placeholder: '{ "key": "value" }' })
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("label", { className: "xray-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: "Body" }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("textarea", { className: "xray-input xray-replay-bodyfield", spellCheck: false, value: body, onChange: (event) => setBody(event.currentTarget.value), placeholder: '{ "key": "value" }' })
           ] })
         ] })
       }
@@ -19873,7 +19994,7 @@ ${bodyLine}
   }
 
   // src/panel/components/ai/ExplainModal.tsx
-  var import_react13 = __toESM(require_react());
+  var import_react14 = __toESM(require_react());
 
   // src/panel/runtime/aiBridge.ts
   function buildExplainPrompt(entry, related) {
@@ -19935,7 +20056,7 @@ ${bodyLine}
   }
 
   // src/panel/components/ai/ExplainModal.tsx
-  var import_jsx_runtime15 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime16 = __toESM(require_jsx_runtime());
   var iconProps11 = { size: 16, stroke: 1.8 };
   function ExplainModal() {
     const entry = usePanelStore((state) => state.explainEntry);
@@ -19943,10 +20064,10 @@ ${bodyLine}
     const entries = usePanelStore((state) => state.entries);
     const aiSettings = usePanelStore((state) => state.aiSettings);
     const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
-    const [loading, setLoading] = (0, import_react13.useState)(false);
-    const [result, setResult] = (0, import_react13.useState)(null);
-    const [error, setError] = (0, import_react13.useState)(null);
-    import_react13.default.useEffect(() => {
+    const [loading, setLoading] = (0, import_react14.useState)(false);
+    const [result, setResult] = (0, import_react14.useState)(null);
+    const [error, setError] = (0, import_react14.useState)(null);
+    import_react14.default.useEffect(() => {
       if (!entry) return;
       let cancelled = false;
       setResult(null);
@@ -19972,47 +20093,47 @@ ${bodyLine}
       close();
       setSettingsOpen(true);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
       ModalShell,
       {
         title: "Explain with AI",
         subtitle: `${entry.method || "GET"} ${entryPath(entry)}`,
-        icon: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconSparkles, { ...iconProps11 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSparkles, { ...iconProps11 }),
         className: "xray-explain-modal",
         onClose: close,
-        footer: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "xray-muted", children: [
+        footer: /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { className: "xray-muted", children: [
             aiSettings.provider,
             " \xB7 ",
             aiSettings.model
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-spacer" }),
-          result && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { className: "xray-btn", onClick: () => void copyText(result), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconCopy, { ...iconProps11 }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-spacer" }),
+          result && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("button", { className: "xray-btn", onClick: () => void copyText(result), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconCopy, { ...iconProps11 }),
             "Copy"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-btn", onClick: close, children: "Close" })
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("button", { className: "xray-btn", onClick: close, children: "Close" })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-body", children: [
-          loading && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-loading", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-spinner" }),
+        children: /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-explain-body", children: [
+          loading && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-explain-loading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-spinner" }),
             "Analyzing request\u2026"
           ] }),
-          error && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-error", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconAlertTriangle, { ...iconProps11 }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: error }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-btn", onClick: openAiSettings, children: "Open AI settings" })
+          error && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-explain-error", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconAlertTriangle, { ...iconProps11 }),
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("p", { children: error }),
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("button", { className: "xray-btn", onClick: openAiSettings, children: "Open AI settings" })
             ] })
           ] }),
-          result && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "xray-explain-result", children: result })
+          result && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "xray-explain-result", children: result })
         ] })
       }
     );
   }
 
   // src/panel/components/shell/CommandPalette.tsx
-  var import_react14 = __toESM(require_react());
+  var import_react15 = __toESM(require_react());
 
   // src/panel/models/fuzzy.ts
   var BOUNDARY = /[\s\-_/.:]/;
@@ -20057,7 +20178,7 @@ ${bodyLine}
   }
 
   // src/panel/components/shell/CommandPalette.tsx
-  var import_jsx_runtime16 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime17 = __toESM(require_jsx_runtime());
   var GROUP_ORDER = ["Selection", "Go to", "Requests", "Actions", "Appearance", "Console"];
   function CommandPalette() {
     const open = usePanelStore((state) => state.commandOpen);
@@ -20081,55 +20202,55 @@ ${bodyLine}
     const customTheme = usePanelStore((state) => state.settings.customTheme);
     const hacker = usePanelStore((state) => state.settings.hacker);
     const showToast = usePanelStore((state) => state.showToast);
-    const [query, setQuery] = (0, import_react14.useState)("");
-    const [active, setActive] = (0, import_react14.useState)(0);
-    const listRef = (0, import_react14.useRef)(null);
+    const [query, setQuery] = (0, import_react15.useState)("");
+    const [active, setActive] = (0, import_react15.useState)(0);
+    const listRef = (0, import_react15.useRef)(null);
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
-    const commands = (0, import_react14.useMemo)(() => {
+    const commands = (0, import_react15.useMemo)(() => {
       const list = [];
       if (selected) {
         const label = `${selected.method || "GET"} ${entryPath(selected)}`;
         list.push(
-          { id: "sel-replay", label: `Replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconRepeat, { ...iconProps8 }), run: () => replayEntry(selected) },
-          { id: "sel-edit", label: `Edit & replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconRepeat, { ...iconProps8 }), run: () => openReplayEditor(selected) },
-          { id: "sel-explain", label: `Explain ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSparkles, { ...iconProps8 }), run: () => openExplain(selected) }
+          { id: "sel-replay", label: `Replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconRepeat, { ...iconProps8 }), run: () => replayEntry(selected) },
+          { id: "sel-edit", label: `Edit & replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconRepeat, { ...iconProps8 }), run: () => openReplayEditor(selected) },
+          { id: "sel-explain", label: `Explain ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSparkles, { ...iconProps8 }), run: () => openExplain(selected) }
         );
       }
       panelTabs.map((tab) => list.push({ id: `tab-${tab.id}`, label: `Go to ${tab.label}`, group: "Go to", icon: tab.icon, run: () => setActiveTab(tab.id) }));
       list.push(
-        { id: "export", label: "Export session", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconDownload, { ...iconProps8 }), run: () => setExportOpen(true) },
-        { id: "find", label: "Find in traffic (bodies, headers, URLs)", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { ...iconProps8 }), keywords: "search grep regex response body header ctrl shift f", run: () => setGlobalSearchOpen(true) },
-        { id: "appearance", label: "Open Theme Studio", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconPalette, { ...iconProps8 }), keywords: "theme color radius", run: () => openSettings("appearance") },
-        { id: "settings", label: "Open Settings", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSettings, { ...iconProps8 }), run: () => openSettings("general") },
-        { id: "insights", label: "Open Insights", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconChartBar, { ...iconProps8 }), run: () => setActiveTab("insights") },
-        { id: "clear-filters", label: "Reset API filters", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconFilterOff, { ...iconProps8 }), run: clearApiFilters },
-        { id: "clear-console", label: "Clear console stream", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear console stream?", message: "This clears console UI events but keeps captured API requests.", confirmLabel: "Clear console", tone: "danger", onConfirm: clearConsole }) },
-        { id: "clear-all", label: "Clear all captured entries", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear all captured entries?", message: "This removes requests, logs, console events, and pins.", confirmLabel: "Clear all", tone: "danger", onConfirm: clearEntries }) },
-        { id: "theme-random", label: "Randomize theme", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconDice, { ...iconProps8 }), keywords: "surprise color", run: () => {
+        { id: "export", label: "Export session", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconDownload, { ...iconProps8 }), run: () => setExportOpen(true) },
+        { id: "find", label: "Find in traffic (bodies, headers, URLs)", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps8 }), keywords: "search grep regex response body header ctrl shift f", run: () => setGlobalSearchOpen(true) },
+        { id: "appearance", label: "Open Theme Studio", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconPalette, { ...iconProps8 }), keywords: "theme color radius", run: () => openSettings("appearance") },
+        { id: "settings", label: "Open Settings", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSettings, { ...iconProps8 }), run: () => openSettings("general") },
+        { id: "insights", label: "Open Insights", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconChartBar, { ...iconProps8 }), run: () => setActiveTab("insights") },
+        { id: "clear-filters", label: "Reset API filters", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconFilterOff, { ...iconProps8 }), run: clearApiFilters },
+        { id: "clear-console", label: "Clear console stream", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear console stream?", message: "This clears console UI events but keeps captured API requests.", confirmLabel: "Clear console", tone: "danger", onConfirm: clearConsole }) },
+        { id: "clear-all", label: "Clear all captured entries", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear all captured entries?", message: "This removes requests, logs, console events, and pins.", confirmLabel: "Clear all", tone: "danger", onConfirm: clearEntries }) },
+        { id: "theme-random", label: "Randomize theme", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconDice, { ...iconProps8 }), keywords: "surprise color", run: () => {
           updateSettings({ theme: "custom", customTheme: randomTheme(Math.random()) });
           showToast("Rolled a fresh theme.");
         } },
-        { id: "theme-dark", label: "Custom theme: dark from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "dark") }) },
-        { id: "theme-light", label: "Custom theme: light from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "light") }) },
-        { id: "hacker", label: hacker ? "Turn off hacker mode" : "Turn on hacker mode", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconBolt, { ...iconProps8 }), keywords: "crt scanline", run: () => {
+        { id: "theme-dark", label: "Custom theme: dark from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "dark") }) },
+        { id: "theme-light", label: "Custom theme: light from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "light") }) },
+        { id: "hacker", label: hacker ? "Turn off hacker mode" : "Turn on hacker mode", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconBolt, { ...iconProps8 }), keywords: "crt scanline", run: () => {
           updateSettings({ hacker: !hacker });
           showToast(hacker ? "Hacker mode off." : "Hacker mode on \u2014 close this to see it.");
         } },
-        { id: "cmd-errors", label: "Prepare $errors()", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$errors()") },
-        { id: "cmd-slow", label: "Prepare $slow(500)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$slow(500)") },
-        { id: "cmd-schema", label: "Prepare schema(res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("schema(res)") },
-        { id: "cmd-diff", label: "Prepare diff(prev, res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("diff(prev, res)") }
+        { id: "cmd-errors", label: "Prepare $errors()", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$errors()") },
+        { id: "cmd-slow", label: "Prepare $slow(500)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$slow(500)") },
+        { id: "cmd-schema", label: "Prepare schema(res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("schema(res)") },
+        { id: "cmd-diff", label: "Prepare diff(prev, res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("diff(prev, res)") }
       );
       return list;
     }, [clearApiFilters, clearConsole, clearEntries, customTheme, hacker, insertConsoleCommand, openExplain, openReplayEditor, openSettings, replayEntry, requestConfirmation, selected, setActiveTab, setExportOpen, setGlobalSearchOpen, showToast, updateSettings]);
-    const requestCommands = (0, import_react14.useMemo)(() => entries.slice(-300).reverse().map((entry) => {
+    const requestCommands = (0, import_react15.useMemo)(() => entries.slice(-300).reverse().map((entry) => {
       const path = entryPath(entry);
       const method = String(entry.method || entry.logLevel || "GET").toUpperCase();
       return {
         id: `req-${entry.id}`,
         label: `${method} ${path}`,
         group: "Requests",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: `xray-cmd-method ${methodClass(entry.method)}`, children: method.slice(0, 4) }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-cmd-method ${methodClass(entry.method)}`, children: method.slice(0, 4) }),
         hint: entry.status ? String(entry.status) : void 0,
         keywords: `${entry.url || ""} ${entry.status || ""}`,
         run: () => {
@@ -20138,7 +20259,7 @@ ${bodyLine}
         }
       };
     }), [entries, selectEntry, setActiveTab]);
-    const filteredCommands = (0, import_react14.useMemo)(() => {
+    const filteredCommands = (0, import_react15.useMemo)(() => {
       const q = query.trim();
       const byGroup = (a, b) => {
         const ga = GROUP_ORDER.indexOf(a.command.group);
@@ -20164,16 +20285,16 @@ ${bodyLine}
       }
       return scored.sort(byGroup).slice(0, 60);
     }, [commands, query, requestCommands]);
-    import_react14.default.useEffect(() => {
+    import_react15.default.useEffect(() => {
       setActive(0);
     }, [query, open]);
-    import_react14.default.useEffect(() => {
+    import_react15.default.useEffect(() => {
       if (!open) {
         setQuery("");
         return;
       }
     }, [open]);
-    import_react14.default.useEffect(() => {
+    import_react15.default.useEffect(() => {
       const el = listRef.current?.querySelector(`[data-cmd-index="${active}"]`);
       el?.scrollIntoView({ block: "nearest" });
     }, [active]);
@@ -20208,10 +20329,10 @@ ${bodyLine}
       if (last && last.group === scored.command.group) last.items.push({ scored, index });
       else grouped.push({ group: scored.command.group, items: [{ scored, index }] });
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(ModalShell, { title: "Command center", subtitle: "Jump anywhere \xB7 run actions \xB7 find requests", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconBolt, { ...iconProps8 }), className: "xray-command-modal", onClose: () => setOpen(false), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("label", { className: "xray-search xray-command-search", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { ...iconProps8 }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(ModalShell, { title: "Command center", subtitle: "Jump anywhere \xB7 run actions \xB7 find requests", icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconBolt, { ...iconProps8 }), className: "xray-command-modal", onClose: () => setOpen(false), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("label", { className: "xray-search xray-command-search", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps8 }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
           "input",
           {
             className: "xray-input",
@@ -20223,19 +20344,19 @@ ${bodyLine}
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-modal-body xray-command-list", ref: listRef, children: [
-        filteredCommands.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-empty", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-modal-body xray-command-list", ref: listRef, children: [
+        filteredCommands.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-empty", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
             "No matches for \u201C",
             query,
             "\u201D"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("small", { children: "Try a tab name, an action, or part of a request path." })
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("small", { children: "Try a tab name, an action, or part of a request path." })
         ] }),
-        grouped.map((section) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-group", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "xray-command-group-label", children: section.group }),
-          section.items.map(({ scored, index }) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+        grouped.map((section) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-group", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "xray-command-group-label", children: section.group }),
+          section.items.map(({ scored, index }) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
             "button",
             {
               "data-cmd-index": index,
@@ -20243,32 +20364,32 @@ ${bodyLine}
               onMouseMove: () => setActive(index),
               onClick: () => runCommand(index),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-command-icon", children: scored.command.icon }),
-                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-command-label", children: highlightSegments(scored.command.label, scored.ranges).map((segment, i) => segment.match ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("mark", { children: segment.text }, i) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { children: segment.text }, i)) }),
-                scored.command.hint && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: `xray-command-hint ${statusClass(Number(scored.command.hint))}`, children: scored.command.hint }),
-                index === active && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
+                /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-command-icon", children: scored.command.icon }),
+                /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-command-label", children: highlightSegments(scored.command.label, scored.ranges).map((segment, i) => segment.match ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("mark", { children: segment.text }, i) : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { children: segment.text }, i)) }),
+                scored.command.hint && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-command-hint ${statusClass(Number(scored.command.hint))}`, children: scored.command.hint }),
+                index === active && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
               ]
             },
             scored.command.id
           ))
         ] }, section.group))
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u2191" }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u2193" }),
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2191" }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2193" }),
           " navigate"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u21B5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u21B5" }),
           " run"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "esc" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "esc" }),
           " close"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-spacer" }),
-        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
           filteredCommands.length,
           " result",
           filteredCommands.length === 1 ? "" : "s"
@@ -20278,7 +20399,7 @@ ${bodyLine}
   }
 
   // src/panel/components/search/GlobalSearch.tsx
-  var import_react15 = __toESM(require_react());
+  var import_react16 = __toESM(require_react());
 
   // src/panel/models/globalSearch.ts
   var MAX_MATCHES = 200;
@@ -20351,17 +20472,17 @@ ${bodyLine}
   }
 
   // src/panel/components/search/GlobalSearch.tsx
-  var import_jsx_runtime17 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime18 = __toESM(require_jsx_runtime());
   var iconProps12 = { size: 16, stroke: 1.8 };
   function Snippet({ match }) {
     const { snippet, matchStart, matchLength } = match;
-    if (matchStart < 0 || matchStart >= snippet.length) return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-gsearch-snippet", children: snippet });
+    if (matchStart < 0 || matchStart >= snippet.length) return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "xray-gsearch-snippet", children: snippet });
     const before = snippet.slice(0, matchStart);
     const hit = snippet.slice(matchStart, matchStart + matchLength);
     const after = snippet.slice(matchStart + matchLength);
-    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-snippet", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { className: "xray-gsearch-snippet", children: [
       before,
-      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("mark", { children: hit }),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("mark", { children: hit }),
       after
     ] });
   }
@@ -20371,22 +20492,22 @@ ${bodyLine}
     const entries = usePanelStore((state) => state.entries);
     const selectEntry = usePanelStore((state) => state.selectEntry);
     const setActiveTab = usePanelStore((state) => state.setActiveTab);
-    const [query, setQuery] = (0, import_react15.useState)("");
-    const [regex, setRegex] = (0, import_react15.useState)(false);
-    const [caseSensitive, setCaseSensitive] = (0, import_react15.useState)(false);
-    const [active, setActive] = (0, import_react15.useState)(0);
-    const listRef = (0, import_react15.useRef)(null);
-    const result = (0, import_react15.useMemo)(() => searchEntries(entries, query, { regex, caseSensitive }), [entries, query, regex, caseSensitive]);
+    const [query, setQuery] = (0, import_react16.useState)("");
+    const [regex, setRegex] = (0, import_react16.useState)(false);
+    const [caseSensitive, setCaseSensitive] = (0, import_react16.useState)(false);
+    const [active, setActive] = (0, import_react16.useState)(0);
+    const listRef = (0, import_react16.useRef)(null);
+    const result = (0, import_react16.useMemo)(() => searchEntries(entries, query, { regex, caseSensitive }), [entries, query, regex, caseSensitive]);
     const matches = result.matches;
-    import_react15.default.useEffect(() => {
+    import_react16.default.useEffect(() => {
       setActive(0);
     }, [query, regex, caseSensitive, open]);
-    import_react15.default.useEffect(() => {
+    import_react16.default.useEffect(() => {
       if (!open) {
         setQuery("");
       }
     }, [open]);
-    import_react15.default.useEffect(() => {
+    import_react16.default.useEffect(() => {
       const el = listRef.current?.querySelector(`[data-match-index="${active}"]`);
       el?.scrollIntoView({ block: "nearest" });
     }, [active]);
@@ -20416,19 +20537,19 @@ ${bodyLine}
       }
     }
     if (!open) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
       ModalShell,
       {
         title: "Find in traffic",
         subtitle: "Search across every captured URL, header, and request/response body",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps12 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconSearch, { ...iconProps12 }),
         className: "xray-gsearch-modal",
         onClose: () => setOpen(false),
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-gsearch-controls", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("label", { className: "xray-search xray-gsearch-input", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps12 }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "xray-gsearch-controls", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("label", { className: "xray-search xray-gsearch-input", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconSearch, { ...iconProps12 }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
                 "input",
                 {
                   className: "xray-input",
@@ -20441,7 +20562,7 @@ ${bodyLine}
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
               "button",
               {
                 className: `xray-chip ${regex ? "active" : ""}`,
@@ -20449,12 +20570,12 @@ ${bodyLine}
                 "aria-pressed": regex,
                 title: "Match with a regular expression",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconRegex, { ...iconProps12 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconRegex, { ...iconProps12 }),
                   "Regex"
                 ]
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
               "button",
               {
                 className: `xray-chip ${caseSensitive ? "active" : ""}`,
@@ -20462,31 +20583,31 @@ ${bodyLine}
                 "aria-pressed": caseSensitive,
                 title: "Case-sensitive matching",
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconLetterCase, { ...iconProps12 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconLetterCase, { ...iconProps12 }),
                   "Case"
                 ]
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-modal-body xray-gsearch-list", ref: listRef, children: [
-            result.error && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "xray-gsearch-error", children: result.error }),
-            !result.error && !query.trim() && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-empty", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { children: "Search inside your captured traffic" }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("small", { children: "Matches URLs, methods, status, headers, and request & response bodies. Toggle Regex for patterns." })
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "xray-modal-body xray-gsearch-list", ref: listRef, children: [
+            result.error && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "xray-gsearch-error", children: result.error }),
+            !result.error && !query.trim() && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "xray-command-empty", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { children: "Search inside your captured traffic" }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("small", { children: "Matches URLs, methods, status, headers, and request & response bodies. Toggle Regex for patterns." })
             ] }),
-            !result.error && query.trim() && matches.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-empty", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+            !result.error && query.trim() && matches.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "xray-command-empty", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
                 "No matches for \u201C",
                 query,
                 "\u201D"
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("small", { children: "Try different text, or enable Regex." })
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("small", { children: "Try different text, or enable Regex." })
             ] }),
             matches.map((match, index) => {
               const method = String(match.entry.method || match.entry.logLevel || "GET").toUpperCase();
-              return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+              return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
                 "button",
                 {
                   "data-match-index": index,
@@ -20494,38 +20615,38 @@ ${bodyLine}
                   onMouseMove: () => setActive(index),
                   onClick: () => runMatch(index),
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-cmd-method ${methodClass(match.entry.method)}`, children: method.slice(0, 4) }),
-                    /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-main", children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-path", children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: `xray-cmd-method ${methodClass(match.entry.method)}`, children: method.slice(0, 4) }),
+                    /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { className: "xray-gsearch-main", children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { className: "xray-gsearch-path", children: [
                         entryPath(match.entry),
-                        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-gsearch-field", children: match.field })
+                        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "xray-gsearch-field", children: match.field })
                       ] }),
-                      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Snippet, { match })
+                      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Snippet, { match })
                     ] }),
-                    match.entry.status ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-gsearch-status ${statusClass(Number(match.entry.status))}`, children: match.entry.status }) : null,
-                    index === active && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
+                    match.entry.status ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: `xray-gsearch-status ${statusClass(Number(match.entry.status))}`, children: match.entry.status }) : null,
+                    index === active && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
                   ]
                 },
                 `${match.id}-${index}`
               );
             })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-foot", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2191" }),
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2193" }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "xray-command-foot", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("kbd", { children: "\u2191" }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("kbd", { children: "\u2193" }),
               " navigate"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u21B5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("kbd", { children: "\u21B5" }),
               " open"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "esc" }),
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("kbd", { children: "esc" }),
               " close"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-spacer" }),
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
               matches.length,
               result.truncated ? "+" : "",
               " match",
@@ -20538,7 +20659,7 @@ ${bodyLine}
   }
 
   // src/panel/components/shell/PanelShell.tsx
-  var import_react16 = __toESM(require_react());
+  var import_react17 = __toESM(require_react());
 
   // src/panel/models/sessionSummary.ts
   function buildSessionSummary(entries) {
@@ -20552,24 +20673,24 @@ ${bodyLine}
   }
 
   // src/panel/components/shell/ThemeSwitcher.tsx
-  var import_jsx_runtime18 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime19 = __toESM(require_jsx_runtime());
   var iconProps13 = { size: 16, stroke: 1.8 };
   function ThemeSwitcher() {
     const openSettings = usePanelStore((state) => state.openSettings);
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
       "button",
       {
         className: "xray-icon-btn",
         title: "Theme & appearance",
         "aria-label": "Theme and appearance",
         onClick: () => openSettings("appearance"),
-        children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconPalette, { ...iconProps13 })
+        children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconPalette, { ...iconProps13 })
       }
     );
   }
 
   // src/panel/components/shell/PanelShell.tsx
-  var import_jsx_runtime19 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime20 = __toESM(require_jsx_runtime());
   var modeIconProps = { size: 16, stroke: 1.8 };
   var RESIZE_KEY_STEP = 24;
   function maxPanelWidth() {
@@ -20596,8 +20717,8 @@ ${bodyLine}
     const { apiCount, logCount, errorCount, totalBytes } = buildSessionSummary(entries);
     const dockable = mode === "hud";
     const dockSide = settings.dockSide;
-    const [dragWidth, setDragWidth] = import_react16.default.useState(null);
-    const resize = import_react16.default.useRef(null);
+    const [dragWidth, setDragWidth] = import_react17.default.useState(null);
+    const resize = import_react17.default.useRef(null);
     const appliedWidth = dragWidth ?? settings.panelWidth;
     function onResizePointerDown(event) {
       if (event.button !== 0) return;
@@ -20645,8 +20766,8 @@ ${bodyLine}
       if (api?.hide) api.hide();
       else setOpen(false);
     }
-    const [toastPaused, setToastPaused] = import_react16.default.useState(false);
-    import_react16.default.useEffect(() => {
+    const [toastPaused, setToastPaused] = import_react17.default.useState(false);
+    import_react17.default.useEffect(() => {
       if (!toastMessage || toastPaused) return;
       const timer = window.setTimeout(clearToast, 2800);
       return () => window.clearTimeout(timer);
@@ -20675,13 +20796,13 @@ ${bodyLine}
       sendRuntimeMessage({ type: "XRAY_OPEN_WINDOW" }, "Pop-out window is available when the extension runtime is loaded.");
     }
     const customVars = settings.theme === "custom" ? buildCustomThemeVars(settings.customTheme) : {};
-    return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
       "div",
       {
         className: `xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ""} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? "xray-glow" : "xray-no-glow"} ${settings.hacker ? "xray-hacker" : ""} ${open ? "xray-open" : ""} ${devtoolsMode ? "xray-devtools" : ""} ${settings.compactRows ? "xray-compact-rows" : ""}`,
         style: { "--xray-accent": PANEL_ACCENT_VALUES[settings.accent], "--xray-font": PANEL_FONT_VALUES[settings.font], "--xray-radius": `${settings.radius}px`, "--xray-panel-width": `${appliedWidth}px`, ...customVars },
         children: [
-          dockable && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          dockable && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "div",
             {
               className: `xray-resize-handle ${resize.current ? "dragging" : ""}`,
@@ -20701,54 +20822,54 @@ ${bodyLine}
               title: "Drag to resize \xB7 double-click to reset"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("header", { className: "xray-topbar", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-brand xray-drag-handle", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconTerminal2, { size: 18, stroke: 2 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: "CONSOLE" }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "xray-brand-ver", title: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("header", { className: "xray-topbar", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "xray-brand xray-drag-handle", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "xray-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconTerminal2, { size: 18, stroke: 2 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: "CONSOLE" }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "xray-brand-ver", title: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}`, children: [
                 "v",
                 XRAY_VERSION
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: `xray-live-dot ${open ? "on" : ""}` })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: `xray-live-dot ${open ? "on" : ""}` })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("nav", { className: "xray-tabs", "aria-label": "XRAY panel tabs", children: panelTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("button", { className: `xray-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("nav", { className: "xray-tabs", "aria-label": "XRAY panel tabs", children: panelTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("button", { className: `xray-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: [
               tab.icon,
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: tab.label }),
-              tab.id === "api" && apiCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-badge", children: apiCount }),
-              tab.id === "logs" && logCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-badge", children: logCount })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: tab.label }),
+              tab.id === "api" && apiCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "xray-badge", children: apiCount }),
+              tab.id === "logs" && logCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "xray-badge", children: logCount })
             ] }, tab.id)) }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "xray-spacer" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-summary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "xray-summary", children: [
               apiCount,
               " APIs \xB7 ",
               errorCount,
               " Errors \xB7 ",
               formatBytes(totalBytes)
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-mode-switcher", "aria-label": "XRAY display mode", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "devtools" ? "active" : ""}`, title: "Open in DevTools", "aria-label": "Open in DevTools", onClick: openDevtoolsHint, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconDeviceLaptop, { ...modeIconProps }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "hud" ? "active" : ""}`, title: "Float over page", "aria-label": "Float over page", onClick: toggleHud, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconPictureInPicture, { ...modeIconProps }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "window" ? "active" : ""}`, title: "Open in separate window", "aria-label": "Open in separate window", onClick: openWindow, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconArrowsMaximize, { ...modeIconProps }) })
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "xray-mode-switcher", "aria-label": "XRAY display mode", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: `xray-icon-btn ${mode === "devtools" ? "active" : ""}`, title: "Open in DevTools", "aria-label": "Open in DevTools", onClick: openDevtoolsHint, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconDeviceLaptop, { ...modeIconProps }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: `xray-icon-btn ${mode === "hud" ? "active" : ""}`, title: "Float over page", "aria-label": "Float over page", onClick: toggleHud, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconPictureInPicture, { ...modeIconProps }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: `xray-icon-btn ${mode === "window" ? "active" : ""}`, title: "Open in separate window", "aria-label": "Open in separate window", onClick: openWindow, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconArrowsMaximize, { ...modeIconProps }) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ThemeSwitcher, {}),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open export modal", onClick: () => setExportOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconDownload, { size: 16, stroke: 1.8 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open settings", onClick: () => setSettingsOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconSettings, { size: 16, stroke: 1.8 }) }),
-            dockable && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-dock-controls", "aria-label": "Panel position", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ThemeSwitcher, {}),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open export modal", onClick: () => setExportOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconDownload, { size: 16, stroke: 1.8 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open settings", onClick: () => setSettingsOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconSettings, { size: 16, stroke: 1.8 }) }),
+            dockable && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "xray-dock-controls", "aria-label": "Panel position", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
                 "button",
                 {
                   className: "xray-icon-btn",
                   title: dockSide === "right" ? "Dock to left edge" : "Dock to right edge",
                   "aria-label": dockSide === "right" ? "Dock to left edge" : "Dock to right edge",
                   onClick: toggleDock,
-                  children: dockSide === "right" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconLayoutSidebarLeftExpand, { ...modeIconProps }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconLayoutSidebarRightExpand, { ...modeIconProps })
+                  children: dockSide === "right" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconLayoutSidebarLeftExpand, { ...modeIconProps }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconLayoutSidebarRightExpand, { ...modeIconProps })
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn xray-close-btn", title: "Close panel (Esc)", "aria-label": "Close panel", onClick: closePanel, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconX, { ...modeIconProps }) })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("button", { className: "xray-icon-btn xray-close-btn", title: "Close panel (Esc)", "aria-label": "Close panel", onClick: closePanel, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconX, { ...modeIconProps }) })
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("main", { className: "xray-body", children }),
-          toastMessage && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("main", { className: "xray-body", children }),
+          toastMessage && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "button",
             {
               className: "xray-toast",
@@ -20769,7 +20890,7 @@ ${bodyLine}
   }
 
   // src/panel/App.tsx
-  var import_jsx_runtime20 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime21 = __toESM(require_jsx_runtime());
   function App({ mode = "hud" }) {
     const activeTab = usePanelStore((state) => state.activeTab);
     const settings = usePanelStore((state) => state.settings);
@@ -20779,21 +20900,21 @@ ${bodyLine}
       "--xray-radius": `${settings.radius}px`,
       ...settings.theme === "custom" ? buildCustomThemeVars(settings.customTheme) : {}
     };
-    return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: `xray-theme-scope xray-theme-${settings.theme} xray-font-${settings.font}`, style: themeVars, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(PanelShell, { mode, children: [
-        activeTab === "console" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ConsoleWorkspace, {}),
-        activeTab === "api" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(EntriesWorkspace, { mode: "api" }),
-        activeTab === "logs" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(EntriesWorkspace, { mode: "logs" }),
-        activeTab === "rules" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Rules, {}),
-        activeTab === "insights" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Insights, {})
+    return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: `xray-theme-scope xray-theme-${settings.theme} xray-font-${settings.font}`, style: themeVars, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(PanelShell, { mode, children: [
+        activeTab === "console" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ConsoleWorkspace, {}),
+        activeTab === "api" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(EntriesWorkspace, { mode: "api" }),
+        activeTab === "logs" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(EntriesWorkspace, { mode: "logs" }),
+        activeTab === "rules" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Rules, {}),
+        activeTab === "insights" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(Insights, {})
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ExportModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(SettingsModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReplayModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ExplainModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(CommandPalette, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(GlobalSearch, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ConfirmationModal, {})
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ExportModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(SettingsModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ReplayModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ExplainModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(CommandPalette, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(GlobalSearch, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ConfirmationModal, {})
     ] });
   }
 
@@ -21820,10 +21941,11 @@ ${bodyLine}
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);
+  grid-template-columns: var(--xray-logs-split, minmax(280px, 42%)) minmax(0, 1fr);
 }
 
 .xray-list-panel {
+  position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -21938,7 +22060,10 @@ ${bodyLine}
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(360px, 440px) minmax(280px, .64fr) minmax(560px, 1.55fr);
+  /* First track = list pane. --xray-api-split (set inline when the user drags
+     the divider) replaces the auto min/max; container queries below override
+     the whole property, so the split is dropped when the panel stacks. */
+  grid-template-columns: var(--xray-api-split, minmax(360px, 440px)) minmax(280px, .64fr) minmax(560px, 1.55fr);
   overflow: hidden;
 }
 
@@ -21950,6 +22075,51 @@ ${bodyLine}
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Anchors the draggable list/detail divider on the pane's trailing edge. */
+.xray-api-collection-pane {
+  position: relative;
+}
+
+.xray-pane-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 9px;
+  z-index: 4;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.xray-pane-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--xray-hint, rgba(120, 130, 150, .5));
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-pane-divider:hover,
+.xray-pane-divider:focus-visible,
+.xray-pane-divider.dragging {
+  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);
+  outline: none;
+}
+
+.xray-pane-divider:hover::after,
+.xray-pane-divider:focus-visible::after,
+.xray-pane-divider.dragging::after {
+  opacity: 1;
+  background: var(--xray-accent);
 }
 
 .xray-api-collection-pane {
@@ -23476,7 +23646,7 @@ ${bodyLine}
 
 @container xray (max-width: 1700px) {
   .xray-api-body {
-    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
+    grid-template-columns: var(--xray-api-split, minmax(400px, 480px)) minmax(0, 1fr);
   }
 
   .xray-request-context-pane {
@@ -23554,6 +23724,11 @@ ${bodyLine}
 }
 
 @container xray (max-width: 760px) {
+  /* Stacked layout: the panes are full-width, so there's nothing to split. */
+  .xray-pane-divider {
+    display: none;
+  }
+
   .xray-topbar {
     gap: 6px;
     padding: 0 8px;
@@ -26248,7 +26423,7 @@ ${bodyLine}
 }
 
 .xray-api-workspace:not(.detail-open) .xray-api-body {
-  grid-template-columns: minmax(360px, 1fr) minmax(280px, 1.1fr);
+  grid-template-columns: var(--xray-api-split, minmax(360px, 1fr)) minmax(280px, 1.1fr);
 }
 
 /* Nothing selected at all: the (auto-hidden) context pane frees its column too. */
@@ -26261,7 +26436,7 @@ ${bodyLine}
   var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: var(--xray-radius, 10px);\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: var(--xray-radius);\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\n   These rules only exist in the HUD because hud.css is loaded only there. */\n.xray-panel.xray-mode-hud .xray-resize-handle,\n.xray-panel.xray-mode-hud .xray-dock-controls {\n  display: none;\n}\n\n/* Container-based: the HUD's width is user-dragged and independent of the window. */\n@container xray (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
 
   // src/panel/hud-main.tsx
-  var import_jsx_runtime21 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime22 = __toESM(require_jsx_runtime());
   function installHudCaptureListener() {
     const w = window;
     if (w.__xray_hud_capture__) return;
@@ -26311,7 +26486,7 @@ ${hud_default}`;
     usePanelStore.getState().setOpen(true);
     usePanelStore.getState().setDevtoolsMode(false);
     usePanelStore.getState().setInitialized(true);
-    (0, import_client.createRoot)(mount).render(/* @__PURE__ */ (0, import_jsx_runtime21.jsx)(App, { mode: "hud" }));
+    (0, import_client.createRoot)(mount).render(/* @__PURE__ */ (0, import_jsx_runtime22.jsx)(App, { mode: "hud" }));
     syncHostTheme(shadowRoot);
   }
   var HOST_MIRROR_VARS = ["--xray-radius", "--xray-bg", "--xray-surface", "--xray-surface2", "--xray-text", "--xray-accent"];

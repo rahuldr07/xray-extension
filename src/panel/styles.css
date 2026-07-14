@@ -970,10 +970,11 @@
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);
+  grid-template-columns: var(--xray-logs-split, minmax(280px, 42%)) minmax(0, 1fr);
 }
 
 .xray-list-panel {
+  position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1088,7 +1089,10 @@
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(360px, 440px) minmax(280px, .64fr) minmax(560px, 1.55fr);
+  /* First track = list pane. --xray-api-split (set inline when the user drags
+     the divider) replaces the auto min/max; container queries below override
+     the whole property, so the split is dropped when the panel stacks. */
+  grid-template-columns: var(--xray-api-split, minmax(360px, 440px)) minmax(280px, .64fr) minmax(560px, 1.55fr);
   overflow: hidden;
 }
 
@@ -1100,6 +1104,51 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Anchors the draggable list/detail divider on the pane's trailing edge. */
+.xray-api-collection-pane {
+  position: relative;
+}
+
+.xray-pane-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 9px;
+  z-index: 4;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.xray-pane-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--xray-hint, rgba(120, 130, 150, .5));
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-pane-divider:hover,
+.xray-pane-divider:focus-visible,
+.xray-pane-divider.dragging {
+  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);
+  outline: none;
+}
+
+.xray-pane-divider:hover::after,
+.xray-pane-divider:focus-visible::after,
+.xray-pane-divider.dragging::after {
+  opacity: 1;
+  background: var(--xray-accent);
 }
 
 .xray-api-collection-pane {
@@ -2626,7 +2675,7 @@
 
 @container xray (max-width: 1700px) {
   .xray-api-body {
-    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
+    grid-template-columns: var(--xray-api-split, minmax(400px, 480px)) minmax(0, 1fr);
   }
 
   .xray-request-context-pane {
@@ -2704,6 +2753,11 @@
 }
 
 @container xray (max-width: 760px) {
+  /* Stacked layout: the panes are full-width, so there's nothing to split. */
+  .xray-pane-divider {
+    display: none;
+  }
+
   .xray-topbar {
     gap: 6px;
     padding: 0 8px;
@@ -5398,7 +5452,7 @@
 }
 
 .xray-api-workspace:not(.detail-open) .xray-api-body {
-  grid-template-columns: minmax(360px, 1fr) minmax(280px, 1.1fr);
+  grid-template-columns: var(--xray-api-split, minmax(360px, 1fr)) minmax(280px, 1.1fr);
 }
 
 /* Nothing selected at all: the (auto-hidden) context pane frees its column too. */

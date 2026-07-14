@@ -177,6 +177,10 @@ export interface PanelSettings {
   panelWidth: number;
   /** Which edge the injected side panel docks to. */
   dockSide: DockSide;
+  /** User-dragged width (px) of the API request-list pane; 0 = automatic. */
+  apiSplit: number;
+  /** User-dragged width (px) of the Logs list pane; 0 = automatic. */
+  logsSplit: number;
 }
 
 export type DockSide = 'left' | 'right';

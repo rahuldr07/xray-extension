@@ -51,6 +51,8 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   confirmDestructiveActions: true,
   panelWidth: 960,
   dockSide: 'right',
+  apiSplit: 0,
+  logsSplit: 0,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -100,5 +102,9 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     confirmDestructiveActions: Boolean(base.confirmDestructiveActions),
     panelWidth: clampNumber(base.panelWidth, DEFAULT_PANEL_SETTINGS.panelWidth, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX),
     dockSide: asDockSide(base.dockSide, DEFAULT_PANEL_SETTINGS.dockSide),
+    // 0 = automatic (the CSS grid's default track sizing); any other value is a
+    // user-dragged split width in px.
+    apiSplit: clampNumber(base.apiSplit, DEFAULT_PANEL_SETTINGS.apiSplit, 0, 2000),
+    logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2000),
   };
 }
