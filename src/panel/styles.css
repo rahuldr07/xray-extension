@@ -641,9 +641,11 @@
 .xray-network-head,
 .xray-network-row {
   display: grid;
-  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;
+  /* Status · Method · Name · Type · Size · Waterfall — the waterfall takes the
+     remaining flexible width (2fr) so wide rows have no dead gap. */
+  grid-template-columns: 52px 52px minmax(120px, 1.3fr) 76px 66px minmax(140px, 2fr);
   align-items: center;
-  gap: 0;
+  gap: 10px;
 }
 
 .xray-network-head {
@@ -5708,4 +5710,159 @@
   .xray-json-chevron {
     transition: none;
   }
+}
+
+/* ── Console: rendered errors (ErrorBlock) ───────────────────────────────── */
+.xray-error-name {
+  color: var(--xray-red);
+  font-weight: 900;
+}
+
+.xray-error-frames {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 600 11px/1.5 var(--xray-font);
+}
+
+.xray-error-frames li {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+.xray-error-fn {
+  color: var(--xray-text);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xray-error-loc {
+  min-width: 0;
+  color: var(--xray-subtext, var(--xray-hint));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Network sub-tab: status swatch, stream chip, type, waterfall ─────────── */
+
+.xray-status-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 1px 6px;
+  border-radius: var(--xray-radius-sm);
+  font-weight: 900;
+  font-size: 11px;
+  /* tinted background so unusual codes pop (Firefox Network Monitor) */
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.xray-status-swatch.ok { color: var(--xray-green); }
+.xray-status-swatch.redirect { color: var(--xray-yellow); }
+.xray-status-swatch.warn { color: var(--xray-peach); }
+.xray-status-swatch.error { color: var(--xray-red); }
+.xray-status-swatch.pending { color: var(--xray-subtext, var(--xray-hint)); }
+
+.xray-status-chip.stream {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);
+  color: var(--xray-mauve);
+  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
+}
+
+.xray-stream-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.xray-status-chip.stream.open .xray-stream-dot {
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.xray-status-chip.stream.closed {
+  color: var(--xray-subtext, var(--xray-hint));
+  border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent);
+  background: transparent;
+}
+
+.xray-net-type {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-weight: 700;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-net-size {
+  text-align: right;
+  font-size: 11px;
+}
+
+.xray-waterfall-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xray-waterfall-track {
+  position: relative;
+  height: 12px;
+  min-width: 0;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
+  overflow: hidden;
+}
+
+/* Positioned on the shared time axis; darker = downloading, the inner lighter
+   segment = waiting/TTFB (Chrome's two-tone waterfall). */
+.xray-waterfall-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 2px;
+  border-radius: var(--xray-radius-sm);
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-waterfall-bar.slow { background: var(--xray-yellow); }
+.xray-waterfall-bar.error { background: var(--xray-red); }
+
+.xray-waterfall-wait {
+  display: block;
+  height: 100%;
+  border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);
+  background: color-mix(in srgb, #fff 42%, transparent);
+}
+
+.xray-waterfall-ms {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-network-row.expanded {
+  background: color-mix(in srgb, var(--xray-accent) 8%, transparent);
 }

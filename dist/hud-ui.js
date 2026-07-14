@@ -17946,9 +17946,6 @@ ${lines}
     if (filter === "result") return event.type === "result" || event.type === "command";
     return event.type === "log" && event.level !== "warn" && event.level !== "error";
   }
-  function eventDuration(event) {
-    return duration(eventEntry(event));
-  }
   function useFilteredNetworkEvents() {
     const events = usePanelStore((state) => state.consoleEvents);
     const filter = usePanelStore((state) => state.networkFilter);
@@ -18166,7 +18163,19 @@ Double-click to rename`,
     const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
     const filtered = networkFilter !== "all" || searchQuery.trim().length > 0;
     const parentRef = (0, import_react8.useRef)(null);
-    const maxDuration = (0, import_react8.useMemo)(() => Math.max(100, ...events.map(eventDuration)), [events]);
+    const waterfall = (0, import_react8.useMemo)(() => {
+      let minStart = Infinity;
+      let maxEnd = -Infinity;
+      for (const event of events) {
+        const entry = eventEntry(event);
+        if (!entry) continue;
+        const start = Number(entry.timestamp) || 0;
+        minStart = Math.min(minStart, start);
+        maxEnd = Math.max(maxEnd, start + duration(entry));
+      }
+      if (!Number.isFinite(minStart)) return { minStart: 0, span: 1 };
+      return { minStart, span: Math.max(1, maxEnd - minStart) };
+    }, [events]);
     const virtualizer = useVirtualizer({
       count: events.length,
       getScrollElement: () => parentRef.current,
@@ -18177,15 +18186,15 @@ Double-click to rename`,
     });
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "xray-network", children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-network-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Method" }),
         /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Status" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Path" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Timing" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Method" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Name" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Type" }),
         /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Size" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Time" })
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Waterfall" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NetworkRow, { event: events[item.index], maxDuration }) }, item.key)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NetworkRow, { event: events[item.index], waterfall }) }, item.key)) }),
         !events.length && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
           EmptyState,
           {
@@ -18200,7 +18209,33 @@ Double-click to rename`,
       ] })
     ] });
   }
-  var NetworkRow = import_react8.default.memo(function NetworkRow2({ event, maxDuration }) {
+  function networkTypeLabel(entry) {
+    const source = String(entry.source || "fetch").toLowerCase();
+    if (source === "ws") return "ws";
+    if (source === "sse") return "eventsource";
+    if (entry.graphql) return "graphql";
+    const ct = getEntryContentType(entry).toLowerCase();
+    if (ct.includes("json")) return "json";
+    if (ct.includes("html")) return "document";
+    if (ct.includes("javascript")) return "script";
+    if (ct.includes("css")) return "stylesheet";
+    if (ct.includes("image")) return "img";
+    return source;
+  }
+  function StatusCell({ entry }) {
+    const source = String(entry.source || "").toLowerCase();
+    const status = Number(entry.status) || 0;
+    if (source === "ws" || source === "sse") {
+      const state = entry.wsState || (status === 101 ? "open" : "connecting");
+      const closed = state === "closed" || state === "error";
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: `xray-status-chip stream ${closed ? "closed" : "open"}`, title: `${source.toUpperCase()} ${state}`, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-stream-dot" }),
+        source.toUpperCase()
+      ] });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: `xray-status-swatch ${statusClass(status)}`, children: status || "\u2014" });
+  }
+  var NetworkRow = import_react8.default.memo(function NetworkRow2({ event, waterfall }) {
     const entry = eventEntry(event);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
     const selectedId = usePanelStore((state) => state.selectedId);
@@ -18211,45 +18246,90 @@ Double-click to rename`,
     const status = Number(entry.status) || 0;
     const isSelected = selectedId === entry.id;
     const isExpanded = expandedId === event.id;
-    const pct = Math.max(6, Math.min(100, duration(entry) / maxDuration * 100));
+    const dur = duration(entry);
+    const startOffset = ((Number(entry.timestamp) || 0) - waterfall.minStart) / waterfall.span;
+    const barLeft = Math.max(0, Math.min(99, startOffset * 100));
+    const barWidth = Math.max(1.5, Math.min(100 - barLeft, dur / waterfall.span * 100));
+    const ttfb = Number(entry.timing?.ttfbMs) || 0;
+    const download = Number(entry.timing?.downloadMs) || 0;
+    const waitFrac = ttfb && ttfb + download > 0 ? ttfb / Math.max(dur, ttfb + download) : 0.6;
+    const activate = () => {
+      if (expandedId === event.id) toggleExpanded(event.id);
+      else selectEntry(entry.id, { openDetail: false });
+    };
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
         "div",
         {
-          className: `xray-network-row ${isSelected ? "selected" : ""}`,
+          className: `xray-network-row ${isSelected ? "selected" : ""} ${isExpanded ? "expanded" : ""}`,
           role: "button",
           tabIndex: 0,
           "aria-expanded": isExpanded,
-          onClick: () => {
-            selectEntry(entry.id);
-            toggleExpanded(event.id);
-          },
+          onClick: activate,
           onKeyDown: (keyEvent) => {
             if (keyEvent.key === "Enter" || keyEvent.key === " ") {
               keyEvent.preventDefault();
-              selectEntry(entry.id);
-              toggleExpanded(event.id);
+              activate();
             }
           },
           children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(StatusCell, { entry }),
             /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: status || "---" }),
             /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-path", title: String(entry.url || ""), children: entryPath(entry) }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-timing", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: `xray-bar ${duration(entry) > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
-                Math.round(duration(entry)),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-net-type", title: getEntryContentType(entry) || void 0, children: networkTypeLabel(entry) }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-muted xray-net-size", children: formatBytes(entry.size) }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-waterfall-cell", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-waterfall-track", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+                "span",
+                {
+                  className: `xray-waterfall-bar ${dur > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`,
+                  style: { left: `${barLeft}%`, width: `${barWidth}%` },
+                  children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-waterfall-wait", style: { width: `${Math.round(waitFrac * 100)}%` } })
+                }
+              ) }),
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-waterfall-ms", children: [
+                Math.round(dur),
                 "ms"
               ] })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) })
+            ] })
           ]
         }
       ),
       isExpanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(RequestDetail, { entry, compact: true }) })
     ] });
   });
+  function extractConsoleError(event) {
+    const isErrorObject = (value) => {
+      if (!value || typeof value !== "object") return null;
+      const record = value;
+      const looksLikeError = record.__type__ === "Error" || typeof record.stack === "string" && typeof record.message === "string" && "name" in record;
+      if (!looksLikeError) return null;
+      return { name: String(record.name || "Error"), message: String(record.message || ""), stack: String(record.stack || "") };
+    };
+    const found = isErrorObject(event.data) || (event.args || []).map(isErrorObject).find(Boolean) || null;
+    if (found) return found;
+    if (event.type === "error" && event.data && typeof event.data === "object") {
+      const record = event.data;
+      return { name: "Error", message: String(record.message || event.message || "Execution failed"), stack: String(record.stack || "") };
+    }
+    return null;
+  }
+  function ErrorBlock({ error }) {
+    const frames = import_react8.default.useMemo(() => {
+      const lines = error.stack.split("\n").map((line) => line.trim()).filter(Boolean);
+      const start = lines[0] && (lines[0] === `${error.name}: ${error.message}` || lines[0].startsWith(error.name)) ? 1 : 0;
+      return lines.slice(start).map((line) => {
+        const match = line.replace(/^at\s+/, "").match(/^(.*?)\s*\(?((?:https?|chrome-extension|webpack|file|blob):[^)\s]+|<anonymous>[^)]*)\)?$/);
+        if (match && match[2]) return { fn: match[1] || "(anonymous)", loc: match[2] };
+        return { fn: line, loc: "" };
+      });
+    }, [error]);
+    if (!frames.length) return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { className: "xray-muted", children: "No stack trace available." });
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("ol", { className: "xray-error-frames", children: frames.map((frame, index) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("li", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-error-fn", children: frame.fn }),
+      frame.loc && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("code", { className: "xray-error-loc", title: frame.loc, children: frame.loc })
+    ] }, index)) });
+  }
   function ConsoleStream({ levelFilter, query, onClearFilter }) {
     const events = useConsoleEvents();
     const expandedId = usePanelStore((state) => state.expandedId);
@@ -18340,18 +18420,18 @@ Double-click to rename`,
     const expandedId = usePanelStore((state) => state.expandedId);
     const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
     const isExpanded = expandedId === event.id;
-    const canExpand = event.type === "result" || event.type === "error" || event.data !== void 0 || !!event.args?.some((arg) => arg && typeof arg === "object");
+    const consoleError = (0, import_react8.useMemo)(() => extractConsoleError(event), [event]);
+    const canExpand = event.type === "result" || (consoleError ? !!consoleError.stack : false) || event.data !== void 0 || !!event.args?.some((arg) => arg && typeof arg === "object");
     const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconTerminal2, { ...iconProps4 });
-    const logEntry = isExpanded && event.type === "log" && event.entryId ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null : null;
+    const logEntry = isExpanded && event.type === "log" && event.entryId && !consoleError ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null : null;
     const expandedData = (0, import_react8.useMemo)(
-      () => isExpanded && !logEntry ? stripXrayRefs(event.data ?? event.args ?? event.message) : null,
-      [isExpanded, logEntry, event]
+      () => isExpanded && !logEntry && !consoleError ? stripXrayRefs(event.data ?? event.args ?? event.message) : null,
+      [isExpanded, logEntry, consoleError, event]
     );
-    const errorStack = event.type === "error" && event.data && typeof event.data === "object" ? String(event.data.stack || "") : "";
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
       "div",
       {
-        className: `xray-console-row ${event.type} ${event.level}`,
+        className: `xray-console-row ${event.type} ${event.level} ${consoleError ? "is-error" : ""}`,
         role: canExpand ? "button" : void 0,
         tabIndex: canExpand ? 0 : void 0,
         "aria-expanded": canExpand ? isExpanded : void 0,
@@ -18365,7 +18445,10 @@ Double-click to rename`,
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
           /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-console-message", children: [
-            event.message,
+            consoleError ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-error-name", children: consoleError.name }),
+              consoleError.message ? `: ${consoleError.message}` : ""
+            ] }) : event.message,
             count > 1 && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-repeat-badge", title: `${count} identical consecutive messages`, children: [
               "\xD7",
               count
@@ -18373,7 +18456,7 @@ Double-click to rename`,
             event.truncated && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-truncated-badge", title: "The result was truncated to fit the transfer limit", children: "truncated" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
-          isExpanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-detail", children: logEntry ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(LogDetail, { entry: logEntry }) : errorStack ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("pre", { className: "xray-error-stack", children: errorStack }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(JsonView, { value: expandedData }) })
+          isExpanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-detail", children: consoleError ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ErrorBlock, { error: consoleError }) : logEntry ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(LogDetail, { entry: logEntry }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(JsonView, { value: expandedData }) })
         ]
       }
     );
@@ -19385,7 +19468,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 09:44 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 13:19 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -21801,9 +21884,11 @@ ${bodyLine}
 .xray-network-head,
 .xray-network-row {
   display: grid;
-  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;
+  /* Status \xB7 Method \xB7 Name \xB7 Type \xB7 Size \xB7 Waterfall \u2014 the waterfall takes the
+     remaining flexible width (2fr) so wide rows have no dead gap. */
+  grid-template-columns: 52px 52px minmax(120px, 1.3fr) 76px 66px minmax(140px, 2fr);
   align-items: center;
-  gap: 0;
+  gap: 10px;
 }
 
 .xray-network-head {
@@ -26868,6 +26953,161 @@ ${bodyLine}
   .xray-json-chevron {
     transition: none;
   }
+}
+
+/* \u2500\u2500 Console: rendered errors (ErrorBlock) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.xray-error-name {
+  color: var(--xray-red);
+  font-weight: 900;
+}
+
+.xray-error-frames {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 600 11px/1.5 var(--xray-font);
+}
+
+.xray-error-frames li {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+.xray-error-fn {
+  color: var(--xray-text);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xray-error-loc {
+  min-width: 0;
+  color: var(--xray-subtext, var(--xray-hint));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* \u2500\u2500 Network sub-tab: status swatch, stream chip, type, waterfall \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.xray-status-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 1px 6px;
+  border-radius: var(--xray-radius-sm);
+  font-weight: 900;
+  font-size: 11px;
+  /* tinted background so unusual codes pop (Firefox Network Monitor) */
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.xray-status-swatch.ok { color: var(--xray-green); }
+.xray-status-swatch.redirect { color: var(--xray-yellow); }
+.xray-status-swatch.warn { color: var(--xray-peach); }
+.xray-status-swatch.error { color: var(--xray-red); }
+.xray-status-swatch.pending { color: var(--xray-subtext, var(--xray-hint)); }
+
+.xray-status-chip.stream {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);
+  color: var(--xray-mauve);
+  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
+}
+
+.xray-stream-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.xray-status-chip.stream.open .xray-stream-dot {
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.xray-status-chip.stream.closed {
+  color: var(--xray-subtext, var(--xray-hint));
+  border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent);
+  background: transparent;
+}
+
+.xray-net-type {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-weight: 700;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-net-size {
+  text-align: right;
+  font-size: 11px;
+}
+
+.xray-waterfall-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xray-waterfall-track {
+  position: relative;
+  height: 12px;
+  min-width: 0;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
+  overflow: hidden;
+}
+
+/* Positioned on the shared time axis; darker = downloading, the inner lighter
+   segment = waiting/TTFB (Chrome's two-tone waterfall). */
+.xray-waterfall-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 2px;
+  border-radius: var(--xray-radius-sm);
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-waterfall-bar.slow { background: var(--xray-yellow); }
+.xray-waterfall-bar.error { background: var(--xray-red); }
+
+.xray-waterfall-wait {
+  display: block;
+  height: 100%;
+  border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);
+  background: color-mix(in srgb, #fff 42%, transparent);
+}
+
+.xray-waterfall-ms {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-network-row.expanded {
+  background: color-mix(in srgb, var(--xray-accent) 8%, transparent);
 }
 `;
 

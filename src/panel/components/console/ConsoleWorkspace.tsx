@@ -29,7 +29,7 @@ import { LogDetail } from '../detail/LogDetail';
 import { JsonView } from '../detail/JsonView';
 import { usePanelStore } from '../../store';
 import type { ConsoleEvent, ConsoleMiniTab, NetworkFilter, Snippet, XrayEntry } from '../../types';
-import { duration, entryPath, isApi } from '../../models/entries';
+import { duration, entryPath, getEntryContentType, isApi } from '../../models/entries';
 import { executeConsoleCommand, navigateConsoleHistory } from '../../runtime/consoleBridge';
 import { eventEntry, formatBytes, formatTime, methodClass, preview, statusClass, stripXrayRefs } from '../../utils';
 
@@ -66,9 +66,6 @@ function matchesLevel(event: ConsoleEvent, filter: ConsoleLevelFilter): boolean 
   return event.type === 'log' && event.level !== 'warn' && event.level !== 'error';
 }
 
-function eventDuration(event: ConsoleEvent): number {
-  return duration(eventEntry(event));
-}
 
 function useFilteredNetworkEvents(): ConsoleEvent[] {
   const events = usePanelStore((state) => state.consoleEvents);
@@ -290,6 +287,11 @@ function SnippetBar(): React.ReactElement {
   );
 }
 
+interface WaterfallWindow {
+  minStart: number;
+  span: number;
+}
+
 function NetworkTable(): React.ReactElement {
   const events = useFilteredNetworkEvents();
   const networkFilter = usePanelStore((state) => state.networkFilter);
@@ -298,9 +300,21 @@ function NetworkTable(): React.ReactElement {
   const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
   const filtered = networkFilter !== 'all' || searchQuery.trim().length > 0;
   const parentRef = useRef<HTMLDivElement | null>(null);
-  // One pass here instead of every row re-filtering the whole event array to
-  // derive the same shared maximum.
-  const maxDuration = useMemo(() => Math.max(100, ...events.map(eventDuration)), [events]);
+  // Shared time axis for the waterfall: every bar is positioned against the same
+  // window so requests can be compared at a glance (Firefox/Chrome model).
+  const waterfall = useMemo<WaterfallWindow>(() => {
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    for (const event of events) {
+      const entry = eventEntry(event);
+      if (!entry) continue;
+      const start = Number(entry.timestamp) || 0;
+      minStart = Math.min(minStart, start);
+      maxEnd = Math.max(maxEnd, start + duration(entry));
+    }
+    if (!Number.isFinite(minStart)) return { minStart: 0, span: 1 };
+    return { minStart, span: Math.max(1, maxEnd - minStart) };
+  }, [events]);
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => parentRef.current,
@@ -313,13 +327,13 @@ function NetworkTable(): React.ReactElement {
   return (
     <section className="xray-network">
       <div className="xray-network-head">
-        <span>Method</span><span>Status</span><span>Path</span><span>Timing</span><span>Size</span><span>Time</span>
+        <span>Status</span><span>Method</span><span>Name</span><span>Type</span><span>Size</span><span>Waterfall</span>
       </div>
       <div className="xray-virtual-list" ref={parentRef}>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => (
             <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
-              <NetworkRow event={events[item.index]} maxDuration={maxDuration} />
+              <NetworkRow event={events[item.index]} waterfall={waterfall} />
             </div>
           ))}
         </div>
@@ -337,7 +351,39 @@ function NetworkTable(): React.ReactElement {
   );
 }
 
-const NetworkRow = React.memo(function NetworkRow({ event, maxDuration }: { event: ConsoleEvent; maxDuration: number }): React.ReactElement {
+// A short resource-type label, DevTools-style (Chrome's Type column).
+function networkTypeLabel(entry: XrayEntry): string {
+  const source = String(entry.source || 'fetch').toLowerCase();
+  if (source === 'ws') return 'ws';
+  if (source === 'sse') return 'eventsource';
+  if (entry.graphql) return 'graphql';
+  const ct = getEntryContentType(entry).toLowerCase();
+  if (ct.includes('json')) return 'json';
+  if (ct.includes('html')) return 'document';
+  if (ct.includes('javascript')) return 'script';
+  if (ct.includes('css')) return 'stylesheet';
+  if (ct.includes('image')) return 'img';
+  return source;
+}
+
+// Streaming rows (WS/SSE) have no numeric HTTP status, so show a state chip
+// (Firefox shows a blocked/no-status glyph) instead of a broken-looking "---".
+function StatusCell({ entry }: { entry: XrayEntry }): React.ReactElement {
+  const source = String(entry.source || '').toLowerCase();
+  const status = Number(entry.status) || 0;
+  if (source === 'ws' || source === 'sse') {
+    const state = entry.wsState || (status === 101 ? 'open' : 'connecting');
+    const closed = state === 'closed' || state === 'error';
+    return (
+      <span className={`xray-status-chip stream ${closed ? 'closed' : 'open'}`} title={`${source.toUpperCase()} ${state}`}>
+        <span className="xray-stream-dot" />{source.toUpperCase()}
+      </span>
+    );
+  }
+  return <span className={`xray-status-swatch ${statusClass(status)}`}>{status || '—'}</span>;
+}
+
+const NetworkRow = React.memo(function NetworkRow({ event, waterfall }: { event: ConsoleEvent; waterfall: WaterfallWindow }): React.ReactElement {
   const entry = eventEntry(event);
   const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
   const selectedId = usePanelStore((state) => state.selectedId);
@@ -349,27 +395,51 @@ const NetworkRow = React.memo(function NetworkRow({ event, maxDuration }: { even
   const status = Number(entry.status) || 0;
   const isSelected = selectedId === entry.id;
   const isExpanded = expandedId === event.id;
-  const pct = Math.max(6, Math.min(100, duration(entry) / maxDuration * 100));
+  const dur = duration(entry);
+
+  // Position the bar on the shared time axis; split it two-tone (waiting vs
+  // download) using captured resource timing when available.
+  const startOffset = ((Number(entry.timestamp) || 0) - waterfall.minStart) / waterfall.span;
+  const barLeft = Math.max(0, Math.min(99, startOffset * 100));
+  const barWidth = Math.max(1.5, Math.min(100 - barLeft, dur / waterfall.span * 100));
+  const ttfb = Number(entry.timing?.ttfbMs) || 0;
+  const download = Number(entry.timing?.downloadMs) || 0;
+  const waitFrac = ttfb && (ttfb + download) > 0 ? ttfb / Math.max(dur, ttfb + download) : 0.6;
+
+  // selectEntry sets expandedId to 'evt_'+id (== event.id) as it selects, so
+  // calling it AND toggleExpanded cancelled out (nothing ever expanded). First
+  // click selects + expands; clicking the open row collapses it (keeps selection).
+  const activate = (): void => {
+    if (expandedId === event.id) toggleExpanded(event.id);
+    else selectEntry(entry.id, { openDetail: false });
+  };
 
   return (
     <div>
       <div
-        className={`xray-network-row ${isSelected ? 'selected' : ''}`}
+        className={`xray-network-row ${isSelected ? 'selected' : ''} ${isExpanded ? 'expanded' : ''}`}
         role="button"
         tabIndex={0}
         aria-expanded={isExpanded}
-        onClick={() => { selectEntry(entry.id); toggleExpanded(event.id); }}
-        onKeyDown={(keyEvent) => { if (keyEvent.key === 'Enter' || keyEvent.key === ' ') { keyEvent.preventDefault(); selectEntry(entry.id); toggleExpanded(event.id); } }}
+        onClick={activate}
+        onKeyDown={(keyEvent) => { if (keyEvent.key === 'Enter' || keyEvent.key === ' ') { keyEvent.preventDefault(); activate(); } }}
       >
+        <StatusCell entry={entry} />
         <span className={`xray-method ${methodClass(entry.method)}`}>{String(entry.method || 'GET').toUpperCase().replace('DELETE', 'DEL')}</span>
-        <span className={`xray-status ${statusClass(status)}`}>{status || '---'}</span>
         <span className="xray-path" title={String(entry.url || '')}>{entryPath(entry)}</span>
-        <span className="xray-timing">
-          <span className="xray-bar-track"><span className={`xray-bar ${duration(entry) > slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`} style={{ width: `${pct}%` }} /></span>
-          <span>{Math.round(duration(entry))}ms</span>
+        <span className="xray-net-type" title={getEntryContentType(entry) || undefined}>{networkTypeLabel(entry)}</span>
+        <span className="xray-muted xray-net-size">{formatBytes(entry.size)}</span>
+        <span className="xray-waterfall-cell">
+          <span className="xray-waterfall-track">
+            <span
+              className={`xray-waterfall-bar ${dur > slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`}
+              style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
+            >
+              <span className="xray-waterfall-wait" style={{ width: `${Math.round(waitFrac * 100)}%` }} />
+            </span>
+          </span>
+          <span className="xray-waterfall-ms">{Math.round(dur)}ms</span>
         </span>
-        <span className="xray-muted">{formatBytes(entry.size)}</span>
-        <span className="xray-muted">{formatTime(entry.timestamp)}</span>
       </div>
       {isExpanded && <div className="xray-detail"><RequestDetail entry={entry} compact /></div>}
     </div>
@@ -379,6 +449,60 @@ const NetworkRow = React.memo(function NetworkRow({ event, maxDuration }: { even
 interface StreamRow {
   event: ConsoleEvent;
   count: number;
+}
+
+interface ConsoleError {
+  name: string;
+  message: string;
+  stack: string;
+}
+
+// A console.error(new Error()) arrives as an error-level log whose data is a
+// captured {__type__:'Error', name, message, stack} preview — stringifying that
+// gives ugly raw JSON. Detect the error shape (page logs OR REPL error results)
+// so we can render a clean "Name: message" line + an expandable stack instead.
+function extractConsoleError(event: ConsoleEvent): ConsoleError | null {
+  const isErrorObject = (value: unknown): ConsoleError | null => {
+    if (!value || typeof value !== 'object') return null;
+    const record = value as Record<string, unknown>;
+    const looksLikeError = record.__type__ === 'Error' ||
+      (typeof record.stack === 'string' && typeof record.message === 'string' && 'name' in record);
+    if (!looksLikeError) return null;
+    return { name: String(record.name || 'Error'), message: String(record.message || ''), stack: String(record.stack || '') };
+  };
+  const found = isErrorObject(event.data) || (event.args || []).map(isErrorObject).find(Boolean) || null;
+  if (found) return found;
+  // REPL failures: event.data is { message, stack } with no __type__.
+  if (event.type === 'error' && event.data && typeof event.data === 'object') {
+    const record = event.data as Record<string, unknown>;
+    return { name: 'Error', message: String(record.message || event.message || 'Execution failed'), stack: String(record.stack || '') };
+  }
+  return null;
+}
+
+// A JS stack's first line is usually "Name: message" (redundant with the row);
+// each remaining "at fn (file:line:col)" frame becomes a function + location pair.
+function ErrorBlock({ error }: { error: ConsoleError }): React.ReactElement {
+  const frames = React.useMemo(() => {
+    const lines = error.stack.split('\n').map((line) => line.trim()).filter(Boolean);
+    const start = lines[0] && (lines[0] === `${error.name}: ${error.message}` || lines[0].startsWith(error.name)) ? 1 : 0;
+    return lines.slice(start).map((line) => {
+      const match = line.replace(/^at\s+/, '').match(/^(.*?)\s*\(?((?:https?|chrome-extension|webpack|file|blob):[^)\s]+|<anonymous>[^)]*)\)?$/);
+      if (match && match[2]) return { fn: match[1] || '(anonymous)', loc: match[2] };
+      return { fn: line, loc: '' };
+    });
+  }, [error]);
+  if (!frames.length) return <p className="xray-muted">No stack trace available.</p>;
+  return (
+    <ol className="xray-error-frames">
+      {frames.map((frame, index) => (
+        <li key={index}>
+          <span className="xray-error-fn">{frame.fn}</span>
+          {frame.loc && <code className="xray-error-loc" title={frame.loc}>{frame.loc}</code>}
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 function ConsoleStream({ levelFilter, query, onClearFilter }: {
@@ -497,7 +621,9 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
   const expandedId = usePanelStore((state) => state.expandedId);
   const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
   const isExpanded = expandedId === event.id;
-  const canExpand = event.type === 'result' || event.type === 'error' || event.data !== undefined || !!event.args?.some((arg) => arg && typeof arg === 'object');
+  const consoleError = useMemo(() => extractConsoleError(event), [event]);
+  const canExpand = event.type === 'result' || (consoleError ? !!consoleError.stack : false) ||
+    event.data !== undefined || !!event.args?.some((arg) => arg && typeof arg === 'object');
   const icon = event.type === 'command'
     ? <IconChevronRight {...iconProps} />
     : event.type === 'result'
@@ -510,20 +636,17 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
 
   // Page logs go through LogDetail (lazy "Load full object" support); everything
   // else renders a JSON tree with internal lazy-ref markers stripped out.
-  const logEntry: XrayEntry | null = isExpanded && event.type === 'log' && event.entryId
+  const logEntry: XrayEntry | null = isExpanded && event.type === 'log' && event.entryId && !consoleError
     ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null
     : null;
   const expandedData = useMemo(
-    () => (isExpanded && !logEntry ? stripXrayRefs(event.data ?? event.args ?? event.message) : null),
-    [isExpanded, logEntry, event],
+    () => (isExpanded && !logEntry && !consoleError ? stripXrayRefs(event.data ?? event.args ?? event.message) : null),
+    [isExpanded, logEntry, consoleError, event],
   );
-  const errorStack = event.type === 'error' && event.data && typeof event.data === 'object'
-    ? String((event.data as { stack?: unknown }).stack || '')
-    : '';
 
   return (
     <div
-      className={`xray-console-row ${event.type} ${event.level}`}
+      className={`xray-console-row ${event.type} ${event.level} ${consoleError ? 'is-error' : ''}`}
       role={canExpand ? 'button' : undefined}
       tabIndex={canExpand ? 0 : undefined}
       aria-expanded={canExpand ? isExpanded : undefined}
@@ -532,17 +655,19 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
     >
       <span>{isExpanded ? <IconChevronDown {...iconProps} /> : icon}</span>
       <span className="xray-console-message">
-        {event.message}
+        {consoleError
+          ? <><span className="xray-error-name">{consoleError.name}</span>{consoleError.message ? `: ${consoleError.message}` : ''}</>
+          : event.message}
         {count > 1 && <span className="xray-repeat-badge" title={`${count} identical consecutive messages`}>×{count}</span>}
         {event.truncated && <span className="xray-truncated-badge" title="The result was truncated to fit the transfer limit">truncated</span>}
       </span>
       <span className="xray-muted">{formatTime(event.timestamp)}</span>
       {isExpanded && (
         <div className="xray-detail">
-          {logEntry ? (
+          {consoleError ? (
+            <ErrorBlock error={consoleError} />
+          ) : logEntry ? (
             <LogDetail entry={logEntry} />
-          ) : errorStack ? (
-            <pre className="xray-error-stack">{errorStack}</pre>
           ) : (
             <JsonView value={expandedData} />
           )}
