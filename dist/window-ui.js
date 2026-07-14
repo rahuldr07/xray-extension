@@ -15908,153 +15908,161 @@ ${lines}
   var __iconNode36 = [["path", { "d": "M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }]];
   var IconFilter = createReactComponent("outline", "filter", "Filter", __iconNode36);
 
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconFoldDown.mjs
+  var __iconNode37 = [["path", { "d": "M12 11v8l3 -3m-6 0l3 3", "key": "svg-0" }], ["path", { "d": "M9 7l1 0", "key": "svg-1" }], ["path", { "d": "M14 7l1 0", "key": "svg-2" }], ["path", { "d": "M19 7l1 0", "key": "svg-3" }], ["path", { "d": "M4 7l1 0", "key": "svg-4" }]];
+  var IconFoldDown = createReactComponent("outline", "fold-down", "FoldDown", __iconNode37);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconFold.mjs
+  var __iconNode38 = [["path", { "d": "M12 3v6l3 -3m-6 0l3 3", "key": "svg-0" }], ["path", { "d": "M12 21v-6l3 3m-6 0l3 -3", "key": "svg-1" }], ["path", { "d": "M4 12l1 0", "key": "svg-2" }], ["path", { "d": "M9 12l1 0", "key": "svg-3" }], ["path", { "d": "M14 12l1 0", "key": "svg-4" }], ["path", { "d": "M19 12l1 0", "key": "svg-5" }]];
+  var IconFold = createReactComponent("outline", "fold", "Fold", __iconNode38);
+
   // node_modules/@tabler/icons-react/dist/esm/icons/IconHelp.mjs
-  var __iconNode37 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 17l0 .01", "key": "svg-1" }], ["path", { "d": "M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4", "key": "svg-2" }]];
-  var IconHelp = createReactComponent("outline", "help", "Help", __iconNode37);
+  var __iconNode39 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 17l0 .01", "key": "svg-1" }], ["path", { "d": "M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4", "key": "svg-2" }]];
+  var IconHelp = createReactComponent("outline", "help", "Help", __iconNode39);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs
-  var __iconNode38 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
-  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode38);
+  var __iconNode40 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
+  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode40);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconKey.mjs
-  var __iconNode39 = [["path", { "d": "M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0", "key": "svg-0" }], ["path", { "d": "M15 9h.01", "key": "svg-1" }]];
-  var IconKey = createReactComponent("outline", "key", "Key", __iconNode39);
+  var __iconNode41 = [["path", { "d": "M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0", "key": "svg-0" }], ["path", { "d": "M15 9h.01", "key": "svg-1" }]];
+  var IconKey = createReactComponent("outline", "key", "Key", __iconNode41);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconKeyboard.mjs
-  var __iconNode40 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
-  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode40);
+  var __iconNode42 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
+  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode42);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutList.mjs
-  var __iconNode41 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -2", "key": "svg-0" }], ["path", { "d": "M4 16a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -2", "key": "svg-1" }]];
-  var IconLayoutList = createReactComponent("outline", "layout-list", "LayoutList", __iconNode41);
+  var __iconNode43 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -2", "key": "svg-0" }], ["path", { "d": "M4 16a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -2", "key": "svg-1" }]];
+  var IconLayoutList = createReactComponent("outline", "layout-list", "LayoutList", __iconNode43);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutRows.mjs
-  var __iconNode42 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M4 12l16 0", "key": "svg-1" }]];
-  var IconLayoutRows = createReactComponent("outline", "layout-rows", "LayoutRows", __iconNode42);
+  var __iconNode44 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M4 12l16 0", "key": "svg-1" }]];
+  var IconLayoutRows = createReactComponent("outline", "layout-rows", "LayoutRows", __iconNode44);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutSidebarLeftExpand.mjs
-  var __iconNode43 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M9 4v16", "key": "svg-1" }], ["path", { "d": "M14 10l2 2l-2 2", "key": "svg-2" }]];
-  var IconLayoutSidebarLeftExpand = createReactComponent("outline", "layout-sidebar-left-expand", "LayoutSidebarLeftExpand", __iconNode43);
+  var __iconNode45 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M9 4v16", "key": "svg-1" }], ["path", { "d": "M14 10l2 2l-2 2", "key": "svg-2" }]];
+  var IconLayoutSidebarLeftExpand = createReactComponent("outline", "layout-sidebar-left-expand", "LayoutSidebarLeftExpand", __iconNode45);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutSidebarRightExpand.mjs
-  var __iconNode44 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M15 4v16", "key": "svg-1" }], ["path", { "d": "M10 10l-2 2l2 2", "key": "svg-2" }]];
-  var IconLayoutSidebarRightExpand = createReactComponent("outline", "layout-sidebar-right-expand", "LayoutSidebarRightExpand", __iconNode44);
+  var __iconNode46 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M15 4v16", "key": "svg-1" }], ["path", { "d": "M10 10l-2 2l2 2", "key": "svg-2" }]];
+  var IconLayoutSidebarRightExpand = createReactComponent("outline", "layout-sidebar-right-expand", "LayoutSidebarRightExpand", __iconNode46);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLetterCase.mjs
-  var __iconNode45 = [["path", { "d": "M14 15.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0", "key": "svg-0" }], ["path", { "d": "M3 19v-10.5a3.5 3.5 0 0 1 7 0v10.5", "key": "svg-1" }], ["path", { "d": "M3 13h7", "key": "svg-2" }], ["path", { "d": "M21 12v7", "key": "svg-3" }]];
-  var IconLetterCase = createReactComponent("outline", "letter-case", "LetterCase", __iconNode45);
+  var __iconNode47 = [["path", { "d": "M14 15.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0", "key": "svg-0" }], ["path", { "d": "M3 19v-10.5a3.5 3.5 0 0 1 7 0v10.5", "key": "svg-1" }], ["path", { "d": "M3 13h7", "key": "svg-2" }], ["path", { "d": "M21 12v7", "key": "svg-3" }]];
+  var IconLetterCase = createReactComponent("outline", "letter-case", "LetterCase", __iconNode47);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLock.mjs
-  var __iconNode46 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
-  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode46);
+  var __iconNode48 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
+  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode48);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconNetwork.mjs
-  var __iconNode47 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
-  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode47);
+  var __iconNode49 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
+  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode49);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPalette.mjs
-  var __iconNode48 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
-  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode48);
+  var __iconNode50 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
+  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode50);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPictureInPicture.mjs
-  var __iconNode49 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
-  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode49);
+  var __iconNode51 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
+  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode51);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPin.mjs
-  var __iconNode50 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
-  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode50);
+  var __iconNode52 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
+  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode52);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPinnedOff.mjs
-  var __iconNode51 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
-  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode51);
+  var __iconNode53 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
+  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode53);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerPlay.mjs
-  var __iconNode52 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
-  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode52);
+  var __iconNode54 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
+  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode54);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerRecord.mjs
-  var __iconNode53 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
-  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode53);
+  var __iconNode55 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
+  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode55);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlugConnected.mjs
-  var __iconNode54 = [["path", { "d": "M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5", "key": "svg-0" }], ["path", { "d": "M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5", "key": "svg-1" }], ["path", { "d": "M3 21l2.5 -2.5", "key": "svg-2" }], ["path", { "d": "M18.5 5.5l2.5 -2.5", "key": "svg-3" }], ["path", { "d": "M10 11l-2 2", "key": "svg-4" }], ["path", { "d": "M13 14l-2 2", "key": "svg-5" }]];
-  var IconPlugConnected = createReactComponent("outline", "plug-connected", "PlugConnected", __iconNode54);
+  var __iconNode56 = [["path", { "d": "M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5", "key": "svg-0" }], ["path", { "d": "M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5", "key": "svg-1" }], ["path", { "d": "M3 21l2.5 -2.5", "key": "svg-2" }], ["path", { "d": "M18.5 5.5l2.5 -2.5", "key": "svg-3" }], ["path", { "d": "M10 11l-2 2", "key": "svg-4" }], ["path", { "d": "M13 14l-2 2", "key": "svg-5" }]];
+  var IconPlugConnected = createReactComponent("outline", "plug-connected", "PlugConnected", __iconNode56);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlus.mjs
-  var __iconNode55 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
-  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode55);
+  var __iconNode57 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
+  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode57);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRadar2.mjs
-  var __iconNode56 = [["path", { "d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-0" }], ["path", { "d": "M15.51 15.56a5 5 0 1 0 -3.51 1.44", "key": "svg-1" }], ["path", { "d": "M18.832 17.86a9 9 0 1 0 -6.832 3.14", "key": "svg-2" }], ["path", { "d": "M12 12v9", "key": "svg-3" }]];
-  var IconRadar2 = createReactComponent("outline", "radar-2", "Radar2", __iconNode56);
+  var __iconNode58 = [["path", { "d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-0" }], ["path", { "d": "M15.51 15.56a5 5 0 1 0 -3.51 1.44", "key": "svg-1" }], ["path", { "d": "M18.832 17.86a9 9 0 1 0 -6.832 3.14", "key": "svg-2" }], ["path", { "d": "M12 12v9", "key": "svg-3" }]];
+  var IconRadar2 = createReactComponent("outline", "radar-2", "Radar2", __iconNode58);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRefresh.mjs
-  var __iconNode57 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
-  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode57);
+  var __iconNode59 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
+  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode59);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRegex.mjs
-  var __iconNode58 = [["path", { "d": "M6.5 15a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0 -5", "key": "svg-0" }], ["path", { "d": "M17 7.875l3 -1.687", "key": "svg-1" }], ["path", { "d": "M17 7.875v3.375", "key": "svg-2" }], ["path", { "d": "M17 7.875l-3 -1.687", "key": "svg-3" }], ["path", { "d": "M17 7.875l3 1.688", "key": "svg-4" }], ["path", { "d": "M17 4.5v3.375", "key": "svg-5" }], ["path", { "d": "M17 7.875l-3 1.688", "key": "svg-6" }]];
-  var IconRegex = createReactComponent("outline", "regex", "Regex", __iconNode58);
+  var __iconNode60 = [["path", { "d": "M6.5 15a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0 -5", "key": "svg-0" }], ["path", { "d": "M17 7.875l3 -1.687", "key": "svg-1" }], ["path", { "d": "M17 7.875v3.375", "key": "svg-2" }], ["path", { "d": "M17 7.875l-3 -1.687", "key": "svg-3" }], ["path", { "d": "M17 7.875l3 1.688", "key": "svg-4" }], ["path", { "d": "M17 4.5v3.375", "key": "svg-5" }], ["path", { "d": "M17 7.875l-3 1.688", "key": "svg-6" }]];
+  var IconRegex = createReactComponent("outline", "regex", "Regex", __iconNode60);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRepeat.mjs
-  var __iconNode59 = [["path", { "d": "M4 12v-3a3 3 0 0 1 3 -3h13m-3 -3l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M20 12v3a3 3 0 0 1 -3 3h-13m3 3l-3 -3l3 -3", "key": "svg-1" }]];
-  var IconRepeat = createReactComponent("outline", "repeat", "Repeat", __iconNode59);
+  var __iconNode61 = [["path", { "d": "M4 12v-3a3 3 0 0 1 3 -3h13m-3 -3l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M20 12v3a3 3 0 0 1 -3 3h-13m3 3l-3 -3l3 -3", "key": "svg-1" }]];
+  var IconRepeat = createReactComponent("outline", "repeat", "Repeat", __iconNode61);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRoute.mjs
-  var __iconNode60 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
-  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode60);
+  var __iconNode62 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
+  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode62);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSearch.mjs
-  var __iconNode61 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
-  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode61);
+  var __iconNode63 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
+  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode63);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSend.mjs
-  var __iconNode62 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
-  var IconSend = createReactComponent("outline", "send", "Send", __iconNode62);
+  var __iconNode64 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
+  var IconSend = createReactComponent("outline", "send", "Send", __iconNode64);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconServer.mjs
-  var __iconNode63 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
-  var IconServer = createReactComponent("outline", "server", "Server", __iconNode63);
+  var __iconNode65 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
+  var IconServer = createReactComponent("outline", "server", "Server", __iconNode65);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSettings.mjs
-  var __iconNode64 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
-  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode64);
+  var __iconNode66 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
+  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode66);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconShare.mjs
-  var __iconNode65 = [["path", { "d": "M3 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-0" }], ["path", { "d": "M15 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-1" }], ["path", { "d": "M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-2" }], ["path", { "d": "M8.7 10.7l6.6 -3.4", "key": "svg-3" }], ["path", { "d": "M8.7 13.3l6.6 3.4", "key": "svg-4" }]];
-  var IconShare = createReactComponent("outline", "share", "Share", __iconNode65);
+  var __iconNode67 = [["path", { "d": "M3 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-0" }], ["path", { "d": "M15 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-1" }], ["path", { "d": "M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-2" }], ["path", { "d": "M8.7 10.7l6.6 -3.4", "key": "svg-3" }], ["path", { "d": "M8.7 13.3l6.6 3.4", "key": "svg-4" }]];
+  var IconShare = createReactComponent("outline", "share", "Share", __iconNode67);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSparkles.mjs
-  var __iconNode66 = [["path", { "d": "M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6", "key": "svg-0" }]];
-  var IconSparkles = createReactComponent("outline", "sparkles", "Sparkles", __iconNode66);
+  var __iconNode68 = [["path", { "d": "M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6", "key": "svg-0" }]];
+  var IconSparkles = createReactComponent("outline", "sparkles", "Sparkles", __iconNode68);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTable.mjs
-  var __iconNode67 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M3 10h18", "key": "svg-1" }], ["path", { "d": "M10 3v18", "key": "svg-2" }]];
-  var IconTable = createReactComponent("outline", "table", "Table", __iconNode67);
+  var __iconNode69 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M3 10h18", "key": "svg-1" }], ["path", { "d": "M10 3v18", "key": "svg-2" }]];
+  var IconTable = createReactComponent("outline", "table", "Table", __iconNode69);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTerminal2.mjs
-  var __iconNode68 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
-  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode68);
+  var __iconNode70 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
+  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode70);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTimeline.mjs
-  var __iconNode69 = [["path", { "d": "M4 16l6 -7l5 5l5 -6", "key": "svg-0" }], ["path", { "d": "M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }], ["path", { "d": "M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-4" }]];
-  var IconTimeline = createReactComponent("outline", "timeline", "Timeline", __iconNode69);
+  var __iconNode71 = [["path", { "d": "M4 16l6 -7l5 5l5 -6", "key": "svg-0" }], ["path", { "d": "M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }], ["path", { "d": "M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-4" }]];
+  var IconTimeline = createReactComponent("outline", "timeline", "Timeline", __iconNode71);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTrash.mjs
-  var __iconNode70 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
-  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode70);
+  var __iconNode72 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
+  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode72);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconWand.mjs
-  var __iconNode71 = [["path", { "d": "M6 21l15 -15l-3 -3l-15 15l3 3", "key": "svg-0" }], ["path", { "d": "M15 6l3 3", "key": "svg-1" }], ["path", { "d": "M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-2" }], ["path", { "d": "M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-3" }]];
-  var IconWand = createReactComponent("outline", "wand", "Wand", __iconNode71);
+  var __iconNode73 = [["path", { "d": "M6 21l15 -15l-3 -3l-15 15l3 3", "key": "svg-0" }], ["path", { "d": "M15 6l3 3", "key": "svg-1" }], ["path", { "d": "M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-2" }], ["path", { "d": "M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-3" }]];
+  var IconWand = createReactComponent("outline", "wand", "Wand", __iconNode73);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconWorld.mjs
-  var __iconNode72 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M3.6 9h16.8", "key": "svg-1" }], ["path", { "d": "M3.6 15h16.8", "key": "svg-2" }], ["path", { "d": "M11.5 3a17 17 0 0 0 0 18", "key": "svg-3" }], ["path", { "d": "M12.5 3a17 17 0 0 1 0 18", "key": "svg-4" }]];
-  var IconWorld = createReactComponent("outline", "world", "World", __iconNode72);
+  var __iconNode74 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M3.6 9h16.8", "key": "svg-1" }], ["path", { "d": "M3.6 15h16.8", "key": "svg-2" }], ["path", { "d": "M11.5 3a17 17 0 0 0 0 18", "key": "svg-3" }], ["path", { "d": "M12.5 3a17 17 0 0 1 0 18", "key": "svg-4" }]];
+  var IconWorld = createReactComponent("outline", "world", "World", __iconNode74);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconX.mjs
-  var __iconNode73 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
-  var IconX = createReactComponent("outline", "x", "X", __iconNode73);
+  var __iconNode75 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
+  var IconX = createReactComponent("outline", "x", "X", __iconNode75);
 
   // src/panel/components/common/CollapsibleSection.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime());
@@ -16523,42 +16531,126 @@ ${lines}
   // src/panel/components/detail/JsonView.tsx
   var import_react4 = __toESM(require_react());
   var import_jsx_runtime4 = __toESM(require_jsx_runtime());
-  var tokenPattern = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}\[\],:]/g;
-  var JsonView = import_react4.default.memo(function JsonView2({ value }) {
-    const { text, tokenLines } = (0, import_react4.useMemo)(() => {
-      const stringified = safeStringify(value);
-      const lines = stringified.split("\n");
-      return {
-        text: stringified,
-        tokenLines: lines.length > 600 ? null : lines.map((line) => tokenizeJsonLine(line))
-      };
-    }, [value]);
-    if (!tokenLines) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: tokenLines.map((tokens, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-json-line", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-line-no", children: index + 1 }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-line-text", children: tokens.length ? tokens.map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
-    ] }, index)) });
-  });
-  function tokenizeJsonLine(line) {
-    const tokens = [];
-    let lastIndex = 0;
-    tokenPattern.lastIndex = 0;
-    for (let match = tokenPattern.exec(line); match; match = tokenPattern.exec(line)) {
-      if (match.index > lastIndex) tokens.push({ text: line.slice(lastIndex, match.index) });
-      const text = match[0];
-      const after = line.slice(tokenPattern.lastIndex);
-      tokens.push({ text, className: jsonTokenClass(text, after) });
-      lastIndex = tokenPattern.lastIndex;
-    }
-    if (lastIndex < line.length) tokens.push({ text: line.slice(lastIndex) });
-    return tokens;
+  var TREE_CHAR_BUDGET = 6e4;
+  var DEFAULT_OPEN_DEPTH = 4;
+  function containerKind(value) {
+    if (Array.isArray(value)) return "array";
+    if (value !== null && typeof value === "object") return "object";
+    return null;
   }
-  function jsonTokenClass(text, after) {
-    if (text.startsWith('"')) return /^\s*:/.test(after) ? "xray-json-key" : "xray-json-string";
-    if (text === "true" || text === "false") return "xray-json-bool";
-    if (text === "null") return "xray-json-null";
-    if (/^-?\d/.test(text)) return "xray-json-number";
+  function valueClass(value) {
+    if (typeof value === "string") return "xray-json-string";
+    if (typeof value === "number") return "xray-json-number";
+    if (typeof value === "boolean") return "xray-json-bool";
+    if (value === null || value === void 0) return "xray-json-null";
     return "xray-json-punct";
+  }
+  function renderScalar(value) {
+    if (typeof value === "string") return JSON.stringify(value);
+    if (value === void 0) return "undefined";
+    if (value === null) return "null";
+    return String(value);
+  }
+  var JsonView = import_react4.default.memo(function JsonView2({ value }) {
+    const oversized = import_react4.default.useMemo(() => safeStringify(value, 0, TREE_CHAR_BUDGET + 1).length > TREE_CHAR_BUDGET, [value]);
+    const [overrides, setOverrides] = import_react4.default.useState(() => /* @__PURE__ */ new Map());
+    const [allOpen, setAllOpen] = import_react4.default.useState(null);
+    import_react4.default.useEffect(() => {
+      setOverrides(/* @__PURE__ */ new Map());
+      setAllOpen(null);
+    }, [value]);
+    const isOpen = import_react4.default.useCallback((path, depth) => {
+      const override = overrides.get(path);
+      if (override !== void 0) return override;
+      if (allOpen !== null) return allOpen;
+      return depth < DEFAULT_OPEN_DEPTH;
+    }, [overrides, allOpen]);
+    const toggle = import_react4.default.useCallback((path, depth) => {
+      setOverrides((prev) => {
+        const next = new Map(prev);
+        const current = prev.get(path) ?? (allOpen !== null ? allOpen : depth < DEFAULT_OPEN_DEPTH);
+        next.set(path, !current);
+        return next;
+      });
+    }, [allOpen]);
+    if (oversized) {
+      const text = safeStringify(value);
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json xray-json-editor xray-json-text", children: text });
+    }
+    if (containerKind(value) === null) {
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("pre", { className: "xray-json xray-json-scalar", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: valueClass(value), children: renderScalar(value) }) });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json xray-json-tree", role: "tree", "aria-label": "JSON viewer", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json-tree-toolbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-json-tree-btn", onClick: () => {
+          setAllOpen(true);
+          setOverrides(/* @__PURE__ */ new Map());
+        }, title: "Expand all nodes", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconFoldDown, { size: 13, stroke: 2 }),
+          "Expand all"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-json-tree-btn", onClick: () => {
+          setAllOpen(false);
+          setOverrides(/* @__PURE__ */ new Map());
+        }, title: "Collapse all nodes", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconFold, { size: 13, stroke: 2 }),
+          "Collapse all"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-json-tree-body", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TreeNode, { nodeKey: null, value, path: "$", depth: 0, isOpen, toggle }) })
+    ] });
+  });
+  function TreeNode({ nodeKey, value, path, depth, isOpen, toggle }) {
+    const kind = containerKind(value);
+    const keyLabel = nodeKey === null ? null : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-key", children: typeof nodeKey === "number" ? nodeKey : JSON.stringify(nodeKey) });
+    if (!kind) {
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json-row", role: "treeitem", style: { paddingLeft: depth * 14 + 8 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-gutter" }),
+        keyLabel,
+        keyLabel && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-punct", children: ": " }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: valueClass(value), children: renderScalar(value) })
+      ] });
+    }
+    const entries = kind === "array" ? value.map((item, index) => [index, item]) : Object.entries(value);
+    const open = isOpen(path, depth);
+    const brackets = kind === "array" ? ["[", "]"] : ["{", "}"];
+    const summary = kind === "array" ? `${entries.length} ${entries.length === 1 ? "item" : "items"}` : `${entries.length} ${entries.length === 1 ? "key" : "keys"}`;
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json-node", role: "treeitem", "aria-expanded": open, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+        "button",
+        {
+          className: "xray-json-row xray-json-branch",
+          style: { paddingLeft: depth * 14 },
+          onClick: () => toggle(path, depth),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconChevronDown, { size: 13, stroke: 2.2, className: `xray-json-chevron ${open ? "" : "closed"}` }),
+            keyLabel,
+            keyLabel && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-punct", children: ": " }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-punct", children: brackets[0] }),
+            !open && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-summary", children: summary }),
+            !open && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-punct", children: brackets[1] })
+          ]
+        }
+      ),
+      open && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json-children", children: [
+        entries.map(([childKey, childValue]) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          TreeNode,
+          {
+            nodeKey: childKey,
+            value: childValue,
+            path: `${path}.${childKey}`,
+            depth: depth + 1,
+            isOpen,
+            toggle
+          },
+          childKey
+        )),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-json-row", style: { paddingLeft: depth * 14 + 8 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-gutter" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-json-punct", children: brackets[1] })
+        ] })
+      ] })
+    ] });
   }
 
   // src/panel/components/detail/RequestDetail.tsx
@@ -19269,7 +19361,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 07:56 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 08:01 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -26568,6 +26660,106 @@ ${bodyLine}
   width: 24px;
   height: 24px;
 }
+
+/* \u2500\u2500 Interactive JSON tree (JsonView.tsx) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.xray-json-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font: 600 11.5px/1.6 var(--xray-font);
+}
+
+.xray-json-tree-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 0 0 6px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.xray-json-tree-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(108, 112, 134, .4);
+  border-radius: 999px;
+  background: rgba(var(--xray-surface2-rgb), .6);
+  color: var(--xray-subtext, var(--xray-text));
+  cursor: pointer;
+  font: 800 10px/1 var(--xray-font);
+  letter-spacing: .02em;
+}
+
+.xray-json-tree-btn:hover {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
+}
+
+.xray-json-tree-body {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.xray-json-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding-right: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.xray-json-branch {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.xray-json-branch:hover {
+  background: rgba(var(--xray-surface2-rgb), .4);
+}
+
+.xray-json-gutter {
+  flex: 0 0 13px;
+}
+
+.xray-json-chevron {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--xray-hint, var(--xray-subtext));
+  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);
+}
+
+.xray-json-chevron.closed {
+  transform: rotate(-90deg);
+}
+
+.xray-json-summary {
+  margin: 0 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(var(--xray-surface2-rgb), .7);
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-json-scalar {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-json-chevron {
+    transition: none;
+  }
+}
 `;
 
   // src/panel/window-main.tsx
@@ -26695,6 +26887,8 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/icons/IconFileImport.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilterOff.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilter.mjs:
+@tabler/icons-react/dist/esm/icons/IconFoldDown.mjs:
+@tabler/icons-react/dist/esm/icons/IconFold.mjs:
 @tabler/icons-react/dist/esm/icons/IconHelp.mjs:
 @tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs:
 @tabler/icons-react/dist/esm/icons/IconKey.mjs:

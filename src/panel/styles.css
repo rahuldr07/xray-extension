@@ -5582,3 +5582,103 @@
   width: 24px;
   height: 24px;
 }
+
+/* ── Interactive JSON tree (JsonView.tsx) ────────────────────────────────── */
+
+.xray-json-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font: 600 11.5px/1.6 var(--xray-font);
+}
+
+.xray-json-tree-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 0 0 6px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.xray-json-tree-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(108, 112, 134, .4);
+  border-radius: 999px;
+  background: rgba(var(--xray-surface2-rgb), .6);
+  color: var(--xray-subtext, var(--xray-text));
+  cursor: pointer;
+  font: 800 10px/1 var(--xray-font);
+  letter-spacing: .02em;
+}
+
+.xray-json-tree-btn:hover {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
+}
+
+.xray-json-tree-body {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.xray-json-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding-right: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.xray-json-branch {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.xray-json-branch:hover {
+  background: rgba(var(--xray-surface2-rgb), .4);
+}
+
+.xray-json-gutter {
+  flex: 0 0 13px;
+}
+
+.xray-json-chevron {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--xray-hint, var(--xray-subtext));
+  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);
+}
+
+.xray-json-chevron.closed {
+  transform: rotate(-90deg);
+}
+
+.xray-json-summary {
+  margin: 0 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(var(--xray-surface2-rgb), .7);
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-json-scalar {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-json-chevron {
+    transition: none;
+  }
+}

@@ -1657,6 +1657,28 @@ test('theme studio has a live preview, screen eyedropper, and per-token copy', (
   assert.match(styles, /\.xray-token-btn/);
 });
 
+test('JSON viewer is an interactive collapsible tree with expand/collapse all and a size fallback', () => {
+  const jsonView = read('src/panel/components/detail/JsonView.tsx');
+  const styles = read('src/panel/styles.css');
+
+  // per-node expand/collapse via a recursive tree, not a flat <pre>
+  assert.match(jsonView, /function TreeNode/);
+  assert.match(jsonView, /role="tree"/);
+  assert.match(jsonView, /aria-expanded=\{open\}/);
+  assert.match(jsonView, /xray-json-chevron/);
+  // expand-all / collapse-all
+  assert.match(jsonView, /Expand all/);
+  assert.match(jsonView, /Collapse all/);
+  // syntax colors preserved (token classes still emitted)
+  assert.match(jsonView, /xray-json-key/);
+  assert.match(jsonView, /xray-json-string/);
+  // huge payloads fall back to the flat text view instead of thousands of nodes
+  assert.match(jsonView, /TREE_CHAR_BUDGET/);
+  assert.match(jsonView, /safeStringify\(value\)/);
+  assert.match(styles, /\.xray-json-tree/);
+  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.xray-json-chevron/);
+});
+
 test('one reusable collapsible-section primitive drives every collapsible region', () => {
   const primitive = read('src/panel/components/common/CollapsibleSection.tsx');
   const styles = read('src/panel/styles.css');
