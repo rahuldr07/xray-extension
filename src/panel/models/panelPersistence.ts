@@ -1,7 +1,9 @@
 import { normalizePanelSettings } from './panelSettings';
-import type { ActiveTab, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, PanelSettings, SortField, SortOrder } from '../types';
+import type { ActiveTab, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, PanelSettings, Snippet, SortField, SortOrder } from '../types';
 
 export const REACT_PANEL_PREFERENCES_KEY = 'react_panel_preferences';
+
+const VALID_TABS: ActiveTab[] = ['console', 'api', 'logs', 'rules', 'insights'];
 
 export interface PanelPreferencesState {
   activeTab: ActiveTab;
@@ -22,6 +24,7 @@ export interface PanelPreferencesState {
   sortOrder: SortOrder;
   recording: boolean;
   pinnedIds: Set<string>;
+  snippets: Snippet[];
   settings: PanelSettings;
 }
 
@@ -44,6 +47,7 @@ export interface SerializedPanelPreferences {
   sortOrder?: SortOrder;
   recording?: boolean;
   pinnedIds?: string[];
+  snippets?: Snippet[];
   settings?: Partial<PanelSettings>;
 }
 
@@ -67,13 +71,24 @@ export function serializePanelPreferences(state: PanelPreferencesState): Seriali
     sortOrder: state.sortOrder,
     recording: state.recording,
     pinnedIds: Array.from(state.pinnedIds),
+    snippets: state.snippets,
     settings: state.settings,
   };
 }
 
+function sanitizeSnippets(input: Snippet[] | undefined): Snippet[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const cleaned = input
+    .filter((snippet) => snippet && typeof snippet.id === 'string' && typeof snippet.code === 'string')
+    .slice(0, 30)
+    .map((snippet) => ({ id: snippet.id, title: snippet.title, code: snippet.code }));
+  return cleaned;
+}
+
 export function applyPanelPreferences(preferences: SerializedPanelPreferences): Partial<PanelPreferencesState> {
+  const snippets = sanitizeSnippets(preferences.snippets);
   return {
-    ...(preferences.activeTab ? { activeTab: preferences.activeTab } : {}),
+    ...(preferences.activeTab && VALID_TABS.includes(preferences.activeTab) ? { activeTab: preferences.activeTab } : {}),
     ...(preferences.detailView ? { detailView: preferences.detailView } : {}),
     ...(preferences.detailTab ? { detailTab: preferences.detailTab } : {}),
     ...(preferences.consoleMiniTab ? { consoleMiniTab: preferences.consoleMiniTab } : {}),
@@ -91,6 +106,7 @@ export function applyPanelPreferences(preferences: SerializedPanelPreferences): 
     ...(preferences.sortOrder ? { sortOrder: preferences.sortOrder } : {}),
     ...(typeof preferences.recording === 'boolean' ? { recording: preferences.recording } : {}),
     ...(Array.isArray(preferences.pinnedIds) ? { pinnedIds: new Set(preferences.pinnedIds) } : {}),
+    ...(snippets ? { snippets } : {}),
     ...(preferences.settings ? { settings: normalizePanelSettings(preferences.settings) } : {}),
   };
 }

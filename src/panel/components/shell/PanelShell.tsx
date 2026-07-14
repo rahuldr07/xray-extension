@@ -1,13 +1,27 @@
 import React from 'react';
-import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconPictureInPicture, IconSettings, IconTerminal2 } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { PANEL_ACCENT_VALUES, PANEL_FONT_VALUES } from '../../models/panelSettings';
+import { DEFAULT_PANEL_SETTINGS, PANEL_ACCENT_VALUES, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN } from '../../models/panelSettings';
 import { buildSessionSummary } from '../../models/sessionSummary';
+import { buildCustomThemeVars } from '../../models/customTheme';
 import { formatBytes } from '../../utils';
+import { XRAY_BUILD, XRAY_VERSION } from '../../version';
 import { panelTabs } from './panelTabs';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import type { XrayAppMode } from '../../types';
 
 const modeIconProps = { size: 16, stroke: 1.8 } as const;
+
+// Keyboard nudge and the largest a drag/nudge may reach (also capped at 96vw so
+// the panel can never fully cover a small page).
+const RESIZE_KEY_STEP = 24;
+function maxPanelWidth(): number {
+  const vwCap = typeof window !== 'undefined' ? Math.round(window.innerWidth * 0.96) : PANEL_WIDTH_MAX;
+  return Math.min(PANEL_WIDTH_MAX, vwCap);
+}
+function clampPanelWidth(width: number): number {
+  return Math.max(PANEL_WIDTH_MIN, Math.min(maxPanelWidth(), Math.round(width)));
+}
 
 export function PanelShell({ children, mode }: { children: React.ReactNode; mode: XrayAppMode }): React.ReactElement {
   const open = usePanelStore((state) => state.open);
@@ -16,12 +30,76 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   const setActiveTab = usePanelStore((state) => state.setActiveTab);
   const entries = usePanelStore((state) => state.entries);
   const settings = usePanelStore((state) => state.settings);
+  const updateSettings = usePanelStore((state) => state.updateSettings);
   const setExportOpen = usePanelStore((state) => state.setExportOpen);
   const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
   const showToast = usePanelStore((state) => state.showToast);
   const toastMessage = usePanelStore((state) => state.toastMessage);
   const clearToast = usePanelStore((state) => state.clearToast);
+  const setOpen = usePanelStore((state) => state.setOpen);
   const { apiCount, logCount, errorCount, totalBytes } = buildSessionSummary(entries);
+
+  // The docked side panel (mode 'hud', not the fullscreen devtools/window views)
+  // is the only surface that resizes and docks. In the floating HUD these controls
+  // are hidden by hud.css, which only loads there.
+  const dockable = mode === 'hud';
+  const dockSide = settings.dockSide;
+  // Live width during a resize drag overrides the persisted width; committed on release.
+  const [dragWidth, setDragWidth] = React.useState<number | null>(null);
+  const resize = React.useRef<{ startX: number; width: number } | null>(null);
+  const appliedWidth = dragWidth ?? settings.panelWidth;
+
+  function onResizePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resize.current = { startX: event.clientX, width: settings.panelWidth };
+    setDragWidth(settings.panelWidth);
+  }
+  function onResizePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    const state = resize.current;
+    if (!state) return;
+    // Dragging toward the page shrinks; the sign flips with the dock side.
+    const delta = dockSide === 'right' ? state.startX - event.clientX : event.clientX - state.startX;
+    const next = clampPanelWidth(state.width + delta);
+    state.width = next;
+    setDragWidth(next);
+  }
+  function commitResize(event: React.PointerEvent<HTMLDivElement>): void {
+    const state = resize.current;
+    if (!state) return;
+    resize.current = null;
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+    setDragWidth(null);
+    if (state.width !== settings.panelWidth) updateSettings({ panelWidth: state.width });
+  }
+  function onResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    const grow = dockSide === 'right' ? 'ArrowLeft' : 'ArrowRight';
+    const shrink = dockSide === 'right' ? 'ArrowRight' : 'ArrowLeft';
+    if (event.key === grow || event.key === shrink) {
+      event.preventDefault();
+      const step = event.key === grow ? RESIZE_KEY_STEP : -RESIZE_KEY_STEP;
+      updateSettings({ panelWidth: clampPanelWidth(settings.panelWidth + step) });
+    }
+  }
+  function resetWidth(): void {
+    updateSettings({ panelWidth: clampPanelWidth(DEFAULT_PANEL_SETTINGS.panelWidth) });
+  }
+  function toggleDock(): void {
+    updateSettings({ dockSide: dockSide === 'right' ? 'left' : 'right' });
+  }
+  function closePanel(): void {
+    const api = (window as unknown as { XRAY_Panel?: { hide?: () => void } }).XRAY_Panel;
+    if (api?.hide) api.hide();
+    else setOpen(false);
+  }
+
+  const [toastPaused, setToastPaused] = React.useState(false);
+  React.useEffect(() => {
+    if (!toastMessage || toastPaused) return;
+    const timer = window.setTimeout(clearToast, 2800);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage, toastPaused, clearToast]);
 
   function sendRuntimeMessage(message: Record<string, unknown>, fallback: string): void {
     if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
@@ -49,15 +127,39 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     sendRuntimeMessage({ type: 'XRAY_OPEN_WINDOW' }, 'Pop-out window is available when the extension runtime is loaded.');
   }
 
+  // A custom theme is applied purely as inline CSS variables on this element, so
+  // it stays scoped to the panel and never affects the host page or the runtime.
+  const customVars = settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {};
+
   return (
     <div
-      className={`xray-panel xray-mode-${mode} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
-      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font] } as React.CSSProperties}
+      className={`xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ''} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${settings.hacker ? 'xray-hacker' : ''} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
+      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
     >
+      {dockable && (
+        <div
+          className={`xray-resize-handle ${resize.current ? 'dragging' : ''}`}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panel — drag, or use arrow keys"
+          aria-valuenow={appliedWidth}
+          aria-valuemin={PANEL_WIDTH_MIN}
+          aria-valuemax={maxPanelWidth()}
+          tabIndex={0}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={commitResize}
+          onPointerCancel={commitResize}
+          onKeyDown={onResizeKeyDown}
+          onDoubleClick={resetWidth}
+          title="Drag to resize · double-click to reset"
+        />
+      )}
       <header className="xray-topbar">
         <div className="xray-brand xray-drag-handle">
           <span className="xray-brand-mark"><IconTerminal2 size={18} stroke={2} /></span>
           <span>CONSOLE</span>
+          <span className="xray-brand-ver" title={`XRAY ${XRAY_VERSION} · built ${XRAY_BUILD}`}>v{XRAY_VERSION}</span>
           <span className={`xray-live-dot ${open ? 'on' : ''}`} />
         </div>
         <nav className="xray-tabs" aria-label="XRAY panel tabs">
@@ -65,13 +167,13 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
             <button key={tab.id} className={`xray-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
               {tab.icon}
               <span>{tab.label}</span>
-              {tab.id === 'api' && <span className="xray-badge">{apiCount}</span>}
-              {tab.id === 'logs' && <span className="xray-badge">{logCount}</span>}
+              {tab.id === 'api' && apiCount > 0 && <span className="xray-badge">{apiCount}</span>}
+              {tab.id === 'logs' && logCount > 0 && <span className="xray-badge">{logCount}</span>}
             </button>
           ))}
         </nav>
         <div className="xray-spacer" />
-        <div className="xray-summary">{apiCount} APIs - {errorCount} Errors - {formatBytes(totalBytes)}</div>
+        <div className="xray-summary">{apiCount} APIs · {errorCount} Errors · {formatBytes(totalBytes)}</div>
         <div className="xray-mode-switcher" aria-label="XRAY display mode">
           <button className={`xray-icon-btn ${mode === 'devtools' ? 'active' : ''}`} title="Open in DevTools" aria-label="Open in DevTools" onClick={openDevtoolsHint}>
             <IconDeviceLaptop {...modeIconProps} />
@@ -83,12 +185,38 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
             <IconArrowsMaximize {...modeIconProps} />
           </button>
         </div>
+        <ThemeSwitcher />
         <button className="xray-icon-btn" aria-label="Open export modal" onClick={() => setExportOpen(true)}><IconDownload size={16} stroke={1.8} /></button>
         <button className="xray-icon-btn" aria-label="Open settings" onClick={() => setSettingsOpen(true)}><IconSettings size={16} stroke={1.8} /></button>
+        {dockable && (
+          <div className="xray-dock-controls" aria-label="Panel position">
+            <button
+              className="xray-icon-btn"
+              title={dockSide === 'right' ? 'Dock to left edge' : 'Dock to right edge'}
+              aria-label={dockSide === 'right' ? 'Dock to left edge' : 'Dock to right edge'}
+              onClick={toggleDock}
+            >
+              {dockSide === 'right' ? <IconLayoutSidebarLeftExpand {...modeIconProps} /> : <IconLayoutSidebarRightExpand {...modeIconProps} />}
+            </button>
+            <button className="xray-icon-btn xray-close-btn" title="Close panel (Esc)" aria-label="Close panel" onClick={closePanel}>
+              <IconX {...modeIconProps} />
+            </button>
+          </div>
+        )}
       </header>
       <main className="xray-body">{children}</main>
       {toastMessage && (
-        <button className="xray-toast" onClick={clearToast} aria-label="Dismiss notification">
+        <button
+          className="xray-toast"
+          onClick={clearToast}
+          onMouseEnter={() => setToastPaused(true)}
+          onMouseLeave={() => setToastPaused(false)}
+          onFocus={() => setToastPaused(true)}
+          onBlur={() => setToastPaused(false)}
+          role="status"
+          aria-live="polite"
+          aria-label="Dismiss notification"
+        >
           {toastMessage}
         </button>
       )}

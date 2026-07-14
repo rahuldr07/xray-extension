@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { IconCopy, IconDownload, IconFileExport, IconNotebook, IconSend } from '@tabler/icons-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { IconBookmark, IconCopy, IconDownload, IconFileExport, IconFileImport, IconSend } from '@tabler/icons-react';
 import { selectedEntry, usePanelStore } from '../../store';
 import { exportGroups, exportMeta, exportText, filenameForExport, mimeForExport, type ExportFormat } from '../../models/export';
+import { parseImport } from '../../models/import';
 import { copyText, downloadText } from '../../utils';
 import { ModalShell } from '../common/ModalShell';
 
@@ -18,7 +19,9 @@ export function ExportModal(): React.ReactElement | null {
   const entries = usePanelStore((state) => state.entries);
   const showToast = usePanelStore((state) => state.showToast);
   const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
-  const addNotebookCell = usePanelStore((state) => state.addNotebookCell);
+  const saveSnippet = usePanelStore((state) => state.saveSnippet);
+  const restoreEntries = usePanelStore((state) => state.restoreEntries);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selected = selectedEntry();
   const [mode, setMode] = useState<ExportMode>('session');
   const [format, setFormat] = useState<ExportFormat>('curl');
@@ -57,10 +60,29 @@ export function ExportModal(): React.ReactElement | null {
     showToast('Export snippet inserted in Console.');
   }
 
-  function sendToNotebook(): void {
-    addNotebookCell({ title: meta.title, code: text });
+  function sendToSnippets(): void {
+    saveSnippet({ title: meta.title, code: text });
     setOpen(false);
-    showToast('Export snippet sent to Notebook.');
+    showToast('Saved to Console snippets.');
+  }
+
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    try {
+      const content = await file.text();
+      const result = parseImport(content);
+      if (result.error || !result.entries.length) {
+        showToast(result.error || 'No entries found in file.');
+        return;
+      }
+      restoreEntries(result.entries);
+      setOpen(false);
+      showToast(`Imported ${result.entries.length} ${result.format === 'har' ? 'HAR' : 'session'} entries.`);
+    } catch {
+      showToast('Could not read the selected file.');
+    }
   }
 
   const subtitle = mode === 'selected' && selected
@@ -77,11 +99,13 @@ export function ExportModal(): React.ReactElement | null {
       footer={(
         <>
           <span className="xray-muted">{text.length.toLocaleString()} chars</span>
+          <input ref={fileInputRef} type="file" accept=".har,.json,application/json" style={{ display: 'none' }} onChange={(event) => void handleImportFile(event)} />
+          <button className="xray-btn" onClick={() => fileInputRef.current?.click()}><IconFileImport {...iconProps} />Import HAR / session</button>
           <span className="xray-spacer" />
           {mode === 'selected' && (
             <>
               <button className="xray-btn" onClick={sendToConsole}><IconSend {...iconProps} />Console</button>
-              <button className="xray-btn" onClick={sendToNotebook}><IconNotebook {...iconProps} />Notebook</button>
+              <button className="xray-btn" onClick={sendToSnippets}><IconBookmark {...iconProps} />Snippet</button>
             </>
           )}
           <button className="xray-btn" onClick={() => void copyCurrent()}><IconCopy {...iconProps} />Copy</button>

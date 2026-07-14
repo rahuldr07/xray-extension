@@ -1,0 +1,6 @@
+{
+  "comment": "Browser extension: no dev server. Vite dev mode exists but the extension loads from built files.",
+  "build": "npm run build",
+  "check": "npm run check",
+  "test": "npm test"
+}

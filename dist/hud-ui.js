@@ -179,8 +179,8 @@ var XRAYHudUI = (() => {
           localSetImmediate(performWorkUntilDeadline);
         };
       else if ("undefined" !== typeof MessageChannel) {
-        channel = new MessageChannel(), port = channel.port2;
-        channel.port1.onmessage = performWorkUntilDeadline;
+        channel2 = new MessageChannel(), port = channel2.port2;
+        channel2.port1.onmessage = performWorkUntilDeadline;
         schedulePerformWorkUntilDeadline = function() {
           port.postMessage(null);
         };
@@ -188,7 +188,7 @@ var XRAYHudUI = (() => {
         schedulePerformWorkUntilDeadline = function() {
           localSetTimeout(performWorkUntilDeadline, 0);
         };
-      var channel;
+      var channel2;
       var port;
       function requestHostTimeout(callback, ms) {
         taskTimeoutID = localSetTimeout(function() {
@@ -397,7 +397,7 @@ var XRAYHudUI = (() => {
       function isValidElement(object) {
         return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
       }
-      function escape(key) {
+      function escape2(key) {
         var escaperLookup = { "=": "=0", ":": "=2" };
         return "$" + key.replace(/[=:]/g, function(match) {
           return escaperLookup[match];
@@ -405,7 +405,7 @@ var XRAYHudUI = (() => {
       }
       var userProvidedKeyEscapeRegex = /\/+/g;
       function getElementKey(element, index) {
-        return "object" === typeof element && null !== element && null != element.key ? escape("" + element.key) : index.toString(36);
+        return "object" === typeof element && null !== element && null != element.key ? escape2("" + element.key) : index.toString(36);
       }
       function resolveThenable(thenable) {
         switch (thenable.status) {
@@ -768,7 +768,7 @@ var XRAYHudUI = (() => {
   var require_react_dom_production = __commonJS({
     "node_modules/react-dom/cjs/react-dom.production.js"(exports) {
       "use strict";
-      var React10 = require_react();
+      var React17 = require_react();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
         if (1 < arguments.length) {
@@ -808,7 +808,7 @@ var XRAYHudUI = (() => {
           implementation
         };
       }
-      var ReactSharedInternals = React10.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React17.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       function getCrossOriginStringAs(as, input) {
         if ("font" === as) return "";
         if ("string" === typeof input)
@@ -944,7 +944,7 @@ var XRAYHudUI = (() => {
     "node_modules/react-dom/cjs/react-dom-client.production.js"(exports) {
       "use strict";
       var Scheduler = require_scheduler();
-      var React10 = require_react();
+      var React17 = require_react();
       var ReactDOM = require_react_dom();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
@@ -1135,7 +1135,7 @@ var XRAYHudUI = (() => {
         return null;
       }
       var isArrayImpl = Array.isArray;
-      var ReactSharedInternals = React10.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React17.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var sharedNotPendingObject = {
         pending: false,
@@ -11159,15 +11159,15 @@ var XRAYHudUI = (() => {
       function estimateBandwidth() {
         if ("function" === typeof performance.getEntriesByType) {
           for (var count = 0, bits = 0, resourceEntries = performance.getEntriesByType("resource"), i = 0; i < resourceEntries.length; i++) {
-            var entry = resourceEntries[i], transferSize = entry.transferSize, initiatorType = entry.initiatorType, duration2 = entry.duration;
-            if (transferSize && duration2 && isLikelyStaticResource(initiatorType)) {
+            var entry = resourceEntries[i], transferSize = entry.transferSize, initiatorType = entry.initiatorType, duration3 = entry.duration;
+            if (transferSize && duration3 && isLikelyStaticResource(initiatorType)) {
               initiatorType = 0;
-              duration2 = entry.responseEnd;
+              duration3 = entry.responseEnd;
               for (i += 1; i < resourceEntries.length; i++) {
                 var overlapEntry = resourceEntries[i], overlapStartTime = overlapEntry.startTime;
-                if (overlapStartTime > duration2) break;
+                if (overlapStartTime > duration3) break;
                 var overlapTransferSize = overlapEntry.transferSize, overlapInitiatorType = overlapEntry.initiatorType;
-                overlapTransferSize && isLikelyStaticResource(overlapInitiatorType) && (overlapEntry = overlapEntry.responseEnd, initiatorType += overlapTransferSize * (overlapEntry < duration2 ? 1 : (duration2 - overlapStartTime) / (overlapEntry - overlapStartTime)));
+                overlapTransferSize && isLikelyStaticResource(overlapInitiatorType) && (overlapEntry = overlapEntry.responseEnd, initiatorType += overlapTransferSize * (overlapEntry < duration3 ? 1 : (duration3 - overlapStartTime) / (overlapEntry - overlapStartTime)));
               }
               --i;
               bits += 8 * (transferSize + initiatorType) / (entry.duration / 1e3);
@@ -12581,7 +12581,7 @@ var XRAYHudUI = (() => {
           0 === i && attemptExplicitHydrationTarget(target);
         }
       };
-      var isomorphicReactPackageVersion$jscomp$inline_1840 = React10.version;
+      var isomorphicReactPackageVersion$jscomp$inline_1840 = React17.version;
       if ("19.2.6" !== isomorphicReactPackageVersion$jscomp$inline_1840)
         throw Error(
           formatProdErrorMessage(
@@ -12829,18 +12829,481 @@ var XRAYHudUI = (() => {
     }
   }
 
+  // src/panel/models/customTheme.ts
+  var DEFAULT_CUSTOM_THEME = {
+    bg: "#0f1117",
+    surface: "#171a23",
+    text: "#e7e9f0",
+    accent: "#7c5cff"
+  };
+  var BASE_KEYS = ["bg", "surface", "text", "accent"];
+  var TOKEN_KEYS = [
+    "bg",
+    "surface",
+    "surface2",
+    "surface3",
+    "text",
+    "subtext",
+    "hint",
+    "border",
+    "accent",
+    "green",
+    "red",
+    "yellow",
+    "blue",
+    "mauve",
+    "teal",
+    "peach"
+  ];
+  var OVERRIDE_KEYS = TOKEN_KEYS.filter(
+    (k) => !BASE_KEYS.includes(k)
+  );
+  var HEX = /^#[0-9a-fA-F]{6}$/;
+  function isHex(value) {
+    return typeof value === "string" && HEX.test(value);
+  }
+  function clampHex(value, fallback) {
+    if (typeof value === "string") {
+      let v = value.trim();
+      if (/^[0-9a-fA-F]{6}$/.test(v)) v = "#" + v;
+      if (/^#[0-9a-fA-F]{3}$/.test(v)) v = "#" + v.slice(1).split("").map((c) => c + c).join("");
+      if (HEX.test(v)) return v.toLowerCase();
+    }
+    return fallback;
+  }
+  function normalizeCustomTheme(input) {
+    const base = input || {};
+    const theme = {
+      bg: clampHex(base.bg, DEFAULT_CUSTOM_THEME.bg),
+      surface: clampHex(base.surface, DEFAULT_CUSTOM_THEME.surface),
+      text: clampHex(base.text, DEFAULT_CUSTOM_THEME.text),
+      accent: clampHex(base.accent, DEFAULT_CUSTOM_THEME.accent)
+    };
+    for (const key of OVERRIDE_KEYS) {
+      const value = base[key];
+      if (isHex(value)) theme[key] = clampHex(value, "#000000");
+    }
+    return theme;
+  }
+  function themeOverrides(theme) {
+    const out = {};
+    for (const key of OVERRIDE_KEYS) {
+      if (isHex(theme[key])) out[key] = clampHex(theme[key], "#000000");
+    }
+    return out;
+  }
+  function toRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+  function toHex([r, g, b]) {
+    const h = (c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0");
+    return `#${h(r)}${h(g)}${h(b)}`;
+  }
+  function rgbStr([r, g, b]) {
+    return `${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}`;
+  }
+  function mix(from, to, t) {
+    return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t];
+  }
+  function luminance([r, g, b]) {
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function rgbToHsl([r, g, b]) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h /= 6;
+    }
+    return [h * 360, s * 100, l * 100];
+  }
+  function hslToHex(h, s, l) {
+    h = (h % 360 + 360) % 360;
+    s = Math.max(0, Math.min(100, s)) / 100;
+    l = Math.max(0, Math.min(100, l)) / 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return toHex([(r + m) * 255, (g + m) * 255, (b + m) * 255]);
+  }
+  function generateFromAccent(accentHex, mode) {
+    const accent = clampHex(accentHex, DEFAULT_CUSTOM_THEME.accent);
+    const [h] = rgbToHsl(toRgb(accent));
+    if (mode === "light") {
+      return { bg: hslToHex(h, 30, 96), surface: hslToHex(h, 42, 99), text: hslToHex(h, 22, 12), accent };
+    }
+    return { bg: hslToHex(h, 22, 7), surface: hslToHex(h, 18, 11), text: hslToHex(h, 16, 92), accent };
+  }
+  var RANDOM_ACCENTS = ["#7c5cff", "#22d3ee", "#fb7185", "#34d399", "#f59e0b", "#a78bfa", "#38bdf8", "#f472b6", "#4ade80", "#e879f9"];
+  function randomTheme(seed) {
+    const accent = RANDOM_ACCENTS[Math.floor(seed * RANDOM_ACCENTS.length) % RANDOM_ACCENTS.length];
+    const mode = seed * 100 % 5 < 1 ? "light" : "dark";
+    return generateFromAccent(accent, mode);
+  }
+  function exportThemeCss(theme) {
+    const vars = buildCustomThemeVars(theme);
+    const lines = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`).join("\n");
+    return `/* XRAY custom theme */
+.xray-theme {
+${lines}
+}`;
+  }
+  function channel(c) {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  }
+  function relLuminance([r, g, b]) {
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  }
+  function contrastRatio(a, b) {
+    const la = relLuminance(toRgb(clampHex(a, "#000000")));
+    const lb = relLuminance(toRgb(clampHex(b, "#ffffff")));
+    const hi = Math.max(la, lb), lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+  function contrastGrade(ratio) {
+    if (ratio >= 7) return "AAA";
+    if (ratio >= 4.5) return "AA";
+    if (ratio >= 3) return "AA Large";
+    return "Fail";
+  }
+  function themePackageToSettings(pkg) {
+    return {
+      theme: "custom",
+      customTheme: pkg.colors,
+      ...pkg.font ? { font: pkg.font } : {},
+      ...pkg.radius != null ? { radius: pkg.radius } : {},
+      ...pkg.hacker != null ? { hacker: pkg.hacker } : {}
+    };
+  }
+  var CODE_PREFIX = "xray1:";
+  function b64encode(text) {
+    return btoa(unescape(encodeURIComponent(text)));
+  }
+  function b64decode(text) {
+    const padded = text + "=".repeat((4 - text.length % 4) % 4);
+    return decodeURIComponent(escape(atob(padded)));
+  }
+  function encodeTheme(pkg) {
+    const overrides = themeOverrides(pkg.colors);
+    const compact = {
+      c: [pkg.colors.bg, pkg.colors.surface, pkg.colors.text, pkg.colors.accent],
+      // Per-token overrides travel too, so a shared "full freedom" theme round-trips
+      // exactly. Omitted when the theme is just the four base colors.
+      o: Object.keys(overrides).length ? overrides : void 0,
+      f: pkg.font,
+      r: pkg.radius,
+      h: pkg.hacker ? 1 : 0
+    };
+    return CODE_PREFIX + b64encode(JSON.stringify(compact)).replace(/=+$/, "");
+  }
+  function decodeTheme(input) {
+    try {
+      let s = String(input || "").trim();
+      s = s.replace(/^#?/, "").replace(/^theme=/, "");
+      if (s.startsWith(CODE_PREFIX)) s = s.slice(CODE_PREFIX.length);
+      if (!s) return null;
+      const json = JSON.parse(b64decode(s));
+      if (!json || !Array.isArray(json.c)) return null;
+      const overrides = json.o && typeof json.o === "object" ? json.o : {};
+      const colors = normalizeCustomTheme({ bg: json.c[0], surface: json.c[1], text: json.c[2], accent: json.c[3], ...overrides });
+      return {
+        colors,
+        font: typeof json.f === "string" ? json.f : void 0,
+        radius: typeof json.r === "number" ? json.r : void 0,
+        hacker: json.h === 1
+      };
+    } catch {
+      return null;
+    }
+  }
+  function parseThemeInput(text) {
+    const input = String(text || "").trim();
+    if (!input) return null;
+    try {
+      const json = JSON.parse(input);
+      if (json && typeof json === "object" && (json.bg || json.accent)) return normalizeCustomTheme(json);
+    } catch {
+    }
+    const pick = (name) => {
+      const m = input.match(new RegExp(`--xray-${name}\\s*:\\s*(#[0-9a-fA-F]{3,6})`));
+      return m ? m[1] : void 0;
+    };
+    const bg = pick("bg"), surface = pick("surface"), textColor = pick("text"), accent = pick("accent");
+    if (!bg && !surface && !textColor && !accent) return null;
+    const extras = {};
+    for (const key of OVERRIDE_KEYS) {
+      const value = pick(key);
+      if (value) extras[key] = value;
+    }
+    return normalizeCustomTheme({ bg, surface, text: textColor, accent, ...extras });
+  }
+  var DARK_STATUS = { green: "#a6e3a1", red: "#f38ba8", yellow: "#f9e2af", blue: "#89b4fa", mauve: "#cba6f7", teal: "#94e2d5", peach: "#fab387" };
+  var LIGHT_STATUS = { green: "#0f8a4f", red: "#d6336c", yellow: "#b7791f", blue: "#1971c2", mauve: "#7048e8", teal: "#0c8599", peach: "#d9480f" };
+  function resolveThemeColors(theme) {
+    const bg = toRgb(clampHex(theme.bg, DEFAULT_CUSTOM_THEME.bg));
+    const surface = toRgb(clampHex(theme.surface, DEFAULT_CUSTOM_THEME.surface));
+    const text = toRgb(clampHex(theme.text, DEFAULT_CUSTOM_THEME.text));
+    const accent = clampHex(theme.accent, DEFAULT_CUSTOM_THEME.accent);
+    const light = luminance(bg) > 140;
+    const status = light ? LIGHT_STATUS : DARK_STATUS;
+    const derived = {
+      bg: toHex(bg),
+      surface: toHex(surface),
+      surface2: toHex(mix(surface, text, 0.1)),
+      surface3: toHex(mix(surface, text, 0.18)),
+      text: toHex(text),
+      subtext: toHex(mix(text, bg, 0.34)),
+      hint: toHex(mix(text, bg, 0.55)),
+      border: toHex(mix(surface, text, 0.16)),
+      accent,
+      green: status.green,
+      red: status.red,
+      yellow: status.yellow,
+      blue: status.blue,
+      mauve: status.mauve,
+      teal: status.teal,
+      peach: status.peach
+    };
+    const out = { ...derived };
+    for (const key of TOKEN_KEYS) {
+      if (isHex(theme[key])) out[key] = clampHex(theme[key], derived[key]);
+    }
+    return out;
+  }
+  function isTokenOverridden(theme, key) {
+    return !BASE_KEYS.includes(key) && isHex(theme[key]);
+  }
+  function buildCustomThemeVars(theme) {
+    const c = resolveThemeColors(theme);
+    const bg = toRgb(c.bg);
+    const surface = toRgb(c.surface);
+    const surface2 = toRgb(c.surface2);
+    const text = toRgb(c.text);
+    const border = isHex(theme.border) ? clampHex(theme.border, c.border) : `rgba(${rgbStr(text)}, 0.16)`;
+    return {
+      "--xray-bg": c.bg,
+      "--xray-surface": c.surface,
+      "--xray-surface2": c.surface2,
+      "--xray-surface3": c.surface3,
+      "--xray-text": c.text,
+      "--xray-subtext": c.subtext,
+      "--xray-hint": c.hint,
+      "--xray-bg-rgb": rgbStr(bg),
+      "--xray-surface-rgb": rgbStr(surface),
+      "--xray-surface2-rgb": rgbStr(surface2),
+      "--xray-text-rgb": rgbStr(text),
+      "--xray-border": border,
+      "--xray-accent": c.accent,
+      "--xray-green": c.green,
+      "--xray-red": c.red,
+      "--xray-yellow": c.yellow,
+      "--xray-blue": c.blue,
+      "--xray-mauve": c.mauve,
+      "--xray-teal": c.teal,
+      "--xray-peach": c.peach,
+      "--xray-operator-grid": `rgba(${rgbStr(text)}, 0.03)`
+    };
+  }
+
+  // src/panel/utils.ts
+  function parseBody(value) {
+    if (value == null || value === "") return null;
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    if (!trimmed || !trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+  function clampNumber(value, fallback, min, max) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(parsed)));
+  }
+  var entryResponseCache = /* @__PURE__ */ new WeakMap();
+  var entrySchemaCache = /* @__PURE__ */ new WeakMap();
+  function entryResponse(entry) {
+    if (!entry) return null;
+    if (entryResponseCache.has(entry)) return entryResponseCache.get(entry);
+    const parsed = parseBody(entry.responseDecrypted ?? entry.responseRaw ?? entry.response ?? null);
+    entryResponseCache.set(entry, parsed);
+    return parsed;
+  }
+  function entrySchema(entry) {
+    if (!entry) return null;
+    if (entrySchemaCache.has(entry)) return entrySchemaCache.get(entry);
+    const result = schema(entryResponse(entry));
+    entrySchemaCache.set(entry, result);
+    return result;
+  }
+  function entryRequest(entry) {
+    if (!entry) return null;
+    return parseBody(entry.requestBody ?? null);
+  }
+  var timeFormatter = new Intl.DateTimeFormat("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+  var timeCache = /* @__PURE__ */ new Map();
+  function formatTime(timestamp) {
+    const time = timestamp || Date.now();
+    const second = Math.floor(time / 1e3);
+    const cached = timeCache.get(second);
+    if (cached !== void 0) return cached;
+    if (timeCache.size > 512) timeCache.clear();
+    const formatted = timeFormatter.format(time);
+    timeCache.set(second, formatted);
+    return formatted;
+  }
+  function stripXrayRefs(value, depth = 6) {
+    if (value == null || typeof value !== "object" || depth <= 0) return value;
+    if (Array.isArray(value)) return value.map((item) => stripXrayRefs(item, depth - 1));
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "__xray_ref__") continue;
+      out[key] = stripXrayRefs(item, depth - 1);
+    }
+    return out;
+  }
+  function formatBytes(value) {
+    const bytes = Number(value) || 0;
+    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + "mb";
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + "kb";
+    return bytes + "b";
+  }
+  function preview(value, limit = 220) {
+    if (value === void 0) return "undefined";
+    if (value === null) return "null";
+    if (typeof value === "string") return value.length > limit ? value.slice(0, limit) + "..." : value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    try {
+      const text = JSON.stringify(value);
+      return text.length > limit ? text.slice(0, limit) + "..." : text;
+    } catch {
+      return String(value);
+    }
+  }
+  function safeStringify(value, space = 2, limit = 8e4) {
+    const seen = /* @__PURE__ */ new WeakSet();
+    let text = "";
+    try {
+      text = JSON.stringify(value, (_key, child) => {
+        if (typeof child === "bigint") return child.toString() + "n";
+        if (child && typeof child === "object") {
+          if (seen.has(child)) return "[Circular]";
+          seen.add(child);
+        }
+        return child;
+      }, space) ?? "undefined";
+    } catch {
+      text = String(value);
+    }
+    if (text.length <= limit) return text;
+    return text.slice(0, limit) + `
+... truncated ${text.length - limit} chars`;
+  }
+  function methodClass(method) {
+    return (method || "GET").toLowerCase();
+  }
+  function statusClass(status) {
+    const value = Number(status) || 0;
+    if (value >= 400) return "error";
+    if (value >= 300) return "warn";
+    if (value >= 200) return "ok";
+    return "";
+  }
+  function eventEntry(event) {
+    return event.type === "network" && event.args?.[0] && typeof event.args[0] === "object" ? event.args[0] : null;
+  }
+  function buildCurl(entry) {
+    if (window.XRAY_ConsoleHelpers?.generateCurl) return window.XRAY_ConsoleHelpers.generateCurl(entry);
+    if (!entry) return "// Select an API request first";
+    return `curl ${JSON.stringify(entry.url || "")} -X ${(entry.method || "GET").toUpperCase()}`;
+  }
+  function buildFetch(entry) {
+    if (window.XRAY_ConsoleHelpers?.generateFetch) return window.XRAY_ConsoleHelpers.generateFetch(entry);
+    if (!entry) return "// Select an API request first";
+    return `fetch(${JSON.stringify(entry.url || "")})`;
+  }
+  function buildMockPayload(entry) {
+    const mock = window.XRAY_ConsoleHelpers?.buildMock?.(entry) || entryResponse(entry);
+    return safeStringify(mock, 2, 12e4);
+  }
+  async function copyText(text) {
+    try {
+      await navigator.clipboard?.writeText?.(text);
+    } catch {
+    }
+  }
+  function downloadText(filename, text, mime = "text/plain;charset=utf-8") {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+  function schema(value) {
+    if (window.XRAY_ConsoleHelpers?.schema) return window.XRAY_ConsoleHelpers.schema(value);
+    if (value === null) return "null";
+    if (Array.isArray(value)) return value.length ? [schema(value[0])] : "array";
+    if (typeof value === "object") {
+      return Object.fromEntries(Object.entries(value || {}).map(([key, child]) => [key, schema(child)]));
+    }
+    return typeof value;
+  }
+
   // src/panel/models/panelSettings.ts
   var DETAIL_VIEWS = ["tree", "grid", "raw", "schema", "diff", "viz", "waterfall", "headers"];
-  var ACCENTS = ["blue", "mauve", "teal", "green", "peach"];
-  var THEMES = ["operator", "dev-edition", "midnight", "light-lab"];
+  var ACCENTS = ["blue", "mauve", "teal", "green", "peach", "coral"];
+  var THEMES = ["operator", "dev-edition", "midnight", "light-lab", "claude", "custom"];
   var FONTS = ["jetbrains", "cascadia", "iosevka", "system"];
   var DENSITIES = ["compact", "comfortable", "spacious"];
+  var DOCK_SIDES = ["left", "right"];
+  var PANEL_WIDTH_MIN = 360;
+  var PANEL_WIDTH_MAX = 2e3;
   var PANEL_ACCENT_VALUES = {
     blue: "#89b4fa",
     mauve: "#cba6f7",
     teal: "#94e2d5",
     green: "#a6e3a1",
-    peach: "#fab387"
+    peach: "#fab387",
+    coral: "#d97757"
   };
   var PANEL_FONT_VALUES = {
     jetbrains: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
@@ -12851,6 +13314,7 @@ var XRAYHudUI = (() => {
   var DEFAULT_PANEL_SETTINGS = {
     captureFetch: true,
     captureXhr: true,
+    captureWs: true,
     maxEntries: 1e3,
     slowThresholdMs: 500,
     verySlowThresholdMs: 1e3,
@@ -12859,16 +13323,16 @@ var XRAYHudUI = (() => {
     showHostInPath: true,
     accent: "blue",
     theme: "operator",
+    customTheme: DEFAULT_CUSTOM_THEME,
     font: "jetbrains",
     density: "compact",
+    radius: 10,
     glow: true,
-    confirmDestructiveActions: true
+    hacker: false,
+    confirmDestructiveActions: true,
+    panelWidth: 960,
+    dockSide: "right"
   };
-  function clampNumber(value, fallback, min, max) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.min(max, Math.max(min, Math.round(parsed)));
-  }
   function asDetailView(value, fallback) {
     return DETAIL_VIEWS.includes(value) ? value : fallback;
   }
@@ -12884,11 +13348,15 @@ var XRAYHudUI = (() => {
   function asDensity(value, fallback) {
     return DENSITIES.includes(value) ? value : fallback;
   }
+  function asDockSide(value, fallback) {
+    return DOCK_SIDES.includes(value) ? value : fallback;
+  }
   function normalizePanelSettings(input) {
     const base = { ...DEFAULT_PANEL_SETTINGS, ...input || {} };
     return {
       captureFetch: Boolean(base.captureFetch),
       captureXhr: Boolean(base.captureXhr),
+      captureWs: base.captureWs === void 0 ? true : Boolean(base.captureWs),
       maxEntries: clampNumber(base.maxEntries, DEFAULT_PANEL_SETTINGS.maxEntries, 50, 5e3),
       slowThresholdMs: clampNumber(base.slowThresholdMs, DEFAULT_PANEL_SETTINGS.slowThresholdMs, 100, 5e3),
       verySlowThresholdMs: clampNumber(base.verySlowThresholdMs, DEFAULT_PANEL_SETTINGS.verySlowThresholdMs, 200, 1e4),
@@ -12897,15 +13365,21 @@ var XRAYHudUI = (() => {
       showHostInPath: Boolean(base.showHostInPath),
       accent: asAccent(base.accent, DEFAULT_PANEL_SETTINGS.accent),
       theme: asTheme(base.theme, DEFAULT_PANEL_SETTINGS.theme),
+      customTheme: normalizeCustomTheme(base.customTheme),
       font: asFont(base.font, DEFAULT_PANEL_SETTINGS.font),
       density: asDensity(base.density, DEFAULT_PANEL_SETTINGS.density),
+      radius: clampNumber(base.radius, DEFAULT_PANEL_SETTINGS.radius, 0, 20),
       glow: Boolean(base.glow),
-      confirmDestructiveActions: Boolean(base.confirmDestructiveActions)
+      hacker: Boolean(base.hacker),
+      confirmDestructiveActions: Boolean(base.confirmDestructiveActions),
+      panelWidth: clampNumber(base.panelWidth, DEFAULT_PANEL_SETTINGS.panelWidth, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX),
+      dockSide: asDockSide(base.dockSide, DEFAULT_PANEL_SETTINGS.dockSide)
     };
   }
 
   // src/panel/models/panelPersistence.ts
   var REACT_PANEL_PREFERENCES_KEY = "react_panel_preferences";
+  var VALID_TABS = ["console", "api", "logs", "rules", "insights"];
   function serializePanelPreferences(state) {
     return {
       activeTab: state.activeTab,
@@ -12926,12 +13400,19 @@ var XRAYHudUI = (() => {
       sortOrder: state.sortOrder,
       recording: state.recording,
       pinnedIds: Array.from(state.pinnedIds),
+      snippets: state.snippets,
       settings: state.settings
     };
   }
+  function sanitizeSnippets(input) {
+    if (!Array.isArray(input)) return void 0;
+    const cleaned = input.filter((snippet) => snippet && typeof snippet.id === "string" && typeof snippet.code === "string").slice(0, 30).map((snippet) => ({ id: snippet.id, title: snippet.title, code: snippet.code }));
+    return cleaned;
+  }
   function applyPanelPreferences(preferences) {
+    const snippets = sanitizeSnippets(preferences.snippets);
     return {
-      ...preferences.activeTab ? { activeTab: preferences.activeTab } : {},
+      ...preferences.activeTab && VALID_TABS.includes(preferences.activeTab) ? { activeTab: preferences.activeTab } : {},
       ...preferences.detailView ? { detailView: preferences.detailView } : {},
       ...preferences.detailTab ? { detailTab: preferences.detailTab } : {},
       ...preferences.consoleMiniTab ? { consoleMiniTab: preferences.consoleMiniTab } : {},
@@ -12949,29 +13430,493 @@ var XRAYHudUI = (() => {
       ...preferences.sortOrder ? { sortOrder: preferences.sortOrder } : {},
       ...typeof preferences.recording === "boolean" ? { recording: preferences.recording } : {},
       ...Array.isArray(preferences.pinnedIds) ? { pinnedIds: new Set(preferences.pinnedIds) } : {},
+      ...snippets ? { snippets } : {},
       ...preferences.settings ? { settings: normalizePanelSettings(preferences.settings) } : {}
     };
   }
 
-  // src/panel/runtime/captureConfig.ts
-  function publishCaptureSettings(settings) {
-    try {
-      window.postMessage({
-        __xray_config__: true,
-        source: "xray-react-ui",
-        token: window.__XRAY_bridgeToken,
-        config: {
-          captureFetch: settings.captureFetch,
-          captureXhr: settings.captureXhr
-        }
-      }, "*");
-    } catch {
+  // src/panel/models/rules.ts
+  var TRAFFIC_RULES_KEY = "traffic_rules";
+  var MAX_TRAFFIC_RULES = 50;
+  function createRuleId() {
+    return "rule_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+  function defaultRule() {
+    return {
+      id: createRuleId(),
+      label: "New rule",
+      enabled: true,
+      match: { url: "", method: "" },
+      action: { type: "mock", status: 200, body: '{\n  "mocked": true\n}', headers: {}, delayMs: 0 }
+    };
+  }
+  function normalizeRule(input) {
+    const base = input || {};
+    const match = base.match || { url: "", method: "" };
+    const action = base.action || { type: "mock", status: 200, body: "", headers: {}, delayMs: 0 };
+    const type = ["mock", "delay", "fail", "passthrough"].includes(action.type) ? action.type : "mock";
+    const headers = {};
+    if (action.headers && typeof action.headers === "object") {
+      Object.entries(action.headers).forEach(([key, value]) => {
+        if (typeof key === "string" && key) headers[key] = String(value);
+      });
     }
+    return {
+      id: typeof base.id === "string" && base.id ? base.id : createRuleId(),
+      label: typeof base.label === "string" && base.label ? base.label.slice(0, 120) : "Rule",
+      enabled: base.enabled !== false,
+      match: {
+        url: typeof match.url === "string" ? match.url.slice(0, 2e3) : "",
+        method: typeof match.method === "string" ? match.method.toUpperCase().slice(0, 12) : ""
+      },
+      action: {
+        type,
+        status: clampNumber(action.status, 200, 100, 599),
+        body: typeof action.body === "string" ? action.body.slice(0, 1e5) : "",
+        headers,
+        delayMs: clampNumber(action.delayMs, 0, 0, 6e4)
+      }
+    };
+  }
+  function normalizeRules(input) {
+    if (!Array.isArray(input)) return [];
+    return input.slice(0, MAX_TRAFFIC_RULES).map((rule) => normalizeRule(rule));
+  }
+  function serializeRulesForRuntime(rules) {
+    return rules.filter((rule) => rule.enabled && rule.match.url.trim()).map((rule) => ({
+      id: rule.id,
+      enabled: true,
+      match: { url: rule.match.url.trim(), method: rule.match.method },
+      action: rule.action
+    }));
+  }
+  function ruleSummary(rule) {
+    const method = rule.match.method || "ANY";
+    if (rule.action.type === "mock") return `${method} \u2192 mock ${rule.action.status}`;
+    if (rule.action.type === "fail") return `${method} \u2192 network failure`;
+    if (rule.action.type === "delay") return `${method} \u2192 delay ${rule.action.delayMs}ms`;
+    return `${method} \u2192 passthrough`;
+  }
+  var RULE_PRESETS = [
+    { label: "Throttle all (+2s)", rule: { label: "Throttle all (+2s)", match: { url: "re:.*", method: "" }, action: { type: "delay", status: 200, body: "", headers: {}, delayMs: 2e3 } } },
+    { label: "Offline (fail all)", rule: { label: "Offline (fail all)", match: { url: "re:.*", method: "" }, action: { type: "fail", status: 0, body: "", headers: {}, delayMs: 0 } } },
+    { label: "Force 500 on /api", rule: { label: "Force 500 on /api", match: { url: "/api/", method: "" }, action: { type: "mock", status: 500, body: '{\n  "error": "Injected server error"\n}', headers: {}, delayMs: 0 } } },
+    { label: "Empty list on /api", rule: { label: "Empty list on /api", match: { url: "/api/", method: "GET" }, action: { type: "mock", status: 200, body: "[]", headers: {}, delayMs: 0 } } },
+    { label: "Rate limit (429)", rule: { label: "Rate limit (429)", match: { url: "/api/", method: "" }, action: { type: "mock", status: 429, body: '{\n  "error": "Too many requests"\n}', headers: {}, delayMs: 0 } } }
+  ];
+  var RULE_SET_MARKER = "xray-rules";
+  function serializeRuleSet(rules) {
+    return JSON.stringify({ [RULE_SET_MARKER]: 1, rules }, null, 2);
+  }
+  function parseRuleSet(text) {
+    const input = String(text || "").trim();
+    if (!input) return null;
+    let raw;
+    try {
+      raw = JSON.parse(input);
+    } catch {
+      return null;
+    }
+    const list = Array.isArray(raw) ? raw : raw && typeof raw === "object" && Array.isArray(raw.rules) ? raw.rules : null;
+    if (!list || !list.length) return null;
+    const normalized = normalizeRules(list).map((rule) => ({ ...rule, id: createRuleId() }));
+    return normalized.length ? normalized : null;
+  }
+
+  // src/panel/runtime/captureConfig.ts
+  function bridgeToken() {
+    return window.__XRAY_BRIDGE_TOKEN__ || window.__XRAY_bridgeToken || void 0;
+  }
+  function inspectedTabId() {
+    try {
+      const tabId = chrome.devtools?.inspectedWindow?.tabId;
+      return typeof tabId === "number" && Number.isInteger(tabId) && tabId >= 0 ? tabId : null;
+    } catch {
+      return null;
+    }
+  }
+  function postToPageBridge(kind, payload) {
+    const token = bridgeToken();
+    const flag = kind === "config" ? "__xray_config__" : "__xray_replay__";
+    if (token) {
+      try {
+        window.postMessage({ [flag]: true, source: "xray-react-ui", token, ...payload }, "*");
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    const tabId = inspectedTabId();
+    const runtime = typeof chrome !== "undefined" ? chrome.runtime : void 0;
+    if (tabId != null && runtime?.sendMessage) {
+      try {
+        runtime.sendMessage({ type: "xray:page-bridge", tabId, kind, ...payload }, () => {
+          void runtime.lastError;
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+  function publishCaptureSettings(settings) {
+    postToPageBridge("config", {
+      config: {
+        captureFetch: settings.captureFetch,
+        captureXhr: settings.captureXhr,
+        captureWs: settings.captureWs
+      }
+    });
+  }
+  function publishTrafficRules(rules) {
+    postToPageBridge("config", { config: { rules: serializeRulesForRuntime(rules) } });
+  }
+
+  // src/panel/models/entries.ts
+  function isApi(entry) {
+    return entry.type === "api";
+  }
+  function isLog(entry) {
+    return entry.type === "log";
+  }
+  function entryPath(entry) {
+    return String(entry.urlPath || entry.url || "(unknown)");
+  }
+  function entryGroupPath(entry) {
+    const path = entryPath(entry);
+    if (entry.graphql?.operationName) return `${path}#${entry.graphql.operationName}`;
+    return path;
+  }
+  function entryGroupLabel(entry) {
+    if (entry.graphql?.operationName) {
+      return `${entry.graphql.operationType} ${entry.graphql.operationName}`;
+    }
+    return entryPath(entry);
+  }
+  function getEntryDomain(entry) {
+    const url = String(entry.url || "");
+    if (!url) return "";
+    try {
+      return new URL(url).host;
+    } catch {
+      return "";
+    }
+  }
+  function headerValue(headers, name) {
+    if (!headers || typeof headers !== "object") return "";
+    const lowerName = name.toLowerCase();
+    const found = Object.entries(headers).find(([key]) => key.toLowerCase() === lowerName);
+    return found ? String(found[1] ?? "") : "";
+  }
+  function getEntryContentType(entry) {
+    return String(
+      entry.contentType || headerValue(entry.responseHeaders, "content-type") || headerValue(entry.requestHeaders, "content-type") || ""
+    );
+  }
+  function duration(entry) {
+    return Math.max(0, Number(entry?.duration) || 0);
+  }
+  function statusRange(entry) {
+    const status = Number(entry.status) || 0;
+    if (status >= 500) return "5xx";
+    if (status >= 400) return "4xx";
+    if (status >= 300) return "3xx";
+    if (status >= 200) return "2xx";
+    return "other";
+  }
+  function buildApiListSummary(entries, pinnedIds, slowThresholdMs = 500) {
+    const apis = entries.filter(isApi);
+    const totalDuration = apis.reduce((sum, entry) => sum + duration(entry), 0);
+    const endpointCounts = /* @__PURE__ */ new Map();
+    apis.forEach((entry) => {
+      const path = entryPath(entry);
+      endpointCounts.set(path, (endpointCounts.get(path) || 0) + 1);
+    });
+    const topEndpoint = Array.from(endpointCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "No endpoint yet";
+    return {
+      total: apis.length,
+      errors: apis.filter((entry) => Number(entry.status) >= 400).length,
+      slow: apis.filter((entry) => duration(entry) >= slowThresholdMs).length,
+      pinned: apis.filter((entry) => pinnedIds.has(entry.id)).length,
+      avgDuration: apis.length ? totalDuration / apis.length : 0,
+      totalBytes: apis.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
+      topEndpoint,
+      repeatedEndpoints: Array.from(endpointCounts.values()).filter((count) => count >= 3).length
+    };
+  }
+  var groupStatsCache = /* @__PURE__ */ new WeakMap();
+  function groupStatsMap(entries) {
+    let map = groupStatsCache.get(entries);
+    if (map) return map;
+    map = /* @__PURE__ */ new Map();
+    const totals = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      if (!isApi(entry)) continue;
+      const key = entryGroupPath(entry);
+      const stats = map.get(key) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
+      const time = duration(entry);
+      stats.count += 1;
+      if (Number(entry.status) >= 400) stats.errors += 1;
+      stats.maxDuration = Math.max(stats.maxDuration, time);
+      totals.set(key, (totals.get(key) || 0) + time);
+      map.set(key, stats);
+    }
+    for (const [key, stats] of map) {
+      stats.avgDuration = stats.count ? (totals.get(key) || 0) / stats.count : 0;
+    }
+    groupStatsCache.set(entries, map);
+    return map;
+  }
+  function entryGroupStats(entry, entries) {
+    return groupStatsMap(entries).get(entryGroupPath(entry)) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
+  }
+  var bodyFlagCache = /* @__PURE__ */ new WeakMap();
+  function bodyFlags(entry) {
+    const cached = bodyFlagCache.get(entry);
+    if (cached) return cached;
+    const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
+    let empty = false;
+    if (Number(entry.status) === 204 || raw == null || raw === "") {
+      empty = true;
+    } else {
+      const parsed = entryResponse(entry);
+      if (Array.isArray(parsed)) empty = parsed.length === 0;
+      else if (parsed && typeof parsed === "object") empty = Object.keys(parsed).length === 0;
+    }
+    let large = Number(entry.size) >= 1e5;
+    if (!large) {
+      if (typeof raw === "string") large = raw.length >= 1e5;
+      else if (raw != null) large = safeStringify(raw, 0, 12e4).length >= 1e5;
+    }
+    const flags = { empty, large };
+    bodyFlagCache.set(entry, flags);
+    return flags;
+  }
+  function isEmptyApiResponse(entry) {
+    return bodyFlags(entry).empty;
+  }
+  function isLargeApiPayload(entry) {
+    return bodyFlags(entry).large;
+  }
+  function getEntryFlags(entry, entries, pinnedIds = /* @__PURE__ */ new Set(), slowThresholdMs = 500) {
+    if (!isApi(entry)) return pinnedIds.has(entry.id) ? ["pinned"] : [];
+    const flags = [];
+    const status = Number(entry.status) || 0;
+    const stats = entryGroupStats(entry, entries);
+    if (status >= 400) flags.push("error");
+    if (entry.driftFromId) flags.push("drift");
+    if (entry.mocked) flags.push("mocked");
+    if (entry.replayed) flags.push("replayed");
+    if (entry.graphql) flags.push("graphql");
+    if (entry.source === "ws" || entry.source === "sse") flags.push("ws");
+    if (duration(entry) >= slowThresholdMs) flags.push("slow");
+    if (stats.count >= 3) flags.push("repeated");
+    if (isLargeApiPayload(entry)) flags.push("large");
+    if (isEmptyApiResponse(entry)) flags.push("empty");
+    if (pinnedIds.has(entry.id)) flags.push("pinned");
+    return flags;
+  }
+  function matchesApiQuickFilter(entry, filter, entries, pinnedIds = /* @__PURE__ */ new Set(), slowThresholdMs = 500) {
+    if (filter === "all") return true;
+    if (filter === "drift") return !!entry.driftFromId;
+    if (filter === "graphql") return !!entry.graphql;
+    if (filter === "ws") return entry.source === "ws" || entry.source === "sse";
+    if (filter === "mocked") return !!entry.mocked;
+    if (filter === "replayed") return !!entry.replayed;
+    if (filter === "errors") return (Number(entry.status) || 0) >= 400;
+    if (filter === "slow") return duration(entry) >= slowThresholdMs;
+    if (filter === "pinned") return pinnedIds.has(entry.id);
+    if (filter === "repeated") return entryGroupStats(entry, entries).count >= 3;
+    if (filter === "large") return isLargeApiPayload(entry);
+    if (filter === "empty") return isEmptyApiResponse(entry);
+    return true;
+  }
+  var haystackCache = /* @__PURE__ */ new WeakMap();
+  function matchesEntry(entry, query) {
+    if (!query) return true;
+    let haystack = haystackCache.get(entry);
+    if (haystack === void 0) {
+      haystack = [
+        entry.method,
+        entry.status,
+        entry.url,
+        entry.urlPath,
+        entry.source,
+        getEntryDomain(entry),
+        getEntryContentType(entry),
+        entry.logLevel,
+        entry.message,
+        preview(entry.logData, 240)
+      ].join(" ").toLowerCase();
+      haystackCache.set(entry, haystack);
+    }
+    return haystack.includes(query.toLowerCase());
+  }
+  function buildEndpointGroups(entries) {
+    const groups = /* @__PURE__ */ new Map();
+    entries.filter(isApi).forEach((entry) => {
+      const path = entryGroupPath(entry);
+      const items = groups.get(path) || [];
+      items.push(entry);
+      groups.set(path, items);
+    });
+    return Array.from(groups.entries()).map(([groupKey, groupEntries]) => {
+      const sorted = groupEntries.slice().sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
+      const totalDuration = sorted.reduce((sum, entry) => sum + duration(entry), 0);
+      const path = entryGroupLabel(sorted[0]);
+      return {
+        key: "api:" + groupKey,
+        path,
+        entries: sorted,
+        latestEntry: sorted[0],
+        count: sorted.length,
+        errors: sorted.filter((entry) => Number(entry.status) >= 400).length,
+        avgDuration: sorted.length ? totalDuration / sorted.length : 0,
+        maxDuration: sorted.reduce((max, entry) => Math.max(max, duration(entry)), 0),
+        totalBytes: sorted.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
+        lastSeen: Number(sorted[0]?.timestamp) || 0,
+        methods: Array.from(new Set(sorted.map((entry) => String(entry.method || "GET").toUpperCase()))),
+        sources: Array.from(new Set(sorted.map((entry) => String(entry.source || "fetch").toLowerCase())))
+      };
+    });
+  }
+  function compareEntries(a, b, field, order) {
+    const dir = order === "asc" ? 1 : -1;
+    const value = (entry) => {
+      if (field === "method") return String(entry.method || "");
+      if (field === "status") return Number(entry.status) || 0;
+      if (field === "url") return entryPath(entry);
+      if (field === "duration") return Number(entry.duration) || 0;
+      if (field === "size") return Number(entry.size) || 0;
+      return Number(entry.timestamp) || 0;
+    };
+    const av = value(a);
+    const bv = value(b);
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+    return String(av).localeCompare(String(bv)) * dir;
+  }
+  function buildEntryListItems(options) {
+    const {
+      mode,
+      entries,
+      query,
+      statusFilters,
+      typeFilters,
+      methodFilters = /* @__PURE__ */ new Set(),
+      expandedGroups,
+      pinnedIds,
+      sortField,
+      sortOrder,
+      slowThresholdMs = 500,
+      apiQuickFilter = "all",
+      apiGroupingMode = "endpoint"
+    } = options;
+    const base = entries.filter(mode === "api" ? isApi : isLog).filter((entry) => matchesEntry(entry, query)).filter((entry) => mode !== "api" || matchesApiQuickFilter(entry, apiQuickFilter, entries, pinnedIds, slowThresholdMs)).filter((entry) => mode !== "api" || !methodFilters.size || methodFilters.has(String(entry.method || "GET").toUpperCase())).filter((entry) => mode !== "api" || !statusFilters.size || statusFilters.has(statusRange(entry))).filter((entry) => mode !== "api" || !typeFilters.size || typeFilters.has(String(entry.source || "fetch").toLowerCase()));
+    const pinnedFirst = (a, b) => {
+      const ap = pinnedIds.has(a.id) ? 1 : 0;
+      const bp = pinnedIds.has(b.id) ? 1 : 0;
+      return bp - ap || compareEntries(a, b, sortField, sortOrder);
+    };
+    const flagsFor = (entry) => getEntryFlags(entry, entries, pinnedIds, slowThresholdMs);
+    if (mode === "logs") {
+      return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
+    }
+    if (apiGroupingMode === "flat") {
+      return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
+    }
+    const groups = buildEndpointGroups(base).sort((groupA, groupB) => {
+      const aPinned = groupA.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
+      const bPinned = groupB.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
+      return bPinned - aPinned || compareEntries(groupA.latestEntry, groupB.latestEntry, sortField, sortOrder);
+    });
+    const rows = [];
+    groups.forEach((group) => {
+      const sorted = group.entries.slice().sort(pinnedFirst);
+      const expanded = expandedGroups.has(group.key);
+      rows.push({
+        key: group.key,
+        entry: sorted[0],
+        flags: flagsFor(sorted[0]),
+        groupKey: group.key,
+        groupCount: sorted.length,
+        groupExpanded: expanded,
+        groupStats: group
+      });
+      if (expanded && sorted.length > 1) {
+        sorted.slice(1).forEach((entry) => rows.push({
+          key: entry.id,
+          entry,
+          flags: flagsFor(entry),
+          groupKey: group.key,
+          groupChild: true
+        }));
+      }
+    });
+    return rows;
+  }
+
+  // src/panel/models/drift.ts
+  var signatureCache = /* @__PURE__ */ new Map();
+  function schemaSignature(entry) {
+    if (!isApi(entry)) return "";
+    const status = Number(entry.status) || 0;
+    if (status >= 400 || status === 0) return "";
+    const cached = signatureCache.get(entry.id);
+    if (cached !== void 0) return cached;
+    const response = entryResponse(entry);
+    const signature = response == null ? "" : safeStringify(schema(response), 0, 2e4);
+    if (signatureCache.size > 4096) signatureCache.clear();
+    signatureCache.set(entry.id, signature);
+    return signature;
+  }
+  function detectDrift(entry, previousEntries) {
+    const signature = schemaSignature(entry);
+    if (!signature) return { driftFromId: null };
+    const path = entryGroupPath(entry);
+    for (let i = previousEntries.length - 1; i >= 0; i -= 1) {
+      const candidate = previousEntries[i];
+      if (!isApi(candidate) || candidate.id === entry.id) continue;
+      if (entryGroupPath(candidate) !== path) continue;
+      const baseline = schemaSignature(candidate);
+      if (!baseline) continue;
+      return { driftFromId: baseline === signature ? null : candidate.id };
+    }
+    return { driftFromId: null };
+  }
+
+  // src/panel/models/sessionStore.ts
+  var SESSION_ENTRIES_KEY = "session_entries";
+  var AI_SETTINGS_KEY = "ai_settings";
+  var MAX_PERSISTED_ENTRIES = 500;
+  var MAX_PERSISTED_BODY_CHARS = 2e4;
+  function trimValue(value) {
+    if (typeof value === "string") {
+      return value.length > MAX_PERSISTED_BODY_CHARS ? value.slice(0, MAX_PERSISTED_BODY_CHARS) + "\u2026" : value;
+    }
+    return value;
+  }
+  function serializeSessionEntries(entries) {
+    return entries.slice(-MAX_PERSISTED_ENTRIES).map((entry) => {
+      const copy = { ...entry };
+      copy.responseRaw = trimValue(entry.responseRaw);
+      if (Array.isArray(entry.wsFrames) && entry.wsFrames.length > 50) {
+        copy.wsFrames = entry.wsFrames.slice(-50);
+      }
+      return copy;
+    });
+  }
+  function deserializeSessionEntries(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry) => !!entry && typeof entry === "object" && typeof entry.id === "string").slice(-MAX_PERSISTED_ENTRIES);
   }
 
   // src/panel/store.ts
   var MAX_ENTRIES = 1e3;
   var MAX_CONSOLE_EVENTS = 2e3;
+  var DEFAULT_AI_SETTINGS = { provider: "anthropic", model: "claude-fable-5", apiKey: "" };
+  var _sessionPersistTimer = null;
+  var _lastPageFocus = null;
   function entryToConsoleEvent(entry) {
     if (entry.type === "api") {
       const status = Number(entry.status) || 0;
@@ -12992,11 +13937,21 @@ var XRAYHudUI = (() => {
       type: "log",
       level,
       timestamp: Number(entry.timestamp) || Date.now(),
-      message: String(entry.message ?? data.map((item) => typeof item === "string" ? item : JSON.stringify(item)).join(" ")),
+      message: String(entry.message ?? data.map((item) => typeof item === "string" ? item : previewJson(item)).join(" ")).slice(0, 600),
       args: data,
       entryId: entry.id
     };
   }
+  function previewJson(value) {
+    try {
+      return JSON.stringify(value, (key, item) => key === "__xray_ref__" ? void 0 : item) ?? String(value);
+    } catch {
+      return String(value);
+    }
+  }
+  var _pausedEvents = [];
+  var _pendingEntryPatches = /* @__PURE__ */ new Map();
+  var _entryPatchTimer = null;
   var usePanelStore = create((set, get) => ({
     initialized: false,
     open: false,
@@ -13019,23 +13974,44 @@ var XRAYHudUI = (() => {
     sortField: "timestamp",
     sortOrder: "desc",
     recording: true,
+    pausedCount: 0,
     entries: [],
     consoleEvents: [],
     consoleDraft: "",
-    notebookCells: [{ id: "cell_default", title: "Current response schema", code: "schema(res)" }],
+    snippets: [{ id: "snip_default", title: "Response schema", code: "schema(res)" }],
+    rules: [],
+    aiSettings: DEFAULT_AI_SETTINGS,
+    driftCount: 0,
     selectedId: null,
     expandedId: null,
     pinnedIds: /* @__PURE__ */ new Set(),
     exportOpen: false,
     settingsOpen: false,
+    settingsSection: "general",
     commandOpen: false,
+    globalSearchOpen: false,
+    replayEditorEntry: null,
+    explainEntry: null,
     pendingConfirmation: null,
     settings: DEFAULT_PANEL_SETTINGS,
     toastMessage: null,
     setInitialized: (value) => set({ initialized: value }),
     setOpen: (value) => {
       window.__XRAY_focusTrapActive = value;
+      const sidePanel = !get().devtoolsMode;
+      if (value && sidePanel) {
+        const active = document.activeElement;
+        _lastPageFocus = active instanceof HTMLElement && active.id !== "__xray_root__" ? active : null;
+      }
       set({ open: value });
+      if (!value && sidePanel && _lastPageFocus) {
+        const el = _lastPageFocus;
+        _lastPageFocus = null;
+        try {
+          el.focus();
+        } catch {
+        }
+      }
     },
     setDevtoolsMode: (value) => set({ devtoolsMode: value, open: value ? true : get().open }),
     setActiveTab: (tab) => {
@@ -13101,16 +14077,14 @@ var XRAYHudUI = (() => {
       set({ typeFilters });
       persistPanelPreferences(get());
     },
+    // Clears FILTERS only. Sort, grouping mode, and the typed search survive —
+    // "All"/Reset silently discarding those was a repeated complaint.
     clearApiFilters: () => {
       set({
-        apiSearchQuery: "",
         apiQuickFilter: "all",
-        apiGroupingMode: "flat",
         methodFilters: /* @__PURE__ */ new Set(),
         statusFilters: /* @__PURE__ */ new Set(),
-        typeFilters: /* @__PURE__ */ new Set(),
-        sortField: "timestamp",
-        sortOrder: "desc"
+        typeFilters: /* @__PURE__ */ new Set()
       });
       persistPanelPreferences(get());
     },
@@ -13141,24 +14115,147 @@ var XRAYHudUI = (() => {
       persistPanelPreferences(get());
     },
     setRecording: (value) => {
-      set({ recording: value });
+      if (value && _pausedEvents.length) {
+        const buffered = _pausedEvents;
+        _pausedEvents = [];
+        set({
+          recording: true,
+          pausedCount: 0,
+          consoleEvents: [...get().consoleEvents, ...buffered].slice(-MAX_CONSOLE_EVENTS)
+        });
+      } else {
+        set({ recording: value, ...value ? { pausedCount: 0 } : {} });
+      }
       persistPanelPreferences(get());
     },
-    addEntry: (entry) => {
-      const id = entry.id || "entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
-      const normalized = { ...entry, id };
-      const maxEntries = Math.max(50, Math.min(5e3, Number(get().settings.maxEntries) || MAX_ENTRIES));
-      const entries = [...get().entries, normalized].slice(-maxEntries);
-      const next = { entries };
-      if (get().recording) {
-        next.consoleEvents = [...get().consoleEvents, entryToConsoleEvent(normalized)].slice(-MAX_CONSOLE_EVENTS);
+    addEntry: (entry) => get().addEntries([entry]),
+    // Capture batches (log storms flush ~16ms of messages at once) land as ONE
+    // store commit: one entries copy, one consoleEvents copy, one render pass —
+    // instead of an O(entries) copy and full re-render per message.
+    addEntries: (batch) => {
+      if (!batch.length) return;
+      const state = get();
+      const maxEntries = Math.max(50, Math.min(5e3, Number(state.settings.maxEntries) || MAX_ENTRIES));
+      const entries = state.entries.slice();
+      let driftCount = state.driftCount;
+      const added = [];
+      for (const raw of batch) {
+        if (!raw) continue;
+        const id = raw.id || "entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+        const drift = detectDrift({ ...raw, id }, entries);
+        const normalized = { ...raw, id, ...drift.driftFromId ? { driftFromId: drift.driftFromId } : {} };
+        entries.push(normalized);
+        if (drift.driftFromId) driftCount += 1;
+        added.push(entryToConsoleEvent(normalized));
+      }
+      const next = {
+        entries: entries.length > maxEntries ? entries.slice(-maxEntries) : entries
+      };
+      if (driftCount !== state.driftCount) next.driftCount = driftCount;
+      if (state.recording) {
+        next.consoleEvents = [...state.consoleEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
+      } else {
+        _pausedEvents = [..._pausedEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
+        next.pausedCount = _pausedEvents.length;
       }
       set(next);
+      scheduleSessionPersist(get);
     },
-    clearConsole: () => set({ consoleEvents: [], expandedId: null, selectedId: null }),
+    // Patches are coalesced: each WS/SSE socket flushes frames independently and
+    // fetch completions land unthrottled — mapping the whole entries array (and
+    // re-rendering every subscriber) once per patch caused storms. One flush per
+    // 50ms window applies all pending patches in a single commit.
+    updateEntry: (patch) => {
+      const pending = _pendingEntryPatches.get(patch.id);
+      _pendingEntryPatches.set(patch.id, pending ? { ...pending, ...patch } : patch);
+      if (_entryPatchTimer !== null) return;
+      _entryPatchTimer = window.setTimeout(() => {
+        _entryPatchTimer = null;
+        const patches = _pendingEntryPatches;
+        if (!patches.size) return;
+        _pendingEntryPatches = /* @__PURE__ */ new Map();
+        let changed = false;
+        const entries = get().entries.map((entry) => {
+          const merge = patches.get(entry.id);
+          if (!merge) return entry;
+          changed = true;
+          return { ...entry, ...merge };
+        });
+        if (!changed) return;
+        set({ entries });
+        scheduleSessionPersist(get);
+      }, 50);
+    },
+    restoreEntries: (restored) => {
+      if (!restored.length) return;
+      const maxEntries = Math.max(50, Math.min(5e3, Number(get().settings.maxEntries) || MAX_ENTRIES));
+      const existing = new Set(get().entries.map((entry) => entry.id));
+      const merged = [...restored.filter((entry) => !existing.has(entry.id)), ...get().entries].slice(-maxEntries);
+      set({ entries: merged });
+    },
+    addRule: (rule) => {
+      const created = normalizeRule({ ...defaultRule(), ...rule || {} });
+      const rules = [...get().rules, created].slice(0, 50);
+      set({ rules, activeTab: "rules" });
+      persistRules(rules);
+    },
+    updateRule: (id, patch) => {
+      const rules = get().rules.map((rule) => rule.id === id ? normalizeRule({ ...rule, ...patch, match: { ...rule.match, ...patch.match || {} }, action: { ...rule.action, ...patch.action || {} } }) : rule);
+      set({ rules });
+      persistRules(rules);
+    },
+    removeRule: (id) => {
+      const rules = get().rules.filter((rule) => rule.id !== id);
+      set({ rules });
+      persistRules(rules);
+    },
+    toggleRule: (id) => {
+      const rules = get().rules.map((rule) => rule.id === id ? { ...rule, enabled: !rule.enabled } : rule);
+      set({ rules });
+      persistRules(rules);
+    },
+    setRules: (rules) => {
+      const normalized = normalizeRules(rules);
+      set({ rules: normalized });
+      persistRules(normalized);
+    },
+    setAiSettings: (patch) => {
+      const aiSettings = { ...get().aiSettings, ...patch };
+      set({ aiSettings });
+      void setStoredValue(AI_SETTINGS_KEY, aiSettings);
+    },
+    replayEntry: (entry, overrides) => {
+      const source = { ...entry, ...overrides || {} };
+      const request = {
+        url: String(source.url || ""),
+        method: String(source.method || "GET"),
+        headers: source.requestHeaders || {},
+        body: source.requestBody ?? null,
+        replayOf: entry.id
+      };
+      if (postToPageBridge("replay", { request })) {
+        get().showToast("Replaying request\u2026");
+      } else {
+        get().showToast("Replay needs a live page \u2014 open XRAY on the page itself.");
+      }
+    },
+    openReplayEditor: (entry) => set({ replayEditorEntry: entry }),
+    closeReplayEditor: () => set({ replayEditorEntry: null }),
+    openExplain: (entry) => set({ explainEntry: entry }),
+    closeExplain: () => set({ explainEntry: null }),
+    // Clearing the stream keeps the selected request: the prompt's eval context
+    // (res/$curl) still targets it, so dropping the selection here desynced the
+    // chip from what the runtime actually evaluated against.
+    clearConsole: () => {
+      _pausedEvents = [];
+      set({ consoleEvents: [], expandedId: null, pausedCount: 0 });
+    },
     clearEntries: () => {
-      set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: /* @__PURE__ */ new Set() });
+      _pausedEvents = [];
+      setConsoleContext(null);
+      set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: /* @__PURE__ */ new Set(), driftCount: 0, pausedCount: 0 });
       persistPanelPreferences(get());
+      void setStoredValue(SESSION_ENTRIES_KEY, []);
     },
     addConsoleEvent: (event) => {
       const events = [...get().consoleEvents, event].slice(-MAX_CONSOLE_EVENTS);
@@ -13169,37 +14266,47 @@ var XRAYHudUI = (() => {
     },
     setConsoleDraft: (command) => set({ consoleDraft: command }),
     insertConsoleCommand: (command) => set({ consoleDraft: command, activeTab: "console" }),
-    addNotebookCell: (cell) => set({
-      notebookCells: [
-        ...get().notebookCells,
-        {
-          id: cell.id || "cell_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8),
-          title: cell.title,
-          code: cell.code
-        }
-      ],
-      activeTab: "notebook"
-    }),
-    updateNotebookCell: (id, code) => set({
-      notebookCells: get().notebookCells.map((cell) => cell.id === id ? { ...cell, code, error: void 0 } : cell)
-    }),
-    setNotebookCellResult: (id, result) => set({
-      notebookCells: get().notebookCells.map((cell) => cell.id === id ? { ...cell, ...result } : cell)
-    }),
-    selectEntry: (id) => {
+    saveSnippet: (snippet) => {
+      const code = snippet.code.trim();
+      if (!code) return;
+      const existing = get().snippets.filter((item) => item.code !== code);
+      const saved = {
+        id: "snip_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8),
+        title: snippet.title,
+        code
+      };
+      const snippets = [saved, ...existing].slice(0, 30);
+      set({ snippets, activeTab: "console" });
+      persistPanelPreferences(get());
+    },
+    renameSnippet: (id, title) => {
+      const trimmed = title.trim();
+      set({ snippets: get().snippets.map((snippet) => snippet.id === id ? { ...snippet, title: trimmed || void 0 } : snippet) });
+      persistPanelPreferences(get());
+    },
+    removeSnippet: (id) => {
+      set({ snippets: get().snippets.filter((snippet) => snippet.id !== id) });
+      persistPanelPreferences(get());
+    },
+    // detailView is deliberately NOT reset per selection: arrowing through rows
+    // while comparing Schema/Headers must keep the inspection context. openDetail
+    // false (keyboard navigation) also respects a drawer the user closed.
+    selectEntry: (id, options) => {
       const entry = id ? get().entries.find((item) => item.id === id) || null : null;
       setConsoleContext(entry);
+      const openDetail = options?.openDetail !== false;
       set({
         selectedId: id,
         expandedId: id ? "evt_" + id : null,
-        detailView: entry?.type === "api" ? get().settings.defaultDetailView : get().detailView,
-        apiDetailOpen: entry?.type === "api" ? true : get().apiDetailOpen
+        apiDetailOpen: entry?.type === "api" && openDetail ? true : get().apiDetailOpen
       });
     },
     toggleExpanded: (id) => set({ expandedId: get().expandedId === id ? null : id }),
     setExportOpen: (value) => set({ exportOpen: value }),
     setSettingsOpen: (value) => set({ settingsOpen: value }),
+    openSettings: (section) => set({ settingsSection: section, settingsOpen: true }),
     setCommandOpen: (value) => set({ commandOpen: value }),
+    setGlobalSearchOpen: (value) => set({ globalSearchOpen: value }),
     updateSettings: (patch) => {
       const settings = normalizePanelSettings({ ...get().settings, ...patch });
       set({
@@ -13237,12 +14344,42 @@ var XRAYHudUI = (() => {
     showToast: (message) => set({ toastMessage: message }),
     clearToast: () => set({ toastMessage: null }),
     restorePreferences: async () => {
-      const preferences = await getStoredValue(REACT_PANEL_PREFERENCES_KEY, {});
+      const [preferences, storedRules, aiSettings, sessionEntries] = await Promise.all([
+        getStoredValue(REACT_PANEL_PREFERENCES_KEY, {}),
+        getStoredValue(TRAFFIC_RULES_KEY, []),
+        getStoredValue(AI_SETTINGS_KEY, null),
+        getStoredValue(SESSION_ENTRIES_KEY, [])
+      ]);
       const restored = applyPanelPreferences(preferences);
-      set(restored);
-      publishCaptureSettings(usePanelStore.getState().settings);
+      const rules = normalizeRules(storedRules);
+      set({
+        ...restored,
+        rules,
+        ...aiSettings ? { aiSettings: { ...DEFAULT_AI_SETTINGS, ...aiSettings } } : {}
+      });
+      const settings = usePanelStore.getState().settings;
+      publishCaptureSettings(settings);
+      publishTrafficRules(rules);
+      const previousEntries = deserializeSessionEntries(sessionEntries);
+      if (previousEntries.length && !usePanelStore.getState().entries.length) {
+        usePanelStore.getState().restoreEntries(previousEntries);
+      }
     }
   }));
+  function scheduleSessionPersist(get) {
+    if (_sessionPersistTimer) return;
+    _sessionPersistTimer = setTimeout(() => {
+      _sessionPersistTimer = null;
+      try {
+        void setStoredValue(SESSION_ENTRIES_KEY, serializeSessionEntries(get().entries));
+      } catch {
+      }
+    }, 4e3);
+  }
+  function persistRules(rules) {
+    void setStoredValue(TRAFFIC_RULES_KEY, rules);
+    publishTrafficRules(rules);
+  }
   function persistPanelPreferences(state) {
     void setStoredValue(REACT_PANEL_PREFERENCES_KEY, serializePanelPreferences(state));
   }
@@ -13252,7 +14389,7 @@ var XRAYHudUI = (() => {
   }
 
   // src/panel/components/api/EntriesWorkspace.tsx
-  var import_react4 = __toESM(require_react());
+  var import_react6 = __toESM(require_react());
 
   // node_modules/@tanstack/react-virtual/dist/esm/index.js
   var React2 = __toESM(require_react(), 1);
@@ -14619,322 +15756,316 @@ var XRAYHudUI = (() => {
   var __iconNode2 = [["path", { "d": "M12 9v4", "key": "svg-0" }], ["path", { "d": "M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0", "key": "svg-1" }], ["path", { "d": "M12 16h.01", "key": "svg-2" }]];
   var IconAlertTriangle = createReactComponent("outline", "alert-triangle", "AlertTriangle", __iconNode2);
 
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowBackUp.mjs
+  var __iconNode3 = [["path", { "d": "M9 14l-4 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M5 10h11a4 4 0 1 1 0 8h-1", "key": "svg-1" }]];
+  var IconArrowBackUp = createReactComponent("outline", "arrow-back-up", "ArrowBackUp", __iconNode3);
+
   // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowDownLeft.mjs
-  var __iconNode3 = [["path", { "d": "M17 7l-10 10", "key": "svg-0" }], ["path", { "d": "M16 17l-9 0l0 -9", "key": "svg-1" }]];
-  var IconArrowDownLeft = createReactComponent("outline", "arrow-down-left", "ArrowDownLeft", __iconNode3);
+  var __iconNode4 = [["path", { "d": "M17 7l-10 10", "key": "svg-0" }], ["path", { "d": "M16 17l-9 0l0 -9", "key": "svg-1" }]];
+  var IconArrowDownLeft = createReactComponent("outline", "arrow-down-left", "ArrowDownLeft", __iconNode4);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowDown.mjs
+  var __iconNode5 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M18 13l-6 6", "key": "svg-1" }], ["path", { "d": "M6 13l6 6", "key": "svg-2" }]];
+  var IconArrowDown = createReactComponent("outline", "arrow-down", "ArrowDown", __iconNode5);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowRight.mjs
+  var __iconNode6 = [["path", { "d": "M5 12l14 0", "key": "svg-0" }], ["path", { "d": "M13 18l6 -6", "key": "svg-1" }], ["path", { "d": "M13 6l6 6", "key": "svg-2" }]];
+  var IconArrowRight = createReactComponent("outline", "arrow-right", "ArrowRight", __iconNode6);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowUpRight.mjs
-  var __iconNode4 = [["path", { "d": "M17 7l-10 10", "key": "svg-0" }], ["path", { "d": "M8 7l9 0l0 9", "key": "svg-1" }]];
-  var IconArrowUpRight = createReactComponent("outline", "arrow-up-right", "ArrowUpRight", __iconNode4);
+  var __iconNode7 = [["path", { "d": "M17 7l-10 10", "key": "svg-0" }], ["path", { "d": "M8 7l9 0l0 9", "key": "svg-1" }]];
+  var IconArrowUpRight = createReactComponent("outline", "arrow-up-right", "ArrowUpRight", __iconNode7);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs
+  var __iconNode8 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M18 11l-6 -6", "key": "svg-1" }], ["path", { "d": "M6 11l6 -6", "key": "svg-2" }]];
+  var IconArrowUp = createReactComponent("outline", "arrow-up", "ArrowUp", __iconNode8);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconArrowsMaximize.mjs
-  var __iconNode5 = [["path", { "d": "M16 4l4 0l0 4", "key": "svg-0" }], ["path", { "d": "M14 10l6 -6", "key": "svg-1" }], ["path", { "d": "M8 20l-4 0l0 -4", "key": "svg-2" }], ["path", { "d": "M4 20l6 -6", "key": "svg-3" }], ["path", { "d": "M16 20l4 0l0 -4", "key": "svg-4" }], ["path", { "d": "M14 14l6 6", "key": "svg-5" }], ["path", { "d": "M8 4l-4 0l0 4", "key": "svg-6" }], ["path", { "d": "M4 4l6 6", "key": "svg-7" }]];
-  var IconArrowsMaximize = createReactComponent("outline", "arrows-maximize", "ArrowsMaximize", __iconNode5);
+  var __iconNode9 = [["path", { "d": "M16 4l4 0l0 4", "key": "svg-0" }], ["path", { "d": "M14 10l6 -6", "key": "svg-1" }], ["path", { "d": "M8 20l-4 0l0 -4", "key": "svg-2" }], ["path", { "d": "M4 20l6 -6", "key": "svg-3" }], ["path", { "d": "M16 20l4 0l0 -4", "key": "svg-4" }], ["path", { "d": "M14 14l6 6", "key": "svg-5" }], ["path", { "d": "M8 4l-4 0l0 4", "key": "svg-6" }], ["path", { "d": "M4 4l6 6", "key": "svg-7" }]];
+  var IconArrowsMaximize = createReactComponent("outline", "arrows-maximize", "ArrowsMaximize", __iconNode9);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconBolt.mjs
-  var __iconNode6 = [["path", { "d": "M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11", "key": "svg-0" }]];
-  var IconBolt = createReactComponent("outline", "bolt", "Bolt", __iconNode6);
+  var __iconNode10 = [["path", { "d": "M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11", "key": "svg-0" }]];
+  var IconBolt = createReactComponent("outline", "bolt", "Bolt", __iconNode10);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconBookmarkPlus.mjs
+  var __iconNode11 = [["path", { "d": "M12 17l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v5", "key": "svg-0" }], ["path", { "d": "M16 19h6", "key": "svg-1" }], ["path", { "d": "M19 16v6", "key": "svg-2" }]];
+  var IconBookmarkPlus = createReactComponent("outline", "bookmark-plus", "BookmarkPlus", __iconNode11);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconBookmark.mjs
+  var __iconNode12 = [["path", { "d": "M18 7v14l-6 -4l-6 4v-14a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4", "key": "svg-0" }]];
+  var IconBookmark = createReactComponent("outline", "bookmark", "Bookmark", __iconNode12);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconBraces.mjs
-  var __iconNode7 = [["path", { "d": "M7 4a2 2 0 0 0 -2 2v3a2 3 0 0 1 -2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2", "key": "svg-0" }], ["path", { "d": "M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0 -2 3v3a2 2 0 0 1 -2 2", "key": "svg-1" }]];
-  var IconBraces = createReactComponent("outline", "braces", "Braces", __iconNode7);
-
-  // node_modules/@tabler/icons-react/dist/esm/icons/IconBrandTypescript.mjs
-  var __iconNode8 = [["path", { "d": "M15 17.5c.32 .32 .754 .5 1.207 .5h.543c.69 0 1.25 -.56 1.25 -1.25v-.25a1.5 1.5 0 0 0 -1.5 -1.5a1.5 1.5 0 0 1 -1.5 -1.5v-.25c0 -.69 .56 -1.25 1.25 -1.25h.543c.453 0 .887 .18 1.207 .5", "key": "svg-0" }], ["path", { "d": "M9 12h4", "key": "svg-1" }], ["path", { "d": "M11 12v6", "key": "svg-2" }], ["path", { "d": "M21 19v-14a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2 -2", "key": "svg-3" }]];
-  var IconBrandTypescript = createReactComponent("outline", "brand-typescript", "BrandTypescript", __iconNode8);
+  var __iconNode13 = [["path", { "d": "M7 4a2 2 0 0 0 -2 2v3a2 3 0 0 1 -2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2", "key": "svg-0" }], ["path", { "d": "M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0 -2 3v3a2 2 0 0 1 -2 2", "key": "svg-1" }]];
+  var IconBraces = createReactComponent("outline", "braces", "Braces", __iconNode13);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChartBar.mjs
-  var __iconNode9 = [["path", { "d": "M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6", "key": "svg-0" }], ["path", { "d": "M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10", "key": "svg-1" }], ["path", { "d": "M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14", "key": "svg-2" }], ["path", { "d": "M4 20h14", "key": "svg-3" }]];
-  var IconChartBar = createReactComponent("outline", "chart-bar", "ChartBar", __iconNode9);
+  var __iconNode14 = [["path", { "d": "M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6", "key": "svg-0" }], ["path", { "d": "M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10", "key": "svg-1" }], ["path", { "d": "M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14", "key": "svg-2" }], ["path", { "d": "M4 20h14", "key": "svg-3" }]];
+  var IconChartBar = createReactComponent("outline", "chart-bar", "ChartBar", __iconNode14);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCheck.mjs
-  var __iconNode10 = [["path", { "d": "M5 12l5 5l10 -10", "key": "svg-0" }]];
-  var IconCheck = createReactComponent("outline", "check", "Check", __iconNode10);
+  var __iconNode15 = [["path", { "d": "M5 12l5 5l10 -10", "key": "svg-0" }]];
+  var IconCheck = createReactComponent("outline", "check", "Check", __iconNode15);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs
-  var __iconNode11 = [["path", { "d": "M6 9l6 6l6 -6", "key": "svg-0" }]];
-  var IconChevronDown = createReactComponent("outline", "chevron-down", "ChevronDown", __iconNode11);
+  var __iconNode16 = [["path", { "d": "M6 9l6 6l6 -6", "key": "svg-0" }]];
+  var IconChevronDown = createReactComponent("outline", "chevron-down", "ChevronDown", __iconNode16);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronLeft.mjs
-  var __iconNode12 = [["path", { "d": "M15 6l-6 6l6 6", "key": "svg-0" }]];
-  var IconChevronLeft = createReactComponent("outline", "chevron-left", "ChevronLeft", __iconNode12);
+  var __iconNode17 = [["path", { "d": "M15 6l-6 6l6 6", "key": "svg-0" }]];
+  var IconChevronLeft = createReactComponent("outline", "chevron-left", "ChevronLeft", __iconNode17);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconChevronRight.mjs
-  var __iconNode13 = [["path", { "d": "M9 6l6 6l-6 6", "key": "svg-0" }]];
-  var IconChevronRight = createReactComponent("outline", "chevron-right", "ChevronRight", __iconNode13);
+  var __iconNode18 = [["path", { "d": "M9 6l6 6l-6 6", "key": "svg-0" }]];
+  var IconChevronRight = createReactComponent("outline", "chevron-right", "ChevronRight", __iconNode18);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs
-  var __iconNode14 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M9 12l2 2l4 -4", "key": "svg-1" }]];
-  var IconCircleCheck = createReactComponent("outline", "circle-check", "CircleCheck", __iconNode14);
+  var __iconNode19 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M9 12l2 2l4 -4", "key": "svg-1" }]];
+  var IconCircleCheck = createReactComponent("outline", "circle-check", "CircleCheck", __iconNode19);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCircleX.mjs
-  var __iconNode15 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M10 10l4 4m0 -4l-4 4", "key": "svg-1" }]];
-  var IconCircleX = createReactComponent("outline", "circle-x", "CircleX", __iconNode15);
+  var __iconNode20 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M10 10l4 4m0 -4l-4 4", "key": "svg-1" }]];
+  var IconCircleX = createReactComponent("outline", "circle-x", "CircleX", __iconNode20);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconClipboard.mjs
+  var __iconNode21 = [["path", { "d": "M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2", "key": "svg-0" }], ["path", { "d": "M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2", "key": "svg-1" }]];
+  var IconClipboard = createReactComponent("outline", "clipboard", "Clipboard", __iconNode21);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconClock.mjs
-  var __iconNode16 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 7v5l3 3", "key": "svg-1" }]];
-  var IconClock = createReactComponent("outline", "clock", "Clock", __iconNode16);
+  var __iconNode22 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 7v5l3 3", "key": "svg-1" }]];
+  var IconClock = createReactComponent("outline", "clock", "Clock", __iconNode22);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCode.mjs
-  var __iconNode17 = [["path", { "d": "M7 8l-4 4l4 4", "key": "svg-0" }], ["path", { "d": "M17 8l4 4l-4 4", "key": "svg-1" }], ["path", { "d": "M14 4l-4 16", "key": "svg-2" }]];
-  var IconCode = createReactComponent("outline", "code", "Code", __iconNode17);
+  var __iconNode23 = [["path", { "d": "M7 8l-4 4l4 4", "key": "svg-0" }], ["path", { "d": "M17 8l4 4l-4 4", "key": "svg-1" }], ["path", { "d": "M14 4l-4 16", "key": "svg-2" }]];
+  var IconCode = createReactComponent("outline", "code", "Code", __iconNode23);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconColorPicker.mjs
+  var __iconNode24 = [["path", { "d": "M11 7l6 6", "key": "svg-0" }], ["path", { "d": "M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4", "key": "svg-1" }]];
+  var IconColorPicker = createReactComponent("outline", "color-picker", "ColorPicker", __iconNode24);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconCopy.mjs
-  var __iconNode18 = [["path", { "d": "M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666", "key": "svg-0" }], ["path", { "d": "M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1", "key": "svg-1" }]];
-  var IconCopy = createReactComponent("outline", "copy", "Copy", __iconNode18);
+  var __iconNode25 = [["path", { "d": "M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666", "key": "svg-0" }], ["path", { "d": "M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1", "key": "svg-1" }]];
+  var IconCopy = createReactComponent("outline", "copy", "Copy", __iconNode25);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconDatabaseImport.mjs
+  var __iconNode26 = [["path", { "d": "M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3", "key": "svg-0" }], ["path", { "d": "M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6", "key": "svg-1" }], ["path", { "d": "M4 12v6c0 1.657 3.582 3 8 3c.171 0 .341 -.002 .51 -.006", "key": "svg-2" }], ["path", { "d": "M19 22v-6", "key": "svg-3" }], ["path", { "d": "M22 19l-3 -3l-3 3", "key": "svg-4" }]];
+  var IconDatabaseImport = createReactComponent("outline", "database-import", "DatabaseImport", __iconNode26);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDatabase.mjs
-  var __iconNode19 = [["path", { "d": "M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "key": "svg-0" }], ["path", { "d": "M4 6v6a8 3 0 0 0 16 0v-6", "key": "svg-1" }], ["path", { "d": "M4 12v6a8 3 0 0 0 16 0v-6", "key": "svg-2" }]];
-  var IconDatabase = createReactComponent("outline", "database", "Database", __iconNode19);
+  var __iconNode27 = [["path", { "d": "M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "key": "svg-0" }], ["path", { "d": "M4 6v6a8 3 0 0 0 16 0v-6", "key": "svg-1" }], ["path", { "d": "M4 12v6a8 3 0 0 0 16 0v-6", "key": "svg-2" }]];
+  var IconDatabase = createReactComponent("outline", "database", "Database", __iconNode27);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDeviceLaptop.mjs
-  var __iconNode20 = [["path", { "d": "M3 19l18 0", "key": "svg-0" }], ["path", { "d": "M5 7a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v8a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1l0 -8", "key": "svg-1" }]];
-  var IconDeviceLaptop = createReactComponent("outline", "device-laptop", "DeviceLaptop", __iconNode20);
+  var __iconNode28 = [["path", { "d": "M3 19l18 0", "key": "svg-0" }], ["path", { "d": "M5 7a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v8a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1l0 -8", "key": "svg-1" }]];
+  var IconDeviceLaptop = createReactComponent("outline", "device-laptop", "DeviceLaptop", __iconNode28);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconDice.mjs
+  var __iconNode29 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M8 8.5a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0", "fill": "currentColor", "key": "svg-1" }], ["path", { "d": "M15 8.5a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0", "fill": "currentColor", "key": "svg-2" }], ["path", { "d": "M15 15.5a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0", "fill": "currentColor", "key": "svg-3" }], ["path", { "d": "M8 15.5a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0", "fill": "currentColor", "key": "svg-4" }]];
+  var IconDice = createReactComponent("outline", "dice", "Dice", __iconNode29);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconDownload.mjs
-  var __iconNode21 = [["path", { "d": "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2", "key": "svg-0" }], ["path", { "d": "M7 11l5 5l5 -5", "key": "svg-1" }], ["path", { "d": "M12 4l0 12", "key": "svg-2" }]];
-  var IconDownload = createReactComponent("outline", "download", "Download", __iconNode21);
+  var __iconNode30 = [["path", { "d": "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2", "key": "svg-0" }], ["path", { "d": "M7 11l5 5l5 -5", "key": "svg-1" }], ["path", { "d": "M12 4l0 12", "key": "svg-2" }]];
+  var IconDownload = createReactComponent("outline", "download", "Download", __iconNode30);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconEraser.mjs
+  var __iconNode31 = [["path", { "d": "M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3", "key": "svg-0" }], ["path", { "d": "M18 13.3l-6.3 -6.3", "key": "svg-1" }]];
+  var IconEraser = createReactComponent("outline", "eraser", "Eraser", __iconNode31);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFileDiff.mjs
-  var __iconNode22 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2", "key": "svg-1" }], ["path", { "d": "M12 10l0 4", "key": "svg-2" }], ["path", { "d": "M10 12l4 0", "key": "svg-3" }], ["path", { "d": "M10 17l4 0", "key": "svg-4" }]];
-  var IconFileDiff = createReactComponent("outline", "file-diff", "FileDiff", __iconNode22);
+  var __iconNode32 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2", "key": "svg-1" }], ["path", { "d": "M12 10l0 4", "key": "svg-2" }], ["path", { "d": "M10 12l4 0", "key": "svg-3" }], ["path", { "d": "M10 17l4 0", "key": "svg-4" }]];
+  var IconFileDiff = createReactComponent("outline", "file-diff", "FileDiff", __iconNode32);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFileExport.mjs
-  var __iconNode23 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3", "key": "svg-1" }]];
-  var IconFileExport = createReactComponent("outline", "file-export", "FileExport", __iconNode23);
+  var __iconNode33 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3", "key": "svg-1" }]];
+  var IconFileExport = createReactComponent("outline", "file-export", "FileExport", __iconNode33);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconFileImport.mjs
+  var __iconNode34 = [["path", { "d": "M14 3v4a1 1 0 0 0 1 1h4", "key": "svg-0" }], ["path", { "d": "M5 13v-8a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-5.5m-9.5 -2h7m-3 -3l3 3l-3 3", "key": "svg-1" }]];
+  var IconFileImport = createReactComponent("outline", "file-import", "FileImport", __iconNode34);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFilterOff.mjs
-  var __iconNode24 = [["path", { "d": "M8 4h12v2.172a2 2 0 0 1 -.586 1.414l-3.914 3.914m-.5 3.5v4l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }], ["path", { "d": "M3 3l18 18", "key": "svg-1" }]];
-  var IconFilterOff = createReactComponent("outline", "filter-off", "FilterOff", __iconNode24);
+  var __iconNode35 = [["path", { "d": "M8 4h12v2.172a2 2 0 0 1 -.586 1.414l-3.914 3.914m-.5 3.5v4l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }], ["path", { "d": "M3 3l18 18", "key": "svg-1" }]];
+  var IconFilterOff = createReactComponent("outline", "filter-off", "FilterOff", __iconNode35);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconFilter.mjs
-  var __iconNode25 = [["path", { "d": "M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }]];
-  var IconFilter = createReactComponent("outline", "filter", "Filter", __iconNode25);
+  var __iconNode36 = [["path", { "d": "M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227", "key": "svg-0" }]];
+  var IconFilter = createReactComponent("outline", "filter", "Filter", __iconNode36);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconHelp.mjs
+  var __iconNode37 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 17l0 .01", "key": "svg-1" }], ["path", { "d": "M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4", "key": "svg-2" }]];
+  var IconHelp = createReactComponent("outline", "help", "Help", __iconNode37);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs
-  var __iconNode26 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
-  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode26);
+  var __iconNode38 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M12 9h.01", "key": "svg-1" }], ["path", { "d": "M11 12h1v4h1", "key": "svg-2" }]];
+  var IconInfoCircle = createReactComponent("outline", "info-circle", "InfoCircle", __iconNode38);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconKey.mjs
+  var __iconNode39 = [["path", { "d": "M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0", "key": "svg-0" }], ["path", { "d": "M15 9h.01", "key": "svg-1" }]];
+  var IconKey = createReactComponent("outline", "key", "Key", __iconNode39);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconKeyboard.mjs
-  var __iconNode27 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
-  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode27);
+  var __iconNode40 = [["path", { "d": "M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8", "key": "svg-0" }], ["path", { "d": "M6 10l0 .01", "key": "svg-1" }], ["path", { "d": "M10 10l0 .01", "key": "svg-2" }], ["path", { "d": "M14 10l0 .01", "key": "svg-3" }], ["path", { "d": "M18 10l0 .01", "key": "svg-4" }], ["path", { "d": "M6 14l0 .01", "key": "svg-5" }], ["path", { "d": "M18 14l0 .01", "key": "svg-6" }], ["path", { "d": "M10 14l4 .01", "key": "svg-7" }]];
+  var IconKeyboard = createReactComponent("outline", "keyboard", "Keyboard", __iconNode40);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutSidebarLeftExpand.mjs
+  var __iconNode41 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M9 4v16", "key": "svg-1" }], ["path", { "d": "M14 10l2 2l-2 2", "key": "svg-2" }]];
+  var IconLayoutSidebarLeftExpand = createReactComponent("outline", "layout-sidebar-left-expand", "LayoutSidebarLeftExpand", __iconNode41);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconLayoutSidebarRightExpand.mjs
+  var __iconNode42 = [["path", { "d": "M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12", "key": "svg-0" }], ["path", { "d": "M15 4v16", "key": "svg-1" }], ["path", { "d": "M10 10l-2 2l2 2", "key": "svg-2" }]];
+  var IconLayoutSidebarRightExpand = createReactComponent("outline", "layout-sidebar-right-expand", "LayoutSidebarRightExpand", __iconNode42);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconLetterCase.mjs
+  var __iconNode43 = [["path", { "d": "M14 15.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0", "key": "svg-0" }], ["path", { "d": "M3 19v-10.5a3.5 3.5 0 0 1 7 0v10.5", "key": "svg-1" }], ["path", { "d": "M3 13h7", "key": "svg-2" }], ["path", { "d": "M21 12v7", "key": "svg-3" }]];
+  var IconLetterCase = createReactComponent("outline", "letter-case", "LetterCase", __iconNode43);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconLock.mjs
-  var __iconNode28 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
-  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode28);
+  var __iconNode44 = [["path", { "d": "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6", "key": "svg-0" }], ["path", { "d": "M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0", "key": "svg-1" }], ["path", { "d": "M8 11v-4a4 4 0 1 1 8 0v4", "key": "svg-2" }]];
+  var IconLock = createReactComponent("outline", "lock", "Lock", __iconNode44);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconNetwork.mjs
-  var __iconNode29 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
-  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode29);
-
-  // node_modules/@tabler/icons-react/dist/esm/icons/IconNotebook.mjs
-  var __iconNode30 = [["path", { "d": "M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-11a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1m3 0v18", "key": "svg-0" }], ["path", { "d": "M13 8l2 0", "key": "svg-1" }], ["path", { "d": "M13 12l2 0", "key": "svg-2" }]];
-  var IconNotebook = createReactComponent("outline", "notebook", "Notebook", __iconNode30);
+  var __iconNode45 = [["path", { "d": "M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0", "key": "svg-0" }], ["path", { "d": "M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6", "key": "svg-1" }], ["path", { "d": "M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6", "key": "svg-2" }], ["path", { "d": "M6 9h12", "key": "svg-3" }], ["path", { "d": "M3 20h7", "key": "svg-4" }], ["path", { "d": "M14 20h7", "key": "svg-5" }], ["path", { "d": "M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-6" }], ["path", { "d": "M12 15v3", "key": "svg-7" }]];
+  var IconNetwork = createReactComponent("outline", "network", "Network", __iconNode45);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPalette.mjs
-  var __iconNode31 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
-  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode31);
+  var __iconNode46 = [["path", { "d": "M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25", "key": "svg-0" }], ["path", { "d": "M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }]];
+  var IconPalette = createReactComponent("outline", "palette", "Palette", __iconNode46);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPictureInPicture.mjs
-  var __iconNode32 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
-  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode32);
+  var __iconNode47 = [["path", { "d": "M11 19h-6a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v4", "key": "svg-0" }], ["path", { "d": "M14 15a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -3", "key": "svg-1" }]];
+  var IconPictureInPicture = createReactComponent("outline", "picture-in-picture", "PictureInPicture", __iconNode47);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPin.mjs
-  var __iconNode33 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
-  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode33);
+  var __iconNode48 = [["path", { "d": "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4", "key": "svg-0" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-1" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-2" }]];
+  var IconPin = createReactComponent("outline", "pin", "Pin", __iconNode48);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPinnedOff.mjs
-  var __iconNode34 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
-  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode34);
+  var __iconNode49 = [["path", { "d": "M3 3l18 18", "key": "svg-0" }], ["path", { "d": "M15 4.5l-3.249 3.249m-2.57 1.433l-2.181 .818l-1.5 1.5l7 7l1.5 -1.5l.82 -2.186m1.43 -2.563l3.25 -3.251", "key": "svg-1" }], ["path", { "d": "M9 15l-4.5 4.5", "key": "svg-2" }], ["path", { "d": "M14.5 4l5.5 5.5", "key": "svg-3" }]];
+  var IconPinnedOff = createReactComponent("outline", "pinned-off", "PinnedOff", __iconNode49);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerPlay.mjs
-  var __iconNode35 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
-  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode35);
+  var __iconNode50 = [["path", { "d": "M7 4v16l13 -8l-13 -8", "key": "svg-0" }]];
+  var IconPlayerPlay = createReactComponent("outline", "player-play", "PlayerPlay", __iconNode50);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlayerRecord.mjs
-  var __iconNode36 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
-  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode36);
+  var __iconNode51 = [["path", { "d": "M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }]];
+  var IconPlayerRecord = createReactComponent("outline", "player-record", "PlayerRecord", __iconNode51);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconPlugConnected.mjs
+  var __iconNode52 = [["path", { "d": "M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5", "key": "svg-0" }], ["path", { "d": "M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5", "key": "svg-1" }], ["path", { "d": "M3 21l2.5 -2.5", "key": "svg-2" }], ["path", { "d": "M18.5 5.5l2.5 -2.5", "key": "svg-3" }], ["path", { "d": "M10 11l-2 2", "key": "svg-4" }], ["path", { "d": "M13 14l-2 2", "key": "svg-5" }]];
+  var IconPlugConnected = createReactComponent("outline", "plug-connected", "PlugConnected", __iconNode52);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconPlus.mjs
-  var __iconNode37 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
-  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode37);
+  var __iconNode53 = [["path", { "d": "M12 5l0 14", "key": "svg-0" }], ["path", { "d": "M5 12l14 0", "key": "svg-1" }]];
+  var IconPlus = createReactComponent("outline", "plus", "Plus", __iconNode53);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconRadar2.mjs
+  var __iconNode54 = [["path", { "d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-0" }], ["path", { "d": "M15.51 15.56a5 5 0 1 0 -3.51 1.44", "key": "svg-1" }], ["path", { "d": "M18.832 17.86a9 9 0 1 0 -6.832 3.14", "key": "svg-2" }], ["path", { "d": "M12 12v9", "key": "svg-3" }]];
+  var IconRadar2 = createReactComponent("outline", "radar-2", "Radar2", __iconNode54);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRefresh.mjs
-  var __iconNode38 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
-  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode38);
+  var __iconNode55 = [["path", { "d": "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4", "key": "svg-0" }], ["path", { "d": "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4", "key": "svg-1" }]];
+  var IconRefresh = createReactComponent("outline", "refresh", "Refresh", __iconNode55);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconRegex.mjs
+  var __iconNode56 = [["path", { "d": "M6.5 15a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0 -5", "key": "svg-0" }], ["path", { "d": "M17 7.875l3 -1.687", "key": "svg-1" }], ["path", { "d": "M17 7.875v3.375", "key": "svg-2" }], ["path", { "d": "M17 7.875l-3 -1.687", "key": "svg-3" }], ["path", { "d": "M17 7.875l3 1.688", "key": "svg-4" }], ["path", { "d": "M17 4.5v3.375", "key": "svg-5" }], ["path", { "d": "M17 7.875l-3 1.688", "key": "svg-6" }]];
+  var IconRegex = createReactComponent("outline", "regex", "Regex", __iconNode56);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconRepeat.mjs
+  var __iconNode57 = [["path", { "d": "M4 12v-3a3 3 0 0 1 3 -3h13m-3 -3l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M20 12v3a3 3 0 0 1 -3 3h-13m3 3l-3 -3l3 -3", "key": "svg-1" }]];
+  var IconRepeat = createReactComponent("outline", "repeat", "Repeat", __iconNode57);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconRoute.mjs
-  var __iconNode39 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
-  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode39);
+  var __iconNode58 = [["path", { "d": "M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "key": "svg-0" }], ["path", { "d": "M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4", "key": "svg-1" }], ["path", { "d": "M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5", "key": "svg-2" }]];
+  var IconRoute = createReactComponent("outline", "route", "Route", __iconNode58);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSearch.mjs
-  var __iconNode40 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
-  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode40);
+  var __iconNode59 = [["path", { "d": "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0", "key": "svg-0" }], ["path", { "d": "M21 21l-6 -6", "key": "svg-1" }]];
+  var IconSearch = createReactComponent("outline", "search", "Search", __iconNode59);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSend.mjs
-  var __iconNode41 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
-  var IconSend = createReactComponent("outline", "send", "Send", __iconNode41);
+  var __iconNode60 = [["path", { "d": "M10 14l11 -11", "key": "svg-0" }], ["path", { "d": "M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5", "key": "svg-1" }]];
+  var IconSend = createReactComponent("outline", "send", "Send", __iconNode60);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconServer.mjs
-  var __iconNode42 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
-  var IconServer = createReactComponent("outline", "server", "Server", __iconNode42);
+  var __iconNode61 = [["path", { "d": "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3", "key": "svg-0" }], ["path", { "d": "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2", "key": "svg-1" }], ["path", { "d": "M7 8l0 .01", "key": "svg-2" }], ["path", { "d": "M7 16l0 .01", "key": "svg-3" }]];
+  var IconServer = createReactComponent("outline", "server", "Server", __iconNode61);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconSettings.mjs
-  var __iconNode43 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
-  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode43);
+  var __iconNode62 = [["path", { "d": "M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065", "key": "svg-0" }], ["path", { "d": "M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "key": "svg-1" }]];
+  var IconSettings = createReactComponent("outline", "settings", "Settings", __iconNode62);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconShare.mjs
+  var __iconNode63 = [["path", { "d": "M3 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-0" }], ["path", { "d": "M15 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-1" }], ["path", { "d": "M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "key": "svg-2" }], ["path", { "d": "M8.7 10.7l6.6 -3.4", "key": "svg-3" }], ["path", { "d": "M8.7 13.3l6.6 3.4", "key": "svg-4" }]];
+  var IconShare = createReactComponent("outline", "share", "Share", __iconNode63);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconSparkles.mjs
+  var __iconNode64 = [["path", { "d": "M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6", "key": "svg-0" }]];
+  var IconSparkles = createReactComponent("outline", "sparkles", "Sparkles", __iconNode64);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTable.mjs
-  var __iconNode44 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M3 10h18", "key": "svg-1" }], ["path", { "d": "M10 3v18", "key": "svg-2" }]];
-  var IconTable = createReactComponent("outline", "table", "Table", __iconNode44);
+  var __iconNode65 = [["path", { "d": "M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14", "key": "svg-0" }], ["path", { "d": "M3 10h18", "key": "svg-1" }], ["path", { "d": "M10 3v18", "key": "svg-2" }]];
+  var IconTable = createReactComponent("outline", "table", "Table", __iconNode65);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTerminal2.mjs
-  var __iconNode45 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
-  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode45);
+  var __iconNode66 = [["path", { "d": "M8 9l3 3l-3 3", "key": "svg-0" }], ["path", { "d": "M13 15l3 0", "key": "svg-1" }], ["path", { "d": "M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12", "key": "svg-2" }]];
+  var IconTerminal2 = createReactComponent("outline", "terminal-2", "Terminal2", __iconNode66);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTimeline.mjs
-  var __iconNode46 = [["path", { "d": "M4 16l6 -7l5 5l5 -6", "key": "svg-0" }], ["path", { "d": "M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }], ["path", { "d": "M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-4" }]];
-  var IconTimeline = createReactComponent("outline", "timeline", "Timeline", __iconNode46);
+  var __iconNode67 = [["path", { "d": "M4 16l6 -7l5 5l5 -6", "key": "svg-0" }], ["path", { "d": "M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-1" }], ["path", { "d": "M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-2" }], ["path", { "d": "M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-3" }], ["path", { "d": "M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0", "key": "svg-4" }]];
+  var IconTimeline = createReactComponent("outline", "timeline", "Timeline", __iconNode67);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconTrash.mjs
-  var __iconNode47 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
-  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode47);
+  var __iconNode68 = [["path", { "d": "M4 7l16 0", "key": "svg-0" }], ["path", { "d": "M10 11l0 6", "key": "svg-1" }], ["path", { "d": "M14 11l0 6", "key": "svg-2" }], ["path", { "d": "M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12", "key": "svg-3" }], ["path", { "d": "M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3", "key": "svg-4" }]];
+  var IconTrash = createReactComponent("outline", "trash", "Trash", __iconNode68);
+
+  // node_modules/@tabler/icons-react/dist/esm/icons/IconWand.mjs
+  var __iconNode69 = [["path", { "d": "M6 21l15 -15l-3 -3l-15 15l3 3", "key": "svg-0" }], ["path", { "d": "M15 6l3 3", "key": "svg-1" }], ["path", { "d": "M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-2" }], ["path", { "d": "M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2", "key": "svg-3" }]];
+  var IconWand = createReactComponent("outline", "wand", "Wand", __iconNode69);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconWorld.mjs
-  var __iconNode48 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M3.6 9h16.8", "key": "svg-1" }], ["path", { "d": "M3.6 15h16.8", "key": "svg-2" }], ["path", { "d": "M11.5 3a17 17 0 0 0 0 18", "key": "svg-3" }], ["path", { "d": "M12.5 3a17 17 0 0 1 0 18", "key": "svg-4" }]];
-  var IconWorld = createReactComponent("outline", "world", "World", __iconNode48);
+  var __iconNode70 = [["path", { "d": "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "key": "svg-0" }], ["path", { "d": "M3.6 9h16.8", "key": "svg-1" }], ["path", { "d": "M3.6 15h16.8", "key": "svg-2" }], ["path", { "d": "M11.5 3a17 17 0 0 0 0 18", "key": "svg-3" }], ["path", { "d": "M12.5 3a17 17 0 0 1 0 18", "key": "svg-4" }]];
+  var IconWorld = createReactComponent("outline", "world", "World", __iconNode70);
 
   // node_modules/@tabler/icons-react/dist/esm/icons/IconX.mjs
-  var __iconNode49 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
-  var IconX = createReactComponent("outline", "x", "X", __iconNode49);
+  var __iconNode71 = [["path", { "d": "M18 6l-12 12", "key": "svg-0" }], ["path", { "d": "M6 6l12 12", "key": "svg-1" }]];
+  var IconX = createReactComponent("outline", "x", "X", __iconNode71);
 
   // src/panel/components/common/EmptyState.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime());
-  function EmptyState({ label }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "xray-card xray-muted", style: { margin: 12, textAlign: "center" }, children: label });
+  function EmptyState({ label, hint, icon, action }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "xray-empty", role: "status", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "xray-empty-glyph", children: icon || /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRadar2, { size: 26, stroke: 1.5 }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "xray-empty-title", children: label }),
+      hint && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "xray-empty-hint", children: hint }),
+      action && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "xray-empty-action", children: action })
+    ] });
   }
 
   // src/panel/components/detail/RequestDetail.tsx
-  var import_react3 = __toESM(require_react());
-
-  // src/panel/utils.ts
-  function parseBody(value) {
-    if (value == null || value === "") return null;
-    if (typeof value !== "string") return value;
-    const trimmed = value.trim();
-    if (!trimmed || !trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value;
-    }
-  }
-  function entryResponse(entry) {
-    if (!entry) return null;
-    return parseBody(entry.responseDecrypted ?? entry.responseRaw ?? entry.response ?? null);
-  }
-  function entryRequest(entry) {
-    if (!entry) return null;
-    return parseBody(entry.requestBody ?? null);
-  }
-  function formatTime(timestamp) {
-    return new Date(timestamp || Date.now()).toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  }
-  function formatBytes(value) {
-    const bytes = Number(value) || 0;
-    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + "mb";
-    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + "kb";
-    return bytes + "b";
-  }
-  function preview(value, limit = 220) {
-    if (value === void 0) return "undefined";
-    if (value === null) return "null";
-    if (typeof value === "string") return value.length > limit ? value.slice(0, limit) + "..." : value;
-    if (typeof value === "number" || typeof value === "boolean") return String(value);
-    try {
-      const text = JSON.stringify(value);
-      return text.length > limit ? text.slice(0, limit) + "..." : text;
-    } catch {
-      return String(value);
-    }
-  }
-  function safeStringify(value, space = 2, limit = 8e4) {
-    const seen = /* @__PURE__ */ new WeakSet();
-    let text = "";
-    try {
-      text = JSON.stringify(value, (_key, child) => {
-        if (typeof child === "bigint") return child.toString() + "n";
-        if (child && typeof child === "object") {
-          if (seen.has(child)) return "[Circular]";
-          seen.add(child);
-        }
-        return child;
-      }, space) ?? "undefined";
-    } catch {
-      text = String(value);
-    }
-    if (text.length <= limit) return text;
-    return text.slice(0, limit) + `
-... truncated ${text.length - limit} chars`;
-  }
-  function methodClass(method) {
-    return (method || "GET").toLowerCase();
-  }
-  function statusClass(status) {
-    const value = Number(status) || 0;
-    if (value >= 400) return "error";
-    if (value >= 300) return "warn";
-    if (value >= 200) return "ok";
-    return "";
-  }
-  function eventEntry(event) {
-    return event.type === "network" && event.args?.[0] && typeof event.args[0] === "object" ? event.args[0] : null;
-  }
-  function buildCurl(entry) {
-    if (window.XRAY_ConsoleHelpers?.generateCurl) return window.XRAY_ConsoleHelpers.generateCurl(entry);
-    if (!entry) return "// Select an API request first";
-    return `curl ${JSON.stringify(entry.url || "")} -X ${(entry.method || "GET").toUpperCase()}`;
-  }
-  function buildFetch(entry) {
-    if (window.XRAY_ConsoleHelpers?.generateFetch) return window.XRAY_ConsoleHelpers.generateFetch(entry);
-    if (!entry) return "// Select an API request first";
-    return `fetch(${JSON.stringify(entry.url || "")})`;
-  }
-  function buildMockPayload(entry) {
-    const mock = window.XRAY_ConsoleHelpers?.buildMock?.(entry) || entryResponse(entry);
-    return safeStringify(mock, 2, 12e4);
-  }
-  async function copyText(text) {
-    try {
-      await navigator.clipboard?.writeText?.(text);
-    } catch {
-    }
-  }
-  function downloadText(filename, text, mime = "text/plain;charset=utf-8") {
-    const blob = new Blob([text], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-  function schema(value) {
-    if (window.XRAY_ConsoleHelpers?.schema) return window.XRAY_ConsoleHelpers.schema(value);
-    if (value === null) return "null";
-    if (Array.isArray(value)) return value.length ? [schema(value[0])] : "array";
-    if (typeof value === "object") {
-      return Object.fromEntries(Object.entries(value || {}).map(([key, child]) => [key, schema(child)]));
-    }
-    return typeof value;
-  }
+  var import_react4 = __toESM(require_react());
 
   // src/panel/models/detail.ts
+  function duration2(entry) {
+    return Math.max(0, Number(entry.duration) || 0);
+  }
   var detailViews = ["tree", "grid", "raw", "schema", "diff", "viz", "waterfall", "headers"];
+  function timingPhases(entry) {
+    const timing = entry.timing;
+    if (timing && Number(timing.totalMs) > 0) {
+      const phases = [
+        { label: "DNS", ms: Number(timing.dnsMs) || 0, className: "dns" },
+        { label: "Connect", ms: Math.max(0, (Number(timing.connectMs) || 0) - (Number(timing.tlsMs) || 0)), className: "connect" },
+        { label: "TLS", ms: Number(timing.tlsMs) || 0, className: "tls" },
+        { label: "Wait (TTFB)", ms: Number(timing.ttfbMs) || 0, className: "ttfb" },
+        { label: "Download", ms: Number(timing.downloadMs) || 0, className: "download" }
+      ].filter((phase) => phase.ms > 0);
+      return { phases, totalMs: Number(timing.totalMs), real: true };
+    }
+    const total = duration2(entry);
+    return { phases: [{ label: "Total", ms: total, className: "total" }], totalMs: total, real: false };
+  }
   function detailValue(entry, detailTab) {
     if (detailTab === "request") return entryRequest(entry);
     if (detailTab === "headers") {
@@ -14954,228 +16085,249 @@ var XRAYHudUI = (() => {
     }, /* @__PURE__ */ new Set()));
     return { objects, columns };
   }
-  function vizSummary(value) {
-    return {
-      inferredType: schema(value),
-      rows: Array.isArray(value) ? value.length : value && typeof value === "object" ? 1 : 0
+  function structuralDiff(previous, current, maxLines = 200) {
+    const lines = [];
+    const walk = (prev, curr, path, depth) => {
+      if (lines.length >= maxLines || depth > 6) return;
+      if (prev === void 0 && curr !== void 0) {
+        lines.push({ path, kind: "added", after: curr });
+        return;
+      }
+      if (prev !== void 0 && curr === void 0) {
+        lines.push({ path, kind: "removed", before: prev });
+        return;
+      }
+      const prevIsObj = prev !== null && typeof prev === "object";
+      const currIsObj = curr !== null && typeof curr === "object";
+      if (!prevIsObj || !currIsObj) {
+        if (!Object.is(prev, curr)) lines.push({ path, kind: "changed", before: prev, after: curr });
+        return;
+      }
+      if (Array.isArray(prev) !== Array.isArray(curr)) {
+        lines.push({ path, kind: "changed", before: prev, after: curr });
+        return;
+      }
+      if (Array.isArray(prev) && Array.isArray(curr)) {
+        const length = Math.max(prev.length, curr.length);
+        for (let index = 0; index < Math.min(length, 50); index += 1) {
+          walk(prev[index], curr[index], `${path}[${index}]`, depth + 1);
+        }
+        if (length > 50 && prev.length !== curr.length && lines.length < maxLines) {
+          lines.push({ path: `${path}[\u2026]`, kind: "changed", before: `${prev.length} items`, after: `${curr.length} items` });
+        }
+        return;
+      }
+      const keys = /* @__PURE__ */ new Set([...Object.keys(prev), ...Object.keys(curr)]);
+      for (const key of keys) {
+        walk(prev[key], curr[key], path ? `${path}.${key}` : key, depth + 1);
+      }
     };
+    walk(previous, current, "", 0);
+    return lines;
   }
 
-  // src/panel/models/entries.ts
-  function isApi(entry) {
-    return entry.type === "api";
+  // src/panel/models/viz.ts
+  var MAX_BARS = 40;
+  function isNumber(value) {
+    return typeof value === "number" && Number.isFinite(value);
   }
-  function isLog(entry) {
-    return entry.type === "log";
+  function labelFor(value, index) {
+    if (value == null) return `#${index + 1}`;
+    const text = typeof value === "string" ? value : String(value);
+    return text.length > 40 ? text.slice(0, 40) + "\u2026" : text || `#${index + 1}`;
   }
-  function entryPath(entry) {
-    return String(entry.urlPath || entry.url || "(unknown)");
+  function coerceRows(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object") {
+      const arrayProp = Object.values(value).find(Array.isArray);
+      if (Array.isArray(arrayProp)) return arrayProp;
+    }
+    return null;
   }
-  function getEntryDomain(entry) {
-    const url = String(entry.url || "");
-    if (!url) return "";
+  function frequency(items) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      const key = item == null ? "null" : typeof item === "object" ? "[object]" : String(item);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value, negative: false }));
+  }
+  function fromObjects(rows) {
+    const numericCoverage = /* @__PURE__ */ new Map();
+    const stringFields = [];
+    const seenString = /* @__PURE__ */ new Set();
+    for (const row of rows) {
+      for (const [key, val] of Object.entries(row)) {
+        if (isNumber(val)) numericCoverage.set(key, (numericCoverage.get(key) || 0) + 1);
+        else if (typeof val === "string" && !seenString.has(key)) {
+          seenString.add(key);
+          stringFields.push(key);
+        }
+      }
+    }
+    const bestNumeric = Array.from(numericCoverage.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const labelField = stringFields[0];
+    if (bestNumeric) {
+      const bars = rows.filter((row) => isNumber(row[bestNumeric])).slice(0, MAX_BARS).map((row, index) => {
+        const value = row[bestNumeric];
+        return { label: labelField ? labelFor(row[labelField], index) : `#${index + 1}`, value, negative: value < 0 };
+      });
+      if (!bars.length) return null;
+      const numericTotal = rows.filter((row) => isNumber(row[bestNumeric])).length;
+      return {
+        kind: "bars",
+        title: `${bestNumeric} across ${numericTotal} rows`,
+        subtitle: labelField ? `Labeled by ${labelField}` : void 0,
+        bars,
+        truncated: Math.max(0, numericTotal - bars.length),
+        maxAbs: Math.max(...bars.map((bar) => Math.abs(bar.value)), 0)
+      };
+    }
+    if (labelField) {
+      const bars = frequency(rows.map((row) => row[labelField])).slice(0, MAX_BARS);
+      return {
+        kind: "bars",
+        title: `Distribution of ${labelField}`,
+        subtitle: `${rows.length} rows`,
+        bars,
+        truncated: 0,
+        maxAbs: Math.max(...bars.map((bar) => bar.value), 0)
+      };
+    }
+    return null;
+  }
+  function buildVizSpec(value) {
+    const none = (title) => ({ kind: "none", title, bars: [], truncated: 0, maxAbs: 0 });
+    const rows = coerceRows(value);
+    if (rows && rows.length) {
+      if (rows.every(isNumber)) {
+        const bars = rows.slice(0, MAX_BARS).map((num, index) => ({ label: `#${index + 1}`, value: num, negative: num < 0 }));
+        return { kind: "bars", title: `${rows.length} values`, bars, truncated: Math.max(0, rows.length - bars.length), maxAbs: Math.max(...bars.map((bar) => Math.abs(bar.value)), 0) };
+      }
+      if (rows.every((row) => row && typeof row === "object" && !Array.isArray(row))) {
+        const spec = fromObjects(rows);
+        if (spec) return spec;
+      }
+      if (rows.every((row) => row == null || typeof row !== "object")) {
+        const bars = frequency(rows).slice(0, MAX_BARS);
+        return { kind: "bars", title: `Distribution of ${rows.length} values`, bars, truncated: 0, maxAbs: Math.max(...bars.map((bar) => bar.value), 0) };
+      }
+      return none("This array has no numeric or categorical field to chart.");
+    }
+    if (value && typeof value === "object") {
+      const numericEntries = Object.entries(value).filter(([, val]) => isNumber(val));
+      if (numericEntries.length) {
+        const bars = numericEntries.slice(0, MAX_BARS).map(([key, val]) => ({ label: key, value: val, negative: val < 0 }));
+        return { kind: "bars", title: `${numericEntries.length} numeric fields`, bars, truncated: Math.max(0, numericEntries.length - bars.length), maxAbs: Math.max(...bars.map((bar) => Math.abs(bar.value)), 0) };
+      }
+      return none("No numeric fields in this object to chart.");
+    }
+    if (isNumber(value)) {
+      return { kind: "bars", title: "Single value", bars: [{ label: "value", value, negative: value < 0 }], truncated: 0, maxAbs: Math.abs(value) };
+    }
+    return none("Select a response with arrays or numbers to visualize.");
+  }
+  function formatVizValue(value) {
+    if (Number.isInteger(value)) return value.toLocaleString("en-US");
+    if (Math.abs(value) >= 1e3) return value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+    return String(Number(value.toFixed(3)));
+  }
+
+  // src/panel/models/lenses.ts
+  var JWT_PATTERN = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g;
+  function base64UrlDecode(segment) {
+    const padded = segment.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(segment.length / 4) * 4, "=");
     try {
-      return new URL(url).host;
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
     } catch {
       return "";
     }
   }
-  function headerValue(headers, name) {
-    if (!headers || typeof headers !== "object") return "";
-    const lowerName = name.toLowerCase();
-    const found = Object.entries(headers).find(([key]) => key.toLowerCase() === lowerName);
-    return found ? String(found[1] ?? "") : "";
-  }
-  function getEntryContentType(entry) {
-    return String(
-      entry.contentType || headerValue(entry.responseHeaders, "content-type") || headerValue(entry.requestHeaders, "content-type") || ""
-    );
-  }
-  function duration(entry) {
-    return Math.max(0, Number(entry?.duration) || 0);
-  }
-  function statusRange(entry) {
-    const status = Number(entry.status) || 0;
-    if (status >= 500) return "5xx";
-    if (status >= 400) return "4xx";
-    if (status >= 300) return "3xx";
-    if (status >= 200) return "2xx";
-    return "other";
-  }
-  function buildApiListSummary(entries, pinnedIds, slowThresholdMs = 500) {
-    const apis = entries.filter(isApi);
-    const totalDuration = apis.reduce((sum, entry) => sum + duration(entry), 0);
-    const endpointCounts = /* @__PURE__ */ new Map();
-    apis.forEach((entry) => {
-      const path = entryPath(entry);
-      endpointCounts.set(path, (endpointCounts.get(path) || 0) + 1);
-    });
-    const topEndpoint = Array.from(endpointCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || "No endpoint yet";
-    return {
-      total: apis.length,
-      errors: apis.filter((entry) => Number(entry.status) >= 400).length,
-      slow: apis.filter((entry) => duration(entry) >= slowThresholdMs).length,
-      pinned: apis.filter((entry) => pinnedIds.has(entry.id)).length,
-      avgDuration: apis.length ? totalDuration / apis.length : 0,
-      totalBytes: apis.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
-      topEndpoint,
-      repeatedEndpoints: Array.from(endpointCounts.values()).filter((count) => count >= 3).length
-    };
-  }
-  function entryGroupStats(entry, entries) {
-    const group = entries.filter((candidate) => isApi(candidate) && entryPath(candidate) === entryPath(entry));
-    const totalDuration = group.reduce((sum, item) => sum + duration(item), 0);
-    return {
-      count: group.length,
-      errors: group.filter((item) => Number(item.status) >= 400).length,
-      avgDuration: group.length ? totalDuration / group.length : 0,
-      maxDuration: group.reduce((max, item) => Math.max(max, duration(item)), 0)
-    };
-  }
-  function isEmptyApiResponse(entry) {
-    if (Number(entry.status) === 204) return true;
-    const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
-    if (raw == null || raw === "") return true;
-    const parsed = entryResponse(entry);
-    if (Array.isArray(parsed)) return parsed.length === 0;
-    if (parsed && typeof parsed === "object") return Object.keys(parsed).length === 0;
-    return false;
-  }
-  function isLargeApiPayload(entry) {
-    if (Number(entry.size) >= 1e5) return true;
-    const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
-    if (typeof raw === "string" && raw.length >= 1e5) return true;
-    return safeStringify(raw, 0, 12e4).length >= 1e5;
-  }
-  function getEntryFlags(entry, entries, pinnedIds = /* @__PURE__ */ new Set(), slowThresholdMs = 500) {
-    if (!isApi(entry)) return pinnedIds.has(entry.id) ? ["pinned"] : [];
-    const flags = [];
-    const status = Number(entry.status) || 0;
-    const stats = entryGroupStats(entry, entries);
-    if (status >= 400) flags.push("error");
-    if (duration(entry) >= slowThresholdMs) flags.push("slow");
-    if (stats.count >= 3) flags.push("repeated");
-    if (isLargeApiPayload(entry)) flags.push("large");
-    if (isEmptyApiResponse(entry)) flags.push("empty");
-    if (pinnedIds.has(entry.id)) flags.push("pinned");
-    return flags;
-  }
-  function matchesApiQuickFilter(entry, filter, entries, pinnedIds = /* @__PURE__ */ new Set(), slowThresholdMs = 500) {
-    if (filter === "all") return true;
-    return getEntryFlags(entry, entries, pinnedIds, slowThresholdMs).includes(filter === "errors" ? "error" : filter);
-  }
-  function matchesEntry(entry, query) {
-    if (!query) return true;
-    const haystack = [
-      entry.method,
-      entry.status,
-      entry.url,
-      entry.urlPath,
-      entry.source,
-      getEntryDomain(entry),
-      getEntryContentType(entry),
-      entry.logLevel,
-      entry.message,
-      preview(entry.logData, 240)
-    ].join(" ").toLowerCase();
-    return haystack.includes(query.toLowerCase());
-  }
-  function buildEndpointGroups(entries) {
-    const groups = /* @__PURE__ */ new Map();
-    entries.filter(isApi).forEach((entry) => {
-      const path = entryPath(entry);
-      const items = groups.get(path) || [];
-      items.push(entry);
-      groups.set(path, items);
-    });
-    return Array.from(groups.entries()).map(([path, groupEntries]) => {
-      const sorted = groupEntries.slice().sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
-      const totalDuration = sorted.reduce((sum, entry) => sum + duration(entry), 0);
-      return {
-        key: "api:" + path,
-        path,
-        entries: sorted,
-        latestEntry: sorted[0],
-        count: sorted.length,
-        errors: sorted.filter((entry) => Number(entry.status) >= 400).length,
-        avgDuration: sorted.length ? totalDuration / sorted.length : 0,
-        maxDuration: sorted.reduce((max, entry) => Math.max(max, duration(entry)), 0),
-        totalBytes: sorted.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
-        lastSeen: Number(sorted[0]?.timestamp) || 0,
-        methods: Array.from(new Set(sorted.map((entry) => String(entry.method || "GET").toUpperCase()))),
-        sources: Array.from(new Set(sorted.map((entry) => String(entry.source || "fetch").toLowerCase())))
-      };
-    });
-  }
-  function compareEntries(a, b, field, order) {
-    const dir = order === "asc" ? 1 : -1;
-    const value = (entry) => {
-      if (field === "method") return String(entry.method || "");
-      if (field === "status") return Number(entry.status) || 0;
-      if (field === "url") return entryPath(entry);
-      if (field === "duration") return Number(entry.duration) || 0;
-      if (field === "size") return Number(entry.size) || 0;
-      return Number(entry.timestamp) || 0;
-    };
-    const av = value(a);
-    const bv = value(b);
-    if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
-    return String(av).localeCompare(String(bv)) * dir;
-  }
-  function buildEntryListItems(options) {
-    const {
-      mode,
-      entries,
-      query,
-      statusFilters,
-      typeFilters,
-      methodFilters = /* @__PURE__ */ new Set(),
-      expandedGroups,
-      pinnedIds,
-      sortField,
-      sortOrder,
-      slowThresholdMs = 500,
-      apiQuickFilter = "all",
-      apiGroupingMode = "endpoint"
-    } = options;
-    const base = entries.filter(mode === "api" ? isApi : isLog).filter((entry) => matchesEntry(entry, query)).filter((entry) => mode !== "api" || matchesApiQuickFilter(entry, apiQuickFilter, entries, pinnedIds, slowThresholdMs)).filter((entry) => mode !== "api" || !methodFilters.size || methodFilters.has(String(entry.method || "GET").toUpperCase())).filter((entry) => mode !== "api" || !statusFilters.size || statusFilters.has(statusRange(entry))).filter((entry) => mode !== "api" || !typeFilters.size || typeFilters.has(String(entry.source || "fetch").toLowerCase()));
-    const pinnedFirst = (a, b) => {
-      const ap = pinnedIds.has(a.id) ? 1 : 0;
-      const bp = pinnedIds.has(b.id) ? 1 : 0;
-      return bp - ap || compareEntries(a, b, sortField, sortOrder);
-    };
-    if (mode === "logs") {
-      return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry }));
+  function parseJson(text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
     }
-    if (apiGroupingMode === "flat") {
-      return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry }));
+  }
+  function toIso(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    return new Date(seconds * 1e3).toISOString();
+  }
+  function decodeJwt(token, source) {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const header = parseJson(base64UrlDecode(parts[0]));
+    const payload = parseJson(base64UrlDecode(parts[1]));
+    if (header == null && payload == null) return null;
+    const payloadRecord = payload && typeof payload === "object" ? payload : {};
+    const expiresAt = toIso(payloadRecord.exp);
+    return {
+      source,
+      raw: token,
+      header,
+      payload,
+      expiresAt,
+      issuedAt: toIso(payloadRecord.iat),
+      expired: expiresAt ? Number(payloadRecord.exp) * 1e3 < Date.now() : null
+    };
+  }
+  function collectStrings(value, out, source, depth = 0) {
+    if (depth > 4 || out.length > 200) return;
+    if (typeof value === "string") {
+      out.push({ text: value, source });
+      return;
     }
-    const rows = [];
-    buildEndpointGroups(base).forEach((group) => {
-      const sorted = group.entries.slice().sort(pinnedFirst);
-      const expanded = expandedGroups.has(group.key);
-      rows.push({
-        key: group.key,
-        entry: sorted[0],
-        groupKey: group.key,
-        groupCount: sorted.length,
-        groupExpanded: expanded,
-        groupStats: group
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => collectStrings(item, out, `${source}[${index}]`, depth + 1));
+      return;
+    }
+    if (value && typeof value === "object") {
+      Object.entries(value).forEach(([key, child]) => collectStrings(child, out, source ? `${source}.${key}` : key, depth + 1));
+    }
+  }
+  function extractJwts(entry) {
+    const found = [];
+    const seen = /* @__PURE__ */ new Set();
+    const candidates = [];
+    const captured = Array.isArray(entry.jwtLenses) ? entry.jwtLenses : [];
+    for (const lens of captured) {
+      if (!lens || typeof lens !== "object") continue;
+      const payloadRecord = lens.payload && typeof lens.payload === "object" ? lens.payload : {};
+      const expiresAt = toIso(payloadRecord.exp);
+      found.push({
+        // Prefixed so the Tokens UI labels it "Request header" — the captured
+        // source is the bare header name (authorization, x-api-key, ...).
+        source: `requestHeaders.${String(lens.source || "authorization")}`,
+        raw: "[redacted]",
+        header: lens.header ?? null,
+        payload: lens.payload ?? null,
+        expiresAt,
+        issuedAt: toIso(payloadRecord.iat),
+        expired: expiresAt ? Number(payloadRecord.exp) * 1e3 < Date.now() : null
       });
-      if (expanded && sorted.length > 1) {
-        sorted.slice(1).forEach((entry) => rows.push({
-          key: entry.id,
-          entry,
-          groupKey: group.key,
-          groupChild: true
-        }));
+      if (found.length >= 20) return found;
+    }
+    collectStrings(entry.requestHeaders, candidates, "requestHeaders");
+    collectStrings(entry.responseHeaders, candidates, "responseHeaders");
+    collectStrings(entry.requestBody, candidates, "requestBody");
+    const response = entry.responseDecrypted ?? entry.responseRaw;
+    collectStrings(response, candidates, "response");
+    for (const candidate of candidates) {
+      const matches = candidate.text.match(JWT_PATTERN);
+      if (!matches) continue;
+      for (const match of matches) {
+        if (seen.has(match)) continue;
+        seen.add(match);
+        const decoded = decodeJwt(match, candidate.source);
+        if (decoded) found.push(decoded);
+        if (found.length >= 20) return found;
       }
-    });
-    return rows.sort((a, b) => {
-      const ap = pinnedIds.has(a.entry.id) ? 1 : 0;
-      const bp = pinnedIds.has(b.entry.id) ? 1 : 0;
-      return bp - ap || compareEntries(a.entry, b.entry, sortField, sortOrder);
-    });
+    }
+    return found;
   }
 
   // src/panel/models/operations.ts
@@ -15193,16 +16345,17 @@ var XRAYHudUI = (() => {
     return safeStringify(value, 0, 12e4).length > 8e4;
   }
   function sameEndpoint(a, b) {
-    return isApi(a) && isApi(b) && entryPath(a) === entryPath(b);
+    return isApi(a) && isApi(b) && entryGroupPath(a) === entryGroupPath(b);
   }
   function previousSameEndpoint(entry, entries) {
     const before = entries.filter((candidate) => candidate.id !== entry.id && sameEndpoint(candidate, entry)).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
     return before[0] || null;
   }
   function hasSchemaDrift(entry, entries) {
+    if (entry.driftFromId) return true;
     const previous = previousSameEndpoint(entry, entries);
     if (!previous) return false;
-    return safeStringify(schema(entryResponse(previous)), 0, 2e4) !== safeStringify(schema(entryResponse(entry)), 0, 2e4);
+    return safeStringify(entrySchema(previous), 0, 2e4) !== safeStringify(entrySchema(entry), 0, 2e4);
   }
   function pushUnique(operations, operation) {
     if (!operations.some((item) => item.id === operation.id)) operations.push(operation);
@@ -15235,7 +16388,7 @@ var XRAYHudUI = (() => {
       pushUnique(operations, { id: "schema", label: "Schema", kind: "view", view: "schema", command: "schema(res)", priority: 86 });
     }
     if (isLargePayload(entry, response)) {
-      pushUnique(operations, { id: "copy-full", label: "Copy Full", kind: "copy", command: safeStringify(response, 2, 5e5), toast: "Full response copied.", priority: 70 });
+      pushUnique(operations, { id: "copy-full", label: "Copy Full", kind: "copy", lazyCommand: () => safeStringify(response, 2, 5e5), toast: "Full response copied.", priority: 70 });
       pushUnique(operations, { id: "schema", label: "Schema", kind: "view", view: "schema", command: "schema(res)", priority: 69 });
     }
     if (isEmptyResponse(response)) {
@@ -15250,26 +16403,32 @@ var XRAYHudUI = (() => {
     }
     pushUnique(operations, { id: "copy-curl", label: "Copy cURL", kind: "copy", command: buildCurl(entry), toast: "cURL copied.", priority: 45 });
     pushUnique(operations, { id: "copy-fetch", label: "Copy fetch", kind: "copy", command: buildFetch(entry), toast: "fetch snippet copied.", priority: 44 });
-    pushUnique(operations, { id: "mock", label: "Mock", kind: "copy", command: buildMockPayload(entry), toast: "Mock response copied.", priority: 43 });
+    pushUnique(operations, { id: "mock", label: "Mock", kind: "copy", lazyCommand: () => buildMockPayload(entry), toast: "Mock response copied.", priority: 43 });
     pushUnique(operations, { id: "send-console", label: "Send to Console", kind: "console", command: "res", priority: 43 });
-    pushUnique(operations, { id: "send-notebook", label: "Send to Notebook", kind: "notebook", command: `// ${entry.method || "GET"} ${path}
-schema(res)`, priority: 42 });
+    pushUnique(operations, { id: "save-snippet", label: "Save Snippet", kind: "snippet", command: "schema(res)", priority: 42 });
     pushUnique(operations, { id: "export", label: "Export", kind: "export", priority: 41 });
     return operations.sort((a, b) => b.priority - a.priority).slice(0, 14);
   }
 
   // src/panel/components/detail/JsonView.tsx
+  var import_react3 = __toESM(require_react());
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
   var tokenPattern = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}\[\],:]/g;
-  function JsonView({ value }) {
-    const text = safeStringify(value);
-    const lines = text.split("\n");
-    if (lines.length > 600) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: lines.map((line, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "xray-json-line", children: [
+  var JsonView = import_react3.default.memo(function JsonView2({ value }) {
+    const { text, tokenLines } = (0, import_react3.useMemo)(() => {
+      const stringified = safeStringify(value);
+      const lines = stringified.split("\n");
+      return {
+        text: stringified,
+        tokenLines: lines.length > 600 ? null : lines.map((line) => tokenizeJsonLine(line))
+      };
+    }, [value]);
+    if (!tokenLines) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", children: text });
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "xray-json xray-json-editor", "aria-label": "JSON preview with line numbers", children: tokenLines.map((tokens, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "xray-json-line", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-no", children: index + 1 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-text", children: line ? tokenizeJsonLine(line).map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "xray-json-line-text", children: tokens.length ? tokens.map((token, tokenIndex) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: token.className, children: token.text }, tokenIndex)) : " " })
     ] }, index)) });
-  }
+  });
   function tokenizeJsonLine(line) {
     const tokens = [];
     let lastIndex = 0;
@@ -15299,6 +16458,9 @@ schema(res)`, priority: 42 });
     { id: "response", label: "Preview" },
     { id: "headers", label: "Headers" },
     { id: "cookies", label: "Cookies" },
+    { id: "frames", label: "Frames" },
+    { id: "initiator", label: "Initiator" },
+    { id: "tokens", label: "Tokens" },
     { id: "timeline", label: "Timeline" }
   ];
   var viewLabels = {
@@ -15315,36 +16477,60 @@ schema(res)`, priority: 42 });
     { label: "Inspect", ids: ["inspect-error", "schema", "table", "visualize", "headers", "waterfall", "request"] },
     { label: "Transform", ids: ["compare-previous", "diff", "mock", "related-errors", "similar-calls", "slow-calls"] },
     { label: "Copy", ids: ["copy-curl", "copy-fetch", "copy-full"] },
-    { label: "Send", ids: ["send-console", "send-notebook", "export"] }
+    { label: "Send", ids: ["send-console", "save-snippet", "export"] }
   ];
+  function jwtSourceLabel(source) {
+    if (source.startsWith("requestHeaders")) return "Request header";
+    if (source.startsWith("responseHeaders")) return "Response header";
+    if (source.startsWith("requestBody")) return "Request body";
+    return "Response body";
+  }
   function RequestDetail({ entry, compact = false, onClose }) {
     const detailView = usePanelStore((state) => state.detailView);
     const setDetailView = usePanelStore((state) => state.setDetailView);
     const detailTab = usePanelStore((state) => state.detailTab);
     const setDetailTab = usePanelStore((state) => state.setDetailTab);
     const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
-    const addNotebookCell = usePanelStore((state) => state.addNotebookCell);
+    const saveSnippet = usePanelStore((state) => state.saveSnippet);
     const setExportOpen = usePanelStore((state) => state.setExportOpen);
     const showToast = usePanelStore((state) => state.showToast);
-    const entries = usePanelStore((state) => state.entries);
-    const [responseTab, setResponseTab] = import_react3.default.useState("response");
-    const cookies = import_react3.default.useMemo(() => cookieSummary(entry), [entry]);
+    const entriesLength = usePanelStore((state) => state.entries.length);
+    const replayEntry = usePanelStore((state) => state.replayEntry);
+    const openReplayEditor = usePanelStore((state) => state.openReplayEditor);
+    const openExplain = usePanelStore((state) => state.openExplain);
+    const [responseTab, setResponseTab] = import_react4.default.useState("response");
+    const cookies = import_react4.default.useMemo(() => cookieSummary(entry), [entry]);
     const hasCookies = Object.keys(cookies).length > 0;
-    const activeValue = import_react3.default.useMemo(() => {
+    const jwts = import_react4.default.useMemo(() => extractJwts(entry), [entry]);
+    const hasFrames = Array.isArray(entry.wsFrames);
+    const hasInitiator = Array.isArray(entry.initiator) && entry.initiator.length > 0;
+    const driftFrom = import_react4.default.useMemo(
+      () => entry.driftFromId ? usePanelStore.getState().entries.find((candidate) => candidate.id === entry.driftFromId) || null : null,
+      [entry.driftFromId, entriesLength]
+    );
+    const activeValue = import_react4.default.useMemo(() => {
       if (responseTab === "headers") return headerSummary(entry);
       if (responseTab === "cookies") return cookies;
       if (responseTab === "timeline") return timelineSummary(entry);
       return detailValue(entry, detailTab);
     }, [cookies, detailTab, entry, responseTab]);
-    const operations = import_react3.default.useMemo(() => getResponseOperations(entry, entries), [entries, entry]);
-    const groupedOperations = import_react3.default.useMemo(() => groupResponseOperations(operations), [operations]);
-    const previous = import_react3.default.useMemo(() => previousSameEndpoint2(entry, entries), [entry, entries]);
-    const previousValue = import_react3.default.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
-    const [workerAnalysis, setWorkerAnalysis] = import_react3.default.useState(null);
-    import_react3.default.useEffect(() => {
-      setResponseTab("response");
-    }, [entry.id]);
-    import_react3.default.useEffect(() => {
+    const operations = import_react4.default.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries), [entry, entriesLength]);
+    const groupedOperations = import_react4.default.useMemo(() => groupResponseOperations(operations), [operations]);
+    const previous = import_react4.default.useMemo(
+      () => driftFrom ?? previousSameEndpoint2(entry, usePanelStore.getState().entries),
+      [driftFrom, entry, entriesLength]
+    );
+    const previousValue = import_react4.default.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
+    const [workerAnalysis, setWorkerAnalysis] = import_react4.default.useState(null);
+    import_react4.default.useEffect(() => {
+      setResponseTab((tab) => {
+        if (tab === "frames" && !hasFrames) return "response";
+        if (tab === "initiator" && !hasInitiator) return "response";
+        if (tab === "tokens" && !jwts.length) return "response";
+        return tab;
+      });
+    }, [entry.id, hasFrames, hasInitiator, jwts.length]);
+    import_react4.default.useEffect(() => {
       let cancelled = false;
       setWorkerAnalysis(null);
       if (!window.XRAY_Worker?.detailAnalysis) return;
@@ -15356,14 +16542,14 @@ schema(res)`, priority: 42 });
         cancelled = true;
       };
     }, [activeValue, previousValue]);
-    import_react3.default.useEffect(() => {
+    import_react4.default.useEffect(() => {
       if (responseTab === "cookies" && !hasCookies) setResponseTab("response");
     }, [hasCookies, responseTab]);
     function selectResponseTab(tab) {
       setResponseTab(tab);
       if (tab === "headers") {
         setDetailTab("headers");
-        if (detailView === "headers" || detailView === "waterfall") setDetailView("tree");
+        setDetailView("tree");
         return;
       }
       setDetailTab("response");
@@ -15415,13 +16601,15 @@ schema(res)`, priority: 42 });
         showToast(`${operation.label} inserted in Console.`);
         return;
       }
-      if (operation.kind === "notebook" && operation.command) {
-        addNotebookCell({ title: operation.label, code: operation.command });
-        showToast(`${operation.label} sent to Notebook.`);
+      if (operation.kind === "snippet" && operation.command) {
+        saveSnippet({ title: `${entry.method || "GET"} ${entryPath(entry)}`, code: operation.command });
+        showToast("Saved to Console snippets.");
         return;
       }
-      if (operation.kind === "copy" && operation.command) {
-        await copyText(operation.command);
+      if (operation.kind === "copy") {
+        const text = operation.command ?? operation.lazyCommand?.();
+        if (!text) return;
+        await copyText(text);
         showToast(operation.toast || `${operation.label} copied.`);
         return;
       }
@@ -15430,8 +16618,17 @@ schema(res)`, priority: 42 });
         showToast("Export opened.");
       }
     }
-    const visibleResponseTabs = responseTabs.filter((tab) => tab.id !== "cookies" || hasCookies);
+    const visibleResponseTabs = responseTabs.filter((tab) => {
+      if (tab.id === "cookies") return hasCookies;
+      if (tab.id === "frames") return hasFrames;
+      if (tab.id === "initiator") return hasInitiator;
+      if (tab.id === "tokens") return jwts.length > 0;
+      return true;
+    });
     const status = Number(entry.status) || 0;
+    function replayNow() {
+      replayEntry(entry);
+    }
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-request-detail ${compact ? "compact" : ""}`, children: [
       !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-hero", children: [
@@ -15449,6 +16646,33 @@ schema(res)`, priority: 42 });
           ] }),
           onClose && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-icon-btn", "aria-label": "Close selected request detail", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconX, { ...iconProps }) })
         ] }),
+        driftFrom && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-drift-banner", role: "status", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRoute, { ...iconProps }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "Response schema changed versus the previous call to this endpoint." }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-chip", onClick: () => {
+            setResponseTab("response");
+            setDetailTab("response");
+            setDetailView("diff");
+          }, children: "View diff" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-actionbar", "aria-label": "Request actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: replayNow, title: "Replay this request from the page", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRepeat, { ...iconProps }),
+            "Replay"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openReplayEditor(entry), title: "Edit method, headers, or body then replay", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconRepeat, { ...iconProps }),
+            "Edit & Replay"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => openExplain(entry), title: "Explain this request with AI", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSparkles, { ...iconProps }),
+            "Explain"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-chip xray-operation-chip", onClick: () => usePanelStore.getState().addRule({ label: `${entry.method || "GET"} ${entryPath(entry)}`, match: { url: String(entry.urlPath || entry.url || ""), method: String(entry.method || "") }, action: { type: "mock", status: Number(entry.status) || 200, body: typeof entryResponse(entry) === "string" ? String(entryResponse(entry)) : safeStringify(entryResponse(entry), 2, 1e5), headers: {}, delayMs: 0 } }), title: "Create a mock rule from this response", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconPlugConnected, { ...iconProps }),
+            "Mock this"
+          ] })
+        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-nav", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-tabs", "aria-label": "Response tabs", children: visibleResponseTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-detail-tab ${responseTab === tab.id ? "active" : ""}`, onClick: () => selectResponseTab(tab.id), children: tab.label }, tab.id)) }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-detail-views", "aria-label": "View modes", children: detailViews.map((view) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: `xray-chip ${detailView === view ? "active" : ""}`, onClick: () => selectDetailView(view), children: viewLabels[view] || view }, view)) })
@@ -15462,23 +16686,28 @@ schema(res)`, priority: 42 });
         ] }, group.label)) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-content", children: [
-        (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: compact ? detailValue(entry, detailTab) : activeValue }),
-        !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GridView, { value: activeValue, workerGrid: workerAnalysis?.grid }),
-        !compact && detailView === "raw" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json", children: typeof activeValue === "string" ? activeValue : safeStringify(activeValue) }),
-        !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: workerAnalysis?.schema ?? schema(activeValue) }),
-        !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(DiffView, { current: activeValue, previous: previousValue, workerDiff: workerAnalysis?.diff }),
-        !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(VizView, { value: activeValue, workerViz: workerAnalysis?.viz, workerMeta: workerAnalysis }),
-        !compact && detailView === "waterfall" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(WaterfallView, { entry }),
-        !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: headerSummary(entry) })
+        !compact && responseTab === "frames" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(FramesView, { frames: entry.wsFrames || [], state: entry.wsState }),
+        !compact && responseTab === "initiator" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(InitiatorView, { entry }),
+        !compact && responseTab === "tokens" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(TokensView, { jwts }),
+        (compact || responseTab !== "frames" && responseTab !== "initiator" && responseTab !== "tokens") && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+          (compact || detailView === "tree") && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(TreeContent, { compact, entry, detailTab, responseTab, activeValue, hasFrames }),
+          !compact && detailView === "grid" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GridView, { value: activeValue, workerGrid: workerAnalysis?.grid }),
+          !compact && detailView === "raw" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RawView, { value: activeValue }),
+          !compact && detailView === "schema" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(SchemaView, { value: activeValue, workerSchema: workerAnalysis?.schema }),
+          !compact && detailView === "diff" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(DiffView, { current: activeValue, previous: previousValue, baselineId: driftFrom?.id || null, baselineIsDrift: !!driftFrom }),
+          !compact && detailView === "viz" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(VizView, { value: activeValue }),
+          !compact && detailView === "waterfall" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(WaterfallView, { entry }),
+          !compact && detailView === "headers" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(HeadersView, { entry })
+        ] })
       ] }),
       !compact && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-detail-footer", children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => insertConsoleCommand("res"), children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSend, { ...iconProps }),
           "Console"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => addNotebookCell({ title: `${entry.method || "GET"} ${entryPath(entry)}`, code: "schema(res)" }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconNotebook, { ...iconProps }),
-          "Notebook"
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => saveSnippet({ title: `${entry.method || "GET"} ${entryPath(entry)}`, code: "schema(res)" }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBookmark, { ...iconProps }),
+          "Snippet"
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { className: "xray-action-btn", onClick: () => void copyActiveValue(), children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { ...iconProps }),
@@ -15510,7 +16739,7 @@ schema(res)`, priority: 42 });
     if (operation.id === "waterfall") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTimeline, { ...iconProps });
     if (operation.kind === "copy") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { ...iconProps });
     if (operation.kind === "console") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconTerminal2, { ...iconProps });
-    if (operation.kind === "notebook") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconNotebook, { ...iconProps });
+    if (operation.kind === "snippet") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconBookmark, { ...iconProps });
     if (operation.kind === "export") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconDownload, { ...iconProps });
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCode, { ...iconProps });
   }
@@ -15544,7 +16773,68 @@ schema(res)`, priority: 42 });
     return match ? String(match[1] ?? "") : "";
   }
   function previousSameEndpoint2(entry, entries) {
-    return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryPath(candidate) === entryPath(entry)).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
+    const groupPath = entryGroupPath(entry);
+    return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryGroupPath(candidate) === groupPath).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
+  }
+  function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasFrames }) {
+    if (compact) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: detailValue(entry, detailTab) });
+    if (responseTab === "headers") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(HeadersView, { entry });
+    if (typeof activeValue === "string") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json xray-json-text", children: activeValue });
+    if (activeValue == null && hasFrames && responseTab === "response") {
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "Streaming entry", hint: "This is a WebSocket/SSE stream \u2014 open the Frames tab to inspect the messages." });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: activeValue });
+  }
+  function RawView({ value }) {
+    const text = import_react4.default.useMemo(() => typeof value === "string" ? value : safeStringify(value), [value]);
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { className: "xray-json", children: text });
+  }
+  function SchemaView({ value, workerSchema }) {
+    const inferred = import_react4.default.useMemo(() => workerSchema ?? schema(value), [workerSchema, value]);
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: inferred });
+  }
+  function HeadersView({ entry }) {
+    const [filter, setFilter] = import_react4.default.useState("");
+    const showToast = usePanelStore((state) => state.showToast);
+    const sections = import_react4.default.useMemo(() => [
+      { label: "Request headers", headers: Object.entries(entry.requestHeaders || {}) },
+      { label: "Response headers", headers: Object.entries(entry.responseHeaders || {}) }
+    ], [entry]);
+    const trimmed = filter.trim().toLowerCase();
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-headers-view", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { className: "xray-search xray-headers-filter", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconSearch, { ...iconProps }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("input", { className: "xray-input", placeholder: "Filter headers...", value: filter, onChange: (event) => setFilter(event.currentTarget.value) })
+      ] }),
+      sections.map((section) => {
+        const rows = section.headers.filter(([key, value]) => !trimmed || key.toLowerCase().includes(trimmed) || String(value ?? "").toLowerCase().includes(trimmed));
+        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "xray-headers-section", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("h4", { children: [
+            section.label,
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+              " ",
+              rows.length
+            ] })
+          ] }),
+          rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { className: "xray-muted", children: trimmed ? "No headers match." : "No headers captured." }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-headers-grid", children: rows.map(([key, value]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-header-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-header-name", children: key }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-header-value", title: String(value ?? ""), children: String(value ?? "") }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                className: "xray-icon-btn",
+                "aria-label": `Copy ${key} value`,
+                onClick: () => {
+                  void copyText(String(value ?? ""));
+                  showToast(`${key} copied.`);
+                },
+                children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { size: 13, stroke: 2 })
+              }
+            )
+          ] }, key)) })
+        ] }, section.label);
+      })
+    ] });
   }
   function GridView({ value, workerGrid }) {
     const { objects, columns } = workerGrid || gridRows(value);
@@ -15554,31 +16844,243 @@ schema(res)`, priority: 42 });
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tbody", { children: objects.map((row, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("tr", { children: columns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("td", { children: preview(row[column], 160) }, column)) }, index)) })
     ] });
   }
-  function VizView({ value, workerViz, workerMeta }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: { ...workerViz || vizSummary(value), engine: workerMeta?.engine || "main-thread-fallback", durationMs: workerMeta?.durationMs ?? null } });
-  }
-  function WaterfallView({ entry }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "Timing" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-timing", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-bar", style: { width: `${Math.min(100, Math.max(8, duration(entry) / 10))}%` } }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
-          Math.round(duration(entry)),
-          "ms"
-        ] })
+  function VizView({ value }) {
+    const spec = import_react4.default.useMemo(() => buildVizSpec(value), [value]);
+    if (spec.kind === "none" || !spec.bars.length) {
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: spec.title });
+    }
+    const denom = spec.maxAbs || 1;
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz", role: "figure", "aria-label": spec.title, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: spec.title }),
+        spec.subtitle && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-muted", children: spec.subtitle })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-viz-bars", children: spec.bars.map((bar, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-viz-row", title: `${bar.label}: ${formatVizValue(bar.value)}`, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-label", children: bar.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-track", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-viz-fill ${bar.negative ? "negative" : ""}`, style: { width: `${Math.max(2, Math.abs(bar.value) / denom * 100)}%` } }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-viz-value", children: formatVizValue(bar.value) })
+      ] }, index)) }),
+      spec.truncated > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { className: "xray-muted xray-viz-foot", children: [
+        "+",
+        spec.truncated,
+        " more not shown"
       ] })
     ] });
   }
-  function DiffView({ current, previous, workerDiff }) {
-    if (previous == null) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No previous matching response" });
+  function WaterfallView({ entry }) {
+    const { phases, totalMs, real } = timingPhases(entry);
+    const denom = Math.max(1, totalMs);
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card xray-waterfall-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-waterfall-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "Timing" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+          real ? "Resource Timing" : "Wall clock",
+          " \xB7 ",
+          Math.round(totalMs),
+          "ms"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-waterfall-track", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        "span",
+        {
+          className: `xray-waterfall-seg ${phase.className}`,
+          style: { width: `${Math.max(1, phase.ms / denom * 100)}%` },
+          title: `${phase.label}: ${Math.round(phase.ms)}ms`
+        },
+        phase.label
+      )) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("ul", { className: "xray-waterfall-legend", children: phases.map((phase) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-waterfall-dot ${phase.className}` }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: phase.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("strong", { children: [
+          Math.round(phase.ms),
+          "ms"
+        ] })
+      ] }, phase.label)) }),
+      entry.timing?.transferSize ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { className: "xray-muted", children: [
+        "Transfer size ",
+        formatBytes(entry.timing.transferSize)
+      ] }) : null
+    ] });
+  }
+  function FramesView({ frames, state }) {
+    if (!frames.length) {
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: state === "connecting" ? "Waiting for stream frames\u2026" : "No frames captured" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: workerDiff || { previous, current, previousSchema: schema(previous), currentSchema: schema(current) } });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-frames", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-frames-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-ws-state ${state || ""}`, children: state || "stream" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-muted", children: [
+          frames.length,
+          " frames"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-frames-list", children: frames.slice().reverse().map((frame, index) => (
+        // Frames append-only: keying by original position keeps existing DOM
+        // rows stable when a new frame arrives (reversed indexes rewrote all
+        // 200 rows per flush).
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-frame-row ${frame.dir}`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: `xray-frame-dir ${frame.dir}`, children: frame.dir === "in" ? "\u2193 in" : "\u2191 out" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-frame-time", children: formatTime(frame.ts) }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-frame-size", children: formatBytes(frame.size) }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-frame-preview", children: frame.preview })
+        ] }, frames.length - index)
+      )) })
+    ] });
+  }
+  function parseInitiatorFrame(frame) {
+    const match = frame.match(/^\s*(?:at\s+)?(.*?)\s*\(?((?:https?|chrome-extension|webpack|file):[^)\s]+)\)?\s*$/);
+    if (match && match[2]) return { fn: match[1] || "(anonymous)", location: match[2] };
+    return { fn: frame, location: "" };
+  }
+  function InitiatorView({ entry }) {
+    const showToast = usePanelStore((state) => state.showToast);
+    const initiator = entry.initiator || [];
+    if (!initiator.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No initiator captured" });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "Call stack" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { className: "xray-muted", children: "Where this request was initiated from on the page." }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("ol", { className: "xray-initiator-list", children: initiator.map((frame, index) => {
+        const parsed = parseInitiatorFrame(frame);
+        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { className: "xray-initiator-frame", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-initiator-fn", children: parsed.fn }),
+          parsed.location && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-initiator-loc", title: parsed.location, children: parsed.location }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              className: "xray-icon-btn",
+              "aria-label": "Copy stack frame",
+              onClick: () => {
+                void copyText(frame);
+                showToast("Frame copied.");
+              },
+              children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconCopy, { size: 13, stroke: 2 })
+            }
+          )
+        ] }, index);
+      }) })
+    ] });
+  }
+  function TokensView({ jwts }) {
+    if (!jwts.length) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No JWT tokens found" });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-tokens", children: jwts.map((jwt, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-card xray-token-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-token-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "xray-token-source", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(IconKey, { ...iconProps }),
+          jwtSourceLabel(jwt.source)
+        ] }),
+        jwt.expiresAt && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: `xray-token-exp ${jwt.expired ? "expired" : "valid"}`, children: [
+          jwt.expired ? "Expired" : "Valid",
+          " \xB7 exp ",
+          jwt.expiresAt
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-token-body", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-token-label", children: "Header" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: jwt.header })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-token-label", children: "Payload" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(JsonView, { value: jwt.payload })
+        ] })
+      ] })
+    ] }, index)) });
+  }
+  var DiffView = import_react4.default.memo(function DiffView2({ current, previous, baselineId, baselineIsDrift }) {
+    const selectEntry = usePanelStore((state) => state.selectEntry);
+    const lines = import_react4.default.useMemo(() => previous == null ? [] : structuralDiff(previous, current), [previous, current]);
+    if (previous == null) {
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { label: "No previous matching response", hint: "A second call to this endpoint (or a recorded drift baseline) is needed to diff against." });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-diff", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "xray-diff-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-muted", children: lines.length ? `${lines.length} difference${lines.length === 1 ? "" : "s"} vs ${baselineIsDrift ? "the drift baseline" : "the previous call"}` : "No structural differences" }),
+        baselineId && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "xray-chip", onClick: () => selectEntry(baselineId), children: "Jump to baseline" })
+      ] }),
+      lines.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "xray-diff-lines", children: lines.map((line, index) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: `xray-diff-line ${line.kind}`, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "xray-diff-kind", children: line.kind === "added" ? "+" : line.kind === "removed" ? "\u2212" : "\xB1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-path", children: line.path || "(root)" }),
+        line.kind !== "added" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-before", children: preview(line.before, 90) }),
+        line.kind !== "removed" && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { className: "xray-diff-after", children: preview(line.after, 90) })
+      ] }, index)) })
+    ] });
+  });
+
+  // src/panel/components/detail/LogDetail.tsx
+  var import_react5 = __toESM(require_react());
+
+  // src/panel/runtime/logObjects.ts
+  function findRef(value) {
+    if (!value || typeof value !== "object") return null;
+    const ref = value.__xray_ref__;
+    return typeof ref === "string" ? ref : null;
+  }
+  function hasLazyRef(value) {
+    if (findRef(value)) return true;
+    if (Array.isArray(value)) return value.some(hasLazyRef);
+    return false;
+  }
+  function canFetchLogObjects() {
+    const w = window;
+    return typeof w.__XRAY_fetchLogObject__ === "function" || typeof w.__XRAY_getLogObject__ === "function";
+  }
+  async function fetchLogObject(refId) {
+    const w = window;
+    try {
+      if (typeof w.__XRAY_fetchLogObject__ === "function") {
+        return await w.__XRAY_fetchLogObject__(refId);
+      }
+      if (typeof w.__XRAY_getLogObject__ === "function") {
+        return w.__XRAY_getLogObject__(refId);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  // src/panel/components/detail/LogDetail.tsx
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
+  var iconProps2 = { size: 16, stroke: 1.8 };
+  function LogDetail({ entry }) {
+    const previewData = entry.logData !== void 0 ? entry.logData : entry.args ?? entry.message ?? null;
+    const refs = Array.isArray(entry.objectRefs) ? entry.objectRefs.filter((ref) => typeof ref === "string") : [];
+    const canExpand = (refs.length > 0 || hasLazyRef(previewData)) && canFetchLogObjects();
+    const [full, setFull] = import_react5.default.useState(void 0);
+    const [loading, setLoading] = import_react5.default.useState(false);
+    import_react5.default.useEffect(() => {
+      setFull(void 0);
+      setLoading(false);
+    }, [entry.id]);
+    async function loadFull() {
+      setLoading(true);
+      const resolved = await Promise.all(refs.map((ref) => fetchLogObject(ref)));
+      setLoading(false);
+      setFull(resolved.length === 1 ? resolved[0] : resolved);
+    }
+    const level = entry.logLevel || "log";
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-log-detail", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-log-detail-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: `xray-log-level ${level}`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconTerminal2, { ...iconProps2 }),
+          level
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) }),
+        canExpand && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-btn xray-log-load", disabled: loading, onClick: () => void loadFull(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabaseImport, { ...iconProps2 }),
+          loading ? "Loading\u2026" : full === void 0 ? "Load full object" : "Reload"
+        ] })
+      ] }),
+      entry.message && typeof entry.message === "string" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-log-message", children: preview(entry.message, 400) }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-log-detail-body", children: full !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: full }) : previewData == null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No log payload" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: previewData }) }),
+      canExpand && full === void 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "xray-muted xray-log-hint", children: "This is a lightweight preview. Load the full object to inspect deep or truncated values." })
+    ] });
   }
 
   // src/panel/components/api/EntriesWorkspace.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
-  var iconProps2 = { size: 16, stroke: 1.8 };
+  var import_jsx_runtime5 = __toESM(require_jsx_runtime());
+  var iconProps3 = { size: 16, stroke: 1.8 };
   var quickFilters = [
     { id: "errors", label: "Errors" },
     { id: "slow", label: "Slow" }
@@ -15587,7 +17089,12 @@ schema(res)`, priority: 42 });
     { id: "repeated", label: "Repeated" },
     { id: "pinned", label: "Pinned" },
     { id: "large", label: "Large" },
-    { id: "empty", label: "Empty" }
+    { id: "empty", label: "Empty" },
+    { id: "drift", label: "Drift" },
+    { id: "graphql", label: "GraphQL" },
+    { id: "ws", label: "Streams" },
+    { id: "mocked", label: "Mocked" },
+    { id: "replayed", label: "Replays" }
   ];
   var sortOptions = [
     { id: "timestamp", label: "Latest" },
@@ -15601,7 +17108,12 @@ schema(res)`, priority: 42 });
     repeated: "Repeated",
     large: "Large",
     empty: "Empty",
-    pinned: "Pinned"
+    pinned: "Pinned",
+    drift: "Drift",
+    graphql: "GraphQL",
+    ws: "Stream",
+    mocked: "Mocked",
+    replayed: "Replay"
   };
   var requestContextTabs = [
     { id: "request", label: "Request" },
@@ -15623,7 +17135,7 @@ schema(res)`, priority: 42 });
     const apiQuickFilter = usePanelStore((state) => state.apiQuickFilter);
     const apiGroupingMode = usePanelStore((state) => state.apiGroupingMode);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-    return (0, import_react4.useMemo)(() => buildEntryListItems({
+    return (0, import_react6.useMemo)(() => buildEntryListItems({
       mode,
       entries,
       query,
@@ -15640,8 +17152,8 @@ schema(res)`, priority: 42 });
     }), [apiGroupingMode, apiQuickFilter, entries, expandedGroups, methodFilters, mode, pinnedIds, query, slowThresholdMs, sortField, sortOrder, statusFilters, typeFilters]);
   }
   function EntriesWorkspace({ mode }) {
-    if (mode === "api") return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiWorkspace, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LogsWorkspace, {});
+    if (mode === "api") return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiWorkspace, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogsWorkspace, {});
   }
   function ApiWorkspace() {
     const entries = usePanelStore((state) => state.entries);
@@ -15654,34 +17166,86 @@ schema(res)`, priority: 42 });
     const pinnedIds = usePanelStore((state) => state.pinnedIds);
     const compactRows = usePanelStore((state) => state.settings.compactRows);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
+    const showHostInPath = usePanelStore((state) => state.settings.showHostInPath);
+    const sortField = usePanelStore((state) => state.sortField);
+    const sortOrder = usePanelStore((state) => state.sortOrder);
     const rows = useEntryListItems("api");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId && entry.type === "api") || null : null;
-    const maxDuration = (0, import_react4.useMemo)(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
-    const summary = (0, import_react4.useMemo)(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
-    const parentRef = (0, import_react4.useRef)(null);
+    const maxDuration = (0, import_react6.useMemo)(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
+    const summary = (0, import_react6.useMemo)(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
+    const parentRef = (0, import_react6.useRef)(null);
+    const getItemKey = (0, import_react6.useCallback)((index) => rows[index]?.key || index, [rows]);
+    const estimateSize = (0, import_react6.useCallback)(() => compactRows ? 42 : 68, [compactRows]);
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
-      estimateSize: () => compactRows ? 42 : 68,
-      getItemKey: (index) => rows[index]?.key || index,
-      measureElement: (element) => element.getBoundingClientRect().height,
+      estimateSize,
+      getItemKey,
       overscan: 14
     });
-    function selectApiEntry(entry) {
+    const followsTop = sortField === "timestamp" && sortOrder === "desc";
+    const awayFromTopRef = (0, import_react6.useRef)(false);
+    const [newCount, setNewCount] = (0, import_react6.useState)(0);
+    const lastTotalRef = (0, import_react6.useRef)(0);
+    (0, import_react6.useEffect)(() => {
+      const total = summary.total;
+      const delta = total - lastTotalRef.current;
+      lastTotalRef.current = total;
+      if (delta > 0 && followsTop && awayFromTopRef.current) {
+        setNewCount((count) => count + delta);
+      }
+    }, [summary.total, followsTop]);
+    const handleListScroll = (0, import_react6.useCallback)(() => {
+      const el = parentRef.current;
+      if (!el) return;
+      const away = el.scrollTop > 120;
+      awayFromTopRef.current = away;
+      if (!away) setNewCount(0);
+    }, []);
+    const jumpToTop = (0, import_react6.useCallback)(() => {
+      setNewCount(0);
+      awayFromTopRef.current = false;
+      const el = parentRef.current;
+      if (el) el.scrollTop = 0;
+    }, []);
+    const handleSelect = (0, import_react6.useCallback)((entry) => {
       selectEntry(entry.id);
       setApiDetailOpen(true);
+    }, [selectEntry, setApiDetailOpen]);
+    const handleToggleGroup = (0, import_react6.useCallback)((groupKey) => {
+      if (groupKey) toggleGroup(groupKey);
+    }, [toggleGroup]);
+    const handleTogglePinned = (0, import_react6.useCallback)((id) => togglePinned(id), [togglePinned]);
+    function handleListKeyDown(event) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
+      if (!rows.length) return;
+      const currentIndex = rows.findIndex((row) => row.entry.id === selectedId);
+      if (event.key === "Enter") {
+        if (currentIndex >= 0) {
+          setApiDetailOpen(true);
+          event.preventDefault();
+        }
+        return;
+      }
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = currentIndex < 0 ? delta === 1 ? 0 : rows.length - 1 : Math.min(rows.length - 1, Math.max(0, currentIndex + delta));
+      const next = rows[nextIndex];
+      if (!next) return;
+      selectEntry(next.entry.id, { openDetail: false });
+      virtualizer.scrollToIndex(nextIndex, { align: "auto" });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-pane", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiCollectionHeader, { summary, visibleCount: rows.length }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiInspectorToolbar, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-main", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiTableHeader, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-table-scroll", ref: parentRef, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("section", { className: `xray-api-workspace ${selected && apiDetailOpen ? "detail-open" : ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-pane", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiCollectionHeader, { summary, visibleCount: rows.length }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiInspectorToolbar, { summary }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-main", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiTableHeader, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-table-scroll", ref: parentRef, tabIndex: 0, role: "listbox", "aria-label": "Captured requests", onKeyDown: handleListKeyDown, onScroll: handleListScroll, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index];
               const entry = row.entry;
-              return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
                 ApiRequestRow,
                 {
                   row,
@@ -15689,18 +17253,25 @@ schema(res)`, priority: 42 });
                   maxDuration,
                   selected: selectedId === entry.id,
                   pinned: pinnedIds.has(entry.id),
-                  onSelect: () => selectApiEntry(entry),
-                  onToggleGroup: () => row.groupKey && toggleGroup(row.groupKey),
-                  onTogglePinned: () => togglePinned(entry.id)
+                  slowThresholdMs,
+                  showHostInPath,
+                  onSelect: handleSelect,
+                  onToggleGroup: handleToggleGroup,
+                  onTogglePinned: handleTogglePinned
                 }
               ) }, item.key);
             }) }),
-            !rows.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No API requests captured" })
+            !rows.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No API requests yet", hint: "Browse the page or trigger a call \u2014 fetch, XHR, GraphQL, and WebSocket traffic streams in here live. Press Ctrl/\u2318+K to jump anywhere." })
+          ] }),
+          newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-newmsg-pill xray-newreq-pill", onClick: jumpToTop, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowUp, { size: 14, stroke: 2 }),
+            newCount,
+            " new"
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestContextPane, { entry: selected }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestContextPane, { entry: selected }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiDetailDrawer, { entry: selected && apiDetailOpen ? selected : null, onClose: () => setApiDetailOpen(false) })
     ] }) });
   }
   function LogsWorkspace() {
@@ -15711,7 +17282,7 @@ schema(res)`, priority: 42 });
     const pinnedIds = usePanelStore((state) => state.pinnedIds);
     const rows = useEntryListItems("logs");
     const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
-    const parentRef = (0, import_react4.useRef)(null);
+    const parentRef = (0, import_react6.useRef)(null);
     const virtualizer = useVirtualizer({
       count: rows.length,
       getScrollElement: () => parentRef.current,
@@ -15720,50 +17291,50 @@ schema(res)`, priority: 42 });
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 10
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "xray-split", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-list-panel", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ListControls, { mode: "logs" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-split", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-list-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ListControls, { mode: "logs" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index];
-            return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
+            return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogRow, { row, selected: selectedId === row.entry.id, pinned: pinnedIds.has(row.entry.id), onSelect: () => selectEntry(row.entry.id), onTogglePinned: () => togglePinned(row.entry.id) }) }, item.key);
           }) }),
-          !rows.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "No logs captured" })
+          !rows.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No logs captured", hint: "Page console.log output and captured objects land here \u2014 trigger some activity on the page to populate the list." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(MobileSelectedDetail, { entry: selected })
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(MobileSelectedDetail, { entry: selected })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-panel", children: selected ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestDetail, { entry: selected }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select an entry" }) })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail-panel", children: selected ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogDetail, { entry: selected }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Select an entry", hint: "Pick a log on the left to inspect its arguments and expand nested objects." }) })
     ] });
   }
   function ApiCollectionHeader({ summary, visibleCount }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-collection-title", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Captured Requests" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-collection-title", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Captured Requests" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("strong", { children: [
           summary.total,
           " APIs"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-env-pill", title: "Environment inferred from captured browser traffic", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconWorld, { ...iconProps2 }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Live page" })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-env-pill", title: "Environment inferred from captured browser traffic", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconWorld, { ...iconProps3 }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Live page" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-summary-strip", "aria-label": "Captured request summary", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabase, { ...iconProps2 }), label: "Visible", value: String(visibleCount) }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: summary.errors ? "error" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconServer, { ...iconProps2 }), label: "Errors", value: String(summary.errors) }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: summary.slow ? "warn" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconClock, { ...iconProps2 }), label: "Avg", value: `${Math.round(summary.avgDuration)}ms` }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SummaryPill, { tone: "info", icon: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconDatabase, { ...iconProps2 }), label: "Bytes", value: formatBytes(summary.totalBytes) })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-summary-strip", "aria-label": "Captured request summary", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDatabase, { ...iconProps3 }), label: "Visible", value: String(visibleCount) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: summary.errors ? "error" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconServer, { ...iconProps3 }), label: "Errors", value: String(summary.errors) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: summary.slow ? "warn" : "ok", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconClock, { ...iconProps3 }), label: "Avg", value: `${Math.round(summary.avgDuration)}ms` }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SummaryPill, { tone: "info", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDatabase, { ...iconProps3 }), label: "Bytes", value: formatBytes(summary.totalBytes) })
       ] })
     ] });
   }
   function SummaryPill({ icon, label, value, tone }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: `xray-api-summary-pill ${tone}`, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: `xray-api-summary-pill ${tone}`, children: [
       icon,
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: value })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: value })
     ] });
   }
-  function ApiInspectorToolbar() {
+  function ApiInspectorToolbar({ summary }) {
     const query = usePanelStore((state) => state.apiSearchQuery);
     const setQuery = usePanelStore((state) => state.setApiSearchQuery);
     const apiQuickFilter = usePanelStore((state) => state.apiQuickFilter);
@@ -15780,34 +17351,53 @@ schema(res)`, priority: 42 });
     const setSort = usePanelStore((state) => state.setSort);
     const sortField = usePanelStore((state) => state.sortField);
     const sortOrder = usePanelStore((state) => state.sortOrder);
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-toolbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "xray-search xray-api-search", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconSearch, { ...iconProps2 }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: "Filter method, status, path, domain, source, content type..." })
+    const entries = usePanelStore((state) => state.entries);
+    const driftCount = (0, import_react6.useMemo)(() => entries.reduce((count, entry) => count + (entry.driftFromId ? 1 : 0), 0), [entries]);
+    const pickQuickFilter = (id) => setApiQuickFilter(apiQuickFilter === id ? "all" : id);
+    const chipCount = (id) => {
+      if (id === "errors") return summary.errors;
+      if (id === "slow") return summary.slow;
+      if (id === "pinned") return summary.pinned;
+      if (id === "repeated") return summary.repeatedEndpoints;
+      if (id === "drift") return driftCount;
+      return null;
+    };
+    const renderQuickChip = (filter) => {
+      const count = chipCount(filter.id);
+      return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-chip ${apiQuickFilter === filter.id ? "active" : ""}`, onClick: () => pickQuickFilter(filter.id), "aria-pressed": apiQuickFilter === filter.id, children: [
+        filter.label,
+        count != null && count > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-chip-count", children: count })
+      ] }, filter.id);
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "xray-search xray-api-search", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconSearch, { ...iconProps3 }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: "Filter method, status, path, domain, source, content type..." })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-filter-chips xray-api-primary-filters", "aria-label": "Primary API filters", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${apiQuickFilter === "all" && !methodFilters.size && !typeFilters.size && !statusFilters.size ? "active" : ""}`, onClick: clearApiFilters, children: "All" }),
-        ["GET", "POST"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${methodFilters.has(method) ? "active" : ""}`, onClick: () => toggleMethod(method), children: method }, method)),
-        ["xhr", "fetch"].map((type) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${typeFilters.has(type) ? "active" : ""}`, onClick: () => toggleType(type), children: type === "xhr" ? "XHR" : "Fetch" }, type)),
-        quickFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${apiQuickFilter === filter.id ? "active" : ""}`, onClick: () => setApiQuickFilter(filter.id), children: filter.label }, filter.id))
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips xray-api-primary-filters", "aria-label": "Primary API filters", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${apiQuickFilter === "all" && !methodFilters.size && !typeFilters.size && !statusFilters.size ? "active" : ""}`, onClick: clearApiFilters, children: "All" }),
+        ["GET", "POST"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${methodFilters.has(method) ? "active" : ""}`, onClick: () => toggleMethod(method), children: method }, method)),
+        ["xhr", "fetch"].map((type) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${typeFilters.has(type) ? "active" : ""}`, onClick: () => toggleType(type), children: type === "xhr" ? "XHR" : "Fetch" }, type)),
+        quickFilters.map(renderQuickChip)
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-secondary-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "Status and source filters", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-filter-label", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconFilter, { ...iconProps2 }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-secondary-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "Status and source filters", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-filter-label", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconFilter, { ...iconProps3 }),
             "Match"
           ] }),
-          ["2xx", "3xx", "4xx", "5xx"].map((status) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${statusFilters.has(status) ? "active" : ""}`, onClick: () => toggleStatus(status), children: status }, status)),
-          secondaryQuickFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${apiQuickFilter === filter.id ? "active" : ""}`, onClick: () => setApiQuickFilter(filter.id), children: filter.label }, filter.id))
+          ["2xx", "3xx", "4xx", "5xx"].map((status) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${statusFilters.has(status) ? "active" : ""}`, onClick: () => toggleStatus(status), children: status }, status)),
+          secondaryQuickFilters.map(renderQuickChip)
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "API sort and grouping", children: [
-          sortOptions.map((field) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: `xray-chip ${sortField === field.id ? "active" : ""}`, onClick: () => setSort(field.id), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-filter-chips compact", "aria-label": "API sort and grouping", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-filter-label", children: "Sort" }),
+          sortOptions.map((field) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-chip ${sortField === field.id ? "active" : ""}`, onClick: () => setSort(field.id), "aria-pressed": sortField === field.id, children: [
             field.label,
-            sortField === field.id ? ` ${sortOrder === "asc" ? "up" : "down"}` : ""
+            sortField === field.id && (sortOrder === "asc" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowUp, { size: 13, stroke: 2.2 }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowDown, { size: 13, stroke: 2.2 }))
           ] }, field.id)),
-          ["flat", "endpoint"].map((grouping) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-chip ${apiGroupingMode === grouping ? "active" : ""}`, onClick: () => setApiGroupingMode(grouping), children: grouping === "flat" ? "Flat" : "Endpoint Groups" }, grouping)),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: "xray-chip", onClick: clearApiFilters, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconFilterOff, { ...iconProps2 }),
+          ["flat", "endpoint"].map((grouping) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-chip ${apiGroupingMode === grouping ? "active" : ""}`, onClick: () => setApiGroupingMode(grouping), children: grouping === "flat" ? "Flat" : "Endpoint Groups" }, grouping)),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-chip", onClick: clearApiFilters, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconFilterOff, { ...iconProps3 }),
             "Reset"
           ] })
         ] })
@@ -15815,144 +17405,143 @@ schema(res)`, priority: 42 });
     ] });
   }
   function ApiTableHeader() {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-api-table-head", role: "row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Method" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Request" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Status" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Timing" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "Tools" })
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-api-table-head", role: "row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Method" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Request" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Status" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Timing" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Tools" })
     ] });
   }
-  function ApiRequestRow({
+  var ApiRequestRow = import_react6.default.memo(function ApiRequestRow2({
     row,
     entries,
     maxDuration,
     selected,
     pinned,
+    slowThresholdMs,
+    showHostInPath,
     onSelect,
     onToggleGroup,
     onTogglePinned
   }) {
     const entry = row.entry;
-    const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-    const showHostInPath = usePanelStore((state) => state.settings.showHostInPath);
     const status = Number(entry.status) || 0;
     const path = entryPath(entry);
+    const label = entryGroupLabel(entry);
     const domain = getEntryDomain(entry) || "local";
     const type = String(entry.source || "fetch").toLowerCase();
     const stats = row.groupStats || entryGroupStats(entry, entries);
     const displayBytes = row.groupStats?.totalBytes ?? entry.size;
-    const flags = getEntryFlags(entry, entries, pinned ? /* @__PURE__ */ new Set([entry.id]) : /* @__PURE__ */ new Set(), slowThresholdMs);
+    const flags = row.flags;
     const pct = Math.max(8, Math.min(100, duration(entry) / maxDuration * 100));
     const isGroup = Boolean(row.groupCount && row.groupCount > 1 && !row.groupChild);
     const contentType = getEntryContentType(entry) || "response";
     function handleKeyDown(event) {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        onSelect();
+        onSelect(entry);
       }
     }
     async function copyPath(event) {
       event.stopPropagation();
       await copyText(String(entry.url || path));
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
       "div",
       {
         className: `xray-api-row ${selected ? "selected" : ""} ${row.groupChild ? "child" : ""} ${pinned ? "pinned" : ""} ${isGroup ? "group" : ""} ${status >= 400 ? "has-error" : ""} ${duration(entry) >= slowThresholdMs ? "has-slow" : ""}`,
-        role: "button",
-        tabIndex: 0,
-        onClick: onSelect,
+        role: "option",
+        "aria-selected": selected,
+        tabIndex: selected ? 0 : -1,
+        onClick: () => onSelect(entry),
         onKeyDown: handleKeyDown,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-path-cell", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-path", title: path, children: path }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ApiFlagPills, { flags })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-path-cell", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-path", title: String(entry.url || path), children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-entry-meta", children: isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ApiFlagPills, { flags })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-entry-duration", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-bar ${duration(entry) >= slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-entry-duration", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-bar ${duration(entry) >= slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
               Math.round(duration(entry)),
               "ms"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-row-actions", children: [
-            row.groupCount && row.groupCount > 1 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-icon-btn", "aria-label": row.groupExpanded ? "Collapse endpoint group" : "Expand endpoint group", onClick: (event) => {
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-row-actions", children: [
+            row.groupCount && row.groupCount > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": row.groupExpanded ? "Collapse endpoint group" : "Expand endpoint group", onClick: (event) => {
               event.stopPropagation();
-              onToggleGroup();
-            }, children: row.groupExpanded ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconChevronDown, { ...iconProps2 }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconChevronRight, { ...iconProps2 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: "xray-icon-btn", "aria-label": "Copy request URL", onClick: (event) => void copyPath(event), children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconCopy, { ...iconProps2 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-icon-btn ${pinned ? "active" : ""}`, "aria-label": pinned ? "Unpin request" : "Pin request", onClick: (event) => {
+              onToggleGroup(row.groupKey);
+            }, children: row.groupExpanded ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronDown, { ...iconProps3 }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronRight, { ...iconProps3 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: "xray-icon-btn", tabIndex: -1, "aria-label": "Copy request URL", onClick: (event) => void copyPath(event), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconCopy, { ...iconProps3 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-icon-btn ${pinned ? "active" : ""}`, tabIndex: -1, "aria-label": pinned ? "Unpin request" : "Pin request", onClick: (event) => {
               event.stopPropagation();
-              onTogglePinned();
-            }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconPin, { ...iconProps2 }) })
+              onTogglePinned(entry.id);
+            }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPin, { ...iconProps3 }) })
           ] })
         ]
       }
     );
-  }
+  });
   function ApiFlagPills({ flags }) {
-    if (!flags.length) return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-api-flags muted", children: "None" });
+    if (!flags.length) return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-api-flags muted", children: "None" });
     const visible = flags.slice(0, 3);
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-flags", title: flags.map((flag) => flagLabels[flag]).join(", "), children: [
-      visible.map((flag) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-api-flag ${flag}`, children: flagLabels[flag] }, flag)),
-      flags.length > visible.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "xray-api-flag more", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-flags", title: flags.map((flag) => flagLabels[flag]).join(", "), children: [
+      visible.map((flag) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-api-flag ${flag}`, children: flagLabels[flag] }, flag)),
+      flags.length > visible.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-api-flag more", children: [
         "+",
         flags.length - visible.length
       ] })
     ] });
   }
-  function RequestContextPane({ entry }) {
-    const [activeTab, setActiveTab] = import_react4.default.useState("request");
-    import_react4.default.useEffect(() => {
-      setActiveTab("request");
-    }, [entry?.id]);
+  var RequestContextPane = import_react6.default.memo(function RequestContextPane2({ entry }) {
+    const [activeTab, setActiveTab] = import_react6.default.useState("request");
+    const query = (0, import_react6.useMemo)(() => entry ? requestQueryParams(entry) : {}, [entry]);
+    const contextValue = (0, import_react6.useMemo)(() => entry ? requestContextValue(entry, activeTab, query) : null, [entry, activeTab, query]);
     if (!entry) {
-      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("aside", { className: "xray-request-context-pane empty", "aria-label": "Selected request context", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select a request" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("aside", { className: "xray-request-context-pane empty", "aria-label": "Selected request context", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Select a request", hint: "Pick a request from the list to inspect its response, headers, timing, and smart operations." }) });
     }
     const status = Number(entry.status) || 0;
     const path = entryPath(entry);
     const domain = getEntryDomain(entry) || "local";
-    const query = requestQueryParams(entry);
-    const contextValue = requestContextValue(entry, activeTab, query);
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("aside", { className: "xray-request-context-pane", "aria-label": "Selected request context", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-context-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-pane-kicker", children: "Request Context" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-line", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase() }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("code", { title: String(entry.url || path), children: path })
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("aside", { className: "xray-request-context-pane", "aria-label": "Selected request context", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-context-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-pane-kicker", children: "Request Context" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-line", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase() }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { title: String(entry.url || path), children: path })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-meta-grid", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Host" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-meta-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Host" }),
             domain
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Status" }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Status" }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { className: `xray-status ${statusClass(status)}`, children: entry.status || "---" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Time" }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Time" }),
             Math.round(duration(entry)),
             "ms"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "Size" }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: "Size" }),
             formatBytes(entry.size)
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-detail-tabs xray-request-tabs", "aria-label": "Request tabs", children: requestContextTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { className: `xray-detail-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: tab.label }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-request-context-content", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(JsonView, { value: contextValue }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "xray-request-context-footer", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: String(entry.source || "fetch").toUpperCase() }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: getEntryContentType(entry) || "unknown content" })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail-tabs xray-request-tabs", "aria-label": "Request tabs", children: requestContextTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { className: `xray-detail-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: tab.label }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-request-context-content", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: contextValue }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-request-context-footer", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: String(entry.source || "fetch").toUpperCase() }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: getEntryContentType(entry) || "unknown content" })
       ] })
     ] });
-  }
+  });
   function requestQueryParams(entry) {
     const url = String(entry.url || "");
     if (!url) return {};
@@ -15985,7 +17574,7 @@ schema(res)`, priority: 42 });
     };
   }
   function ApiDetailDrawer({ entry, onClose }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("aside", { className: `xray-api-detail-drawer ${entry ? "" : "empty"}`, "aria-label": "Selected API request detail", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-api-drawer-body", children: entry ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestDetail, { entry, onClose }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { label: "Select a request" }) }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("aside", { className: `xray-api-detail-drawer ${entry ? "" : "empty"}`, "aria-label": "Selected API request detail", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-api-drawer-body", children: entry ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestDetail, { entry, onClose }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "Nothing selected", hint: "Choose a request to open the detail drawer \u2014 preview, schema, diff, replay, and more." }) }) });
   }
   function LogRow({
     row,
@@ -15996,45 +17585,59 @@ schema(res)`, priority: 42 });
   }) {
     const entry = row.entry;
     const status = Number(entry.status) || 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { className: `xray-entry-row ${selected ? "selected" : ""} ${pinned ? "pinned" : ""}`, onClick: onSelect, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-status-dot ${statusClass(status)}` }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.logLevel || "log" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: formatTime(entry.timestamp) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-entry-main", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "xray-path", children: preview(entry.message ?? entry.logData, 160) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: `xray-pin ${pinned ? "active" : ""}`, onClick: (event) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-entry-row ${selected ? "selected" : ""} ${pinned ? "pinned" : ""}`, onClick: onSelect, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status-dot ${statusClass(status)}` }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: entry.logLevel || "log" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: formatTime(entry.timestamp) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-entry-main", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-path", children: preview(entry.message ?? entry.logData, 160) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-pin ${pinned ? "active" : ""}`, onClick: (event) => {
         event.stopPropagation();
         onTogglePinned();
-      }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconPin, { ...iconProps2 }) })
+      }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPin, { ...iconProps3 }) })
     ] });
   }
   function MobileSelectedDetail({ entry }) {
     if (!entry) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-mobile-detail-panel", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(RequestDetail, { entry }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-mobile-detail-panel", children: entry.type === "log" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(LogDetail, { entry }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestDetail, { entry }) });
   }
   function ListControls({ mode }) {
     const query = usePanelStore((state) => state.apiSearchQuery);
     const setQuery = usePanelStore((state) => state.setApiSearchQuery);
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "xray-list-controls", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "xray-search", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconSearch, { ...iconProps2 }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: mode === "api" ? "Search path, method, status..." : "Search logs..." })
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-list-controls", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "xray-search", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconSearch, { ...iconProps3 }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("input", { className: "xray-input", value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: mode === "api" ? "Search path, method, status..." : "Search logs..." })
     ] }) });
   }
 
   // src/panel/components/console/ConsoleWorkspace.tsx
-  var import_react5 = __toESM(require_react());
-  var import_jsx_runtime5 = __toESM(require_jsx_runtime());
-  var iconProps3 = { size: 16, stroke: 1.8 };
+  var import_react7 = __toESM(require_react());
+  var import_jsx_runtime6 = __toESM(require_jsx_runtime());
+  var iconProps4 = { size: 16, stroke: 1.8 };
   var networkFilters = [
-    { id: "all", label: "All", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconFilter, { ...iconProps3 }) },
-    { id: "xhr", label: "XHR", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowUpRight, { ...iconProps3 }) },
-    { id: "fetch", label: "Fetch", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconArrowDownLeft, { ...iconProps3 }) },
-    { id: "ws", label: "WS", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconRefresh, { ...iconProps3 }) },
-    { id: "errors", label: "Errors", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconCircleX, { ...iconProps3 }) }
+    { id: "all", label: "All", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconFilter, { ...iconProps4 }) },
+    { id: "xhr", label: "XHR", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowUpRight, { ...iconProps4 }) },
+    { id: "fetch", label: "Fetch", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowDownLeft, { ...iconProps4 }) },
+    { id: "ws", label: "WS", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconRefresh, { ...iconProps4 }) },
+    { id: "errors", label: "Errors", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconCircleX, { ...iconProps4 }) }
   ];
   var miniTabs = [
-    { id: "network", label: "Network", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconNetwork, { ...iconProps3 }) },
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconTerminal2, { ...iconProps3 }) }
+    { id: "network", label: "Network", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconNetwork, { ...iconProps4 }) },
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTerminal2, { ...iconProps4 }) }
   ];
+  var consoleLevelFilters = [
+    { id: "all", label: "All" },
+    { id: "log", label: "Logs" },
+    { id: "warn", label: "Warnings" },
+    { id: "error", label: "Errors" },
+    { id: "result", label: "Results" }
+  ];
+  function matchesLevel(event, filter) {
+    if (filter === "all") return true;
+    if (filter === "error") return event.level === "error" || event.type === "error";
+    if (filter === "warn") return event.level === "warn";
+    if (filter === "result") return event.type === "result" || event.type === "command";
+    return event.type === "log" && event.level !== "warn" && event.level !== "error";
+  }
   function eventDuration(event) {
     return duration(eventEntry(event));
   }
@@ -16042,7 +17645,7 @@ schema(res)`, priority: 42 });
     const events = usePanelStore((state) => state.consoleEvents);
     const filter = usePanelStore((state) => state.networkFilter);
     const query = usePanelStore((state) => state.searchQuery.trim().toLowerCase());
-    return (0, import_react5.useMemo)(() => events.filter((event) => {
+    return (0, import_react7.useMemo)(() => events.filter((event) => {
       if (event.type !== "network") return false;
       const entry = eventEntry(event);
       if (!entry) return false;
@@ -16056,65 +17659,206 @@ schema(res)`, priority: 42 });
   }
   function useConsoleEvents() {
     const events = usePanelStore((state) => state.consoleEvents);
-    return (0, import_react5.useMemo)(() => events.filter((event) => event.type !== "network"), [events]);
+    return (0, import_react7.useMemo)(() => events.filter((event) => event.type !== "network"), [events]);
   }
   function ConsoleWorkspace() {
     const mini = usePanelStore((state) => state.consoleMiniTab);
     const setMini = usePanelStore((state) => state.setConsoleMiniTab);
     const recording = usePanelStore((state) => state.recording);
+    const pausedCount = usePanelStore((state) => state.pausedCount);
     const setRecording = usePanelStore((state) => state.setRecording);
     const clearConsole = usePanelStore((state) => state.clearConsole);
     const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
     const setExportOpen = usePanelStore((state) => state.setExportOpen);
+    const searchQuery = usePanelStore((state) => state.searchQuery);
     const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
     const networkFilter = usePanelStore((state) => state.networkFilter);
     const setNetworkFilter = usePanelStore((state) => state.setNetworkFilter);
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-console-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-console-tabs", children: miniTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-mini-tab ${mini === tab.id ? "active" : ""}`, onClick: () => setMini(tab.id), children: [
+    const [levelFilter, setLevelFilter] = (0, import_react7.useState)("all");
+    const [consoleQuery, setConsoleQuery] = (0, import_react7.useState)("");
+    const consoleEvents = useConsoleEvents();
+    const levelCounts = (0, import_react7.useMemo)(() => {
+      const counts = { all: consoleEvents.length, log: 0, warn: 0, error: 0, result: 0 };
+      for (const event of consoleEvents) {
+        if (matchesLevel(event, "error")) counts.error += 1;
+        else if (matchesLevel(event, "warn")) counts.warn += 1;
+        else if (matchesLevel(event, "result")) counts.result += 1;
+        else counts.log += 1;
+      }
+      return counts;
+    }, [consoleEvents]);
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_jsx_runtime6.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-console-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-console-tabs", children: miniTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-mini-tab ${mini === tab.id ? "active" : ""}`, onClick: () => setMini(tab.id), children: [
           tab.icon,
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: tab.label })
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: tab.label })
         ] }, tab.id)) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-toolbar", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => requestConfirmation({
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-toolbar", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", onClick: () => requestConfirmation({
             title: "Clear console stream?",
             message: "This clears the React console stream only. Captured API entries remain available.",
             confirmLabel: "Clear console",
             tone: "danger",
             onConfirm: clearConsole
           }), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconTrash, { ...iconProps3 }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTrash, { ...iconProps4 }),
             "Clear"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => setRecording(!recording), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPlayerRecord, { ...iconProps3 }),
-            recording ? "Record" : "Paused"
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => setExportOpen(true), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconDownload, { ...iconProps3 }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+            "button",
+            {
+              className: `xray-btn ${recording ? "xray-live" : "xray-paused"}`,
+              title: "Pause the live console stream. Messages keep buffering and flush back in when you resume; capture itself is toggled in Settings \u2192 Capture.",
+              "aria-pressed": recording,
+              onClick: () => setRecording(!recording),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPlayerRecord, { ...iconProps4 }),
+                recording ? "Live" : pausedCount > 0 ? `Paused \xB7 ${pausedCount} new` : "Paused"
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", onClick: () => setExportOpen(true), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconDownload, { ...iconProps4 }),
             "Export"
           ] })
         ] })
       ] }),
-      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-filterbar", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "xray-search", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconSearch, { ...iconProps3 }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("input", { className: "xray-input", placeholder: "Filter by path, method, status...", onChange: (event) => setSearchQuery(event.currentTarget.value) })
+      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-filterbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", placeholder: "Filter by path, method, status...", value: searchQuery, onChange: (event) => setSearchQuery(event.currentTarget.value) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-filter-chips", children: networkFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: `xray-chip ${networkFilter === filter.id ? "active" : ""}`, onClick: () => setNetworkFilter(filter.id), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-filter-chips", children: networkFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${networkFilter === filter.id ? "active" : ""}`, onClick: () => setNetworkFilter(filter.id), children: [
           filter.icon,
           filter.label
         ] }, filter.id)) })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(NetworkTable, { hidden: mini !== "network" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ConsoleStream, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ConsolePrompt, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Statusbar, {})
+      mini === "console" && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-filterbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("label", { className: "xray-search", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconSearch, { ...iconProps4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("input", { className: "xray-input", placeholder: "Filter console messages...", value: consoleQuery, onChange: (event) => setConsoleQuery(event.currentTarget.value) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-filter-chips", children: consoleLevelFilters.map((filter) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: `xray-chip ${levelFilter === filter.id ? "active" : ""}`, onClick: () => setLevelFilter(filter.id), children: [
+          filter.label,
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-chip-count", children: levelCounts[filter.id] })
+        ] }, filter.id)) })
+      ] }),
+      mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(NetworkTable, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsoleStream, { levelFilter, query: consoleQuery, onClearFilter: () => {
+        setLevelFilter("all");
+        setConsoleQuery("");
+      } }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SnippetBar, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsolePrompt, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Statusbar, {})
     ] });
   }
-  function NetworkTable({ hidden }) {
+  function SnippetBar() {
+    const snippets = usePanelStore((state) => state.snippets);
+    const setConsoleDraft = usePanelStore((state) => state.setConsoleDraft);
+    const removeSnippet = usePanelStore((state) => state.removeSnippet);
+    const renameSnippet = usePanelStore((state) => state.renameSnippet);
+    const saveSnippet = usePanelStore((state) => state.saveSnippet);
+    const draft = usePanelStore((state) => state.consoleDraft);
+    const [naming, setNaming] = (0, import_react7.useState)(false);
+    const [nameText, setNameText] = (0, import_react7.useState)("");
+    const [renamingId, setRenamingId] = (0, import_react7.useState)(null);
+    const [renameText, setRenameText] = (0, import_react7.useState)("");
+    const [undoSnippet, setUndoSnippet] = (0, import_react7.useState)(null);
+    const undoTimer = (0, import_react7.useRef)(void 0);
+    function confirmSave() {
+      saveSnippet({ code: draft, title: nameText.trim() || void 0 });
+      setNaming(false);
+      setNameText("");
+    }
+    function handleRemove(snippet) {
+      removeSnippet(snippet.id);
+      setUndoSnippet(snippet);
+      window.clearTimeout(undoTimer.current);
+      undoTimer.current = window.setTimeout(() => setUndoSnippet(null), 6e3);
+    }
+    function confirmRename(id) {
+      renameSnippet(id, renameText);
+      setRenamingId(null);
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-snippet-bar", "aria-label": "Saved console snippets", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-label", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconBookmark, { ...iconProps4 }),
+        "Snippets"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-snippet-chips", children: [
+        snippets.length === 0 && !undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: "Save reusable commands here." }),
+        snippets.map((snippet) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-chip", children: [
+          renamingId === snippet.id ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+            "input",
+            {
+              className: "xray-input xray-snippet-rename",
+              value: renameText,
+              autoFocus: true,
+              placeholder: "Snippet name",
+              onChange: (event) => setRenameText(event.currentTarget.value),
+              onKeyDown: (event) => {
+                if (event.key === "Enter") confirmRename(snippet.id);
+                else if (event.key === "Escape") setRenamingId(null);
+              },
+              onBlur: () => confirmRename(snippet.id)
+            }
+          ) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+            "button",
+            {
+              className: "xray-snippet-load",
+              title: `${snippet.code}
+
+Double-click to rename`,
+              onClick: () => setConsoleDraft(snippet.code),
+              onDoubleClick: () => {
+                setRenamingId(snippet.id);
+                setRenameText(snippet.title || "");
+              },
+              children: snippet.title || snippet.code
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-snippet-remove", "aria-label": "Delete snippet", onClick: () => handleRemove(snippet), children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconX, { size: 12, stroke: 2 }) })
+        ] }, snippet.id)),
+        undoSnippet && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn xray-snippet-undo", onClick: () => {
+          saveSnippet({ code: undoSnippet.code, title: undoSnippet.title });
+          setUndoSnippet(null);
+        }, children: "Undo delete" })
+      ] }),
+      naming ? /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-snippet-chip xray-snippet-naming", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "input",
+          {
+            className: "xray-input xray-snippet-rename",
+            value: nameText,
+            autoFocus: true,
+            placeholder: "Name (optional) \u2014 Enter to save",
+            onChange: (event) => setNameText(event.currentTarget.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter") confirmSave();
+              else if (event.key === "Escape") {
+                setNaming(false);
+                setNameText("");
+              }
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: confirmSave, children: "Save" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn xray-snippet-save", disabled: !draft.trim(), title: draft.trim() ? "Save current command as a snippet" : "Type a command to save it", onClick: () => setNaming(true), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconBookmarkPlus, { ...iconProps4 }),
+        "Save"
+      ] })
+    ] });
+  }
+  function NetworkTable() {
     const events = useFilteredNetworkEvents();
-    const parentRef = (0, import_react5.useRef)(null);
+    const networkFilter = usePanelStore((state) => state.networkFilter);
+    const searchQuery = usePanelStore((state) => state.searchQuery);
+    const setNetworkFilter = usePanelStore((state) => state.setNetworkFilter);
+    const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
+    const filtered = networkFilter !== "all" || searchQuery.trim().length > 0;
+    const parentRef = (0, import_react7.useRef)(null);
+    const maxDuration = (0, import_react7.useMemo)(() => Math.max(100, ...events.map(eventDuration)), [events]);
     const virtualizer = useVirtualizer({
       count: events.length,
       getScrollElement: () => parentRef.current,
@@ -16123,190 +17867,379 @@ schema(res)`, priority: 42 });
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 8
     });
-    if (hidden) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-network", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-network-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Method" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Status" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Path" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Timing" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Size" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "Time" })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-network", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-network-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Method" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Status" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Path" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Timing" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Size" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "Time" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(NetworkRow, { event: events[item.index] }) }, item.key)) }),
-        !events.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No matching requests" })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(NetworkRow, { event: events[item.index], maxDuration }) }, item.key)) }),
+        !events.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          EmptyState,
+          {
+            label: filtered ? "No matching requests" : "No network activity yet",
+            hint: filtered ? "Nothing matches the current filter and search." : "Trigger a request on the page \u2014 fetch, XHR, and WebSocket traffic streams in here live.",
+            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: () => {
+              setNetworkFilter("all");
+              setSearchQuery("");
+            }, children: "Clear filter" }) : void 0
+          }
+        )
       ] })
     ] });
   }
-  function NetworkRow({ event }) {
+  var NetworkRow = import_react7.default.memo(function NetworkRow2({ event, maxDuration }) {
     const entry = eventEntry(event);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
     const selectedId = usePanelStore((state) => state.selectedId);
     const expandedId = usePanelStore((state) => state.expandedId);
     const selectEntry = usePanelStore((state) => state.selectEntry);
     const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
-    const maxDuration = Math.max(100, ...useFilteredNetworkEvents().map(eventDuration));
-    if (!entry) return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", {});
+    if (!entry) return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", {});
     const status = Number(entry.status) || 0;
     const isSelected = selectedId === entry.id;
     const isExpanded = expandedId === event.id;
     const pct = Math.max(6, Math.min(100, duration(entry) / maxDuration * 100));
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: `xray-network-row ${isSelected ? "selected" : ""}`, onClick: () => {
-        selectEntry(entry.id);
-        toggleExpanded(event.id);
-      }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: status || "---" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-path", title: String(entry.url || ""), children: entryPath(entry) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { className: "xray-timing", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: `xray-bar ${duration(entry) > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-            Math.round(duration(entry)),
-            "ms"
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) })
-      ] }),
-      isExpanded && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RequestDetail, { entry, compact: true }) })
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+        "div",
+        {
+          className: `xray-network-row ${isSelected ? "selected" : ""}`,
+          role: "button",
+          tabIndex: 0,
+          "aria-expanded": isExpanded,
+          onClick: () => {
+            selectEntry(entry.id);
+            toggleExpanded(event.id);
+          },
+          onKeyDown: (keyEvent) => {
+            if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+              keyEvent.preventDefault();
+              selectEntry(entry.id);
+              toggleExpanded(event.id);
+            }
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-method ${methodClass(entry.method)}`, children: String(entry.method || "GET").toUpperCase().replace("DELETE", "DEL") }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-status ${statusClass(status)}`, children: status || "---" }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-path", title: String(entry.url || ""), children: entryPath(entry) }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-timing", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: `xray-bar ${duration(entry) > slowThresholdMs ? "slow" : ""} ${status >= 400 ? "error" : ""}`, style: { width: `${pct}%` } }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+                Math.round(duration(entry)),
+                "ms"
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatBytes(entry.size) }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatTime(entry.timestamp) })
+          ]
+        }
+      ),
+      isExpanded && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(RequestDetail, { entry, compact: true }) })
     ] });
-  }
-  function ConsoleStream() {
+  });
+  function ConsoleStream({ levelFilter, query, onClearFilter }) {
     const events = useConsoleEvents();
     const expandedId = usePanelStore((state) => state.expandedId);
-    const parentRef = (0, import_react5.useRef)(null);
+    const parentRef = (0, import_react7.useRef)(null);
+    const pinnedRef = (0, import_react7.useRef)(true);
+    const lastTotalRef = (0, import_react7.useRef)(0);
+    const [pinnedUi, setPinnedUi] = (0, import_react7.useState)(true);
+    const [newCount, setNewCount] = (0, import_react7.useState)(0);
+    const filteredEvents = (0, import_react7.useMemo)(() => {
+      const trimmed = query.trim().toLowerCase();
+      return events.filter((event) => matchesLevel(event, levelFilter) && (!trimmed || event.message.toLowerCase().includes(trimmed)));
+    }, [events, levelFilter, query]);
+    const rows = (0, import_react7.useMemo)(() => {
+      const out = [];
+      for (const event of filteredEvents) {
+        const prev = out[out.length - 1];
+        if (prev && event.type === "log" && prev.event.type === "log" && prev.event.level === event.level && prev.event.message === event.message) {
+          prev.count += 1;
+          continue;
+        }
+        out.push({ event, count: 1 });
+      }
+      return out;
+    }, [filteredEvents]);
     const virtualizer = useVirtualizer({
-      count: events.length,
+      count: rows.length,
       getScrollElement: () => parentRef.current,
-      estimateSize: (index) => expandedId === events[index]?.id ? 220 : 36,
-      getItemKey: (index) => events[index]?.id || index,
+      estimateSize: (index) => expandedId === rows[index]?.event.id ? 220 : 36,
+      getItemKey: (index) => rows[index]?.event.id || index,
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 10
     });
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "xray-console-stream", ref: parentRef, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ConsoleRow, { event: events[item.index] }) }, item.key)) }),
-      !events.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(EmptyState, { label: "No console messages" })
+    const scrollToBottom = (0, import_react7.useCallback)(() => {
+      if (rows.length) virtualizer.scrollToIndex(rows.length - 1, { align: "end" });
+      const pin = () => {
+        const el = parentRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      };
+      requestAnimationFrame(() => {
+        pin();
+        requestAnimationFrame(pin);
+      });
+      window.setTimeout(pin, 80);
+    }, [rows.length, virtualizer]);
+    (0, import_react7.useEffect)(() => {
+      const total = filteredEvents.length;
+      const delta = total - lastTotalRef.current;
+      lastTotalRef.current = total;
+      if (delta > 0) {
+        if (pinnedRef.current) scrollToBottom();
+        else setNewCount((count) => count + delta);
+      }
+    }, [filteredEvents.length, scrollToBottom]);
+    const handleScroll = (0, import_react7.useCallback)(() => {
+      const el = parentRef.current;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+      pinnedRef.current = atBottom;
+      setPinnedUi(atBottom);
+      if (atBottom) setNewCount(0);
+    }, []);
+    const filtered = levelFilter !== "all" || query.trim().length > 0;
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "xray-console-stream-wrap", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-console-stream", ref: parentRef, onScroll: handleScroll, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ConsoleRow, { event: rows[item.index].event, count: rows[item.index].count }) }, item.key)) }),
+        !rows.length && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          EmptyState,
+          {
+            label: filtered ? "No matching messages" : "No console messages",
+            hint: filtered ? "Nothing matches the current level filter and search." : "console.log / warn / error from the page appear here, alongside results from commands you run below.",
+            action: filtered ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn", onClick: onClearFilter, children: "Clear filter" }) : void 0
+          }
+        )
+      ] }),
+      !pinnedUi && newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-newmsg-pill", onClick: () => {
+        setNewCount(0);
+        pinnedRef.current = true;
+        setPinnedUi(true);
+        scrollToBottom();
+      }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconArrowDown, { size: 14, stroke: 2 }),
+        newCount,
+        " new"
+      ] })
     ] });
   }
-  function ConsoleRow({ event }) {
+  var ConsoleRow = import_react7.default.memo(function ConsoleRow2({ event, count }) {
     const expandedId = usePanelStore((state) => state.expandedId);
     const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
+    const isExpanded = expandedId === event.id;
     const canExpand = event.type === "result" || event.type === "error" || event.data !== void 0 || !!event.args?.some((arg) => arg && typeof arg === "object");
-    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronRight, { ...iconProps3 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronLeft, { ...iconProps3 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconCircleX, { ...iconProps3 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconAlertTriangle, { ...iconProps3 }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconTerminal2, { ...iconProps3 });
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: `xray-console-row ${event.type} ${event.level}`, onClick: () => canExpand && toggleExpanded(event.id), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: expandedId === event.id ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronDown, { ...iconProps3 }) : icon }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-console-message", children: event.message }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
-      expandedId === event.id && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "xray-detail", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: event.data ?? event.args ?? event.message }) })
-    ] });
-  }
+    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconTerminal2, { ...iconProps4 });
+    const logEntry = isExpanded && event.type === "log" && event.entryId ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null : null;
+    const expandedData = (0, import_react7.useMemo)(
+      () => isExpanded && !logEntry ? stripXrayRefs(event.data ?? event.args ?? event.message) : null,
+      [isExpanded, logEntry, event]
+    );
+    const errorStack = event.type === "error" && event.data && typeof event.data === "object" ? String(event.data.stack || "") : "";
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+      "div",
+      {
+        className: `xray-console-row ${event.type} ${event.level}`,
+        role: canExpand ? "button" : void 0,
+        tabIndex: canExpand ? 0 : void 0,
+        "aria-expanded": canExpand ? isExpanded : void 0,
+        onClick: () => canExpand && toggleExpanded(event.id),
+        onKeyDown: canExpand ? (keyEvent) => {
+          if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+            keyEvent.preventDefault();
+            toggleExpanded(event.id);
+          }
+        } : void 0,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-console-message", children: [
+            event.message,
+            count > 1 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { className: "xray-repeat-badge", title: `${count} identical consecutive messages`, children: [
+              "\xD7",
+              count
+            ] }),
+            event.truncated && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-truncated-badge", title: "The result was truncated to fit the transfer limit", children: "truncated" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
+          isExpanded && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-detail", children: logEntry ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(LogDetail, { entry: logEntry }) : errorStack ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("pre", { className: "xray-error-stack", children: errorStack }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(JsonView, { value: expandedData }) })
+        ]
+      }
+    );
+  });
   function ConsolePrompt() {
     const selected = usePanelStore((state) => state.selectedId ? state.entries.find((entry) => entry.id === state.selectedId) || null : null);
     const addConsoleEvent = usePanelStore((state) => state.addConsoleEvent);
     const command = usePanelStore((state) => state.consoleDraft);
     const setConsoleDraft = usePanelStore((state) => state.setConsoleDraft);
-    async function run() {
-      const code = command.trim();
-      if (!code) return;
+    const setMini = usePanelStore((state) => state.setConsoleMiniTab);
+    const [running, setRunning] = (0, import_react7.useState)(false);
+    const [announcement, setAnnouncement] = (0, import_react7.useState)("");
+    const inputRef = (0, import_react7.useRef)(null);
+    const historyRef = (0, import_react7.useRef)({ active: false, draft: "" });
+    (0, import_react7.useEffect)(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 110) + "px";
+    }, [command]);
+    async function run(codeOverride) {
+      const code = (codeOverride ?? command).trim();
+      if (!code || running) return;
+      historyRef.current = { active: false, draft: "" };
       setConsoleDraft("");
+      setRunning(true);
       const commandId = "cmd_" + Date.now().toString(36);
       addConsoleEvent({ id: commandId, type: "command", level: "info", timestamp: Date.now(), message: code, args: [code], commandId });
-      const result = await executeConsoleCommand(code);
-      if (!result || result.type === "empty") return;
-      if (result.type === "error") {
-        addConsoleEvent({
-          id: "res_" + commandId,
-          type: "error",
-          level: "error",
-          timestamp: Date.now(),
-          message: result.error?.message || "Execution failed",
-          data: result.error,
-          commandId
-        });
-      } else {
-        addConsoleEvent({
-          id: "res_" + commandId,
-          type: "result",
-          level: "info",
-          timestamp: Date.now(),
-          message: preview(result.result, 260),
-          data: result.result,
-          commandId,
-          truncated: !!result.truncated
-        });
+      try {
+        const result = await executeConsoleCommand(code);
+        if (!result || result.type === "empty") return;
+        if (result.type === "error") {
+          const message = result.error?.message || "Execution failed";
+          addConsoleEvent({
+            id: "res_" + commandId,
+            type: "error",
+            level: "error",
+            timestamp: Date.now(),
+            message,
+            data: result.error,
+            commandId
+          });
+          if (!codeOverride) setConsoleDraft(code);
+          setAnnouncement(`Error: ${message}`);
+        } else {
+          const message = preview(result.result, 260);
+          addConsoleEvent({
+            id: "res_" + commandId,
+            type: "result",
+            level: "info",
+            timestamp: Date.now(),
+            message,
+            data: result.result,
+            commandId,
+            truncated: !!result.truncated
+          });
+          setAnnouncement(`Result: ${message.slice(0, 140)}`);
+        }
+      } finally {
+        setRunning(false);
       }
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-prompt", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconChevronRight, { ...iconProps3 }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "xray-prompt-command", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "input",
+    function handleKeyDown(event) {
+      const el = event.currentTarget;
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void run();
+        return;
+      }
+      if (event.key === "ArrowUp" && (historyRef.current.active || !command || el.selectionStart === 0 && el.selectionEnd === 0)) {
+        event.preventDefault();
+        if (!historyRef.current.active) historyRef.current = { active: true, draft: command };
+        const previous = navigateConsoleHistory("up");
+        if (previous) setConsoleDraft(previous);
+        return;
+      }
+      if (event.key === "ArrowDown" && historyRef.current.active && el.selectionEnd === command.length) {
+        event.preventDefault();
+        const next = navigateConsoleHistory("down");
+        if (next === "") {
+          setConsoleDraft(historyRef.current.draft);
+          historyRef.current = { active: false, draft: "" };
+        } else if (next != null) {
+          setConsoleDraft(next);
+        }
+        return;
+      }
+      if (event.key === "Escape" && historyRef.current.active) {
+        event.preventDefault();
+        event.stopPropagation();
+        setConsoleDraft(historyRef.current.draft);
+        historyRef.current = { active: false, draft: "" };
+      }
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-prompt", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconChevronRight, { ...iconProps4 }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "xray-prompt-command", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "textarea",
           {
+            ref: inputRef,
+            rows: 1,
             value: command,
-            onChange: (event) => setConsoleDraft(event.currentTarget.value),
-            onKeyDown: (event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void run();
-              } else if (event.key === "ArrowUp" && !command) {
-                const previous = navigateConsoleHistory("up");
-                if (previous != null) setConsoleDraft(previous);
-              }
+            onChange: (event) => {
+              historyRef.current.active = false;
+              setConsoleDraft(event.currentTarget.value);
             },
-            placeholder: selected ? "Try res.data, Object.keys(res), schema(res)" : "Select a request, then try res.data"
+            onKeyDown: handleKeyDown,
+            placeholder: selected ? "Try res.data, Object.keys(res), schema(res) \u2014 Shift+Enter for a new line" : "Select a request, then try res.data",
+            "aria-label": "Console command"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { className: "xray-btn", onClick: () => void run(), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(IconPlayerPlay, { ...iconProps3 }),
-          "Run"
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-btn xray-prompt-help", title: "Show the console helpers cheatsheet ($help)", onClick: () => void run("$help"), children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconHelp, { ...iconProps4 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("button", { className: "xray-btn", disabled: running, onClick: () => void run(), children: [
+          running ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconRefresh, { ...iconProps4, className: "xray-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconPlayerPlay, { ...iconProps4 }),
+          running ? "Running\u2026" : "Run"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-context-chip", children: selected ? `Selected ${selected.method || "GET"} ${entryPath(selected)}` : "No request selected" })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        "button",
+        {
+          className: "xray-context-chip",
+          title: selected ? "The prompt evaluates res/req against this request. Click to open the request strip." : "Pick a request in the Network strip to give the prompt a res/req context.",
+          onClick: () => setMini("network"),
+          children: selected ? `Selected ${selected.method || "GET"} ${entryPath(selected)}` : "No request selected"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-visually-hidden", "aria-live": "polite", children: announcement })
     ] });
   }
   function Statusbar() {
     const entries = usePanelStore((state) => state.entries);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-    const apis = entries.filter(isApi);
-    const errors = apis.filter((entry) => Number(entry.status) >= 400);
-    const slow = apis.filter((entry) => duration(entry) > slowThresholdMs);
-    const avg = apis.length ? apis.reduce((sum, entry) => sum + duration(entry), 0) / apis.length : 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("footer", { className: "xray-statusbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { color: "var(--xray-green)" }, children: [
-        apis.length - errors.length,
+    const stats = (0, import_react7.useMemo)(() => {
+      const apis = entries.filter(isApi);
+      const errors = apis.filter((entry) => Number(entry.status) >= 400);
+      const slow = apis.filter((entry) => duration(entry) > slowThresholdMs);
+      const avg = apis.length ? apis.reduce((sum, entry) => sum + duration(entry), 0) / apis.length : 0;
+      return { total: apis.length, errors: errors.length, slow: slow.length, avg };
+    }, [entries, slowThresholdMs]);
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("footer", { className: "xray-statusbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-green)" }, children: [
+        stats.total - stats.errors,
         " ok"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { color: "var(--xray-red)" }, children: [
-        errors.length,
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-red)" }, children: [
+        stats.errors,
         " errors"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: { color: "var(--xray-yellow)" }, children: [
-        slow.length,
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { style: { color: "var(--xray-yellow)" }, children: [
+        stats.slow,
         " slow (>",
         slowThresholdMs,
         "ms)"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "xray-spacer" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
-        apis.length,
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-spacer" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+        stats.total,
         " requests - avg ",
-        Math.round(avg),
+        Math.round(stats.avg),
         "ms"
       ] })
     ] });
   }
 
   // src/panel/components/export/ExportModal.tsx
-  var import_react7 = __toESM(require_react());
+  var import_react9 = __toESM(require_react());
 
   // src/panel/models/export.ts
   var exportGroups = [
     { label: "Request", formats: ["curl", "fetch", "axios"] },
     { label: "Response", formats: ["json", "raw", "schema", "mock"] },
     { label: "Types", formats: ["typescript", "zod"] },
-    { label: "Tests", formats: ["jest", "msw"] },
+    { label: "Tests", formats: ["jest", "msw", "playwright"] },
     { label: "Session", formats: ["session-json", "session-csv", "session-har"] }
   ];
   var exportFormats = exportGroups.flatMap((group) => group.formats);
@@ -16322,6 +18255,7 @@ schema(res)`, priority: 42 });
     zod: { title: "Zod schema", desc: "Runtime validation schema inferred from response data.", extension: "ts" },
     jest: { title: "Jest test", desc: "Starter test with mocked response behavior.", extension: "test.ts" },
     msw: { title: "MSW handler", desc: "Mock Service Worker handler for the captured endpoint.", extension: "ts" },
+    playwright: { title: "Playwright test", desc: "API test that re-fires the request and asserts its status.", extension: "spec.ts" },
     "session-json": { title: "Session JSON", desc: "All captured entries in XRAY session format.", extension: "json" },
     "session-csv": { title: "Session CSV", desc: "Flat API request summary for spreadsheets.", extension: "csv" },
     "session-har": { title: "Session HAR", desc: "HTTP Archive compatible export.", extension: "har" }
@@ -16396,7 +18330,7 @@ const response = await axios(${safeStringify(options, 2, 12e4)});
 const data = response.data;`;
   }
   function buildSessionCsv(entries) {
-    const escape = (value) => {
+    const escape2 = (value) => {
       const text = String(value ?? "");
       return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
@@ -16410,7 +18344,7 @@ const data = response.data;`;
       entry.size || "",
       entry.timestamp ? new Date(Number(entry.timestamp)).toISOString() : ""
     ]);
-    return [["id", "method", "status", "url", "source", "durationMs", "sizeBytes", "timestamp"], ...rows].map((row) => row.map(escape).join(",")).join("\n");
+    return [["id", "method", "status", "url", "source", "durationMs", "sizeBytes", "timestamp"], ...rows].map((row) => row.map(escape2).join(",")).join("\n");
   }
   function buildSessionHar(entries) {
     const harEntries = entries.filter((entry) => entry.type === "api").map((entry) => ({
@@ -16493,6 +18427,32 @@ export const handlers = [
   }),
 ];`;
   }
+  function buildPlaywright(entry) {
+    if (!entry) return "// Select an API request first";
+    const method = String(entry.method || "GET").toLowerCase();
+    const url = String(entry.url || entry.urlPath || "");
+    const status = Number(entry.status) || 200;
+    const title = `${String(entry.method || "GET").toUpperCase()} ${String(entry.urlPath || url || "request")}`;
+    const headers = headerObject(entry);
+    const body = entryRequest(entry);
+    const convenience = ["get", "post", "put", "patch", "delete", "head"].includes(method);
+    const options = {};
+    if (!convenience) options.method = String(entry.method || "GET").toUpperCase();
+    if (Object.keys(headers).length) options.headers = headers;
+    if (body != null && method !== "get" && method !== "head") options.data = body;
+    const optsArg = Object.keys(options).length ? `, ${safeStringify(options, 2, 12e4)}` : "";
+    const call = convenience ? `request.${method}(${JSON.stringify(url)}${optsArg})` : `request.fetch(${JSON.stringify(url)}${optsArg})`;
+    const isJson = responseContentType(entry).toLowerCase().includes("json");
+    const bodyLine = isJson ? "  const body = await response.json();" : "  const body = await response.text();";
+    return `import { test, expect } from '@playwright/test';
+
+test(${JSON.stringify(title)}, async ({ request }) => {
+  const response = await ${call};
+  expect(response.status()).toBe(${status});
+${bodyLine}
+  expect(body).toBeTruthy();
+});`;
+  }
   function filenameForExport(entry, format) {
     const path = String(entry?.urlPath || entry?.url || "session").replace(/^https?:\/\//, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "session";
     const meta = exportMeta[format];
@@ -16511,7 +18471,7 @@ export const handlers = [
     if (format === "session-json") return safeStringify({ entries }, 2, 5e5);
     if (format === "session-csv") return buildSessionCsv(entries);
     if (format === "session-har") return buildSessionHar(entries);
-    if (!entry) return "// Select an API request first";
+    if (!entry || entry.type !== "api") return "// Select an API request first";
     if (format === "curl") return buildCurl(entry);
     if (format === "fetch") return buildFetch(entry);
     if (format === "axios") return buildAxios(entry);
@@ -16524,6 +18484,7 @@ export const handlers = [
     if (format === "zod") return buildZodSchema(entryResponse(entry));
     if (format === "jest") return buildJest(entry);
     if (format === "msw") return buildMsw(entry);
+    if (format === "playwright") return buildPlaywright(entry);
     if (format === "raw") {
       const raw = entry.responseDecrypted ?? entry.responseRaw ?? entryResponse(entry);
       return typeof raw === "string" ? raw : safeStringify(raw, 2, 12e4);
@@ -16531,18 +18492,91 @@ export const handlers = [
     return safeStringify(entry ? { entry, response: entryResponse(entry) } : { entries }, 2, 12e4);
   }
 
+  // src/panel/models/import.ts
+  function headerArrayToObject(headers) {
+    const out = {};
+    if (Array.isArray(headers)) {
+      headers.forEach((header) => {
+        if (header && typeof header === "object" && "name" in header) {
+          out[String(header.name)] = String(header.value ?? "");
+        }
+      });
+    }
+    return out;
+  }
+  function newId(prefix) {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+  function harEntryToXray(harEntry) {
+    const request = harEntry.request;
+    const response = harEntry.response;
+    if (!request) return null;
+    const url = String(request.url || "");
+    let urlPath = url;
+    try {
+      urlPath = new URL(url).pathname;
+    } catch {
+    }
+    const content = response?.content;
+    const postData = request.postData;
+    const requestBody = parseBody(postData?.text ?? null);
+    const timings = harEntry.timings;
+    return {
+      id: newId("har"),
+      type: "api",
+      timestamp: harEntry.startedDateTime ? Date.parse(String(harEntry.startedDateTime)) || Date.now() : Date.now(),
+      source: "import",
+      method: String(request.method || "GET"),
+      url,
+      urlPath,
+      status: Number(response?.status) || 0,
+      duration: Math.round(Number(harEntry.time) || Number(timings?.wait) || 0),
+      size: Number(content?.size) || 0,
+      requestHeaders: headerArrayToObject(request.headers),
+      responseHeaders: headerArrayToObject(response?.headers),
+      requestBody,
+      responseRaw: typeof content?.text === "string" ? content.text : null,
+      responseDecrypted: null,
+      imported: true,
+      pinned: false
+    };
+  }
+  function parseImport(text) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { entries: [], format: "unknown", error: "File is not valid JSON." };
+    }
+    const log = parsed?.log;
+    if (log && Array.isArray(log.entries)) {
+      const entries = log.entries.map((entry) => harEntryToXray(entry)).filter((entry) => !!entry);
+      return { entries, format: "har" };
+    }
+    const sessionEntries = parsed?.entries;
+    if (Array.isArray(sessionEntries)) {
+      const entries = sessionEntries.filter((entry) => !!entry && typeof entry === "object" && typeof entry.id === "string").map((entry) => ({ ...entry, imported: true }));
+      return { entries, format: "session" };
+    }
+    if (Array.isArray(parsed)) {
+      const entries = parsed.filter((entry) => !!entry && typeof entry === "object" && typeof entry.id === "string").map((entry) => ({ ...entry, imported: true }));
+      if (entries.length) return { entries, format: "session" };
+    }
+    return { entries: [], format: "unknown", error: "Unrecognized file. Expected a HAR file or XRAY session export." };
+  }
+
   // src/panel/components/common/ModalShell.tsx
-  var import_react6 = __toESM(require_react());
-  var import_jsx_runtime6 = __toESM(require_jsx_runtime());
-  var iconProps4 = { size: 16, stroke: 1.8 };
+  var import_react8 = __toESM(require_react());
+  var import_jsx_runtime7 = __toESM(require_jsx_runtime());
+  var iconProps5 = { size: 16, stroke: 1.8 };
   function focusableElements(root) {
     return Array.from(root.querySelectorAll(
       'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     )).filter((element) => element.offsetParent !== null || element === document.activeElement);
   }
   function ModalShell({ title, subtitle, icon, className = "", children, footer, onClose }) {
-    const dialogRef = (0, import_react6.useRef)(null);
-    (0, import_react6.useEffect)(() => {
+    const dialogRef = (0, import_react8.useRef)(null);
+    (0, import_react8.useEffect)(() => {
       const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const dialog = dialogRef.current;
       const first = dialog ? focusableElements(dialog)[0] : null;
@@ -16575,7 +18609,7 @@ export const handlers = [
         previous?.focus();
       };
     }, [onClose]);
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-modal-backdrop", onMouseDown: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-modal-backdrop", onMouseDown: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
       "section",
       {
         ref: dialogRef,
@@ -16585,25 +18619,25 @@ export const handlers = [
         "aria-label": title,
         onMouseDown: (event) => event.stopPropagation(),
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("header", { className: "xray-modal-head", children: [
-            icon && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-modal-title-icon", children: icon }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h3", { children: title }),
-              subtitle && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "xray-modal-subtitle", children: subtitle })
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("header", { className: "xray-modal-head", children: [
+            icon && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-modal-title-icon", children: icon }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: title }),
+              subtitle && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-modal-subtitle", children: subtitle })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "xray-spacer" }),
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { className: "xray-icon-btn", onClick: onClose, "aria-label": `Close ${title}`, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(IconX, { ...iconProps4 }) })
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: "xray-icon-btn", onClick: onClose, "aria-label": `Close ${title}`, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconX, { ...iconProps5 }) })
           ] }),
           children,
-          footer && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("footer", { className: "xray-modal-foot", children: footer })
+          footer && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("footer", { className: "xray-modal-foot", children: footer })
         ]
       }
     ) });
   }
 
   // src/panel/components/export/ExportModal.tsx
-  var import_jsx_runtime7 = __toESM(require_jsx_runtime());
-  var iconProps5 = { size: 16, stroke: 1.8 };
+  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+  var iconProps6 = { size: 16, stroke: 1.8 };
   function isSessionFormat(format) {
     return format.startsWith("session-");
   }
@@ -16613,15 +18647,17 @@ export const handlers = [
     const entries = usePanelStore((state) => state.entries);
     const showToast = usePanelStore((state) => state.showToast);
     const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
-    const addNotebookCell = usePanelStore((state) => state.addNotebookCell);
+    const saveSnippet = usePanelStore((state) => state.saveSnippet);
+    const restoreEntries = usePanelStore((state) => state.restoreEntries);
+    const fileInputRef = (0, import_react9.useRef)(null);
     const selected = selectedEntry();
-    const [mode, setMode] = (0, import_react7.useState)("session");
-    const [format, setFormat] = (0, import_react7.useState)("curl");
+    const [mode, setMode] = (0, import_react9.useState)("session");
+    const [format, setFormat] = (0, import_react9.useState)("curl");
     const selectedForExport = mode === "selected" ? selected : null;
-    const text = (0, import_react7.useMemo)(() => exportText(selectedForExport, entries, format), [entries, format, selectedForExport]);
+    const text = (0, import_react9.useMemo)(() => exportText(selectedForExport, entries, format), [entries, format, selectedForExport]);
     const meta = exportMeta[format];
     const filename = filenameForExport(selectedForExport, format);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       if (!open) return;
       const nextMode = selected ? "selected" : "session";
       setMode(nextMode);
@@ -16645,57 +18681,80 @@ export const handlers = [
       setOpen(false);
       showToast("Export snippet inserted in Console.");
     }
-    function sendToNotebook() {
-      addNotebookCell({ title: meta.title, code: text });
+    function sendToSnippets() {
+      saveSnippet({ title: meta.title, code: text });
       setOpen(false);
-      showToast("Export snippet sent to Notebook.");
+      showToast("Saved to Console snippets.");
+    }
+    async function handleImportFile(event) {
+      const file = event.currentTarget.files?.[0];
+      event.currentTarget.value = "";
+      if (!file) return;
+      try {
+        const content = await file.text();
+        const result = parseImport(content);
+        if (result.error || !result.entries.length) {
+          showToast(result.error || "No entries found in file.");
+          return;
+        }
+        restoreEntries(result.entries);
+        setOpen(false);
+        showToast(`Imported ${result.entries.length} ${result.format === "har" ? "HAR" : "session"} entries.`);
+      } catch {
+        showToast("Could not read the selected file.");
+      }
     }
     const subtitle = mode === "selected" && selected ? `${selected.method || "GET"} ${selected.urlPath || selected.url || ""}` : `${entries.length} captured entries`;
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
       ModalShell,
       {
         title: mode === "selected" ? "Export selected request" : "Export session",
         subtitle,
-        icon: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconFileExport, { ...iconProps5 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconFileExport, { ...iconProps6 }),
         className: "xray-export-modal",
         onClose: () => setOpen(false),
-        footer: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "xray-muted", children: [
+        footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-muted", children: [
             text.length.toLocaleString(),
             " chars"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-spacer" }),
-          mode === "selected" && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", onClick: sendToConsole, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconSend, { ...iconProps5 }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("input", { ref: fileInputRef, type: "file", accept: ".har,.json,application/json", style: { display: "none" }, onChange: (event) => void handleImportFile(event) }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: () => fileInputRef.current?.click(), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconFileImport, { ...iconProps6 }),
+            "Import HAR / session"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-spacer" }),
+          mode === "selected" && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: sendToConsole, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconSend, { ...iconProps6 }),
               "Console"
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", onClick: sendToNotebook, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconNotebook, { ...iconProps5 }),
-              "Notebook"
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: sendToSnippets, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconBookmark, { ...iconProps6 }),
+              "Snippet"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn", onClick: () => void copyCurrent(), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCopy, { ...iconProps5 }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn", onClick: () => void copyCurrent(), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconCopy, { ...iconProps6 }),
             "Copy"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("button", { className: "xray-btn primary", onClick: downloadCurrent, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconDownload, { ...iconProps5 }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-btn primary", onClick: downloadCurrent, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconDownload, { ...iconProps6 }),
             "Download"
           ] })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-export-body", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("nav", { className: "xray-export-rail", "aria-label": "Export formats", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-export-mode", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: `xray-chip ${mode === "selected" ? "active" : ""}`, disabled: !selected, title: selected ? "Use selected request" : "Select an API request first", onClick: () => switchMode("selected"), children: "Selected" }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { className: `xray-chip ${mode === "session" ? "active" : ""}`, onClick: () => switchMode("session"), children: "Session" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("nav", { className: "xray-export-rail", "aria-label": "Export formats", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-mode", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: `xray-chip ${mode === "selected" ? "active" : ""}`, disabled: !selected, title: selected ? "Use selected request" : "Select an API request first", onClick: () => switchMode("selected"), children: "Selected" }),
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: `xray-chip ${mode === "session" ? "active" : ""}`, onClick: () => switchMode("session"), children: "Session" })
             ] }),
-            exportGroups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "xray-export-group", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "xray-export-group-label", children: group.label }),
+            exportGroups.map((group) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-export-group", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-export-group-label", children: group.label }),
               group.formats.map((item) => {
                 const disabled = mode === "session" ? !isSessionFormat(item) : isSessionFormat(item) || !selected;
                 const disabledReason = !selected && !isSessionFormat(item) ? "Select a request first" : mode === "session" && !isSessionFormat(item) ? "Switch to Selected mode" : isSessionFormat(item) && mode === "selected" ? "Switch to Session mode" : void 0;
-                return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+                return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
                   "button",
                   {
                     disabled,
@@ -16703,8 +18762,8 @@ export const handlers = [
                     title: disabledReason,
                     onClick: () => setFormat(item),
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: exportMeta[item].title }),
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("small", { children: exportMeta[item].extension })
+                      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: exportMeta[item].title }),
+                      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("small", { children: exportMeta[item].extension })
                     ]
                   },
                   item
@@ -16712,15 +18771,15 @@ export const handlers = [
               })
             ] }, group.label))
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "xray-export-preview", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("header", { className: "xray-export-preview-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: meta.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { children: meta.desc })
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "xray-export-preview", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("header", { className: "xray-export-preview-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: meta.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { children: meta.desc })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "xray-count-pill", children: filename })
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-count-pill", children: filename })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "xray-json xray-export-code", children: text })
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("pre", { className: "xray-json xray-export-code", children: text })
           ] })
         ] })
       }
@@ -16728,27 +18787,27 @@ export const handlers = [
   }
 
   // src/panel/components/common/ConfirmationModal.tsx
-  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
-  var iconProps6 = { size: 17, stroke: 1.8 };
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
+  var iconProps7 = { size: 17, stroke: 1.8 };
   function ConfirmationModal() {
     const request = usePanelStore((state) => state.pendingConfirmation);
     const close = usePanelStore((state) => state.closeConfirmation);
     const confirm = usePanelStore((state) => state.confirmPending);
     if (!request) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       ModalShell,
       {
         title: request.title,
         subtitle: "Confirm this action before XRAY changes the current session.",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconAlertTriangle, { ...iconProps6 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconAlertTriangle, { ...iconProps7 }),
         className: "xray-confirm-modal",
         onClose: close,
-        footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-spacer" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "xray-btn", onClick: close, children: request.cancelLabel || "Cancel" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: `xray-btn ${request.tone === "danger" ? "danger" : "primary"}`, onClick: confirm, children: request.confirmLabel })
+        footer: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "xray-spacer" }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: "xray-btn", onClick: close, children: request.cancelLabel || "Cancel" }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { className: `xray-btn ${request.tone === "danger" ? "danger" : "primary"}`, onClick: confirm, children: request.confirmLabel })
         ] }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-modal-body", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { className: "xray-confirm-message", children: request.message }) })
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "xray-modal-body", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { className: "xray-confirm-message", children: request.message }) })
       }
     );
   }
@@ -16806,19 +18865,18 @@ export const handlers = [
   }
 
   // src/panel/components/shell/panelTabs.tsx
-  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
-  var iconProps7 = { size: 16, stroke: 1.8 };
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime());
+  var iconProps8 = { size: 16, stroke: 1.8 };
   var panelTabs = [
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconTerminal2, { ...iconProps7 }) },
-    { id: "api", label: "API", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconNetwork, { ...iconProps7 }) },
-    { id: "logs", label: "Logs", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconCircleCheck, { ...iconProps7 }) },
-    { id: "notebook", label: "Notebook", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconBrandTypescript, { ...iconProps7 }) },
-    { id: "insights", label: "Insights", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconChartBar, { ...iconProps7 }) },
-    { id: "settings", label: "Settings", icon: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(IconSettings, { ...iconProps7 }) }
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconTerminal2, { ...iconProps8 }) },
+    { id: "api", label: "API", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconNetwork, { ...iconProps8 }) },
+    { id: "logs", label: "Logs", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconCircleCheck, { ...iconProps8 }) },
+    { id: "rules", label: "Rules", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconPlugConnected, { ...iconProps8 }) },
+    { id: "insights", label: "Insights", icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconChartBar, { ...iconProps8 }) }
   ];
 
   // src/panel/components/insights/Insights.tsx
-  var import_jsx_runtime10 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime11 = __toESM(require_jsx_runtime());
   function Insights() {
     const entries = usePanelStore((state) => state.entries);
     const setApiSearchQuery = usePanelStore((state) => state.setApiSearchQuery);
@@ -16828,247 +18886,288 @@ export const handlers = [
       setApiSearchQuery(path);
       setActiveTab("api");
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "xray-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("header", { className: "xray-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "Insights" }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { children: "Deterministic local signals from captured requests. No external AI service is used." })
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-page", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("header", { className: "xray-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Insights" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "Deterministic local signals from captured requests. No external AI service is used." })
       ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "xray-insight-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconDatabase, { ...iconProps7 }), label: "Requests", value: String(summary.requests) }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconAlertTriangle, { ...iconProps7 }), label: "Errors", value: String(summary.errors), tone: summary.errors ? "error" : "ok" }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconBolt, { ...iconProps7 }), label: "Slow", value: String(summary.slow), tone: summary.slow ? "warn" : "ok" }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconClock, { ...iconProps7 }), label: "Average", value: `${Math.round(summary.avgDuration)}ms` }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconServer, { ...iconProps7 }), label: "Payload", value: formatBytes(summary.totalBytes) })
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-insight-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconDatabase, { ...iconProps8 }), label: "Requests", value: String(summary.requests) }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconAlertTriangle, { ...iconProps8 }), label: "Errors", value: String(summary.errors), tone: summary.errors ? "error" : "ok" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconBolt, { ...iconProps8 }), label: "Slow", value: String(summary.slow), tone: summary.slow ? "warn" : "ok" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconClock, { ...iconProps8 }), label: "Average", value: `${Math.round(summary.avgDuration)}ms` }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(InsightMetric, { icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconServer, { ...iconProps8 }), label: "Payload", value: formatBytes(summary.totalBytes) })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "xray-insight-columns", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "Repeated endpoints" }),
-          summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconRoute, { ...iconProps7 }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: item.path }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-insight-columns", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Repeated endpoints" }),
+          summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconRoute, { ...iconProps8 }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: item.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
               item.count,
               "x"
             ] })
-          ] }, item.path)) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { className: "xray-muted", children: "No repeated endpoint pattern above threshold." })
+          ] }, item.path)) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "xray-muted", children: "No repeated endpoint pattern above threshold." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "Slowest requests" }),
-          summary.topSlowRequests.map((item) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "xray-method", children: item.method }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: item.path }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Slowest requests" }),
+          summary.topSlowRequests.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-insight-row", onClick: () => openEndpoint(item.path), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-method", children: item.method }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: item.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
               Math.round(item.duration),
               "ms"
             ] })
           ] }, item.id))
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "Status mix" }),
-          Object.entries(summary.statusCounts).map(([bucket, count]) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "xray-status-mix-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: bucket }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "xray-bar", style: { width: `${Math.max(8, count / Math.max(1, summary.requests) * 100)}%` } }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("strong", { children: count })
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Status mix" }),
+          Object.entries(summary.statusCounts).map(([bucket, count]) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-status-mix-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: bucket }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-bar-track", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "xray-bar", style: { width: `${Math.max(8, count / Math.max(1, summary.requests) * 100)}%` } }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: count })
           ] }, bucket))
         ] })
       ] })
     ] });
   }
   function InsightMetric({ icon, label, value, tone = "" }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: `xray-api-metric ${tone}`, children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: `xray-api-metric ${tone}`, children: [
       icon,
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("strong", { children: value })
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: value })
     ] });
   }
 
-  // src/panel/components/notebook/Notebook.tsx
-  var import_jsx_runtime11 = __toESM(require_jsx_runtime());
-  function Notebook() {
-    const notebookCells = usePanelStore((state) => state.notebookCells);
-    const addNotebookCell = usePanelStore((state) => state.addNotebookCell);
-    const updateNotebookCell = usePanelStore((state) => state.updateNotebookCell);
-    const setNotebookCellResult = usePanelStore((state) => state.setNotebookCellResult);
-    const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
-    async function runNotebookCell(id, code) {
-      const trimmed = code.trim();
-      if (!trimmed) return;
-      setNotebookCellResult(id, { running: true, error: void 0 });
-      const result = await executeConsoleCommand(trimmed);
-      if (!result) {
-        setNotebookCellResult(id, { running: false, output: null });
-        return;
-      }
-      if (result.type === "error") {
-        setNotebookCellResult(id, { running: false, error: result.error?.message || "Execution failed", output: result.error });
-        return;
-      }
-      setNotebookCellResult(id, { running: false, output: result.result, error: void 0 });
-    }
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "xray-page xray-notebook-page", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("header", { className: "xray-page-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "Investigation Notebook" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "Save response-aware commands, run them manually, or send them back to the Console prompt." })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-btn", onClick: () => addNotebookCell({ code: "schema(res)", title: "Response schema" }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconPlus, { ...iconProps7 }),
-          "Add cell"
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "xray-notebook-grid", children: notebookCells.map((cell) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-notebook-cell", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "xray-notebook-cell-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "xray-notebook-title", children: cell.title || "Investigation cell" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { className: "xray-icon-btn", onClick: () => insertConsoleCommand(cell.code), "aria-label": "Send cell to Console", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconSend, { ...iconProps7 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "xray-btn", onClick: () => void runNotebookCell(cell.id, cell.code), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconPlayerPlay, { ...iconProps7 }),
-            cell.running ? "Running" : "Run"
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          "textarea",
-          {
-            className: "xray-textarea",
-            value: cell.code,
-            onChange: (event) => updateNotebookCell(cell.id, event.currentTarget.value)
-          }
-        ),
-        (cell.output !== void 0 || cell.error) && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: `xray-notebook-output ${cell.error ? "error" : ""}`, children: cell.error ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("pre", { className: "xray-json", children: cell.error }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(JsonView, { value: cell.output }) })
-      ] }, cell.id)) })
-    ] });
-  }
-
-  // src/panel/components/settings/Settings.tsx
+  // src/panel/components/rules/Rules.tsx
+  var import_react10 = __toESM(require_react());
   var import_jsx_runtime12 = __toESM(require_jsx_runtime());
-  function Settings() {
-    const entries = usePanelStore((state) => state.entries);
-    const consoleEvents = usePanelStore((state) => state.consoleEvents);
-    const pinnedIds = usePanelStore((state) => state.pinnedIds);
-    const recording = usePanelStore((state) => state.recording);
-    const setRecording = usePanelStore((state) => state.setRecording);
-    const clearEntries = usePanelStore((state) => state.clearEntries);
-    const clearConsole = usePanelStore((state) => state.clearConsole);
-    const clearPinned = usePanelStore((state) => state.clearPinned);
-    const clearApiFilters = usePanelStore((state) => state.clearApiFilters);
-    const setExportOpen = usePanelStore((state) => state.setExportOpen);
-    const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
-    const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
+  var actionTypes = [
+    { id: "mock", label: "Mock response" },
+    { id: "delay", label: "Add delay" },
+    { id: "fail", label: "Force failure" },
+    { id: "passthrough", label: "Passthrough" }
+  ];
+  function Rules() {
+    const rules = usePanelStore((state) => state.rules);
+    const addRule = usePanelStore((state) => state.addRule);
+    const setRules = usePanelStore((state) => state.setRules);
     const showToast = usePanelStore((state) => state.showToast);
-    const settings = usePanelStore((state) => state.settings);
-    function confirmDanger(title, message, confirmLabel, action) {
-      if (!settings.confirmDestructiveActions) {
-        action();
+    const [importOpen, setImportOpen] = (0, import_react10.useState)(false);
+    const [importText, setImportText] = (0, import_react10.useState)("");
+    function exportRules() {
+      if (!rules.length) {
+        showToast("No rules to export.");
         return;
       }
-      requestConfirmation({ title, message, confirmLabel, tone: "danger", onConfirm: action });
+      void copyText(serializeRuleSet(rules));
+      showToast(`Copied ${rules.length} rule${rules.length === 1 ? "" : "s"} to clipboard.`);
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-page", children: [
+    function importRules() {
+      const parsed = parseRuleSet(importText);
+      if (!parsed) {
+        showToast("Could not read a rule set from that text.");
+        return;
+      }
+      setRules([...rules, ...parsed]);
+      setImportText("");
+      setImportOpen(false);
+      showToast(`Imported ${parsed.length} rule${parsed.length === 1 ? "" : "s"}.`);
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-page xray-rules-page", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("header", { className: "xray-page-head", children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Settings" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "Full diagnostics and session controls. Use quick settings for runtime preferences." })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Traffic Rules" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "Intercept matching requests to mock responses, inject latency, or force failures. Rules run in the page before the real network call." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn primary", onClick: () => setSettingsOpen(true), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconSettings, { ...iconProps7 }),
-          "Open quick settings"
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn primary", onClick: () => addRule(), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPlus, { ...iconProps8 }),
+          "New rule"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-settings-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Session" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "xray-muted", children: [
-            entries.length,
-            " entries, ",
-            consoleEvents.length,
-            " console events, ",
-            pinnedIds.size,
-            " pinned."
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-settings-actions", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => setExportOpen(true), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconDownload, { ...iconProps7 }),
-              "Export session"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => setRecording(!recording), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPlayerRecord, { ...iconProps7 }),
-              recording ? "Pause recording" : "Resume recording"
-            ] })
-          ] })
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rules-toolbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-rules-toolbar-label", children: "Presets" }),
+        RULE_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-chip", onClick: () => {
+          addRule(preset.rule);
+          showToast(`Added preset \u201C${preset.label}\u201D.`);
+        }, children: preset.label }, preset.label)),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-chip", onClick: exportRules, title: "Copy all rules as portable JSON", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconCopy, { ...iconProps8 }),
+          "Export"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Active preferences" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "xray-muted", children: [
-            "Fetch ",
-            settings.captureFetch ? "on" : "off",
-            ", XHR ",
-            settings.captureXhr ? "on" : "off",
-            ", max ",
-            settings.maxEntries,
-            " entries, slow >",
-            settings.slowThresholdMs,
-            "ms."
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "xray-settings-actions", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => setSettingsOpen(true), children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconSettings, { ...iconProps7 }),
-            "Edit preferences"
-          ] }) })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Reset" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-settings-actions", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => {
-              clearApiFilters();
-              showToast("API filters cleared.");
-            }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconFilterOff, { ...iconProps7 }),
-              "Clear filters"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear pinned requests?", "This removes all pinned request markers from the React UI.", "Clear pinned", () => {
-              clearPinned();
-              showToast("Pinned requests cleared.");
-            }), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPinnedOff, { ...iconProps7 }),
-              "Clear pinned"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear console stream?", "This clears console UI events but keeps captured API entries.", "Clear console", () => {
-              clearConsole();
-              showToast("Console stream cleared.");
-            }), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconTrash, { ...iconProps7 }),
-              "Clear console"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-btn danger", onClick: () => confirmDanger("Clear all captured entries?", "This removes requests, logs, console events, and pins from the React UI session.", "Clear all entries", () => {
-              clearEntries();
-              showToast("Captured entries cleared.");
-            }), children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconTrash, { ...iconProps7 }),
-              "Clear all entries"
-            ] })
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "xray-card", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "Runtime Boundary" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { className: "xray-muted", children: "React owns user-facing UI. Background worker, interceptors, decrypt bridge, console executor, and content capture remain vanilla. Fetch/XHR toggles are passed to the MAIN-world interceptor through a bounded config bridge." })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((value) => !value), title: "Paste a rule set to load", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconClipboard, { ...iconProps8 }),
+          "Import"
         ] })
+      ] }),
+      importOpen && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rules-import", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          "textarea",
+          {
+            className: "xray-input xray-rules-import-field",
+            placeholder: "Paste a rule set exported from XRAY (JSON)",
+            value: importText,
+            spellCheck: false,
+            onChange: (event) => setImportText(event.currentTarget.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-btn primary", onClick: importRules, children: "Load rules" })
+      ] }),
+      !rules.length ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-card xray-rules-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconPlugConnected, { size: 22, stroke: 1.6 }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "No rules yet. Create one here, or use \u201CMock this\u201D on any captured response to seed a rule from real traffic." })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "xray-rules-list", children: rules.map((rule) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RuleCard, { rule }, rule.id)) })
+    ] });
+  }
+  function RuleCard({ rule }) {
+    const updateRule = usePanelStore((state) => state.updateRule);
+    const removeRule = usePanelStore((state) => state.removeRule);
+    const toggleRule = usePanelStore((state) => state.toggleRule);
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: `xray-card xray-rule-card ${rule.enabled ? "" : "disabled"}`, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rule-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: `xray-toggle ${rule.enabled ? "on" : ""}`, "aria-label": "Toggle rule", "aria-pressed": rule.enabled, onClick: () => toggleRule(rule.id) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          "input",
+          {
+            className: "xray-input xray-rule-label",
+            value: rule.label,
+            onChange: (event) => updateRule(rule.id, { label: event.currentTarget.value }),
+            placeholder: "Rule name"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "xray-rule-summary", children: ruleSummary(rule) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "xray-icon-btn", "aria-label": "Delete rule", onClick: () => removeRule(rule.id), children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconTrash, { ...iconProps8 }) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "xray-rule-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "URL contains / re:pattern" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", value: rule.match.url, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, url: event.currentTarget.value } }), placeholder: "/api/users or re:\\\\/v2\\\\/.*" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Method" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("select", { className: "xray-select", value: rule.match.method, onChange: (event) => updateRule(rule.id, { match: { ...rule.match, method: event.currentTarget.value } }), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: "ANY" }),
+            ["GET", "POST", "PUT", "PATCH", "DELETE"].map((method) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: method, children: method }, method))
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Action" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { className: "xray-select", value: rule.action.type, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, type: event.currentTarget.value } }), children: actionTypes.map((action) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: action.id, children: action.label }, action.id)) })
+        ] }),
+        rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Status" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", type: "number", min: 100, max: 599, value: rule.action.status, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } }) })
+        ] }),
+        (rule.action.type === "mock" || rule.action.type === "delay") && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Delay (ms)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { className: "xray-input", type: "number", min: 0, max: 6e4, step: 100, value: rule.action.delayMs, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, delayMs: Number(event.currentTarget.value) } }) })
+        ] })
+      ] }),
+      rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "xray-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "Response body" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          "textarea",
+          {
+            className: "xray-input xray-rule-body",
+            value: rule.action.body,
+            spellCheck: false,
+            onChange: (event) => updateRule(rule.id, { action: { ...rule.action, body: event.currentTarget.value } }),
+            placeholder: '{ "mocked": true }'
+          }
+        )
       ] })
     ] });
   }
 
   // src/panel/components/settings/SettingsModal.tsx
-  var import_react8 = __toESM(require_react());
+  var import_react11 = __toESM(require_react());
+
+  // src/panel/version.ts
+  var XRAY_VERSION = "0.3.0";
+  var XRAY_BUILD = true ? "2026-07-14 06:41 UTC" : "dev";
+
+  // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime13 = __toESM(require_jsx_runtime());
-  var iconProps8 = { size: 16, stroke: 1.8 };
+  var iconProps9 = { size: 16, stroke: 1.8 };
+  var SUPPORTS_EYEDROPPER = typeof window !== "undefined" && "EyeDropper" in window;
   var navItems = [
-    { id: "general", label: "General", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconAdjustments, { ...iconProps8 }) },
-    { id: "capture", label: "Capture", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconNetwork, { ...iconProps8 }) },
-    { id: "appearance", label: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPalette, { ...iconProps8 }) },
-    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTerminal2, { ...iconProps8 }) },
-    { id: "decrypt", label: "Decrypt", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconLock, { ...iconProps8 }) },
-    { id: "shortcuts", label: "Shortcuts", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconKeyboard, { ...iconProps8 }) },
-    { id: "about", label: "About", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconInfoCircle, { ...iconProps8 }) }
+    { id: "general", label: "General", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconAdjustments, { ...iconProps9 }) },
+    { id: "capture", label: "Capture", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconNetwork, { ...iconProps9 }) },
+    { id: "session", label: "Session", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDatabase, { ...iconProps9 }) },
+    { id: "appearance", label: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPalette, { ...iconProps9 }) },
+    { id: "console", label: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTerminal2, { ...iconProps9 }) },
+    { id: "ai", label: "AI", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSparkles, { ...iconProps9 }) },
+    { id: "decrypt", label: "Decrypt", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconLock, { ...iconProps9 }) },
+    { id: "shortcuts", label: "Shortcuts", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconKeyboard, { ...iconProps9 }) },
+    { id: "about", label: "About", icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconInfoCircle, { ...iconProps9 }) }
+  ];
+  var AI_MODELS = {
+    anthropic: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"],
+    openai: ["gpt-4o", "gpt-4o-mini", "gpt-4.1"]
+  };
+  var THEME_PREVIEWS = [
+    { id: "operator", label: "Operator", bg: "#0b0f14", accent: "#37d5ff", text: "#d8e2ef" },
+    { id: "dev-edition", label: "Dev", bg: "#11131f", accent: "#b18cff", text: "#e1e7ff" },
+    { id: "midnight", label: "Midnight", bg: "#05070a", accent: "#00e5ff", text: "#d7f7ff" },
+    { id: "light-lab", label: "Light", bg: "#edf3fb", accent: "#006adc", text: "#172033" },
+    { id: "claude", label: "Claude", bg: "#f0eee6", accent: "#d97757", text: "#23221f", accentPref: "coral" }
+  ];
+  var CUSTOM_GROUPS = [
+    {
+      title: "Base",
+      hint: "Canvas and stacked surfaces",
+      fields: [
+        { key: "bg", label: "Background" },
+        { key: "surface", label: "Surface" },
+        { key: "surface2", label: "Elevated" },
+        { key: "surface3", label: "Overlay" }
+      ]
+    },
+    {
+      title: "Foreground",
+      hint: "Text ramp and separators",
+      fields: [
+        { key: "text", label: "Text" },
+        { key: "subtext", label: "Muted" },
+        { key: "hint", label: "Faint" },
+        { key: "border", label: "Border" }
+      ]
+    },
+    {
+      title: "Accent",
+      hint: "Selections and primary actions",
+      fields: [{ key: "accent", label: "Accent" }]
+    },
+    {
+      title: "Status",
+      hint: "Method, status, and severity colors",
+      fields: [
+        { key: "green", label: "Success" },
+        { key: "red", label: "Error" },
+        { key: "yellow", label: "Warning" },
+        { key: "blue", label: "Info" },
+        { key: "mauve", label: "Accent 2" },
+        { key: "teal", label: "Teal" },
+        { key: "peach", label: "Peach" }
+      ]
+    }
+  ];
+  var CUSTOM_PRESETS = [
+    { label: "Slate", theme: { bg: "#0f1117", surface: "#171a23", text: "#e7e9f0", accent: "#7c5cff" } },
+    { label: "Graphite", theme: { bg: "#0e0e10", surface: "#19191c", text: "#ededed", accent: "#22d3ee" } },
+    { label: "Ros\xE9", theme: { bg: "#1a1114", surface: "#241519", text: "#f4e9ec", accent: "#fb7185" } },
+    { label: "Emerald", theme: { bg: "#0b1210", surface: "#131c19", text: "#e6f0ec", accent: "#34d399" } },
+    { label: "Nord", theme: { bg: "#2e3440", surface: "#3b4252", text: "#eceff4", accent: "#88c0d0" } },
+    { label: "Solarized", theme: { bg: "#002b36", surface: "#073642", text: "#eee8d5", accent: "#268bd2" } },
+    { label: "Amber", theme: { bg: "#161207", surface: "#211a0c", text: "#f6ecd6", accent: "#f5a623" } },
+    { label: "Sakura", theme: { bg: "#1c141a", surface: "#281b26", text: "#f6e9f1", accent: "#ec4899" } },
+    { label: "Paper", theme: { bg: "#faf9f6", surface: "#ffffff", text: "#1c1b19", accent: "#2563eb" } },
+    { label: "Sky", theme: { bg: "#eef4fb", surface: "#ffffff", text: "#16273b", accent: "#0284c7" } },
+    { label: "Sage", theme: { bg: "#eef2ec", surface: "#fbfdfa", text: "#1e2a20", accent: "#3f8a4f" } }
   ];
   var detailViews2 = ["tree", "raw", "grid", "schema", "diff", "waterfall", "viz", "headers"];
-  var themes = ["operator", "dev-edition", "midnight", "light-lab"];
   var fonts = ["jetbrains", "cascadia", "iosevka", "system"];
   var densities = ["compact", "comfortable", "spacious"];
   function SettingsModal() {
@@ -17079,10 +19178,23 @@ export const handlers = [
     const setRecording = usePanelStore((state) => state.setRecording);
     const updateSettings = usePanelStore((state) => state.updateSettings);
     const resetSettings = usePanelStore((state) => state.resetSettings);
+    const aiSettings = usePanelStore((state) => state.aiSettings);
+    const setAiSettings = usePanelStore((state) => state.setAiSettings);
     const clearEntries = usePanelStore((state) => state.clearEntries);
+    const clearConsole = usePanelStore((state) => state.clearConsole);
+    const clearPinned = usePanelStore((state) => state.clearPinned);
+    const clearApiFilters = usePanelStore((state) => state.clearApiFilters);
+    const setExportOpen = usePanelStore((state) => state.setExportOpen);
+    const entries = usePanelStore((state) => state.entries);
+    const consoleEvents = usePanelStore((state) => state.consoleEvents);
+    const pinnedIds = usePanelStore((state) => state.pinnedIds);
     const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
     const showToast = usePanelStore((state) => state.showToast);
-    const [section, setSection] = (0, import_react8.useState)("general");
+    const settingsSection = usePanelStore((state) => state.settingsSection);
+    const [section, setSection] = (0, import_react11.useState)("general");
+    import_react11.default.useEffect(() => {
+      if (open) setSection(settingsSection);
+    }, [open, settingsSection]);
     if (!open) return null;
     function confirmDanger(title, message, confirmLabel, onConfirm) {
       if (!settings.confirmDestructiveActions) {
@@ -17108,7 +19220,7 @@ export const handlers = [
       {
         title: "Settings",
         subtitle: "Runtime controls and UI preferences",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSettings, { ...iconProps8 }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSettings, { ...iconProps9 }),
         className: "xray-settings-modal",
         onClose: () => setOpen(false),
         footer: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
@@ -17119,7 +19231,7 @@ export const handlers = [
             setOpen(false);
             showToast("Settings saved.");
           }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { ...iconProps8 }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { ...iconProps9 }),
             "Save"
           ] })
         ] }),
@@ -17131,7 +19243,7 @@ export const handlers = [
           /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-content", children: [
             section === "general" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "General" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Auto-record on open", desc: "Start rendering new console entries immediately.", checked: recording, onChange: setRecording }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Stream to console live", desc: "Append newly captured events to the console stream as they arrive. Pausing this does not stop capture \u2014 that's under Capture.", checked: recording, onChange: setRecording }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Default detail view", desc: "View opened when selecting a request.", value: settings.defaultDetailView, options: detailViews2, onChange: (value) => updateSettings({ defaultDetailView: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Confirm destructive actions", desc: "Ask before clearing data, pins, or settings.", checked: settings.confirmDestructiveActions, onChange: (value) => updateSettings({ confirmDestructiveActions: value }) })
             ] }),
@@ -17139,15 +19251,127 @@ export const handlers = [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Capture" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Intercept fetch", desc: "Capture native fetch() requests from the page.", checked: settings.captureFetch, onChange: (value) => updateSettings({ captureFetch: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Intercept XHR", desc: "Capture XMLHttpRequest calls from the page.", checked: settings.captureXhr, onChange: (value) => updateSettings({ captureXhr: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Capture WebSocket & SSE", desc: "Stream WebSocket and Server-Sent Event frames into the timeline.", checked: settings.captureWs, onChange: (value) => updateSettings({ captureWs: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NumberRow, { label: "Max entries", desc: "Trim oldest entries after this limit.", value: settings.maxEntries, min: 50, max: 5e3, step: 50, suffix: "entries", onChange: (value) => updateSettings({ maxEntries: value }) })
+            ] }),
+            section === "session" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Session" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Captured data", desc: `${entries.length} entries \xB7 ${consoleEvents.length} console events \xB7 ${pinnedIds.size} pinned.` }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Export session" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Open the export modal for JSON, CSV, HAR, and per-request formats." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => {
+                  setOpen(false);
+                  setExportOpen(true);
+                }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDownload, { ...iconProps9 }),
+                  "Export"
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear API filters" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Reset search, quick filters, method/status/source, sort, and grouping." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => {
+                  clearApiFilters();
+                  showToast("API filters cleared.");
+                }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconFilterOff, { ...iconProps9 }),
+                  "Clear filters"
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear pinned" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Remove all pinned request markers." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear pinned requests?", "This removes all pinned request markers.", "Clear pinned", () => {
+                  clearPinned();
+                  showToast("Pinned requests cleared.");
+                }), children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPinnedOff, { ...iconProps9 }),
+                  "Clear pinned"
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Clear console stream" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Clear console UI events but keep captured API entries." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-btn", onClick: () => confirmDanger("Clear console stream?", "This clears console UI events but keeps captured API entries.", "Clear console", () => {
+                  clearConsole();
+                  showToast("Console stream cleared.");
+                }), children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps9 }),
+                  "Clear console"
+                ] })
+              ] })
+            ] }),
+            section === "ai" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "AI (bring your own key)" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Local & private", desc: "Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background \u2014 nothing is sent anywhere else." }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Provider", desc: "Which model provider to use for Explain.", value: aiSettings.provider, options: ["anthropic", "openai"], onChange: (value) => setAiSettings({ provider: value, model: AI_MODELS[value][0] }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Model", desc: "Model used for request explanations.", value: aiSettings.model, options: AI_MODELS[aiSettings.provider], onChange: (value) => setAiSettings({ model: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "API key" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Stored locally. Used only for Explain requests." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { className: "xray-input", type: "password", value: aiSettings.apiKey, placeholder: "sk-...", onChange: (event) => setAiSettings({ apiKey: event.currentTarget.value }), autoComplete: "off" })
+              ] })
             ] }),
             section === "appearance" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Appearance" }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Theme", desc: "Switch the whole DevTools surface: hacker cockpit, Firefox-inspired, pure dark, or light lab.", value: settings.theme, options: themes, onChange: (value) => updateSettings({ theme: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-row xray-theme-picker-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "Theme" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "Pick a preset, or build your own with full color freedom. Themes only restyle this panel \u2014 never the page or the extension." })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-theme-grid", children: [
+                  THEME_PREVIEWS.map((preview2) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+                    "button",
+                    {
+                      className: `xray-theme-swatch ${settings.theme === preview2.id ? "active" : ""}`,
+                      style: { background: preview2.bg, color: preview2.text },
+                      onClick: () => updateSettings(preview2.accentPref ? { theme: preview2.id, accent: preview2.accentPref } : { theme: preview2.id }),
+                      "aria-pressed": settings.theme === preview2.id,
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: preview2.accent } }),
+                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-label", children: preview2.label }),
+                        settings.theme === preview2.id && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { size: 13, stroke: 2.6 })
+                      ]
+                    },
+                    preview2.id
+                  )),
+                  /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+                    "button",
+                    {
+                      className: `xray-theme-swatch ${settings.theme === "custom" ? "active" : ""}`,
+                      style: { background: settings.customTheme.bg, color: settings.customTheme.text },
+                      onClick: () => updateSettings({ theme: "custom" }),
+                      "aria-pressed": settings.theme === "custom",
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-dot", style: { background: settings.customTheme.accent } }),
+                        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-theme-swatch-label", children: "Custom" }),
+                        settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCheck, { size: 13, stroke: 2.6 })
+                      ]
+                    }
+                  )
+                ] })
+              ] }),
+              settings.theme === "custom" && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(CustomThemeEditor, {}),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Font stack", desc: "Choose the code-first monospace stack used across tables, JSON, and console.", value: settings.font, options: fonts, onChange: (value) => updateSettings({ font: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SelectRow, { label: "Density", desc: "Control global spacing, row heights, and panel chrome.", value: settings.density, options: densities, onChange: (value) => updateSettings({ density: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RangeRow, { label: "Corner radius", desc: "Roundness of cards, buttons, inputs, and drawers.", value: settings.radius, min: 0, max: 20, step: 1, suffix: "px", onChange: (value) => updateSettings({ radius: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(AccentRow, { settings, onChange: (accent) => updateSettings({ accent }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Operator glow", desc: "Enable subtle cyan/purple terminal glow and active-focus lighting.", checked: settings.glow, onChange: (value) => updateSettings({ glow: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Hacker mode", desc: "CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it \u2014 it styles the panel behind this dialog. Respects reduced-motion.", checked: settings.hacker, onChange: (value) => {
+                updateSettings({ hacker: value });
+                showToast(value ? "Hacker mode ON \u2014 close Settings to see the CRT." : "Hacker mode off.");
+              } }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Compact rows", desc: "Reduce request row height for dense API sessions.", checked: settings.compactRows, onChange: (value) => updateSettings({ compactRows: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ToggleRow, { label: "Show host in path column", desc: "Display request host below endpoint paths.", checked: settings.showHostInPath, onChange: (value) => updateSettings({ showHostInPath: value }) })
             ] }),
@@ -17165,28 +19389,332 @@ export const handlers = [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "Shortcuts" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + X", label: "Toggle XRAY" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + K", label: "Open command palette" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Ctrl/\u2318 + Shift + F", label: "Find in traffic (search bodies)" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ShortcutRow, { keys: "Esc", label: "Close modal or panel surface" })
             ] }),
             section === "about" && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SettingsSectionTitle, { label: "About" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Version", desc: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}` }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "UI stack", desc: "React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." }),
-              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Theme", desc: "Configurable Operator UI tokens inside Shadow DOM with local-only font stacks." })
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(InfoRow, { label: "Theme", desc: "Fully token-driven themes (5 presets + a custom Theme Studio) scoped to the panel via inline CSS variables." })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-settings-danger", children: [
               /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-danger-title", children: "Danger zone" }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-danger-row", onClick: clearAll, children: [
                 /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Clear all captured sessions" }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps8 })
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconTrash, { ...iconProps9 })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-danger-row", onClick: resetAll, children: [
                 /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "Reset all settings to defaults" }),
-                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconRefresh, { ...iconProps8 })
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconRefresh, { ...iconProps9 })
               ] })
             ] })
           ] })
         ] })
       }
     );
+  }
+  function CustomThemeEditor() {
+    const custom = usePanelStore((state) => state.settings.customTheme);
+    const font = usePanelStore((state) => state.settings.font);
+    const radius = usePanelStore((state) => state.settings.radius);
+    const hacker = usePanelStore((state) => state.settings.hacker);
+    const updateSettings = usePanelStore((state) => state.updateSettings);
+    const showToast = usePanelStore((state) => state.showToast);
+    const [importText, setImportText] = (0, import_react11.useState)("");
+    const [importOpen, setImportOpen] = (0, import_react11.useState)(false);
+    const resolved = resolveThemeColors(custom);
+    const overrideCount = OVERRIDE_KEYS.filter((key) => isTokenOverridden(custom, key)).length;
+    function setTheme(theme) {
+      updateSettings({ theme: "custom", customTheme: theme });
+    }
+    function setField(key, value) {
+      setTheme({ ...custom, [key]: value });
+    }
+    function resetField(key) {
+      const next = { ...custom };
+      delete next[key];
+      setTheme(next);
+    }
+    function resetOverrides() {
+      const next = { bg: custom.bg, surface: custom.surface, text: custom.text, accent: custom.accent };
+      setTheme(next);
+      showToast("Reverted every token to auto.");
+    }
+    function copyCss() {
+      void copyText(exportThemeCss(custom));
+      showToast("Theme CSS copied to clipboard.");
+    }
+    function copyShareCode() {
+      void copyText(encodeTheme({ colors: custom, font, radius, hacker }));
+      showToast("Share code copied \u2014 colors, font, radius & effects included.");
+    }
+    function importFromText() {
+      const pkg = decodeTheme(importText);
+      if (pkg) {
+        updateSettings(themePackageToSettings(pkg));
+        setImportText("");
+        setImportOpen(false);
+        showToast("Theme imported.");
+        return;
+      }
+      const parsed = parseThemeInput(importText);
+      if (!parsed) {
+        showToast("Could not read a theme from that text.");
+        return;
+      }
+      setTheme(parsed);
+      setImportText("");
+      setImportOpen(false);
+      showToast("Theme imported.");
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-theme", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ThemePreview, { theme: custom }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-toolbar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "dark")), title: "Build a dark theme around the current accent", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconWand, { ...iconProps9 }),
+          "Dark from accent"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(generateFromAccent(custom.accent, "light")), title: "Build a light theme around the current accent", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconWand, { ...iconProps9 }),
+          "Light from accent"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(randomTheme(Math.random())), title: "Roll a coherent random theme", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconDice, { ...iconProps9 }),
+          "Surprise me"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: copyShareCode, title: "Copy a portable share code (colors + font + radius + effects)", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconShare, { ...iconProps9 }),
+          "Share"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: copyCss, title: "Copy this theme as CSS variables", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCopy, { ...iconProps9 }),
+          "CSS"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setImportOpen((v) => !v), title: "Paste a theme to load", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconClipboard, { ...iconProps9 }),
+          "Import"
+        ] })
+      ] }),
+      importOpen && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-import", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          "textarea",
+          {
+            className: "xray-input xray-custom-import-field",
+            placeholder: 'Paste a share code (xray1:\u2026), JSON { "bg": "#\u2026" }, or an exported --xray-* CSS block',
+            value: importText,
+            spellCheck: false,
+            onChange: (event) => setImportText(event.currentTarget.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "xray-btn primary", onClick: importFromText, children: "Load theme" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ContrastReport, { theme: custom }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-presets", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-presets-label", children: "Start from" }),
+        CUSTOM_PRESETS.map((preset) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: () => setTheme(preset.theme), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-preset-dot", style: { background: preset.theme.accent } }),
+          preset.label
+        ] }, preset.label))
+      ] }),
+      CUSTOM_GROUPS.map((group) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-group", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-group-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-group-title", children: group.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-custom-group-hint", children: group.hint })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-custom-grid", children: group.fields.map((field) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          TokenField,
+          {
+            label: field.label,
+            value: resolved[field.key],
+            overridden: isTokenOverridden(custom, field.key),
+            onChange: (value) => setField(field.key, value),
+            onReset: () => resetField(field.key),
+            onCopy: () => {
+              void copyText(resolved[field.key]);
+              showToast(`Copied ${resolved[field.key]}`);
+            }
+          },
+          field.key
+        )) })
+      ] }, group.title)),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-custom-footnote", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: overrideCount > 0 ? `${overrideCount} token${overrideCount === 1 ? "" : "s"} pinned \xB7 the rest auto-derive from your base colors.` : "Every token auto-derives from your four base colors \u2014 pin any swatch for full control." }),
+        overrideCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "xray-chip", onClick: resetOverrides, title: "Revert every token to auto-derived", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconArrowBackUp, { ...iconProps9 }),
+          "Reset all to auto"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "xray-custom-note", children: "Themes are applied as inline CSS variables on this panel only \u2014 they never touch the page or the extension's capture runtime." })
+    ] });
+  }
+  function ThemePreview({ theme }) {
+    const vars = buildCustomThemeVars(theme);
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-theme-preview", style: vars, "aria-label": "Live theme preview", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-bar", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-dot" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-brand", children: "CONSOLE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-tab active", children: "Network" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-tab", children: "Console" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-grow" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-btn", children: "Explain" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-rows", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method get", children: "GET" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/users" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code ok", children: "200" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row selected", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method post", children: "POST" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/session/login" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code warn", children: "302" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-method delete", children: "DELETE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-path", children: "/api/cart/item" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-code err", children: "500" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-tp-badges", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge green", children: "success" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge yellow", children: "slow" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge red", children: "error" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge blue", children: "info" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-tp-badge mauve", children: "graphql" })
+      ] })
+    ] });
+  }
+  function ContrastReport({ theme }) {
+    const c = resolveThemeColors(theme);
+    const rows = [
+      { label: "Text on background", ratio: contrastRatio(c.text, c.bg) },
+      { label: "Muted on background", ratio: contrastRatio(c.subtext, c.bg) },
+      { label: "Text on surface", ratio: contrastRatio(c.text, c.surface) },
+      { label: "Text on elevated", ratio: contrastRatio(c.text, c.surface2) },
+      { label: "Accent on background", ratio: contrastRatio(c.accent, c.bg) },
+      { label: "Text on accent", ratio: contrastRatio(c.text, c.accent) }
+    ];
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-contrast", "aria-label": "WCAG contrast", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-contrast-title", children: "Contrast" }),
+      rows.map((row) => {
+        const grade = contrastGrade(row.ratio);
+        const tone = grade === "Fail" ? "fail" : grade === "AA Large" ? "warn" : "ok";
+        return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "xray-contrast-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-contrast-label", children: row.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("strong", { children: [
+            row.ratio.toFixed(2),
+            ":1"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: `xray-contrast-grade ${tone}`, children: grade })
+        ] }, row.label);
+      })
+    ] });
+  }
+  function RangeRow({ label, desc, value, min, max, step, suffix, onChange }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "xray-settings-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: label }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: desc })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-range-control", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { type: "range", className: "xray-range", value, min, max, step, onChange: (event) => onChange(Number(event.currentTarget.value)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("small", { className: "xray-range-value", children: [
+          value,
+          suffix
+        ] })
+      ] })
+    ] });
+  }
+  function TokenField({ label, value, overridden, onChange, onReset, onCopy }) {
+    const [text, setText] = (0, import_react11.useState)(value);
+    import_react11.default.useEffect(() => {
+      setText(value);
+    }, [value]);
+    function commit(raw) {
+      setText(raw);
+      const normalized = clampHex(raw, "");
+      if (normalized) onChange(normalized);
+    }
+    async function pickFromScreen() {
+      const Ctor = window.EyeDropper;
+      if (!Ctor) return;
+      try {
+        const result = await new Ctor().open();
+        if (result?.sRGBHex) onChange(result.sRGBHex);
+      } catch {
+      }
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: `xray-token-field ${overridden ? "pinned" : "auto"}`, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        "input",
+        {
+          type: "color",
+          className: "xray-color-input",
+          value: clampHex(value, "#000000"),
+          onChange: (event) => {
+            setText(event.currentTarget.value);
+            onChange(event.currentTarget.value);
+          },
+          "aria-label": `${label} color`
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-meta", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-label", children: [
+          label,
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { className: "xray-token-state", children: overridden ? "pinned" : "auto" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          "input",
+          {
+            className: `xray-input xray-custom-hex ${isHex(text) ? "" : "invalid"}`,
+            value: text,
+            spellCheck: false,
+            maxLength: 7,
+            onChange: (event) => commit(event.currentTarget.value),
+            onBlur: () => setText(value),
+            "aria-label": `${label} hex`
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "xray-token-actions", children: [
+        SUPPORTS_EYEDROPPER && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "xray-token-btn",
+            onClick: pickFromScreen,
+            title: `Pick ${label} from screen`,
+            "aria-label": `Pick ${label} color from screen`,
+            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconColorPicker, { size: 14, stroke: 1.8 })
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "xray-token-btn",
+            onClick: onCopy,
+            title: `Copy ${label} hex`,
+            "aria-label": `Copy ${label} hex`,
+            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconCopy, { size: 14, stroke: 1.8 })
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "xray-token-reset",
+            onClick: onReset,
+            disabled: !overridden,
+            title: overridden ? `Revert ${label} to auto` : `${label} is auto-derived`,
+            "aria-label": `Revert ${label} to auto`,
+            children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconArrowBackUp, { size: 14, stroke: 1.8 })
+          }
+        )
+      ] })
+    ] });
   }
   function SettingsSectionTitle({ label }) {
     return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "xray-settings-section-title", children: label });
@@ -17252,58 +19780,765 @@ export const handlers = [
     ] });
   }
 
-  // src/panel/components/shell/CommandPalette.tsx
-  var import_react9 = __toESM(require_react());
+  // src/panel/components/replay/ReplayModal.tsx
+  var import_react12 = __toESM(require_react());
   var import_jsx_runtime14 = __toESM(require_jsx_runtime());
+  var iconProps10 = { size: 16, stroke: 1.8 };
+  var METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
+  function headersToText(headers) {
+    if (!headers || typeof headers !== "object") return "";
+    return Object.entries(headers).filter(([, value]) => String(value) !== "[redacted]").map(([key, value]) => `${key}: ${value}`).join("\n");
+  }
+  function textToHeaders(text) {
+    const out = {};
+    text.split("\n").forEach((line) => {
+      const idx = line.indexOf(":");
+      if (idx <= 0) return;
+      const key = line.slice(0, idx).trim();
+      const value = line.slice(idx + 1).trim();
+      if (key) out[key] = value;
+    });
+    return out;
+  }
+  function bodyToText(entry) {
+    if (entry.requestBody == null) return "";
+    return typeof entry.requestBody === "string" ? entry.requestBody : safeStringify(entry.requestBody, 2, 1e5);
+  }
+  function ReplayModal() {
+    const entry = usePanelStore((state) => state.replayEditorEntry);
+    const close = usePanelStore((state) => state.closeReplayEditor);
+    const replayEntry = usePanelStore((state) => state.replayEntry);
+    const initial = (0, import_react12.useMemo)(() => entry ? {
+      method: String(entry.method || "GET").toUpperCase(),
+      url: String(entry.url || entry.urlPath || ""),
+      headers: headersToText(entry.requestHeaders),
+      body: bodyToText(entry)
+    } : null, [entry]);
+    const [method, setMethod] = (0, import_react12.useState)("GET");
+    const [url, setUrl] = (0, import_react12.useState)("");
+    const [headers, setHeaders] = (0, import_react12.useState)("");
+    const [body, setBody] = (0, import_react12.useState)("");
+    import_react12.default.useEffect(() => {
+      if (!initial) return;
+      setMethod(initial.method);
+      setUrl(initial.url);
+      setHeaders(initial.headers);
+      setBody(initial.body);
+    }, [initial]);
+    if (!entry || !initial) return null;
+    function send() {
+      if (!entry) return;
+      const parsedBody = parseBody(body);
+      replayEntry(entry, {
+        method,
+        url,
+        requestHeaders: textToHeaders(headers),
+        requestBody: parsedBody
+      });
+      close();
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+      ModalShell,
+      {
+        title: "Edit & Replay",
+        subtitle: `${entry.method || "GET"} ${entryPath(entry)}`,
+        icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconRepeat, { ...iconProps10 }),
+        className: "xray-replay-modal",
+        onClose: close,
+        footer: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-muted", children: "Replays run from the inspected page and are recaptured as new entries." }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "xray-spacer" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { className: "xray-btn", onClick: close, children: "Cancel" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-btn primary", onClick: send, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconSend, { ...iconProps10 }),
+            "Send replay"
+          ] })
+        ] }),
+        children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-replay-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "xray-replay-line", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("select", { className: "xray-select", value: method, onChange: (event) => setMethod(event.currentTarget.value), children: METHODS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("option", { value: item, children: item }, item)) }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", value: url, onChange: (event) => setUrl(event.currentTarget.value), placeholder: "https://api.example.com/endpoint" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Headers (one per line)" }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("textarea", { className: "xray-input xray-replay-headers", spellCheck: false, value: headers, onChange: (event) => setHeaders(event.currentTarget.value), placeholder: "content-type: application/json" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Body" }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("textarea", { className: "xray-input xray-replay-bodyfield", spellCheck: false, value: body, onChange: (event) => setBody(event.currentTarget.value), placeholder: '{ "key": "value" }' })
+          ] })
+        ] })
+      }
+    );
+  }
+
+  // src/panel/components/ai/ExplainModal.tsx
+  var import_react13 = __toESM(require_react());
+
+  // src/panel/runtime/aiBridge.ts
+  function buildExplainPrompt(entry, related) {
+    const context = {
+      method: entry.method,
+      url: entry.url || entry.urlPath,
+      status: entry.status,
+      durationMs: Math.round(Number(entry.duration) || 0),
+      graphql: entry.graphql || void 0,
+      requestHeaders: entry.requestHeaders,
+      requestBody: entryRequest(entry),
+      response: entryResponse(entry),
+      recentSameEndpoint: related.slice(0, 4).map((item) => ({
+        status: item.status,
+        durationMs: Math.round(Number(item.duration) || 0),
+        timestamp: item.timestamp
+      }))
+    };
+    return [
+      "You are an API debugging assistant embedded in a browser devtools extension.",
+      "Analyze this captured HTTP request and its response. Be concise and specific.",
+      "Explain: (1) what this call does, (2) whether it succeeded or failed and why,",
+      "(3) anything notable in the payload or timing, and (4) one concrete next step for the developer.",
+      "",
+      "Captured request:",
+      safeStringify(context, 2, 4e4)
+    ].join("\n");
+  }
+  async function requestAiExplanation(settings, prompt) {
+    if (!settings.apiKey) {
+      return { ok: false, error: "Add an API key in Settings \u2192 AI to enable explanations." };
+    }
+    if (typeof chrome === "undefined" || !chrome?.runtime?.sendMessage) {
+      return { ok: false, error: "AI explanations require the extension runtime (open XRAY on an inspected page)." };
+    }
+    const runtime = chrome?.runtime;
+    const sendMessage = runtime?.sendMessage;
+    if (!runtime || !sendMessage) {
+      return { ok: false, error: "AI explanations require the extension runtime (open XRAY on an inspected page)." };
+    }
+    return new Promise((resolve) => {
+      try {
+        sendMessage({ type: "xray:ai-explain", settings, prompt }, (response) => {
+          const err = runtime.lastError;
+          if (err) {
+            resolve({ ok: false, error: err.message || "AI request failed" });
+            return;
+          }
+          resolve(response || { ok: false, error: "No response from AI provider." });
+        });
+      } catch (error) {
+        resolve({ ok: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    });
+  }
+  function relatedEntries(entry, entries) {
+    const path = entryPath(entry);
+    return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryPath(candidate) === path);
+  }
+
+  // src/panel/components/ai/ExplainModal.tsx
+  var import_jsx_runtime15 = __toESM(require_jsx_runtime());
+  var iconProps11 = { size: 16, stroke: 1.8 };
+  function ExplainModal() {
+    const entry = usePanelStore((state) => state.explainEntry);
+    const close = usePanelStore((state) => state.closeExplain);
+    const entries = usePanelStore((state) => state.entries);
+    const aiSettings = usePanelStore((state) => state.aiSettings);
+    const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
+    const [loading, setLoading] = (0, import_react13.useState)(false);
+    const [result, setResult] = (0, import_react13.useState)(null);
+    const [error, setError] = (0, import_react13.useState)(null);
+    import_react13.default.useEffect(() => {
+      if (!entry) return;
+      let cancelled = false;
+      setResult(null);
+      setError(null);
+      if (!aiSettings.apiKey) {
+        setError("Add an API key in Settings \u2192 AI to enable explanations.");
+        return;
+      }
+      setLoading(true);
+      const prompt = buildExplainPrompt(entry, relatedEntries(entry, entries));
+      requestAiExplanation(aiSettings, prompt).then((response) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (response.ok && response.text) setResult(response.text);
+        else setError(response.error || "AI request failed.");
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [entry?.id]);
+    if (!entry) return null;
+    function openAiSettings() {
+      close();
+      setSettingsOpen(true);
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+      ModalShell,
+      {
+        title: "Explain with AI",
+        subtitle: `${entry.method || "GET"} ${entryPath(entry)}`,
+        icon: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconSparkles, { ...iconProps11 }),
+        className: "xray-explain-modal",
+        onClose: close,
+        footer: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "xray-muted", children: [
+            aiSettings.provider,
+            " \xB7 ",
+            aiSettings.model
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-spacer" }),
+          result && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { className: "xray-btn", onClick: () => void copyText(result), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconCopy, { ...iconProps11 }),
+            "Copy"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-btn", onClick: close, children: "Close" })
+        ] }),
+        children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-body", children: [
+          loading && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-loading", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-spinner" }),
+            "Analyzing request\u2026"
+          ] }),
+          error && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-explain-error", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconAlertTriangle, { ...iconProps11 }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("p", { children: error }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-btn", onClick: openAiSettings, children: "Open AI settings" })
+            ] })
+          ] }),
+          result && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "xray-explain-result", children: result })
+        ] })
+      }
+    );
+  }
+
+  // src/panel/components/shell/CommandPalette.tsx
+  var import_react14 = __toESM(require_react());
+
+  // src/panel/models/fuzzy.ts
+  var BOUNDARY = /[\s\-_/.:]/;
+  function fuzzyMatch(query, text) {
+    const q = query.trim().toLowerCase();
+    if (!q) return { score: 1, ranges: [] };
+    const t = text.toLowerCase();
+    if (t.includes(q)) {
+      const at = t.indexOf(q);
+      const boundaryBonus = at === 0 || BOUNDARY.test(t[at - 1]) ? 40 : 0;
+      return { score: 120 + boundaryBonus - at - Math.max(0, t.length - q.length) * 0.2, ranges: [[at, at + q.length]] };
+    }
+    let qi = 0;
+    let score = 0;
+    let lastIndex = -2;
+    const ranges = [];
+    for (let ti = 0; ti < t.length && qi < q.length; ti += 1) {
+      if (t[ti] !== q[qi]) continue;
+      score += lastIndex === ti - 1 ? 6 : 1;
+      if (ti === 0 || BOUNDARY.test(t[ti - 1])) score += 10;
+      const prev = ranges[ranges.length - 1];
+      if (prev && prev[1] === ti) prev[1] = ti + 1;
+      else ranges.push([ti, ti + 1]);
+      lastIndex = ti;
+      qi += 1;
+    }
+    if (qi < q.length) return null;
+    score += Math.max(0, 18 - t.length / 4);
+    return { score, ranges };
+  }
+  function highlightSegments(text, ranges) {
+    if (!ranges.length) return [{ text, match: false }];
+    const segments = [];
+    let cursor = 0;
+    for (const [start, end] of ranges) {
+      if (start > cursor) segments.push({ text: text.slice(cursor, start), match: false });
+      segments.push({ text: text.slice(start, end), match: true });
+      cursor = end;
+    }
+    if (cursor < text.length) segments.push({ text: text.slice(cursor), match: false });
+    return segments;
+  }
+
+  // src/panel/components/shell/CommandPalette.tsx
+  var import_jsx_runtime16 = __toESM(require_jsx_runtime());
+  var GROUP_ORDER = ["Selection", "Go to", "Requests", "Actions", "Appearance", "Console"];
   function CommandPalette() {
     const open = usePanelStore((state) => state.commandOpen);
     const setOpen = usePanelStore((state) => state.setCommandOpen);
     const setActiveTab = usePanelStore((state) => state.setActiveTab);
     const setExportOpen = usePanelStore((state) => state.setExportOpen);
-    const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
+    const setGlobalSearchOpen = usePanelStore((state) => state.setGlobalSearchOpen);
+    const openSettings = usePanelStore((state) => state.openSettings);
     const clearConsole = usePanelStore((state) => state.clearConsole);
     const clearApiFilters = usePanelStore((state) => state.clearApiFilters);
+    const clearEntries = usePanelStore((state) => state.clearEntries);
     const insertConsoleCommand = usePanelStore((state) => state.insertConsoleCommand);
     const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
-    const [query, setQuery] = (0, import_react9.useState)("");
-    const commands = (0, import_react9.useMemo)(() => [
-      ...panelTabs.map((tab) => ({
-        id: `tab-${tab.id}`,
-        label: `Open ${tab.label}`,
-        hint: "Navigation",
-        run: () => setActiveTab(tab.id)
-      })),
-      { id: "export", label: "Open export modal", hint: "Session", run: () => setExportOpen(true) },
-      { id: "settings-modal", label: "Open quick settings", hint: "Settings", run: () => setSettingsOpen(true) },
-      { id: "clear-console", label: "Clear console stream", hint: "Console", run: () => requestConfirmation({
-        title: "Clear console stream?",
-        message: "This clears console UI events but keeps captured API requests.",
-        confirmLabel: "Clear console",
-        tone: "danger",
-        onConfirm: clearConsole
-      }) },
-      { id: "clear-filters", label: "Reset API filters", hint: "API", run: clearApiFilters },
-      { id: "cmd-errors", label: "Prepare $errors()", hint: "Console command", run: () => insertConsoleCommand("$errors()") },
-      { id: "cmd-slow", label: "Prepare $slow(500)", hint: "Console command", run: () => insertConsoleCommand("$slow(500)") },
-      { id: "cmd-schema", label: "Prepare schema(res)", hint: "Console command", run: () => insertConsoleCommand("schema(res)") }
-    ], [clearApiFilters, clearConsole, insertConsoleCommand, requestConfirmation, setActiveTab, setExportOpen, setSettingsOpen]);
-    const filteredCommands = commands.filter((command) => `${command.label} ${command.hint}`.toLowerCase().includes(query.toLowerCase()));
+    const entries = usePanelStore((state) => state.entries);
+    const selectedId = usePanelStore((state) => state.selectedId);
+    const selectEntry = usePanelStore((state) => state.selectEntry);
+    const replayEntry = usePanelStore((state) => state.replayEntry);
+    const openReplayEditor = usePanelStore((state) => state.openReplayEditor);
+    const openExplain = usePanelStore((state) => state.openExplain);
+    const updateSettings = usePanelStore((state) => state.updateSettings);
+    const customTheme = usePanelStore((state) => state.settings.customTheme);
+    const hacker = usePanelStore((state) => state.settings.hacker);
+    const showToast = usePanelStore((state) => state.showToast);
+    const [query, setQuery] = (0, import_react14.useState)("");
+    const [active, setActive] = (0, import_react14.useState)(0);
+    const listRef = (0, import_react14.useRef)(null);
+    const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
+    const commands = (0, import_react14.useMemo)(() => {
+      const list = [];
+      if (selected) {
+        const label = `${selected.method || "GET"} ${entryPath(selected)}`;
+        list.push(
+          { id: "sel-replay", label: `Replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconRepeat, { ...iconProps8 }), run: () => replayEntry(selected) },
+          { id: "sel-edit", label: `Edit & replay ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconRepeat, { ...iconProps8 }), run: () => openReplayEditor(selected) },
+          { id: "sel-explain", label: `Explain ${label}`, group: "Selection", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSparkles, { ...iconProps8 }), run: () => openExplain(selected) }
+        );
+      }
+      panelTabs.map((tab) => list.push({ id: `tab-${tab.id}`, label: `Go to ${tab.label}`, group: "Go to", icon: tab.icon, run: () => setActiveTab(tab.id) }));
+      list.push(
+        { id: "export", label: "Export session", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconDownload, { ...iconProps8 }), run: () => setExportOpen(true) },
+        { id: "find", label: "Find in traffic (bodies, headers, URLs)", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { ...iconProps8 }), keywords: "search grep regex response body header ctrl shift f", run: () => setGlobalSearchOpen(true) },
+        { id: "appearance", label: "Open Theme Studio", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconPalette, { ...iconProps8 }), keywords: "theme color radius", run: () => openSettings("appearance") },
+        { id: "settings", label: "Open Settings", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSettings, { ...iconProps8 }), run: () => openSettings("general") },
+        { id: "insights", label: "Open Insights", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconChartBar, { ...iconProps8 }), run: () => setActiveTab("insights") },
+        { id: "clear-filters", label: "Reset API filters", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconFilterOff, { ...iconProps8 }), run: clearApiFilters },
+        { id: "clear-console", label: "Clear console stream", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear console stream?", message: "This clears console UI events but keeps captured API requests.", confirmLabel: "Clear console", tone: "danger", onConfirm: clearConsole }) },
+        { id: "clear-all", label: "Clear all captured entries", group: "Actions", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconEraser, { ...iconProps8 }), run: () => requestConfirmation({ title: "Clear all captured entries?", message: "This removes requests, logs, console events, and pins.", confirmLabel: "Clear all", tone: "danger", onConfirm: clearEntries }) },
+        { id: "theme-random", label: "Randomize theme", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconDice, { ...iconProps8 }), keywords: "surprise color", run: () => {
+          updateSettings({ theme: "custom", customTheme: randomTheme(Math.random()) });
+          showToast("Rolled a fresh theme.");
+        } },
+        { id: "theme-dark", label: "Custom theme: dark from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "dark") }) },
+        { id: "theme-light", label: "Custom theme: light from accent", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconWand, { ...iconProps8 }), run: () => updateSettings({ theme: "custom", customTheme: generateFromAccent(customTheme.accent, "light") }) },
+        { id: "hacker", label: hacker ? "Turn off hacker mode" : "Turn on hacker mode", group: "Appearance", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconBolt, { ...iconProps8 }), keywords: "crt scanline", run: () => {
+          updateSettings({ hacker: !hacker });
+          showToast(hacker ? "Hacker mode off." : "Hacker mode on \u2014 close this to see it.");
+        } },
+        { id: "cmd-errors", label: "Prepare $errors()", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$errors()") },
+        { id: "cmd-slow", label: "Prepare $slow(500)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("$slow(500)") },
+        { id: "cmd-schema", label: "Prepare schema(res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("schema(res)") },
+        { id: "cmd-diff", label: "Prepare diff(prev, res)", group: "Console", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconTerminal2, { ...iconProps8 }), run: () => insertConsoleCommand("diff(prev, res)") }
+      );
+      return list;
+    }, [clearApiFilters, clearConsole, clearEntries, customTheme, hacker, insertConsoleCommand, openExplain, openReplayEditor, openSettings, replayEntry, requestConfirmation, selected, setActiveTab, setExportOpen, setGlobalSearchOpen, showToast, updateSettings]);
+    const requestCommands = (0, import_react14.useMemo)(() => entries.slice(-300).reverse().map((entry) => {
+      const path = entryPath(entry);
+      const method = String(entry.method || entry.logLevel || "GET").toUpperCase();
+      return {
+        id: `req-${entry.id}`,
+        label: `${method} ${path}`,
+        group: "Requests",
+        icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: `xray-cmd-method ${methodClass(entry.method)}`, children: method.slice(0, 4) }),
+        hint: entry.status ? String(entry.status) : void 0,
+        keywords: `${entry.url || ""} ${entry.status || ""}`,
+        run: () => {
+          selectEntry(entry.id);
+          setActiveTab(entry.type === "api" ? "api" : "logs");
+        }
+      };
+    }), [entries, selectEntry, setActiveTab]);
+    const filteredCommands = (0, import_react14.useMemo)(() => {
+      const q = query.trim();
+      const byGroup = (a, b) => {
+        const ga = GROUP_ORDER.indexOf(a.command.group);
+        const gb = GROUP_ORDER.indexOf(b.command.group);
+        const oa = ga < 0 ? 99 : ga, ob = gb < 0 ? 99 : gb;
+        return oa !== ob ? oa - ob : b.score - a.score;
+      };
+      if (!q) {
+        const defaults = commands.filter((command) => command.group !== "Requests");
+        const recent = requestCommands.slice(0, 5);
+        return [...defaults, ...recent].map((command) => ({ command, ranges: [], score: 0 })).sort(byGroup);
+      }
+      const pool = [...commands, ...requestCommands];
+      const scored = [];
+      for (const command of pool) {
+        const labelMatch = fuzzyMatch(q, command.label);
+        if (labelMatch) {
+          scored.push({ command, ranges: labelMatch.ranges, score: labelMatch.score + 25 });
+          continue;
+        }
+        const altMatch = fuzzyMatch(q, `${command.group} ${command.keywords || ""}`);
+        if (altMatch) scored.push({ command, ranges: [], score: altMatch.score });
+      }
+      return scored.sort(byGroup).slice(0, 60);
+    }, [commands, query, requestCommands]);
+    import_react14.default.useEffect(() => {
+      setActive(0);
+    }, [query, open]);
+    import_react14.default.useEffect(() => {
+      if (!open) {
+        setQuery("");
+        return;
+      }
+    }, [open]);
+    import_react14.default.useEffect(() => {
+      const el = listRef.current?.querySelector(`[data-cmd-index="${active}"]`);
+      el?.scrollIntoView({ block: "nearest" });
+    }, [active]);
+    function runCommand(index) {
+      const target = filteredCommands[index];
+      if (!target) return;
+      target.command.run();
+      setOpen(false);
+    }
+    function onKeyDown(event) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActive((i) => (i + 1) % Math.max(1, filteredCommands.length));
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActive((i) => (i - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        runCommand(active);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setActive(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setActive(filteredCommands.length - 1);
+      }
+    }
     if (!open) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(ModalShell, { title: "Commands", subtitle: "Navigate, export, and prepare console commands", icon: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconBolt, { ...iconProps7 }), className: "xray-command-modal", onClose: () => setOpen(false), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-search xray-command-search", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconSearch, { ...iconProps7 }),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", autoFocus: true, value: query, onChange: (event) => setQuery(event.currentTarget.value), placeholder: "Search tabs, actions, commands..." })
+    const grouped = [];
+    filteredCommands.forEach((scored, index) => {
+      const last = grouped[grouped.length - 1];
+      if (last && last.group === scored.command.group) last.items.push({ scored, index });
+      else grouped.push({ group: scored.command.group, items: [{ scored, index }] });
+    });
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(ModalShell, { title: "Command center", subtitle: "Jump anywhere \xB7 run actions \xB7 find requests", icon: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconBolt, { ...iconProps8 }), className: "xray-command-modal", onClose: () => setOpen(false), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("label", { className: "xray-search xray-command-search", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { ...iconProps8 }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+          "input",
+          {
+            className: "xray-input",
+            autoFocus: true,
+            value: query,
+            onChange: (event) => setQuery(event.currentTarget.value),
+            onKeyDown,
+            placeholder: "Type a command, tab, or search captured requests\u2026"
+          }
+        )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "xray-modal-body xray-command-list", children: filteredCommands.map((command) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("button", { className: "xray-command-row", onClick: () => {
-        command.run();
-        setOpen(false);
-      }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(IconTerminal2, { ...iconProps7 }),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: command.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: command.hint })
-      ] }, command.id)) })
+      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-modal-body xray-command-list", ref: listRef, children: [
+        filteredCommands.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-empty", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+            "No matches for \u201C",
+            query,
+            "\u201D"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("small", { children: "Try a tab name, an action, or part of a request path." })
+        ] }),
+        grouped.map((section) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-group", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className: "xray-command-group-label", children: section.group }),
+          section.items.map(({ scored, index }) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+            "button",
+            {
+              "data-cmd-index": index,
+              className: `xray-command-row ${index === active ? "active" : ""}`,
+              onMouseMove: () => setActive(index),
+              onClick: () => runCommand(index),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-command-icon", children: scored.command.icon }),
+                /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-command-label", children: highlightSegments(scored.command.label, scored.ranges).map((segment, i) => segment.match ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("mark", { children: segment.text }, i) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { children: segment.text }, i)) }),
+                scored.command.hint && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: `xray-command-hint ${statusClass(Number(scored.command.hint))}`, children: scored.command.hint }),
+                index === active && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
+              ]
+            },
+            scored.command.id
+          ))
+        ] }, section.group))
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "xray-command-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u2191" }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u2193" }),
+          " navigate"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "\u21B5" }),
+          " run"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("kbd", { children: "esc" }),
+          " close"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { className: "xray-spacer" }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { children: [
+          filteredCommands.length,
+          " result",
+          filteredCommands.length === 1 ? "" : "s"
+        ] })
+      ] })
     ] });
   }
+
+  // src/panel/components/search/GlobalSearch.tsx
+  var import_react15 = __toESM(require_react());
+
+  // src/panel/models/globalSearch.ts
+  var MAX_MATCHES = 200;
+  var SNIPPET_RADIUS = 44;
+  var FIELD_SCAN_CHARS = 2e4;
+  function entryFields(entry) {
+    const out = [];
+    const push = (label, value) => {
+      if (value) out.push([label, value.length > FIELD_SCAN_CHARS ? value.slice(0, FIELD_SCAN_CHARS) : value]);
+    };
+    const stringify = (value) => typeof value === "string" ? value : safeStringify(value, 0, FIELD_SCAN_CHARS);
+    push("Method", entry.method ? String(entry.method).toUpperCase() : "");
+    push("URL", String(entry.url || entry.urlPath || ""));
+    if (entry.status) push("Status", String(entry.status));
+    if (entry.requestHeaders && typeof entry.requestHeaders === "object") push("Request headers", stringify(entry.requestHeaders));
+    const reqBody = entryRequest(entry);
+    if (reqBody != null) push("Request body", stringify(reqBody));
+    if (entry.responseHeaders && typeof entry.responseHeaders === "object") push("Response headers", stringify(entry.responseHeaders));
+    const resBody = entryResponse(entry);
+    if (resBody != null) push("Response body", stringify(resBody));
+    if (entry.message) push("Message", String(entry.message));
+    return out;
+  }
+  function locate(text, needleLower, query, re, caseSensitive) {
+    if (re) {
+      re.lastIndex = 0;
+      const m = re.exec(text);
+      return m ? { index: m.index, length: m[0].length || 1 } : null;
+    }
+    const haystack = caseSensitive ? text : text.toLowerCase();
+    const idx = haystack.indexOf(caseSensitive ? query : needleLower);
+    return idx >= 0 ? { index: idx, length: query.length } : null;
+  }
+  function searchEntries(entries, query, opts = {}) {
+    const q = String(query || "").trim();
+    if (!q) return { matches: [], error: null, truncated: false };
+    const caseSensitive = !!opts.caseSensitive;
+    let re = null;
+    if (opts.regex) {
+      try {
+        re = new RegExp(q, caseSensitive ? "" : "i");
+      } catch {
+        return { matches: [], error: "Invalid regular expression", truncated: false };
+      }
+    }
+    const needleLower = q.toLowerCase();
+    const matches = [];
+    for (let i = entries.length - 1; i >= 0 && matches.length < MAX_MATCHES; i--) {
+      const entry = entries[i];
+      for (const [field, text] of entryFields(entry)) {
+        const hit = locate(text, needleLower, q, re, caseSensitive);
+        if (!hit) continue;
+        const start = Math.max(0, hit.index - SNIPPET_RADIUS);
+        const end = Math.min(text.length, hit.index + hit.length + SNIPPET_RADIUS);
+        const prefix = start > 0 ? "\u2026" : "";
+        const suffix = end < text.length ? "\u2026" : "";
+        const body = text.slice(start, end).replace(/[\n\r\t]/g, " ");
+        matches.push({
+          id: entry.id,
+          entry,
+          field,
+          snippet: prefix + body + suffix,
+          matchStart: prefix.length + (hit.index - start),
+          matchLength: Math.min(hit.length, end - hit.index)
+        });
+        break;
+      }
+    }
+    return { matches, error: null, truncated: matches.length >= MAX_MATCHES };
+  }
+
+  // src/panel/components/search/GlobalSearch.tsx
+  var import_jsx_runtime17 = __toESM(require_jsx_runtime());
+  var iconProps12 = { size: 16, stroke: 1.8 };
+  function Snippet({ match }) {
+    const { snippet, matchStart, matchLength } = match;
+    if (matchStart < 0 || matchStart >= snippet.length) return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-gsearch-snippet", children: snippet });
+    const before = snippet.slice(0, matchStart);
+    const hit = snippet.slice(matchStart, matchStart + matchLength);
+    const after = snippet.slice(matchStart + matchLength);
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-snippet", children: [
+      before,
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("mark", { children: hit }),
+      after
+    ] });
+  }
+  function GlobalSearch() {
+    const open = usePanelStore((state) => state.globalSearchOpen);
+    const setOpen = usePanelStore((state) => state.setGlobalSearchOpen);
+    const entries = usePanelStore((state) => state.entries);
+    const selectEntry = usePanelStore((state) => state.selectEntry);
+    const setActiveTab = usePanelStore((state) => state.setActiveTab);
+    const [query, setQuery] = (0, import_react15.useState)("");
+    const [regex, setRegex] = (0, import_react15.useState)(false);
+    const [caseSensitive, setCaseSensitive] = (0, import_react15.useState)(false);
+    const [active, setActive] = (0, import_react15.useState)(0);
+    const listRef = (0, import_react15.useRef)(null);
+    const result = (0, import_react15.useMemo)(() => searchEntries(entries, query, { regex, caseSensitive }), [entries, query, regex, caseSensitive]);
+    const matches = result.matches;
+    import_react15.default.useEffect(() => {
+      setActive(0);
+    }, [query, regex, caseSensitive, open]);
+    import_react15.default.useEffect(() => {
+      if (!open) {
+        setQuery("");
+      }
+    }, [open]);
+    import_react15.default.useEffect(() => {
+      const el = listRef.current?.querySelector(`[data-match-index="${active}"]`);
+      el?.scrollIntoView({ block: "nearest" });
+    }, [active]);
+    function runMatch(index) {
+      const target = matches[index];
+      if (!target) return;
+      selectEntry(target.entry.id);
+      setActiveTab(target.entry.type === "api" ? "api" : "logs");
+      setOpen(false);
+    }
+    function onKeyDown(event) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActive((i) => (i + 1) % Math.max(1, matches.length));
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActive((i) => (i - 1 + matches.length) % Math.max(1, matches.length));
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        runMatch(active);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setActive(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setActive(matches.length - 1);
+      }
+    }
+    if (!open) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+      ModalShell,
+      {
+        title: "Find in traffic",
+        subtitle: "Search across every captured URL, header, and request/response body",
+        icon: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps12 }),
+        className: "xray-gsearch-modal",
+        onClose: () => setOpen(false),
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-gsearch-controls", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("label", { className: "xray-search xray-gsearch-input", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { ...iconProps12 }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+                "input",
+                {
+                  className: "xray-input",
+                  autoFocus: true,
+                  value: query,
+                  onChange: (event) => setQuery(event.currentTarget.value),
+                  onKeyDown,
+                  placeholder: regex ? "Regular expression\u2026" : "Search text across all captured traffic\u2026",
+                  spellCheck: false
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+              "button",
+              {
+                className: `xray-chip ${regex ? "active" : ""}`,
+                onClick: () => setRegex((v) => !v),
+                "aria-pressed": regex,
+                title: "Match with a regular expression",
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconRegex, { ...iconProps12 }),
+                  "Regex"
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+              "button",
+              {
+                className: `xray-chip ${caseSensitive ? "active" : ""}`,
+                onClick: () => setCaseSensitive((v) => !v),
+                "aria-pressed": caseSensitive,
+                title: "Case-sensitive matching",
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconLetterCase, { ...iconProps12 }),
+                  "Case"
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-modal-body xray-gsearch-list", ref: listRef, children: [
+            result.error && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "xray-gsearch-error", children: result.error }),
+            !result.error && !query.trim() && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-empty", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { children: "Search inside your captured traffic" }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("small", { children: "Matches URLs, methods, status, headers, and request & response bodies. Toggle Regex for patterns." })
+            ] }),
+            !result.error && query.trim() && matches.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-empty", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconSearch, { size: 20, stroke: 1.6 }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+                "No matches for \u201C",
+                query,
+                "\u201D"
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("small", { children: "Try different text, or enable Regex." })
+            ] }),
+            matches.map((match, index) => {
+              const method = String(match.entry.method || match.entry.logLevel || "GET").toUpperCase();
+              return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+                "button",
+                {
+                  "data-match-index": index,
+                  className: `xray-gsearch-row ${index === active ? "active" : ""}`,
+                  onMouseMove: () => setActive(index),
+                  onClick: () => runMatch(index),
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-cmd-method ${methodClass(match.entry.method)}`, children: method.slice(0, 4) }),
+                    /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-main", children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { className: "xray-gsearch-path", children: [
+                        entryPath(match.entry),
+                        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-gsearch-field", children: match.field })
+                      ] }),
+                      /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Snippet, { match })
+                    ] }),
+                    match.entry.status ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: `xray-gsearch-status ${statusClass(Number(match.entry.status))}`, children: match.entry.status }) : null,
+                    index === active && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(IconArrowRight, { size: 14, stroke: 2, className: "xray-command-enter" })
+                  ]
+                },
+                `${match.id}-${index}`
+              );
+            })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "xray-command-foot", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2191" }),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u2193" }),
+              " navigate"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "\u21B5" }),
+              " open"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("kbd", { children: "esc" }),
+              " close"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { children: [
+              matches.length,
+              result.truncated ? "+" : "",
+              " match",
+              matches.length === 1 ? "" : "es"
+            ] })
+          ] })
+        ]
+      }
+    );
+  }
+
+  // src/panel/components/shell/PanelShell.tsx
+  var import_react16 = __toESM(require_react());
 
   // src/panel/models/sessionSummary.ts
   function buildSessionSummary(entries) {
@@ -17316,9 +20551,34 @@ export const handlers = [
     };
   }
 
+  // src/panel/components/shell/ThemeSwitcher.tsx
+  var import_jsx_runtime18 = __toESM(require_jsx_runtime());
+  var iconProps13 = { size: 16, stroke: 1.8 };
+  function ThemeSwitcher() {
+    const openSettings = usePanelStore((state) => state.openSettings);
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      "button",
+      {
+        className: "xray-icon-btn",
+        title: "Theme & appearance",
+        "aria-label": "Theme and appearance",
+        onClick: () => openSettings("appearance"),
+        children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(IconPalette, { ...iconProps13 })
+      }
+    );
+  }
+
   // src/panel/components/shell/PanelShell.tsx
-  var import_jsx_runtime15 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime19 = __toESM(require_jsx_runtime());
   var modeIconProps = { size: 16, stroke: 1.8 };
+  var RESIZE_KEY_STEP = 24;
+  function maxPanelWidth() {
+    const vwCap = typeof window !== "undefined" ? Math.round(window.innerWidth * 0.96) : PANEL_WIDTH_MAX;
+    return Math.min(PANEL_WIDTH_MAX, vwCap);
+  }
+  function clampPanelWidth(width) {
+    return Math.max(PANEL_WIDTH_MIN, Math.min(maxPanelWidth(), Math.round(width)));
+  }
   function PanelShell({ children, mode }) {
     const open = usePanelStore((state) => state.open);
     const devtoolsMode = usePanelStore((state) => state.devtoolsMode);
@@ -17326,12 +20586,71 @@ export const handlers = [
     const setActiveTab = usePanelStore((state) => state.setActiveTab);
     const entries = usePanelStore((state) => state.entries);
     const settings = usePanelStore((state) => state.settings);
+    const updateSettings = usePanelStore((state) => state.updateSettings);
     const setExportOpen = usePanelStore((state) => state.setExportOpen);
     const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
     const showToast = usePanelStore((state) => state.showToast);
     const toastMessage = usePanelStore((state) => state.toastMessage);
     const clearToast = usePanelStore((state) => state.clearToast);
+    const setOpen = usePanelStore((state) => state.setOpen);
     const { apiCount, logCount, errorCount, totalBytes } = buildSessionSummary(entries);
+    const dockable = mode === "hud";
+    const dockSide = settings.dockSide;
+    const [dragWidth, setDragWidth] = import_react16.default.useState(null);
+    const resize = import_react16.default.useRef(null);
+    const appliedWidth = dragWidth ?? settings.panelWidth;
+    function onResizePointerDown(event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      resize.current = { startX: event.clientX, width: settings.panelWidth };
+      setDragWidth(settings.panelWidth);
+    }
+    function onResizePointerMove(event) {
+      const state = resize.current;
+      if (!state) return;
+      const delta = dockSide === "right" ? state.startX - event.clientX : event.clientX - state.startX;
+      const next = clampPanelWidth(state.width + delta);
+      state.width = next;
+      setDragWidth(next);
+    }
+    function commitResize(event) {
+      const state = resize.current;
+      if (!state) return;
+      resize.current = null;
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+      }
+      setDragWidth(null);
+      if (state.width !== settings.panelWidth) updateSettings({ panelWidth: state.width });
+    }
+    function onResizeKeyDown(event) {
+      const grow = dockSide === "right" ? "ArrowLeft" : "ArrowRight";
+      const shrink = dockSide === "right" ? "ArrowRight" : "ArrowLeft";
+      if (event.key === grow || event.key === shrink) {
+        event.preventDefault();
+        const step = event.key === grow ? RESIZE_KEY_STEP : -RESIZE_KEY_STEP;
+        updateSettings({ panelWidth: clampPanelWidth(settings.panelWidth + step) });
+      }
+    }
+    function resetWidth() {
+      updateSettings({ panelWidth: clampPanelWidth(DEFAULT_PANEL_SETTINGS.panelWidth) });
+    }
+    function toggleDock() {
+      updateSettings({ dockSide: dockSide === "right" ? "left" : "right" });
+    }
+    function closePanel() {
+      const api = window.XRAY_Panel;
+      if (api?.hide) api.hide();
+      else setOpen(false);
+    }
+    const [toastPaused, setToastPaused] = import_react16.default.useState(false);
+    import_react16.default.useEffect(() => {
+      if (!toastMessage || toastPaused) return;
+      const timer = window.setTimeout(clearToast, 2800);
+      return () => window.clearTimeout(timer);
+    }, [toastMessage, toastPaused, clearToast]);
     function sendRuntimeMessage(message, fallback) {
       if (typeof chrome !== "undefined" && chrome?.runtime?.sendMessage) {
         try {
@@ -17355,3365 +20674,5609 @@ export const handlers = [
     function openWindow() {
       sendRuntimeMessage({ type: "XRAY_OPEN_WINDOW" }, "Pop-out window is available when the extension runtime is loaded.");
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+    const customVars = settings.theme === "custom" ? buildCustomThemeVars(settings.customTheme) : {};
+    return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
       "div",
       {
-        className: `xray-panel xray-mode-${mode} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? "xray-glow" : "xray-no-glow"} ${open ? "xray-open" : ""} ${devtoolsMode ? "xray-devtools" : ""} ${settings.compactRows ? "xray-compact-rows" : ""}`,
-        style: { "--xray-accent": PANEL_ACCENT_VALUES[settings.accent], "--xray-font": PANEL_FONT_VALUES[settings.font] },
+        className: `xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ""} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? "xray-glow" : "xray-no-glow"} ${settings.hacker ? "xray-hacker" : ""} ${open ? "xray-open" : ""} ${devtoolsMode ? "xray-devtools" : ""} ${settings.compactRows ? "xray-compact-rows" : ""}`,
+        style: { "--xray-accent": PANEL_ACCENT_VALUES[settings.accent], "--xray-font": PANEL_FONT_VALUES[settings.font], "--xray-radius": `${settings.radius}px`, "--xray-panel-width": `${appliedWidth}px`, ...customVars },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("header", { className: "xray-topbar", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-brand xray-drag-handle", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconTerminal2, { size: 18, stroke: 2 }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: "CONSOLE" }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: `xray-live-dot ${open ? "on" : ""}` })
+          dockable && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            "div",
+            {
+              className: `xray-resize-handle ${resize.current ? "dragging" : ""}`,
+              role: "separator",
+              "aria-orientation": "vertical",
+              "aria-label": "Resize panel \u2014 drag, or use arrow keys",
+              "aria-valuenow": appliedWidth,
+              "aria-valuemin": PANEL_WIDTH_MIN,
+              "aria-valuemax": maxPanelWidth(),
+              tabIndex: 0,
+              onPointerDown: onResizePointerDown,
+              onPointerMove: onResizePointerMove,
+              onPointerUp: commitResize,
+              onPointerCancel: commitResize,
+              onKeyDown: onResizeKeyDown,
+              onDoubleClick: resetWidth,
+              title: "Drag to resize \xB7 double-click to reset"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("header", { className: "xray-topbar", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-brand xray-drag-handle", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-brand-mark", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconTerminal2, { size: 18, stroke: 2 }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: "CONSOLE" }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "xray-brand-ver", title: `XRAY ${XRAY_VERSION} \xB7 built ${XRAY_BUILD}`, children: [
+                "v",
+                XRAY_VERSION
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: `xray-live-dot ${open ? "on" : ""}` })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("nav", { className: "xray-tabs", "aria-label": "XRAY panel tabs", children: panelTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("button", { className: `xray-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("nav", { className: "xray-tabs", "aria-label": "XRAY panel tabs", children: panelTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("button", { className: `xray-tab ${activeTab === tab.id ? "active" : ""}`, onClick: () => setActiveTab(tab.id), children: [
               tab.icon,
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: tab.label }),
-              tab.id === "api" && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-badge", children: apiCount }),
-              tab.id === "logs" && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "xray-badge", children: logCount })
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: tab.label }),
+              tab.id === "api" && apiCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-badge", children: apiCount }),
+              tab.id === "logs" && logCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "xray-badge", children: logCount })
             ] }, tab.id)) }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "xray-spacer" }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-summary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "xray-spacer" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-summary", children: [
               apiCount,
-              " APIs - ",
+              " APIs \xB7 ",
               errorCount,
-              " Errors - ",
+              " Errors \xB7 ",
               formatBytes(totalBytes)
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "xray-mode-switcher", "aria-label": "XRAY display mode", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `xray-icon-btn ${mode === "devtools" ? "active" : ""}`, title: "Open in DevTools", "aria-label": "Open in DevTools", onClick: openDevtoolsHint, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconDeviceLaptop, { ...modeIconProps }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `xray-icon-btn ${mode === "hud" ? "active" : ""}`, title: "Float over page", "aria-label": "Float over page", onClick: toggleHud, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconPictureInPicture, { ...modeIconProps }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `xray-icon-btn ${mode === "window" ? "active" : ""}`, title: "Open in separate window", "aria-label": "Open in separate window", onClick: openWindow, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconArrowsMaximize, { ...modeIconProps }) })
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-mode-switcher", "aria-label": "XRAY display mode", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "devtools" ? "active" : ""}`, title: "Open in DevTools", "aria-label": "Open in DevTools", onClick: openDevtoolsHint, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconDeviceLaptop, { ...modeIconProps }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "hud" ? "active" : ""}`, title: "Float over page", "aria-label": "Float over page", onClick: toggleHud, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconPictureInPicture, { ...modeIconProps }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: `xray-icon-btn ${mode === "window" ? "active" : ""}`, title: "Open in separate window", "aria-label": "Open in separate window", onClick: openWindow, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconArrowsMaximize, { ...modeIconProps }) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open export modal", onClick: () => setExportOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconDownload, { size: 16, stroke: 1.8 }) }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open settings", onClick: () => setSettingsOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconSettings, { size: 16, stroke: 1.8 }) })
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(ThemeSwitcher, {}),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open export modal", onClick: () => setExportOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconDownload, { size: 16, stroke: 1.8 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn", "aria-label": "Open settings", onClick: () => setSettingsOpen(true), children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconSettings, { size: 16, stroke: 1.8 }) }),
+            dockable && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "xray-dock-controls", "aria-label": "Panel position", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+                "button",
+                {
+                  className: "xray-icon-btn",
+                  title: dockSide === "right" ? "Dock to left edge" : "Dock to right edge",
+                  "aria-label": dockSide === "right" ? "Dock to left edge" : "Dock to right edge",
+                  onClick: toggleDock,
+                  children: dockSide === "right" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconLayoutSidebarLeftExpand, { ...modeIconProps }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconLayoutSidebarRightExpand, { ...modeIconProps })
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("button", { className: "xray-icon-btn xray-close-btn", title: "Close panel (Esc)", "aria-label": "Close panel", onClick: closePanel, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconX, { ...modeIconProps }) })
+            ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("main", { className: "xray-body", children }),
-          toastMessage && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: "xray-toast", onClick: clearToast, "aria-label": "Dismiss notification", children: toastMessage })
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("main", { className: "xray-body", children }),
+          toastMessage && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            "button",
+            {
+              className: "xray-toast",
+              onClick: clearToast,
+              onMouseEnter: () => setToastPaused(true),
+              onMouseLeave: () => setToastPaused(false),
+              onFocus: () => setToastPaused(true),
+              onBlur: () => setToastPaused(false),
+              role: "status",
+              "aria-live": "polite",
+              "aria-label": "Dismiss notification",
+              children: toastMessage
+            }
+          )
         ]
       }
     );
   }
 
   // src/panel/App.tsx
-  var import_jsx_runtime16 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime20 = __toESM(require_jsx_runtime());
   function App({ mode = "hud" }) {
     const activeTab = usePanelStore((state) => state.activeTab);
-    return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(PanelShell, { mode, children: [
-        activeTab === "console" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ConsoleWorkspace, {}),
-        activeTab === "api" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(EntriesWorkspace, { mode: "api" }),
-        activeTab === "logs" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(EntriesWorkspace, { mode: "logs" }),
-        activeTab === "notebook" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Notebook, {}),
-        activeTab === "insights" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Insights, {}),
-        activeTab === "settings" && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Settings, {})
+    const settings = usePanelStore((state) => state.settings);
+    const themeVars = {
+      "--xray-accent": PANEL_ACCENT_VALUES[settings.accent],
+      "--xray-font": PANEL_FONT_VALUES[settings.font],
+      "--xray-radius": `${settings.radius}px`,
+      ...settings.theme === "custom" ? buildCustomThemeVars(settings.customTheme) : {}
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: `xray-theme-scope xray-theme-${settings.theme} xray-font-${settings.font}`, style: themeVars, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(PanelShell, { mode, children: [
+        activeTab === "console" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ConsoleWorkspace, {}),
+        activeTab === "api" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(EntriesWorkspace, { mode: "api" }),
+        activeTab === "logs" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(EntriesWorkspace, { mode: "logs" }),
+        activeTab === "rules" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Rules, {}),
+        activeTab === "insights" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Insights, {})
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ExportModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SettingsModal, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(CommandPalette, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(ConfirmationModal, {})
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ExportModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(SettingsModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReplayModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ExplainModal, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(CommandPalette, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(GlobalSearch, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ConfirmationModal, {})
     ] });
   }
 
+  // src/panel/runtime/eventIsolation.ts
+  var ISOLATED_EVENTS = [
+    "wheel",
+    "mousedown",
+    "mouseup",
+    "click",
+    "dblclick",
+    "contextmenu",
+    "pointerdown",
+    "pointerup",
+    "keydown",
+    "keyup",
+    "keypress",
+    "input",
+    "beforeinput",
+    "touchstart",
+    "touchmove",
+    "touchend",
+    // Focus events compose and bubble too, so a page's focus/analytics/keylogger
+    // listeners would otherwise observe focus moving into the panel's own inputs.
+    "focusin",
+    "focusout",
+    // Drag-and-drop inside the panel (e.g. reordering, text selection drags) must
+    // not reach the site's drop zones or drag listeners.
+    "dragstart",
+    "drag",
+    "dragover",
+    "drop",
+    "dragend",
+    // Copying/cutting/pasting within the panel is the panel's business, not the
+    // page's — keep clipboard events from surfacing to site handlers.
+    "copy",
+    "cut",
+    "paste"
+  ];
+  var ISOLATED_FLAG = "xrayIsolated";
+  function isolatePanelEvents(host) {
+    if (host.dataset[ISOLATED_FLAG] === "1") return;
+    host.dataset[ISOLATED_FLAG] = "1";
+    const stop = (event) => {
+      event.stopPropagation();
+    };
+    for (const type of ISOLATED_EVENTS) {
+      host.addEventListener(type, stop);
+    }
+  }
+
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles\tokens.css
-  var tokens_default = ":host,\n.xray-app-root {\n  --xray-bg: #1e1e2e;\n  --xray-surface: #181825;\n  --xray-surface2: #313244;\n  --xray-text: #cdd6f4;\n  --xray-green: #a6e3a1;\n  --xray-blue: #89b4fa;\n  --xray-yellow: #f9e2af;\n  --xray-red: #f38ba8;\n  --xray-mauve: #cba6f7;\n  --xray-teal: #94e2d5;\n  --xray-peach: #fab387;\n  --xray-hint: #6c7086;\n  --xray-subtext: #a6adc8;\n  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;\n}\n";
+  var tokens_default = ":host,\n.xray-app-root {\n  --xray-bg: #1e1e2e;\n  --xray-surface: #181825;\n  --xray-surface2: #313244;\n  /* RGB triples so translucent surfaces (rgba(var(--\u2026-rgb), a)) adapt per theme */\n  --xray-bg-rgb: 30, 30, 46;\n  --xray-surface-rgb: 24, 24, 37;\n  --xray-surface2-rgb: 49, 50, 68;\n  --xray-text-rgb: 205, 214, 244;\n  /* corner-radius scale \u2014 base is set inline per-panel from settings.radius */\n  --xray-radius: 10px;\n  --xray-radius-sm: calc(var(--xray-radius) * 0.6);\n  --xray-radius-lg: calc(var(--xray-radius) * 1.4);\n  /* motion system \u2014 one easing/duration language across the UI */\n  --xray-ease: cubic-bezier(0.22, 0.8, 0.28, 1);\n  --xray-ease-out: cubic-bezier(0.16, 1, 0.3, 1);\n  --xray-dur-fast: 120ms;\n  --xray-dur: 180ms;\n  --xray-text: #cdd6f4;\n  --xray-green: #a6e3a1;\n  --xray-blue: #89b4fa;\n  --xray-yellow: #f9e2af;\n  --xray-red: #f38ba8;\n  --xray-mauve: #cba6f7;\n  --xray-teal: #94e2d5;\n  --xray-peach: #fab387;\n  --xray-hint: #6c7086;\n  --xray-subtext: #a6adc8;\n  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;\n}\n";
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles.css
-  var styles_default = `* {\r
-  box-sizing: border-box;\r
-}\r
-\r
-.xray-app-root {\r
-  all: initial;\r
-  color: var(--xray-text);\r
-  font-family: var(--xray-font);\r
-}\r
-\r
-.xray-app-root *,\r
-.xray-hud * {\r
-  scrollbar-color: rgba(108, 112, 134, .62) rgba(17, 17, 27, .44);\r
-  scrollbar-width: thin;\r
-}\r
-\r
-.xray-app-root *::-webkit-scrollbar,\r
-.xray-hud *::-webkit-scrollbar {\r
-  width: 10px;\r
-  height: 10px;\r
-}\r
-\r
-.xray-app-root *::-webkit-scrollbar-track,\r
-.xray-hud *::-webkit-scrollbar-track {\r
-  background: rgba(17, 17, 27, .44);\r
-}\r
-\r
-.xray-app-root *::-webkit-scrollbar-thumb,\r
-.xray-hud *::-webkit-scrollbar-thumb {\r
-  border: 2px solid rgba(17, 17, 27, .44);\r
-  border-radius: 999px;\r
-  background: rgba(108, 112, 134, .72);\r
-}\r
-\r
-.xray-app-root *::-webkit-scrollbar-thumb:hover,\r
-.xray-hud *::-webkit-scrollbar-thumb:hover {\r
-  background: rgba(137, 180, 250, .72);\r
-}\r
-\r
-.xray-panel {\r
-  position: fixed;\r
-  top: 0;\r
-  right: 0;\r
-  z-index: 2147483647;\r
-  width: min(960px, 94vw);\r
-  height: 100vh;\r
-  display: none;\r
-  flex-direction: column;\r
-  color: var(--xray-text);\r
-  background: var(--xray-bg);\r
-  border-left: 1px solid rgba(108, 112, 134, .42);\r
-  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);\r
-  font: 12px/1.45 var(--xray-font);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-panel.xray-theme-operator {\r
-  --xray-bg: #0b0f14;\r
-  --xray-surface: #101720;\r
-  --xray-surface2: #151f2b;\r
-  --xray-surface3: #1b2836;\r
-  --xray-text: #d8e2ef;\r
-  --xray-subtext: #8fa1b7;\r
-  --xray-hint: #536274;\r
-  --xray-blue: #37d5ff;\r
-  --xray-mauve: #8b5cf6;\r
-  --xray-green: #38f29b;\r
-  --xray-yellow: #f6c76f;\r
-  --xray-red: #ff5c7a;\r
-  --xray-border: rgba(80, 114, 148, .42);\r
-  --xray-operator-grid: rgba(55, 213, 255, .035);\r
-}\r
-\r
-.xray-panel.xray-theme-dev-edition {\r
-  --xray-bg: #11131f;\r
-  --xray-surface: #171a2b;\r
-  --xray-surface2: #20243a;\r
-  --xray-surface3: #282d49;\r
-  --xray-text: #e1e7ff;\r
-  --xray-subtext: #a8b0cf;\r
-  --xray-hint: #6f789d;\r
-  --xray-blue: #75ddff;\r
-  --xray-mauve: #b18cff;\r
-  --xray-green: #62e6a8;\r
-  --xray-yellow: #ffd37a;\r
-  --xray-red: #ff6f91;\r
-  --xray-border: rgba(124, 138, 189, .36);\r
-  --xray-operator-grid: rgba(177, 140, 255, .04);\r
-}\r
-\r
-.xray-panel.xray-theme-midnight {\r
-  --xray-bg: #05070a;\r
-  --xray-surface: #090d12;\r
-  --xray-surface2: #0f151d;\r
-  --xray-surface3: #151d29;\r
-  --xray-text: #d7f7ff;\r
-  --xray-subtext: #83a4ad;\r
-  --xray-hint: #49626b;\r
-  --xray-blue: #00e5ff;\r
-  --xray-mauve: #7c3aed;\r
-  --xray-green: #00ff95;\r
-  --xray-yellow: #ffd166;\r
-  --xray-red: #ff3b6b;\r
-  --xray-border: rgba(0, 229, 255, .28);\r
-  --xray-operator-grid: rgba(0, 229, 255, .045);\r
-}\r
-\r
-.xray-panel.xray-theme-light-lab {\r
-  --xray-bg: #edf3fb;\r
-  --xray-surface: #f8fbff;\r
-  --xray-surface2: #e6eef9;\r
-  --xray-surface3: #d9e5f5;\r
-  --xray-text: #172033;\r
-  --xray-subtext: #526173;\r
-  --xray-hint: #75869a;\r
-  --xray-blue: #006adc;\r
-  --xray-mauve: #7048e8;\r
-  --xray-green: #087f5b;\r
-  --xray-yellow: #b7791f;\r
-  --xray-red: #d6336c;\r
-  --xray-border: rgba(82, 97, 115, .28);\r
-  --xray-operator-grid: rgba(0, 106, 220, .035);\r
-}\r
-\r
-.xray-panel.xray-density-compact {\r
-  --xray-density-scale: .88;\r
-  --xray-row-h: 42px;\r
-  --xray-chrome-h: 40px;\r
-}\r
-\r
-.xray-panel.xray-density-comfortable {\r
-  --xray-density-scale: 1;\r
-  --xray-row-h: 52px;\r
-  --xray-chrome-h: 46px;\r
-}\r
-\r
-.xray-panel.xray-density-spacious {\r
-  --xray-density-scale: 1.14;\r
-  --xray-row-h: 64px;\r
-  --xray-chrome-h: 52px;\r
-}\r
-\r
-.xray-panel::before {\r
-  content: '';\r
-  position: absolute;\r
-  inset: 0;\r
-  pointer-events: none;\r
-  background:\r
-    linear-gradient(90deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
-    linear-gradient(180deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent), transparent 32%),\r
-    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--xray-mauve) 12%, transparent), transparent 30%);\r
-  background-size: 28px 28px, 28px 28px, auto, auto;\r
-  opacity: .8;\r
-}\r
-\r
-.xray-panel.xray-no-glow::before {\r
-  opacity: .28;\r
-}\r
-\r
-.xray-panel > * {\r
-  position: relative;\r
-  z-index: 1;\r
-}\r
-\r
-.xray-panel.xray-open,\r
-.xray-panel.xray-devtools {\r
-  display: flex;\r
-}\r
-\r
-.xray-panel.xray-devtools {\r
-  position: fixed;\r
-  inset: 0;\r
-  width: 100vw;\r
-  height: 100vh;\r
-  border: 0;\r
-  box-shadow: none;\r
-}\r
-\r
-.xray-panel.xray-mode-window {\r
-  position: fixed;\r
-  inset: 0;\r
-  width: 100vw;\r
-  height: 100vh;\r
-  border: 0;\r
-  box-shadow: none;\r
-}\r
-\r
-.xray-topbar {\r
-  height: var(--xray-chrome-h, 44px);\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  padding: 0 10px;\r
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
-  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));\r
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
-  flex-shrink: 0;\r
-}\r
-\r
-.xray-brand {\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  min-width: 140px;\r
-  font-weight: 900;\r
-  letter-spacing: .12em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-drag-handle {\r
-  cursor: grab;\r
-}\r
-\r
-.xray-drag-handle:active {\r
-  cursor: grabbing;\r
-}\r
-\r
-.xray-brand-mark {\r
-  width: 28px;\r
-  height: 28px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  color: white;\r
-  background: linear-gradient(135deg, var(--xray-accent, var(--xray-blue)), var(--xray-mauve));\r
-  border-radius: 7px;\r
-  box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);\r
-}\r
-\r
-.xray-live-dot {\r
-  width: 7px;\r
-  height: 7px;\r
-  border-radius: 999px;\r
-  background: var(--xray-hint);\r
-}\r
-\r
-.xray-live-dot.on {\r
-  background: var(--xray-green);\r
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 18%, transparent), 0 0 16px color-mix(in srgb, var(--xray-green) 55%, transparent);\r
-}\r
-\r
-.xray-tabs,\r
-.xray-console-tabs,\r
-.xray-filter-chips {\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 4px;\r
-}\r
-\r
-.xray-tab,\r
-.xray-mini-tab,\r
-.xray-btn,\r
-.xray-chip,\r
-.xray-icon-btn {\r
-  border: 1px solid transparent;\r
-  color: var(--xray-subtext);\r
-  background: transparent;\r
-  font: 800 12px/1 var(--xray-font);\r
-  cursor: pointer;\r
-  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;\r
-}\r
-\r
-.xray-tab {\r
-  height: calc(var(--xray-chrome-h, 44px) - 12px);\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 6px;\r
-  padding: 0 12px;\r
-  border-radius: 7px;\r
-  text-transform: uppercase;\r
-  letter-spacing: .04em;\r
-  font-size: calc(11px * var(--xray-density-scale, 1));\r
-}\r
-\r
-.xray-tab:hover,\r
-.xray-mini-tab:hover,\r
-.xray-btn:hover,\r
-.xray-chip:hover,\r
-.xray-icon-btn:hover {\r
-  color: var(--xray-text);\r
-  background: rgba(205, 214, 244, .06);\r
-}\r
-\r
-.xray-tab.active,\r
-.xray-mini-tab.active,\r
-.xray-chip.active {\r
-  color: var(--xray-text);\r
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);\r
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);\r
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 16%, transparent), 0 0 22px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
-}\r
-\r
-.xray-no-glow .xray-tab.active,\r
-.xray-no-glow .xray-mini-tab.active,\r
-.xray-no-glow .xray-chip.active,\r
-.xray-no-glow .xray-brand-mark,\r
-.xray-no-glow .xray-live-dot.on {\r
-  box-shadow: none;\r
-}\r
-\r
-.xray-badge {\r
-  min-width: 18px;\r
-  height: 16px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  padding: 0 5px;\r
-  border-radius: 999px;\r
-  color: var(--xray-text);\r
-  background: rgba(108, 112, 134, .28);\r
-  font-size: 9px;\r
-}\r
-\r
-.xray-spacer {\r
-  flex: 1;\r
-}\r
-\r
-.xray-summary {\r
-  max-width: 220px;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  color: var(--xray-subtext);\r
-  font-size: calc(10px * var(--xray-density-scale, 1));\r
-  text-transform: uppercase;\r
-  letter-spacing: .08em;\r
-}\r
-\r
-.xray-mode-switcher {\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 5px;\r
-}\r
-\r
-.xray-mode-switcher .xray-icon-btn.active {\r
-  color: var(--xray-blue);\r
-  border-color: var(--xray-blue);\r
-  background: rgba(137, 180, 250, .12);\r
-}\r
-\r
-.xray-body {\r
-  min-height: 0;\r
-  flex: 1;\r
-  display: flex;\r
-  flex-direction: column;\r
-  background: color-mix(in srgb, var(--xray-bg) 96%, var(--xray-accent) 4%);\r
-}\r
-\r
-.xray-console-head {\r
-  display: flex;\r
-  align-items: center;\r
-  min-height: 44px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-mini-tab {\r
-  height: 44px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 7px;\r
-  padding: 0 16px;\r
-  border-right: 1px solid rgba(108, 112, 134, .28);\r
-  border-bottom: 2px solid transparent;\r
-}\r
-\r
-.xray-mini-tab.active {\r
-  border-bottom-color: var(--xray-blue);\r
-}\r
-\r
-.xray-toolbar {\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  margin-left: auto;\r
-  padding-right: 8px;\r
-}\r
-\r
-.xray-btn,\r
-.xray-icon-btn {\r
-  height: 32px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 7px;\r
-  padding: 0 12px;\r
-  border-color: rgba(108, 112, 134, .5);\r
-  border-radius: 8px;\r
-  background: rgba(24, 24, 37, .74);\r
-  color: var(--xray-text);\r
-}\r
-\r
-.xray-btn.primary {\r
-  color: var(--xray-accent, var(--xray-blue));\r
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);\r
-}\r
-\r
-.xray-btn.danger {\r
-  color: var(--xray-red);\r
-  border-color: rgba(243, 139, 168, .42);\r
-  background: rgba(243, 139, 168, .08);\r
-}\r
-\r
-.xray-icon-btn {\r
-  width: 32px;\r
-  justify-content: center;\r
-  padding: 0;\r
-}\r
-\r
-.xray-filterbar {\r
-  display: grid;\r
-  grid-template-columns: minmax(180px, 1fr) auto;\r
-  gap: 8px;\r
-  padding: 12px;\r
-  background: var(--xray-surface);\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-}\r
-\r
-.xray-search {\r
-  position: relative;\r
-  min-width: 0;\r
-}\r
-\r
-.xray-search svg {\r
-  position: absolute;\r
-  left: 12px;\r
-  top: 50%;\r
-  transform: translateY(-50%);\r
-  color: var(--xray-hint);\r
-}\r
-\r
-.xray-input {\r
-  width: 100%;\r
-  height: 40px;\r
-  border: 1px solid rgba(108, 112, 134, .55);\r
-  border-radius: 8px;\r
-  outline: none;\r
-  padding: 0 12px 0 38px;\r
-  color: var(--xray-text);\r
-  background: rgba(49, 50, 68, .5);\r
-  font: 800 13px/1 var(--xray-font);\r
-}\r
-\r
-.xray-input:focus,\r
-.xray-prompt input:focus {\r
-  border-color: var(--xray-accent, var(--xray-blue));\r
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
-}\r
-\r
-.xray-filter-chips {\r
-  overflow-x: auto;\r
-}\r
-\r
-.xray-filter-chips.compact {\r
-  gap: 6px;\r
-  flex-wrap: wrap;\r
-}\r
-\r
-.xray-chip {\r
-  height: 40px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 7px;\r
-  padding: 0 14px;\r
-  border-color: rgba(108, 112, 134, .5);\r
-  border-radius: 8px;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-filter-chips.compact .xray-chip {\r
-  height: 28px;\r
-  padding: 0 10px;\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-network {\r
-  min-height: 180px;\r
-  max-height: min(44vh, 380px);\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-bg);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-network-head,\r
-.xray-network-row {\r
-  display: grid;\r
-  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;\r
-  align-items: center;\r
-  gap: 0;\r
-}\r
-\r
-.xray-network-head {\r
-  height: 28px;\r
-  padding: 0 12px;\r
-  color: var(--xray-mauve);\r
-  text-transform: uppercase;\r
-  letter-spacing: .08em;\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-}\r
-\r
-.xray-virtual-list {\r
-  position: relative;\r
-  overflow: auto;\r
-  height: calc(100% - 28px);\r
-}\r
-\r
-.xray-network-row {\r
-  min-height: 32px;\r
-  padding: 0 12px;\r
-  cursor: pointer;\r
-  font-weight: 800;\r
-}\r
-\r
-.xray-network-row:hover {\r
-  background: rgba(205, 214, 244, .04);\r
-}\r
-\r
-.xray-network-row.selected {\r
-  background: rgba(137, 180, 250, .15);\r
-  box-shadow: inset 2px 0 0 var(--xray-blue);\r
-}\r
-\r
-.xray-method {\r
-  color: var(--xray-green);\r
-}\r
-\r
-.xray-method.post,\r
-.xray-method.put {\r
-  color: var(--xray-yellow);\r
-}\r
-\r
-.xray-method.delete,\r
-.xray-method.del {\r
-  color: var(--xray-red);\r
-}\r
-\r
-.xray-status.ok {\r
-  color: var(--xray-green);\r
-}\r
-\r
-.xray-status.warn {\r
-  color: var(--xray-yellow);\r
-}\r
-\r
-.xray-status.error {\r
-  color: var(--xray-red);\r
-}\r
-\r
-.xray-path {\r
-  min-width: 0;\r
-  color: #b4befe;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-muted {\r
-  color: var(--xray-hint);\r
-}\r
-\r
-.xray-timing {\r
-  display: grid;\r
-  grid-template-columns: 1fr auto;\r
-  align-items: center;\r
-  gap: 6px;\r
-}\r
-\r
-.xray-bar-track {\r
-  height: 4px;\r
-  border-radius: 999px;\r
-  background: rgba(108, 112, 134, .34);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-bar {\r
-  height: 100%;\r
-  border-radius: 999px;\r
-  background: var(--xray-blue);\r
-}\r
-\r
-.xray-bar.slow {\r
-  background: var(--xray-yellow);\r
-}\r
-\r
-.xray-bar.error {\r
-  background: var(--xray-red);\r
-}\r
-\r
-.xray-console-stream {\r
-  min-height: 0;\r
-  flex: 1;\r
-  background: var(--xray-surface);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-console-row {\r
-  display: grid;\r
-  grid-template-columns: 26px minmax(0, 1fr) 86px;\r
-  gap: 6px;\r
-  align-items: start;\r
-  min-height: 34px;\r
-  padding: 7px 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .22);\r
-}\r
-\r
-.xray-console-row.error {\r
-  color: var(--xray-red);\r
-  background: rgba(243, 139, 168, .08);\r
-}\r
-\r
-.xray-console-row.command {\r
-  color: var(--xray-mauve);\r
-}\r
-\r
-.xray-console-message {\r
-  min-width: 0;\r
-  white-space: pre-wrap;\r
-  word-break: break-word;\r
-}\r
-\r
-.xray-detail {\r
-  grid-column: 2 / 4;\r
-  min-width: 0;\r
-  max-height: 360px;\r
-  overflow: auto;\r
-  padding: 10px;\r
-  border: 1px solid rgba(108, 112, 134, .35);\r
-  border-radius: 8px;\r
-  background: rgba(24, 24, 37, .72);\r
-}\r
-\r
-.xray-prompt {\r
-  display: grid;\r
-  grid-template-columns: 24px minmax(0, 1fr) auto auto;\r
-  gap: 8px;\r
-  align-items: center;\r
-  padding: 8px 10px;\r
-  border-top: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-surface);\r
-  flex-shrink: 0;\r
-}\r
-\r
-.xray-prompt input {\r
-  height: 34px;\r
-  border: 1px solid rgba(108, 112, 134, .55);\r
-  border-radius: 8px;\r
-  outline: none;\r
-  padding: 0 10px;\r
-  color: var(--xray-text);\r
-  background: var(--xray-surface2);\r
-  font: 800 12px/1 var(--xray-font);\r
-}\r
-\r
-.xray-context-chip {\r
-  max-width: 260px;\r
-  height: 30px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  padding: 0 10px;\r
-  border: 1px solid rgba(137, 180, 250, .5);\r
-  border-radius: 999px;\r
-  color: var(--xray-text);\r
-  background: rgba(137, 180, 250, .12);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-statusbar {\r
-  min-height: 24px;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 14px;\r
-  padding: 0 10px;\r
-  color: var(--xray-subtext);\r
-  background: var(--xray-bg);\r
-  border-top: 1px solid rgba(108, 112, 134, .35);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-}\r
-\r
-.xray-page {\r
-  min-height: 0;\r
-  flex: 1;\r
-  overflow: auto;\r
-  padding: 12px;\r
-  background: var(--xray-bg);\r
-}\r
-\r
-.xray-page-head {\r
-  display: flex;\r
-  align-items: flex-start;\r
-  gap: 12px;\r
-  margin-bottom: 12px;\r
-}\r
-\r
-.xray-page-head h3 {\r
-  margin: 0 0 3px;\r
-}\r
-\r
-.xray-page-head p {\r
-  margin: 0;\r
-  color: var(--xray-hint);\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-split {\r
-  min-height: 0;\r
-  flex: 1;\r
-  display: grid;\r
-  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);\r
-}\r
-\r
-.xray-list-panel {\r
-  min-height: 0;\r
-  display: flex;\r
-  flex-direction: column;\r
-  border-right: 1px solid rgba(108, 112, 134, .35);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-list-panel > .xray-virtual-list {\r
-  flex: 1;\r
-  min-height: 0;\r
-  height: auto;\r
-}\r
-\r
-.xray-list-controls {\r
-  display: grid;\r
-  gap: 8px;\r
-  padding: 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background:\r
-    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),\r
-    var(--xray-surface);\r
-}\r
-\r
-.xray-api-summary {\r
-  display: grid;\r
-  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);\r
-  gap: 6px;\r
-  padding: 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-bg);\r
-}\r
-\r
-.xray-api-metric,\r
-.xray-api-top-endpoint {\r
-  min-width: 0;\r
-  min-height: 44px;\r
-  display: grid;\r
-  align-content: center;\r
-  gap: 2px;\r
-  padding: 7px 9px;\r
-  border: 1px solid rgba(108, 112, 134, .30);\r
-  border-radius: 8px;\r
-  background: rgba(24, 24, 37, .64);\r
-}\r
-\r
-.xray-api-top-endpoint {\r
-  min-height: 36px;\r
-}\r
-\r
-.xray-api-metric {\r
-  grid-template-columns: 18px minmax(0, 1fr);\r
-}\r
-\r
-.xray-api-metric svg {\r
-  grid-row: 1 / 3;\r
-  align-self: center;\r
-  color: var(--xray-blue);\r
-}\r
-\r
-.xray-api-metric span,\r
-.xray-api-top-endpoint span {\r
-  min-width: 0;\r
-  color: var(--xray-hint);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 9px;\r
-  font-weight: 900;\r
-  text-transform: uppercase;\r
-  letter-spacing: .07em;\r
-}\r
-\r
-.xray-api-metric strong,\r
-.xray-api-top-endpoint strong {\r
-  min-width: 0;\r
-  color: var(--xray-text);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 12px;\r
-}\r
-\r
-.xray-api-metric.ok strong,\r
-.xray-api-metric.ok svg {\r
-  color: var(--xray-green);\r
-}\r
-\r
-.xray-api-metric.warn strong,\r
-.xray-api-metric.warn svg {\r
-  color: var(--xray-yellow);\r
-}\r
-\r
-.xray-api-metric.error strong,\r
-.xray-api-metric.error svg {\r
-  color: var(--xray-red);\r
-}\r
-\r
-.xray-api-workspace {\r
-  min-height: 0;\r
-  flex: 1;\r
-  display: flex;\r
-  flex-direction: column;\r
-  overflow: hidden;\r
-  background:\r
-    linear-gradient(180deg, rgba(17, 17, 27, .24), transparent 180px),\r
-    var(--xray-bg);\r
-}\r
-\r
-.xray-api-body {\r
-  position: relative;\r
-  min-width: 0;\r
-  min-height: 0;\r
-  flex: 1;\r
-  display: grid;\r
-  grid-template-columns: minmax(360px, 440px) minmax(280px, .64fr) minmax(560px, 1.55fr);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-api-collection-pane,\r
-.xray-request-context-pane,\r
-.xray-api-detail-drawer {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  display: flex;\r
-  flex-direction: column;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-api-collection-pane {\r
-  border-right: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(17, 17, 27, .42);\r
-}\r
-\r
-.xray-api-collection-head {\r
-  display: grid;\r
-  grid-template-columns: minmax(0, 1fr) auto;\r
-  gap: 8px;\r
-  padding: 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .32);\r
-  background:\r
-    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),\r
-    rgba(24, 24, 37, .88);\r
-}\r
-\r
-.xray-api-collection-title {\r
-  min-width: 0;\r
-  display: grid;\r
-  gap: 2px;\r
-}\r
-\r
-.xray-api-collection-title span,\r
-.xray-pane-kicker,\r
-.xray-api-summary-pill span {\r
-  color: var(--xray-hint);\r
-  font-size: 9px;\r
-  font-weight: 900;\r
-  letter-spacing: .08em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-api-collection-title strong {\r
-  min-width: 0;\r
-  overflow: hidden;\r
-  color: var(--xray-text);\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 14px;\r
-}\r
-\r
-.xray-api-env-pill {\r
-  height: 28px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 6px;\r
-  padding: 0 9px;\r
-  border: 1px solid rgba(148, 226, 213, .30);\r
-  border-radius: 7px;\r
-  color: var(--xray-teal);\r
-  background: rgba(148, 226, 213, .08);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-}\r
-\r
-.xray-api-summary-strip {\r
-  grid-column: 1 / -1;\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: repeat(4, minmax(0, 1fr));\r
-  gap: 6px;\r
-}\r
-\r
-.xray-api-summary-pill {\r
-  min-width: 0;\r
-  height: 38px;\r
-  display: grid;\r
-  grid-template-columns: 16px minmax(0, 1fr);\r
-  align-content: center;\r
-  align-items: center;\r
-  gap: 1px 6px;\r
-  padding: 5px 7px;\r
-  border: 1px solid rgba(108, 112, 134, .30);\r
-  border-radius: 7px;\r
-  background: rgba(30, 30, 46, .66);\r
-}\r
-\r
-.xray-api-summary-pill svg {\r
-  grid-row: 1 / 3;\r
-  color: var(--xray-blue);\r
-}\r
-\r
-.xray-api-summary-pill strong {\r
-  min-width: 0;\r
-  overflow: hidden;\r
-  color: var(--xray-text);\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-api-summary-pill.ok svg,\r
-.xray-api-summary-pill.ok strong {\r
-  color: var(--xray-green);\r
-}\r
-\r
-.xray-api-summary-pill.warn svg,\r
-.xray-api-summary-pill.warn strong {\r
-  color: var(--xray-yellow);\r
-}\r
-\r
-.xray-api-summary-pill.error svg,\r
-.xray-api-summary-pill.error strong {\r
-  color: var(--xray-red);\r
-}\r
-\r
-.xray-api-main {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  flex: 1 1 auto;\r
-  display: flex;\r
-  flex-direction: column;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-api-toolbar {\r
-  display: grid;\r
-  grid-template-columns: 1fr;\r
-  gap: 8px;\r
-  padding: 8px 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(24, 24, 37, .72);\r
-}\r
-\r
-.xray-api-search {\r
-  min-width: 0;\r
-  height: 36px;\r
-  align-self: start;\r
-}\r
-\r
-.xray-api-search .xray-input {\r
-  height: 36px;\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-api-primary-filters {\r
-  justify-content: flex-start;\r
-  min-width: 0;\r
-  flex-wrap: wrap;\r
-  overflow: visible;\r
-}\r
-\r
-.xray-api-secondary-controls {\r
-  display: grid;\r
-  gap: 8px;\r
-  min-width: 0;\r
-}\r
-\r
-.xray-filter-label {\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 5px;\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-api-table-head,\r
-.xray-api-row {\r
-  display: grid;\r
-  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;\r
-  align-items: center;\r
-  gap: 7px;\r
-}\r
-\r
-.xray-api-table-head {\r
-  position: sticky;\r
-  top: 0;\r
-  z-index: 2;\r
-  height: 30px;\r
-  padding: 0 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  color: var(--xray-hint);\r
-  background: rgba(24, 24, 37, .96);\r
-  font: 900 10px/1 var(--xray-font);\r
-  text-transform: uppercase;\r
-  letter-spacing: .08em;\r
-}\r
-\r
-.xray-api-table-scroll {\r
-  position: relative;\r
-  flex: 1;\r
-  min-height: 0;\r
-  overflow: auto;\r
-  scrollbar-width: thin;\r
-}\r
-\r
-.xray-api-row {\r
-  width: 100%;\r
-  min-height: 68px;\r
-  padding: 9px 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .18);\r
-  color: var(--xray-text);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  text-align: left;\r
-  font: 800 11px/1.28 var(--xray-font);\r
-  outline: none;\r
-  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;\r
-}\r
-\r
-.xray-api-row:hover,\r
-.xray-api-row:focus-visible {\r
-  background: rgba(205, 214, 244, .055);\r
-}\r
-\r
-.xray-api-row.selected {\r
-  background:\r
-    linear-gradient(90deg, rgba(137, 180, 250, .27), rgba(137, 180, 250, .08)),\r
-    rgba(49, 50, 68, .42);\r
-  box-shadow:\r
-    inset 4px 0 0 var(--xray-blue),\r
-    inset 0 0 0 1px rgba(137, 180, 250, .30),\r
-    0 8px 22px rgba(0, 0, 0, .14);\r
-}\r
-\r
-.xray-api-row.has-error {\r
-  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);\r
-}\r
-\r
-.xray-api-row.has-slow:not(.has-error) {\r
-  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);\r
-}\r
-\r
-.xray-api-row.selected.has-error,\r
-.xray-api-row.selected.has-slow {\r
-  box-shadow:\r
-    inset 4px 0 0 var(--xray-blue),\r
-    inset 0 0 0 1px rgba(137, 180, 250, .30),\r
-    0 8px 22px rgba(0, 0, 0, .14);\r
-}\r
-\r
-.xray-api-row.group {\r
-  background: rgba(24, 24, 37, .55);\r
-}\r
-\r
-.xray-api-row.child {\r
-  padding-left: 24px;\r
-  background: rgba(24, 24, 37, .46);\r
-}\r
-\r
-.xray-api-row.pinned {\r
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);\r
-}\r
-\r
-.xray-api-path-cell {\r
-  min-width: 0;\r
-  display: grid;\r
-  gap: 4px;\r
-}\r
-\r
-.xray-api-flags {\r
-  min-width: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  flex-wrap: wrap;\r
-  gap: 4px;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-api-flags.muted {\r
-  display: none;\r
-}\r
-\r
-.xray-api-flag {\r
-  min-width: 0;\r
-  max-width: 78px;\r
-  padding: 3px 6px;\r
-  border: 1px solid rgba(108, 112, 134, .36);\r
-  border-radius: 999px;\r
-  color: var(--xray-subtext);\r
-  background: rgba(24, 24, 37, .72);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 9px;\r
-  font-weight: 900;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-method.post {\r
-  color: var(--xray-teal);\r
-}\r
-\r
-.xray-method.patch {\r
-  color: var(--xray-peach);\r
-}\r
-\r
-.xray-method.put {\r
-  color: var(--xray-yellow);\r
-}\r
-\r
-.xray-api-flag.error {\r
-  color: var(--xray-red);\r
-  border-color: rgba(243, 139, 168, .38);\r
-  background: rgba(243, 139, 168, .10);\r
-}\r
-\r
-.xray-api-flag.slow,\r
-.xray-api-flag.repeated,\r
-.xray-api-flag.large {\r
-  color: var(--xray-yellow);\r
-  border-color: rgba(249, 226, 175, .34);\r
-  background: rgba(249, 226, 175, .10);\r
-}\r
-\r
-.xray-api-flag.empty {\r
-  color: var(--xray-peach);\r
-  border-color: rgba(250, 179, 135, .34);\r
-  background: rgba(250, 179, 135, .10);\r
-}\r
-\r
-.xray-api-flag.pinned {\r
-  color: var(--xray-mauve);\r
-  border-color: rgba(203, 166, 247, .36);\r
-  background: rgba(203, 166, 247, .10);\r
-}\r
-\r
-.xray-api-row-actions {\r
-  min-width: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  justify-content: flex-end;\r
-  gap: 4px;\r
-  opacity: .62;\r
-  transition: opacity .15s ease;\r
-}\r
-\r
-.xray-api-row:hover .xray-api-row-actions,\r
-.xray-api-row:focus-visible .xray-api-row-actions,\r
-.xray-api-row.selected .xray-api-row-actions {\r
-  opacity: 1;\r
-}\r
-\r
-.xray-icon-btn {\r
-  width: 28px;\r
-  height: 26px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  border: 1px solid rgba(108, 112, 134, .36);\r
-  border-radius: 7px;\r
-  color: var(--xray-subtext);\r
-  background: rgba(24, 24, 37, .72);\r
-  cursor: pointer;\r
-}\r
-\r
-.xray-icon-btn:hover,\r
-.xray-icon-btn:focus-visible,\r
-.xray-icon-btn.active {\r
-  color: var(--xray-blue);\r
-  border-color: rgba(137, 180, 250, .42);\r
-  background: rgba(137, 180, 250, .12);\r
-}\r
-\r
-.xray-request-context-pane {\r
-  border-right: 1px solid rgba(108, 112, 134, .35);\r
-  background:\r
-    linear-gradient(180deg, rgba(49, 50, 68, .30), transparent 160px),\r
-    rgba(24, 24, 37, .78);\r
-}\r
-\r
-.xray-request-context-pane.empty {\r
-  justify-content: center;\r
-}\r
-\r
-.xray-request-context-head {\r
-  flex-shrink: 0;\r
-  display: grid;\r
-  gap: 10px;\r
-  padding: 12px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-}\r
-\r
-.xray-request-line {\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: auto minmax(0, 1fr);\r
-  align-items: center;\r
-  gap: 8px;\r
-}\r
-\r
-.xray-request-line code {\r
-  min-width: 0;\r
-  height: 32px;\r
-  display: flex;\r
-  align-items: center;\r
-  overflow: hidden;\r
-  padding: 0 10px;\r
-  border: 1px solid rgba(108, 112, 134, .44);\r
-  border-radius: 7px;\r
-  color: var(--xray-text);\r
-  background: rgba(30, 30, 46, .76);\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font: 800 11px/1 var(--xray-font);\r
-}\r
-\r
-.xray-request-meta-grid {\r
-  display: grid;\r
-  grid-template-columns: repeat(2, minmax(0, 1fr));\r
-  gap: 6px;\r
-}\r
-\r
-.xray-request-meta-grid span {\r
-  min-width: 0;\r
-  display: grid;\r
-  gap: 2px;\r
-  padding: 7px 8px;\r
-  border: 1px solid rgba(108, 112, 134, .28);\r
-  border-radius: 7px;\r
-  color: var(--xray-subtext);\r
-  background: rgba(30, 30, 46, .48);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-request-meta-grid strong {\r
-  color: var(--xray-hint);\r
-  font-size: 9px;\r
-  text-transform: uppercase;\r
-  letter-spacing: .07em;\r
-}\r
-\r
-.xray-request-context-content {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  flex: 1;\r
-  overflow: auto;\r
-  padding: 12px;\r
-  background: rgba(30, 30, 46, .45);\r
-}\r
-\r
-.xray-request-context-content .xray-json-editor {\r
-  min-width: 0;\r
-}\r
-\r
-.xray-request-context-content .xray-json-line-text {\r
-  overflow-wrap: anywhere;\r
-}\r
-\r
-.xray-request-context-footer {\r
-  flex-shrink: 0;\r
-  min-width: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  padding: 8px 12px;\r
-  border-top: 1px solid rgba(108, 112, 134, .30);\r
-  color: var(--xray-hint);\r
-  background: rgba(17, 17, 27, .35);\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-request-context-footer span {\r
-  min-width: 0;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-request-tabs {\r
-  flex-shrink: 0;\r
-  padding: 0 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .30);\r
-  background: rgba(17, 17, 27, .30);\r
-}\r
-\r
-.xray-api-detail-drawer {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  display: flex;\r
-  flex-direction: column;\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-api-drawer-body {\r
-  min-height: 0;\r
-  flex: 1;\r
-  overflow: hidden;\r
-  padding: 0;\r
-}\r
-\r
-.xray-entry-row {\r
-  width: 100%;\r
-  min-height: 58px;\r
-  display: grid;\r
-  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;\r
-  align-items: center;\r
-  gap: 7px;\r
-  padding: 8px 10px;\r
-  border: 0;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
-  color: var(--xray-text);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  text-align: left;\r
-  font: 800 11px/1.35 var(--xray-font);\r
-}\r
-\r
-.xray-entry-row:hover {\r
-  background: rgba(205, 214, 244, .05);\r
-}\r
-\r
-.xray-entry-row.selected {\r
-  background: rgba(137, 180, 250, .16);\r
-  box-shadow: inset 3px 0 0 var(--xray-blue);\r
-}\r
-\r
-.xray-entry-row.child {\r
-  padding-left: 24px;\r
-  background: rgba(24, 24, 37, .45);\r
-}\r
-\r
-.xray-entry-row.pinned {\r
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);\r
-}\r
-\r
-.xray-status-dot {\r
-  width: 7px;\r
-  height: 7px;\r
-  border-radius: 999px;\r
-  background: var(--xray-hint);\r
-}\r
-\r
-.xray-status-dot.ok {\r
-  background: var(--xray-green);\r
-  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);\r
-}\r
-\r
-.xray-status-dot.warn {\r
-  background: var(--xray-yellow);\r
-  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);\r
-}\r
-\r
-.xray-status-dot.error {\r
-  background: var(--xray-red);\r
-  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);\r
-}\r
-\r
-.xray-entry-main {\r
-  min-width: 0;\r
-  display: grid;\r
-  gap: 2px;\r
-}\r
-\r
-.xray-entry-meta {\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 700;\r
-}\r
-\r
-.xray-entry-duration {\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: minmax(24px, 1fr) auto;\r
-  align-items: center;\r
-  gap: 6px;\r
-  color: var(--xray-subtext);\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-count-pill,\r
-.xray-pin {\r
-  height: 24px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  padding: 0 8px;\r
-  border: 1px solid rgba(108, 112, 134, .40);\r
-  border-radius: 999px;\r
-  color: var(--xray-subtext);\r
-  background: rgba(24, 24, 37, .74);\r
-  font-size: 10px;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-pin {\r
-  width: 26px;\r
-  padding: 0;\r
-  color: var(--xray-hint);\r
-}\r
-\r
-.xray-pin.active {\r
-  color: var(--xray-yellow);\r
-  border-color: rgba(249, 226, 175, .34);\r
-  background: rgba(249, 226, 175, .10);\r
-}\r
-\r
-.xray-detail-panel {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  overflow: auto;\r
-  padding: 12px;\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-mobile-detail-panel {\r
-  display: none;\r
-}\r
-\r
-.xray-request-detail {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  height: 100%;\r
-  display: flex;\r
-  flex-direction: column;\r
-  background:\r
-    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),\r
-    var(--xray-bg);\r
-}\r
-\r
-.xray-detail-hero {\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  min-width: 0;\r
-  flex-shrink: 0;\r
-  margin: 0;\r
-  padding: 10px 12px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-response-heading {\r
-  flex: 1;\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: auto minmax(0, 1fr);\r
-  align-items: center;\r
-  gap: 8px;\r
-}\r
-\r
-.xray-response-heading h3 {\r
-  min-width: 0;\r
-  margin: 0;\r
-  overflow: hidden;\r
-  color: var(--xray-text);\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 12px;\r
-}\r
-\r
-.xray-response-chips {\r
-  min-width: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 6px;\r
-}\r
-\r
-.xray-response-chip {\r
-  height: 28px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  padding: 0 9px;\r
-  border: 1px solid rgba(108, 112, 134, .32);\r
-  border-radius: 7px;\r
-  color: var(--xray-subtext);\r
-  background: rgba(30, 30, 46, .68);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-response-chip.ok {\r
-  color: var(--xray-green);\r
-  border-color: rgba(166, 227, 161, .30);\r
-  background: rgba(166, 227, 161, .10);\r
-}\r
-\r
-.xray-response-chip.warn {\r
-  color: var(--xray-yellow);\r
-  border-color: rgba(249, 226, 175, .30);\r
-  background: rgba(249, 226, 175, .10);\r
-}\r
-\r
-.xray-response-chip.error {\r
-  color: var(--xray-red);\r
-  border-color: rgba(243, 139, 168, .30);\r
-  background: rgba(243, 139, 168, .10);\r
-}\r
-\r
-.xray-detail-nav {\r
-  flex-shrink: 0;\r
-  display: grid;\r
-  gap: 0;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(24, 24, 37, .92);\r
-}\r
-\r
-.xray-detail-tabs,\r
-.xray-detail-views {\r
-  min-width: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 4px;\r
-  overflow-x: auto;\r
-  scrollbar-width: none;\r
-}\r
-\r
-.xray-detail-tabs::-webkit-scrollbar,\r
-.xray-detail-views::-webkit-scrollbar {\r
-  display: none;\r
-}\r
-\r
-.xray-detail-tabs {\r
-  padding: 0 12px;\r
-}\r
-\r
-.xray-detail-tab {\r
-  height: 38px;\r
-  padding: 0 12px;\r
-  border: 0;\r
-  border-bottom: 2px solid transparent;\r
-  color: var(--xray-hint);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  font: 900 11px/1 var(--xray-font);\r
-  text-transform: capitalize;\r
-}\r
-\r
-.xray-detail-tab:hover,\r
-.xray-detail-tab.active {\r
-  color: var(--xray-text);\r
-  border-bottom-color: var(--xray-mauve);\r
-}\r
-\r
-.xray-detail-views {\r
-  padding: 7px 12px;\r
-  border-top: 1px solid rgba(108, 112, 134, .20);\r
-}\r
-\r
-.xray-detail-content {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  flex: 1;\r
-  overflow: auto;\r
-  padding: 12px;\r
-  background:\r
-    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),\r
-    rgba(30, 30, 46, .74);\r
-}\r
-\r
-.xray-detail-footer {\r
-  flex-shrink: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  padding: 9px 12px;\r
-  border-top: 1px solid rgba(108, 112, 134, .35);\r
-  background: var(--xray-surface);\r
-  overflow-x: auto;\r
-}\r
-\r
-.xray-smart-ops {\r
-  min-width: 0;\r
-}\r
-\r
-.xray-action-btn {\r
-  min-width: 0;\r
-  height: 34px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  gap: 6px;\r
-  padding: 0 12px;\r
-  border: 1px solid rgba(108, 112, 134, .42);\r
-  border-radius: 8px;\r
-  color: var(--xray-subtext);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  font: 900 11px/1 var(--xray-font);\r
-}\r
-\r
-.xray-action-btn:hover,\r
-.xray-action-btn:focus-visible {\r
-  color: var(--xray-text);\r
-  border-color: rgba(137, 180, 250, .44);\r
-  background: rgba(137, 180, 250, .10);\r
-}\r
-\r
-.xray-action-btn.primary {\r
-  color: var(--xray-accent, var(--xray-blue));\r
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);\r
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);\r
-}\r
-\r
-.xray-operation-groups {\r
-  flex-shrink: 0;\r
-  display: grid;\r
-  gap: 6px;\r
-  padding: 8px 12px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(17, 17, 27, .45);\r
-}\r
-\r
-.xray-operation-group {\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: 72px minmax(0, 1fr);\r
-  align-items: center;\r
-  gap: 6px;\r
-}\r
-\r
-.xray-operation-group > span {\r
-  color: var(--xray-hint);\r
-  font-size: 9px;\r
-  font-weight: 900;\r
-  text-transform: uppercase;\r
-  letter-spacing: .08em;\r
-}\r
-\r
-.xray-operation-bar {\r
-  display: flex;\r
-  align-items: center;\r
-  flex-wrap: wrap;\r
-  gap: 6px;\r
-  overflow: visible;\r
-}\r
-\r
-.xray-operation-bar .xray-chip {\r
-  min-width: 0;\r
-  height: 30px;\r
-  padding: 0 10px;\r
-  border-radius: 7px;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-operation-chip.view {\r
-  color: var(--xray-mauve);\r
-  border-color: rgba(203, 166, 247, .28);\r
-  background: rgba(203, 166, 247, .07);\r
-}\r
-\r
-.xray-operation-chip.console {\r
-  color: var(--xray-blue);\r
-  border-color: rgba(137, 180, 250, .30);\r
-  background: rgba(137, 180, 250, .08);\r
-}\r
-\r
-.xray-operation-chip.notebook {\r
-  color: var(--xray-teal);\r
-  border-color: rgba(148, 226, 213, .30);\r
-  background: rgba(148, 226, 213, .08);\r
-}\r
-\r
-.xray-operation-chip.copy {\r
-  color: var(--xray-subtext);\r
-}\r
-\r
-.xray-operation-chip.export {\r
-  color: var(--xray-peach);\r
-  border-color: rgba(250, 179, 135, .32);\r
-  background: rgba(250, 179, 135, .08);\r
-}\r
-\r
-.xray-api-drawer-body .xray-filter-chips {\r
-  flex-wrap: wrap;\r
-  overflow: visible;\r
-}\r
-\r
-.xray-card,\r
-.xray-modal {\r
-  border: 1px solid rgba(108, 112, 134, .35);\r
-  border-radius: 10px;\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-card {\r
-  padding: 12px;\r
-}\r
-\r
-.xray-card h3,\r
-.xray-detail-panel h3,\r
-.xray-page h3 {\r
-  margin: 0 0 10px;\r
-  color: var(--xray-text);\r
-  font-size: 13px;\r
-}\r
-\r
-.xray-json {\r
-  margin: 0;\r
-  color: var(--xray-text);\r
-  white-space: pre-wrap;\r
-  word-break: break-word;\r
-  font: 700 11px/1.6 var(--xray-font);\r
-}\r
-\r
-.xray-json-editor {\r
-  min-width: max-content;\r
-  padding: 10px 0;\r
-  border: 1px solid rgba(108, 112, 134, .22);\r
-  border-radius: 8px;\r
-  background:\r
-    linear-gradient(90deg, rgba(17, 17, 27, .84) 0 42px, rgba(24, 24, 37, .52) 42px),\r
-    rgba(17, 17, 27, .52);\r
-  box-shadow: inset 0 1px 0 rgba(205, 214, 244, .04);\r
-}\r
-\r
-.xray-json-line {\r
-  display: grid;\r
-  grid-template-columns: 42px minmax(0, 1fr);\r
-  min-height: 18px;\r
-}\r
-\r
-.xray-json-line:hover {\r
-  background: rgba(137, 180, 250, .06);\r
-}\r
-\r
-.xray-json-line-no {\r
-  padding: 0 10px 0 0;\r
-  color: var(--xray-hint);\r
-  text-align: right;\r
-  user-select: none;\r
-  border-right: 1px solid rgba(108, 112, 134, .20);\r
-}\r
-\r
-.xray-json-line-text {\r
-  min-width: 0;\r
-  padding: 0 12px;\r
-  white-space: pre-wrap;\r
-  word-break: break-word;\r
-}\r
-\r
-.xray-json-key {\r
-  color: var(--xray-mauve);\r
-}\r
-\r
-.xray-json-string {\r
-  color: var(--xray-green);\r
-}\r
-\r
-.xray-json-number {\r
-  color: var(--xray-teal);\r
-}\r
-\r
-.xray-json-bool {\r
-  color: var(--xray-peach);\r
-}\r
-\r
-.xray-json-null {\r
-  color: var(--xray-hint);\r
-}\r
-\r
-.xray-json-punct {\r
-  color: var(--xray-subtext);\r
-}\r
-\r
-.xray-table {\r
-  width: 100%;\r
-  border-collapse: collapse;\r
-  font: 700 11px/1.4 var(--xray-font);\r
-}\r
-\r
-.xray-table th,\r
-.xray-table td {\r
-  padding: 6px 8px;\r
-  border: 1px solid rgba(108, 112, 134, .28);\r
-  text-align: left;\r
-  vertical-align: top;\r
-}\r
-\r
-.xray-table th {\r
-  color: var(--xray-mauve);\r
-  background: var(--xray-bg);\r
-}\r
-\r
-.xray-modal-backdrop {\r
-  position: fixed;\r
-  inset: 0;\r
-  display: flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  padding: 20px;\r
-  background: rgba(17, 17, 27, .72);\r
-  z-index: 2147483647;\r
-}\r
-\r
-.xray-modal {\r
-  width: min(820px, 92vw);\r
-  max-height: 82vh;\r
-  display: flex;\r
-  flex-direction: column;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-modal h3 {\r
-  margin: 0;\r
-  color: var(--xray-text);\r
-  font-size: 13px;\r
-}\r
-\r
-.xray-modal-title-icon {\r
-  width: 30px;\r
-  height: 30px;\r
-  display: inline-flex;\r
-  align-items: center;\r
-  justify-content: center;\r
-  color: var(--xray-accent, var(--xray-blue));\r
-  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);\r
-  border-radius: 7px;\r
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);\r
-}\r
-\r
-.xray-export-modal {\r
-  width: min(980px, 94vw);\r
-}\r
-\r
-.xray-modal-head,\r
-.xray-modal-foot {\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  padding: 12px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-}\r
-\r
-.xray-modal-foot {\r
-  border-top: 1px solid rgba(108, 112, 134, .35);\r
-  border-bottom: 0;\r
-}\r
-\r
-.xray-modal-body {\r
-  min-height: 0;\r
-  overflow: auto;\r
-  padding: 12px;\r
-}\r
-\r
-.xray-modal-subtitle,\r
-.xray-export-subtitle {\r
-  max-width: 520px;\r
-  margin-top: 2px;\r
-  color: var(--xray-hint);\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  font-size: 10px;\r
-  font-weight: 800;\r
-}\r
-\r
-.xray-modal-version {\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 800;\r
-}\r
-\r
-.xray-export-body {\r
-  min-height: 0;\r
-  flex: 1;\r
-  display: grid;\r
-  grid-template-columns: 220px minmax(0, 1fr);\r
-}\r
-\r
-.xray-export-rail {\r
-  min-height: 0;\r
-  overflow: auto;\r
-  padding: 10px;\r
-  border-right: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(24, 24, 37, .55);\r
-}\r
-\r
-.xray-export-mode {\r
-  display: grid;\r
-  grid-template-columns: 1fr 1fr;\r
-  gap: 6px;\r
-  margin-bottom: 12px;\r
-}\r
-\r
-.xray-export-group {\r
-  margin-bottom: 12px;\r
-}\r
-\r
-.xray-export-group-label {\r
-  margin: 0 0 6px;\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  letter-spacing: .08em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-export-format {\r
-  width: 100%;\r
-  min-height: 38px;\r
-  display: grid;\r
-  grid-template-columns: minmax(0, 1fr) auto;\r
-  align-items: center;\r
-  gap: 8px;\r
-  margin-bottom: 4px;\r
-  border: 1px solid transparent;\r
-  border-radius: 8px;\r
-  padding: 0 10px;\r
-  color: var(--xray-subtext);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  font: 800 11px/1.2 var(--xray-font);\r
-  text-align: left;\r
-}\r
-\r
-.xray-export-format:hover {\r
-  color: var(--xray-text);\r
-  background: rgba(205, 214, 244, .06);\r
-}\r
-\r
-.xray-export-format.active {\r
-  color: var(--xray-text);\r
-  border-color: rgba(137, 180, 250, .55);\r
-  background: rgba(137, 180, 250, .13);\r
-}\r
-\r
-.xray-export-format:disabled {\r
-  opacity: .42;\r
-  cursor: not-allowed;\r
-}\r
-\r
-.xray-export-format small {\r
-  color: var(--xray-hint);\r
-  font-size: 9px;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-export-preview {\r
-  min-width: 0;\r
-  min-height: 0;\r
-  display: flex;\r
-  flex-direction: column;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-export-preview-head {\r
-  display: flex;\r
-  gap: 10px;\r
-  align-items: flex-start;\r
-  padding: 12px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-}\r
-\r
-.xray-export-preview-head h3 {\r
-  margin: 0;\r
-  color: var(--xray-text);\r
-  font-size: 13px;\r
-}\r
-\r
-.xray-export-preview-head p {\r
-  margin: 3px 0 0;\r
-  color: var(--xray-hint);\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-export-code {\r
-  flex: 1;\r
-  min-height: 0;\r
-  overflow: auto;\r
-  padding: 12px;\r
-  background: rgba(17, 17, 27, .54);\r
-}\r
-\r
-.xray-notebook-cell {\r
-  margin-bottom: 10px;\r
-}\r
-\r
-.xray-notebook-title {\r
-  margin-bottom: 5px;\r
-  color: var(--xray-subtext);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  text-transform: uppercase;\r
-  letter-spacing: .08em;\r
-}\r
-\r
-.xray-textarea {\r
-  width: 100%;\r
-  min-height: 96px;\r
-  resize: vertical;\r
-  border: 1px solid rgba(108, 112, 134, .5);\r
-  border-radius: 8px;\r
-  padding: 10px;\r
-  color: var(--xray-text);\r
-  background: var(--xray-surface);\r
-  font: 800 12px/1.45 var(--xray-font);\r
-}\r
-\r
-.xray-notebook-page {\r
-  display: flex;\r
-  flex-direction: column;\r
-}\r
-\r
-.xray-notebook-grid {\r
-  display: grid;\r
-  gap: 10px;\r
-}\r
-\r
-.xray-notebook-cell {\r
-  border: 1px solid rgba(108, 112, 134, .35);\r
-  border-radius: 10px;\r
-  padding: 10px;\r
-  background: var(--xray-surface);\r
-}\r
-\r
-.xray-notebook-cell-head {\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 8px;\r
-  margin-bottom: 8px;\r
-}\r
-\r
-.xray-toast {\r
-  position: absolute;\r
-  right: 14px;\r
-  bottom: 38px;\r
-  max-width: min(420px, calc(100% - 28px));\r
-  min-height: 34px;\r
-  padding: 0 12px;\r
-  border: 1px solid rgba(148, 226, 213, .42);\r
-  border-radius: 8px;\r
-  color: var(--xray-text);\r
-  background: rgba(24, 24, 37, .94);\r
-  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);\r
-  font: 800 11px/1.35 var(--xray-font);\r
-  cursor: pointer;\r
-}\r
-\r
-.xray-notebook-output {\r
-  max-height: 260px;\r
-  overflow: auto;\r
-  margin-top: 8px;\r
-  padding: 10px;\r
-  border: 1px solid rgba(108, 112, 134, .30);\r
-  border-radius: 8px;\r
-  background: rgba(17, 17, 27, .48);\r
-}\r
-\r
-.xray-notebook-output.error {\r
-  border-color: rgba(243, 139, 168, .38);\r
-}\r
-\r
-.xray-insight-grid {\r
-  display: grid;\r
-  grid-template-columns: repeat(5, minmax(0, 1fr));\r
-  gap: 8px;\r
-  margin-bottom: 12px;\r
-}\r
-\r
-.xray-insight-columns,\r
-.xray-settings-grid {\r
-  display: grid;\r
-  grid-template-columns: repeat(3, minmax(0, 1fr));\r
-  gap: 12px;\r
-}\r
-\r
-.xray-insight-row {\r
-  width: 100%;\r
-  min-height: 34px;\r
-  display: grid;\r
-  grid-template-columns: auto minmax(0, 1fr) auto;\r
-  align-items: center;\r
-  gap: 8px;\r
-  border: 0;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
-  padding: 7px 0;\r
-  color: var(--xray-text);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  text-align: left;\r
-  font: 800 11px/1.35 var(--xray-font);\r
-}\r
-\r
-.xray-insight-row:hover {\r
-  color: var(--xray-blue);\r
-}\r
-\r
-.xray-insight-row span {\r
-  min-width: 0;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-}\r
-\r
-.xray-status-mix-row {\r
-  display: grid;\r
-  grid-template-columns: 42px minmax(0, 1fr) 28px;\r
-  align-items: center;\r
-  gap: 8px;\r
-  min-height: 30px;\r
-  color: var(--xray-subtext);\r
-  font: 800 11px/1.35 var(--xray-font);\r
-}\r
-\r
-.xray-settings-actions {\r
-  display: flex;\r
-  flex-wrap: wrap;\r
-  gap: 8px;\r
-}\r
-\r
-.xray-settings-modal {\r
-  width: min(620px, 94vw);\r
-}\r
-\r
-.xray-settings-modal-body {\r
-  min-height: 400px;\r
-  display: grid;\r
-  grid-template-columns: 160px minmax(0, 1fr);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-settings-nav {\r
-  padding: 8px 0;\r
-  border-right: 1px solid rgba(108, 112, 134, .35);\r
-  background: rgba(24, 24, 37, .72);\r
-}\r
-\r
-.xray-settings-nav-item {\r
-  width: 100%;\r
-  min-height: 34px;\r
-  display: flex;\r
-  align-items: center;\r
-  gap: 9px;\r
-  border: 0;\r
-  border-left: 2px solid transparent;\r
-  padding: 0 14px;\r
-  color: var(--xray-hint);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  text-align: left;\r
-  font: 800 11px/1 var(--xray-font);\r
-}\r
-\r
-.xray-settings-nav-item:hover {\r
-  color: var(--xray-subtext);\r
-  background: rgba(49, 50, 68, .55);\r
-}\r
-\r
-.xray-settings-nav-item.active {\r
-  color: var(--xray-text);\r
-  border-left-color: var(--xray-accent, var(--xray-mauve));\r
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);\r
-}\r
-\r
-.xray-settings-content {\r
-  min-height: 0;\r
-  overflow: auto;\r
-  padding: 16px;\r
-}\r
-\r
-.xray-settings-section-title {\r
-  margin: 0 0 10px;\r
-  padding-bottom: 6px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  letter-spacing: .10em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-settings-row {\r
-  min-height: 44px;\r
-  display: flex;\r
-  align-items: center;\r
-  justify-content: space-between;\r
-  gap: 14px;\r
-  padding: 8px 0;\r
-  border-bottom: 1px solid rgba(69, 71, 90, .25);\r
-  color: var(--xray-text);\r
-  font: 800 11px/1.35 var(--xray-font);\r
-}\r
-\r
-.xray-settings-row.read-only {\r
-  align-items: flex-start;\r
-}\r
-\r
-.xray-settings-row strong,\r
-.xray-settings-row small {\r
-  display: block;\r
-}\r
-\r
-.xray-settings-row small {\r
-  margin-top: 2px;\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-  font-weight: 800;\r
-}\r
-\r
-.xray-toggle {\r
-  width: 36px;\r
-  height: 20px;\r
-  flex: 0 0 auto;\r
-  position: relative;\r
-  border: 0;\r
-  border-radius: 999px;\r
-  background: var(--xray-surface2);\r
-  cursor: pointer;\r
-}\r
-\r
-.xray-toggle::after {\r
-  content: "";\r
-  position: absolute;\r
-  top: 3px;\r
-  left: 3px;\r
-  width: 14px;\r
-  height: 14px;\r
-  border-radius: 999px;\r
-  background: var(--xray-hint);\r
-  transition: transform .15s ease, background .15s ease;\r
-}\r
-\r
-.xray-toggle.on {\r
-  background: var(--xray-accent, var(--xray-blue));\r
-}\r
-\r
-.xray-toggle.on::after {\r
-  transform: translateX(16px);\r
-  background: #fff;\r
-}\r
-\r
-.xray-number-input {\r
-  display: inline-flex;\r
-  align-items: center;\r
-  gap: 6px;\r
-}\r
-\r
-.xray-number-input input,\r
-.xray-select {\r
-  height: 30px;\r
-  border: 1px solid rgba(108, 112, 134, .45);\r
-  border-radius: 6px;\r
-  color: var(--xray-text);\r
-  background: var(--xray-surface2);\r
-  font: 800 11px/1 var(--xray-font);\r
-}\r
-\r
-.xray-number-input input {\r
-  width: 76px;\r
-  padding: 0 8px;\r
-  text-align: right;\r
-}\r
-\r
-.xray-select {\r
-  min-width: 118px;\r
-  padding: 0 8px;\r
-}\r
-\r
-.xray-color-row {\r
-  display: flex;\r
-  flex-wrap: wrap;\r
-  justify-content: flex-end;\r
-  gap: 6px;\r
-}\r
-\r
-.xray-color-swatch {\r
-  width: 23px;\r
-  height: 23px;\r
-  border: 2px solid transparent;\r
-  border-radius: 5px;\r
-  cursor: pointer;\r
-}\r
-\r
-.xray-color-swatch.active {\r
-  border-color: var(--xray-text);\r
-}\r
-\r
-.xray-settings-danger {\r
-  margin-top: 18px;\r
-  padding: 12px;\r
-  border: 1px solid rgba(243, 139, 168, .22);\r
-  border-radius: 8px;\r
-  background: rgba(243, 139, 168, .04);\r
-}\r
-\r
-.xray-danger-title {\r
-  margin-bottom: 8px;\r
-  color: var(--xray-red);\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  letter-spacing: .10em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-danger-row {\r
-  width: 100%;\r
-  min-height: 32px;\r
-  display: flex;\r
-  align-items: center;\r
-  justify-content: space-between;\r
-  border: 0;\r
-  border-radius: 6px;\r
-  padding: 0 8px;\r
-  color: var(--xray-red);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  font: 800 11px/1 var(--xray-font);\r
-}\r
-\r
-.xray-danger-row:hover {\r
-  background: rgba(243, 139, 168, .08);\r
-}\r
-\r
-.xray-confirm-modal {\r
-  width: min(460px, 92vw);\r
-}\r
-\r
-.xray-confirm-message {\r
-  margin: 0;\r
-  color: var(--xray-subtext);\r
-  font: 800 12px/1.55 var(--xray-font);\r
-}\r
-\r
-.xray-compact-rows .xray-api-row {\r
-  min-height: 42px;\r
-}\r
-\r
-.xray-compact-rows .xray-api-row .xray-entry-meta,\r
-.xray-compact-rows .xray-api-row .xray-api-flags {\r
-  display: none;\r
-}\r
-\r
-.xray-command-modal {\r
-  width: min(680px, 92vw);\r
-}\r
-\r
-.xray-command-search {\r
-  display: block;\r
-  padding: 10px;\r
-  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-}\r
-\r
-.xray-command-list {\r
-  display: grid;\r
-  gap: 4px;\r
-}\r
-\r
-.xray-command-row {\r
-  width: 100%;\r
-  min-height: 40px;\r
-  display: grid;\r
-  grid-template-columns: 22px minmax(0, 1fr) auto;\r
-  align-items: center;\r
-  gap: 8px;\r
-  border: 1px solid transparent;\r
-  border-radius: 8px;\r
-  padding: 0 10px;\r
-  color: var(--xray-text);\r
-  background: transparent;\r
-  cursor: pointer;\r
-  text-align: left;\r
-  font: 800 12px/1.25 var(--xray-font);\r
-}\r
-\r
-.xray-command-row:hover {\r
-  border-color: rgba(137, 180, 250, .42);\r
-  background: rgba(137, 180, 250, .10);\r
-}\r
-\r
-.xray-command-row small {\r
-  color: var(--xray-hint);\r
-  font-size: 10px;\r
-}\r
-\r
-@media (max-width: 1700px) {\r
-  .xray-api-body {\r
-    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);\r
-  }\r
-\r
-  .xray-request-context-pane {\r
-    display: none;\r
-  }\r
-\r
-  .xray-api-summary-strip {\r
-    grid-template-columns: repeat(2, minmax(0, 1fr));\r
-  }\r
-}\r
-\r
-@media (max-width: 760px) {\r
-  .xray-panel {\r
-    width: 100vw;\r
-  }\r
-\r
-  .xray-topbar {\r
-    gap: 6px;\r
-    padding: 0 8px;\r
-    overflow: hidden;\r
-  }\r
-\r
-  .xray-brand {\r
-    min-width: 112px;\r
-  }\r
-\r
-  .xray-tabs {\r
-    min-width: 0;\r
-    flex: 1;\r
-    overflow-x: auto;\r
-    scrollbar-width: none;\r
-  }\r
-\r
-  .xray-tabs::-webkit-scrollbar,\r
-  .xray-console-head::-webkit-scrollbar,\r
-  .xray-filter-chips::-webkit-scrollbar {\r
-    display: none;\r
-  }\r
-\r
-  .xray-tab {\r
-    flex: 0 0 auto;\r
-    padding: 0 10px;\r
-  }\r
-\r
-  .xray-console-head {\r
-    overflow-x: auto;\r
-  }\r
-\r
-  .xray-console-tabs,\r
-  .xray-toolbar {\r
-    flex: 0 0 auto;\r
-  }\r
-\r
-  .xray-toolbar {\r
-    padding-right: 8px;\r
-  }\r
-\r
-  .xray-summary,\r
-  .xray-network-row > :nth-child(5),\r
-  .xray-network-row > :nth-child(6),\r
-  .xray-network-head > :nth-child(5),\r
-  .xray-network-head > :nth-child(6) {\r
-    display: none;\r
-  }\r
-\r
-  .xray-filterbar {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-filter-chips {\r
-    padding-bottom: 2px;\r
-  }\r
-\r
-  .xray-network-head,\r
-  .xray-network-row {\r
-    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;\r
-  }\r
-\r
-  .xray-split {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-detail-panel {\r
-    display: none;\r
-  }\r
-\r
-  .xray-api-workspace {\r
-    overflow: hidden;\r
-  }\r
-\r
-  .xray-api-body {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-api-toolbar {\r
-    grid-template-columns: 1fr;\r
-    padding: 8px;\r
-  }\r
-\r
-  .xray-api-collection-pane {\r
-    border-right: 0;\r
-  }\r
-\r
-  .xray-api-collection-head {\r
-    grid-template-columns: minmax(0, 1fr);\r
-  }\r
-\r
-  .xray-api-env-pill {\r
-    justify-self: start;\r
-  }\r
-\r
-  .xray-api-summary-strip {\r
-    display: flex;\r
-    overflow-x: auto;\r
-    scrollbar-width: none;\r
-  }\r
-\r
-  .xray-api-summary-strip::-webkit-scrollbar {\r
-    display: none;\r
-  }\r
-\r
-  .xray-api-summary-pill {\r
-    flex: 0 0 112px;\r
-  }\r
-\r
-  .xray-api-primary-filters,\r
-  .xray-api-secondary-controls,\r
-  .xray-api-secondary-controls .xray-filter-chips {\r
-    justify-content: flex-start;\r
-    overflow-x: auto;\r
-    scrollbar-width: none;\r
-  }\r
-\r
-  .xray-api-secondary-controls {\r
-    display: grid;\r
-    gap: 6px;\r
-  }\r
-\r
-  .xray-api-table-head,\r
-  .xray-api-row {\r
-    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;\r
-  }\r
-\r
-  .xray-api-table-head > :nth-child(4),\r
-  .xray-api-row > .xray-entry-duration {\r
-    display: none;\r
-  }\r
-\r
-  .xray-api-row-actions {\r
-    gap: 2px;\r
-  }\r
-\r
-  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {\r
-    display: none;\r
-  }\r
-\r
-  .xray-api-detail-drawer {\r
-    position: absolute;\r
-    top: auto;\r
-    left: 0;\r
-    right: 0;\r
-    bottom: 0;\r
-    width: 100%;\r
-    max-width: 100%;\r
-    min-width: 0;\r
-    height: min(68vh, 560px);\r
-    border-left: 0;\r
-    border-top: 1px solid rgba(137, 180, 250, .34);\r
-    border-radius: 14px 14px 0 0;\r
-    background: var(--xray-surface);\r
-    box-shadow: 0 -22px 44px rgba(17, 17, 27, .52);\r
-    z-index: 8;\r
-    overflow: hidden;\r
-  }\r
-\r
-  .xray-api-drawer-body,\r
-  .xray-request-detail,\r
-  .xray-detail-content {\r
-    max-width: 100%;\r
-    overflow-x: hidden;\r
-  }\r
-\r
-  .xray-detail-content .xray-json-editor {\r
-    min-width: 0;\r
-  }\r
-\r
-  .xray-json-line {\r
-    grid-template-columns: 34px minmax(0, 1fr);\r
-  }\r
-\r
-  .xray-json-line-no {\r
-    padding-right: 8px;\r
-  }\r
-\r
-  .xray-json-line-text {\r
-    padding: 0 9px;\r
-    overflow-wrap: anywhere;\r
-  }\r
-\r
-  .xray-detail-tabs,\r
-  .xray-detail-views,\r
-  .xray-operation-bar {\r
-    max-width: 100%;\r
-  }\r
-\r
-  .xray-detail-views {\r
-    display: grid;\r
-    grid-template-columns: repeat(2, minmax(0, 1fr));\r
-    overflow-x: visible;\r
-  }\r
-\r
-  .xray-detail-views .xray-chip {\r
-    min-width: 0;\r
-    justify-content: center;\r
-  }\r
-\r
-  .xray-operation-group {\r
-    grid-template-columns: 1fr;\r
-    align-items: start;\r
-  }\r
-\r
-  .xray-operation-bar {\r
-    display: grid;\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-operation-bar .xray-chip {\r
-    justify-content: center;\r
-  }\r
-\r
-  .xray-detail-footer {\r
-    display: grid;\r
-    grid-template-columns: 1fr;\r
-    overflow-x: visible;\r
-    align-items: stretch;\r
-  }\r
-\r
-  .xray-detail-footer .xray-action-btn {\r
-    min-width: 0;\r
-    overflow: hidden;\r
-  }\r
-\r
-  .xray-api-detail-drawer.empty {\r
-    display: none;\r
-  }\r
-\r
-  .xray-entry-row {\r
-    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;\r
-  }\r
-\r
-  .xray-list-panel > .xray-virtual-list {\r
-    min-height: 168px;\r
-  }\r
-\r
-  .xray-entry-duration {\r
-    display: none;\r
-  }\r
-\r
-  .xray-mobile-detail-panel {\r
-    display: block;\r
-    flex-shrink: 0;\r
-    max-height: 38vh;\r
-    overflow: auto;\r
-    border-top: 1px solid rgba(108, 112, 134, .35);\r
-    background: var(--xray-surface);\r
-  }\r
-\r
-  .xray-prompt {\r
-    grid-template-columns: 20px minmax(120px, 1fr) auto;\r
-    gap: 6px;\r
-    padding: 8px;\r
-  }\r
-\r
-  .xray-context-chip {\r
-    display: none;\r
-  }\r
-\r
-  .xray-export-modal {\r
-    width: 96vw;\r
-  }\r
-\r
-  .xray-settings-modal {\r
-    width: 96vw;\r
-    max-height: 88vh;\r
-  }\r
-\r
-  .xray-settings-modal-body {\r
-    grid-template-columns: 1fr;\r
-    min-height: 0;\r
-  }\r
-\r
-  .xray-settings-nav {\r
-    display: flex;\r
-    overflow-x: auto;\r
-    border-right: 0;\r
-    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-  }\r
-\r
-  .xray-settings-nav-item {\r
-    flex: 0 0 auto;\r
-    width: auto;\r
-    border-left: 0;\r
-    border-bottom: 2px solid transparent;\r
-  }\r
-\r
-  .xray-settings-nav-item.active {\r
-    border-bottom-color: var(--xray-accent, var(--xray-mauve));\r
-  }\r
-\r
-  .xray-export-body {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-export-rail {\r
-    display: flex;\r
-    gap: 8px;\r
-    border-right: 0;\r
-    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
-    overflow-x: auto;\r
-  }\r
-\r
-  .xray-export-group {\r
-    min-width: 170px;\r
-    margin-bottom: 0;\r
-  }\r
-\r
-  .xray-export-preview-head {\r
-    display: grid;\r
-  }\r
-\r
-  .xray-insight-grid,\r
-  .xray-insight-columns,\r
-  .xray-settings-grid {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-page-head {\r
-    display: grid;\r
-  }\r
-}\r
-\r
-@media (max-width: 420px) {\r
-  .xray-api-table-head,\r
-  .xray-api-row {\r
-    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;\r
-    gap: 5px;\r
-    padding-left: 8px;\r
-    padding-right: 8px;\r
-  }\r
-\r
-  .xray-api-table-head > :nth-child(4),\r
-  .xray-api-row > .xray-entry-duration {\r
-    display: none;\r
-  }\r
-\r
-  .xray-response-chips,\r
-  .xray-detail-footer {\r
-    flex-wrap: wrap;\r
-  }\r
-\r
-  .xray-detail-footer {\r
-    overflow-x: visible;\r
-    align-items: stretch;\r
-  }\r
-\r
-  .xray-detail-footer .xray-action-btn {\r
-    flex: 1 1 calc(50% - 8px);\r
-  }\r
-\r
-  .xray-detail-views {\r
-    flex-wrap: wrap;\r
-    overflow-x: visible;\r
-  }\r
-\r
-  .xray-detail-views .xray-chip {\r
-    flex: 1 1 auto;\r
-    justify-content: center;\r
-  }\r
-\r
-  .xray-operation-group {\r
-    grid-template-columns: 1fr;\r
-  }\r
-\r
-  .xray-api-row-actions .xray-icon-btn {\r
-    width: 25px;\r
-  }\r
-}\r
-\r
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
-   XRAY Operator UI override layer\r
-   Configurable developer cockpit skin applied across existing tabs.\r
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
-.xray-panel .xray-api-workspace,\r
-.xray-panel .xray-console-workspace,\r
-.xray-panel .xray-notebook,\r
-.xray-panel .xray-insights,\r
-.xray-panel .xray-settings-page,\r
-.xray-panel .xray-logs-workspace {\r
-  background:\r
-    linear-gradient(180deg, color-mix(in srgb, var(--xray-bg) 92%, var(--xray-accent) 8%), var(--xray-bg));\r
-}\r
-\r
-.xray-panel .xray-api-collection-pane,\r
-.xray-panel .xray-api-detail-pane,\r
-.xray-panel .xray-console-main,\r
-.xray-panel .xray-notebook-cell,\r
-.xray-panel .xray-card,\r
-.xray-panel .xray-settings-card,\r
-.xray-panel .xray-modal-card {\r
-  border-color: var(--xray-border, rgba(108,112,134,.35));\r
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);\r
-}\r
-\r
-.xray-panel .xray-api-row,\r
-.xray-panel .xray-entry-row,\r
-.xray-panel .xray-console-row,\r
-.xray-panel .xray-log-row {\r
-  min-height: var(--xray-row-h, 52px);\r
-  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));\r
-  transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;\r
-}\r
-\r
-.xray-panel .xray-api-row:hover,\r
-.xray-panel .xray-entry-row:hover,\r
-.xray-panel .xray-console-row:hover,\r
-.xray-panel .xray-log-row:hover {\r
-  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 9%, transparent), color-mix(in srgb, var(--xray-surface2) 72%, transparent));\r
-  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);\r
-}\r
-\r
-.xray-glow .xray-api-row.selected,\r
-.xray-glow .xray-entry-row.selected,\r
-.xray-glow .xray-console-row.selected,\r
-.xray-glow .xray-log-row.selected {\r
-  box-shadow: inset 3px 0 0 var(--xray-accent), 0 0 28px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
-}\r
-\r
-.xray-panel .xray-method,\r
-.xray-panel .xray-status,\r
-.xray-panel .xray-response-chip,\r
-.xray-panel .xray-chip,\r
-.xray-panel .xray-badge {\r
-  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);\r
-  font-weight: 900;\r
-  letter-spacing: .06em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-panel .xray-method.get { color: var(--xray-green); }\r
-.xray-panel .xray-method.post { color: var(--xray-blue); }\r
-.xray-panel .xray-method.put,\r
-.xray-panel .xray-method.patch { color: var(--xray-yellow); }\r
-.xray-panel .xray-method.delete { color: var(--xray-red); }\r
-\r
-.xray-panel .xray-input,\r
-.xray-panel .xray-select,\r
-.xray-panel textarea,\r
-.xray-panel input,\r
-.xray-panel select {\r
-  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);\r
-  border-color: var(--xray-border, rgba(108,112,134,.35));\r
-  color: var(--xray-text);\r
-  font-family: var(--xray-font);\r
-}\r
-\r
-.xray-panel .xray-input:focus,\r
-.xray-panel .xray-select:focus,\r
-.xray-panel textarea:focus,\r
-.xray-panel input:focus,\r
-.xray-panel select:focus {\r
-  outline: none;\r
-  border-color: var(--xray-accent);\r
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
-}\r
-\r
-.xray-panel .xray-json,\r
-.xray-panel .xray-json-editor,\r
-.xray-panel pre,\r
-.xray-panel code,\r
-.xray-panel kbd {\r
-  font-family: var(--xray-font);\r
-}\r
-\r
-.xray-panel .xray-json,\r
-.xray-panel .xray-json-editor {\r
-  background:\r
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),\r
-    color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  border-radius: 10px;\r
-}\r
-\r
-.xray-panel .xray-json-line-no {\r
-  color: color-mix(in srgb, var(--xray-hint) 82%, transparent);\r
-  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
-}\r
-\r
-.xray-panel .xray-json-key { color: var(--xray-blue); }\r
-.xray-panel .xray-json-string { color: var(--xray-green); }\r
-.xray-panel .xray-json-number { color: var(--xray-peach); }\r
-.xray-panel .xray-json-bool { color: var(--xray-mauve); }\r
-.xray-panel .xray-json-null { color: var(--xray-hint); }\r
-\r
-.xray-panel .xray-detail-hero,\r
-.xray-panel .xray-console-head,\r
-.xray-panel .xray-api-toolbar,\r
-.xray-panel .xray-api-command-bar,\r
-.xray-panel .xray-detail-nav {\r
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));\r
-  border-color: var(--xray-border, rgba(108,112,134,.35));\r
-}\r
-\r
-.xray-panel .xray-detail-tabs button,\r
-.xray-panel .xray-view-btn,\r
-.xray-panel .xray-operation-btn,\r
-.xray-panel .xray-action-btn,\r
-.xray-panel .xray-btn,\r
-.xray-panel .xray-icon-btn {\r
-  border-radius: 7px;\r
-}\r
-\r
-.xray-panel .xray-operation-btn,\r
-.xray-panel .xray-action-btn.primary,\r
-.xray-panel .xray-btn.primary {\r
-  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));\r
-  border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);\r
-}\r
-\r
-.xray-glow .xray-operation-btn:hover,\r
-.xray-glow .xray-action-btn.primary:hover,\r
-.xray-glow .xray-btn.primary:hover {\r
-  box-shadow: 0 0 24px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
-}\r
-\r
-.xray-panel .xray-settings-section-title,\r
-.xray-panel .xray-danger-title,\r
-.xray-panel h3,\r
-.xray-panel h4 {\r
-  text-transform: uppercase;\r
-  letter-spacing: .12em;\r
-  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);\r
-}\r
-\r
-.xray-panel.xray-density-compact .xray-api-row,\r
-.xray-panel.xray-density-compact .xray-console-row,\r
-.xray-panel.xray-density-compact .xray-settings-row {\r
-  font-size: 11px;\r
-}\r
-\r
-.xray-panel.xray-density-spacious .xray-api-row,\r
-.xray-panel.xray-density-spacious .xray-console-row,\r
-.xray-panel.xray-density-spacious .xray-settings-row {\r
-  font-size: 13px;\r
-}\r
-\r
-@media (prefers-reduced-motion: reduce) {\r
-  .xray-panel *,\r
-  .xray-panel *::before,\r
-  .xray-panel *::after {\r
-    transition: none !important;\r
-    animation: none !important;\r
-  }\r
-}\r
-\r
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
-   XRAY Operator UI tab-specific polish\r
-   Firefox DevTools density + terminal-grade inspector ergonomics.\r
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
-.xray-panel .xray-filterbar {\r
-  gap: 10px;\r
-  padding: 14px;\r
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  background: color-mix(in srgb, var(--xray-surface) 84%, transparent);\r
-}\r
-\r
-.xray-panel .xray-search {\r
-  min-height: 38px;\r
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  border-radius: 9px;\r
-  background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);\r
-}\r
-\r
-.xray-panel .xray-network-head,\r
-.xray-panel .xray-api-table-head {\r
-  min-height: 32px;\r
-  color: var(--xray-accent);\r
-  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  letter-spacing: .14em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-panel .xray-network-row,\r
-.xray-panel .xray-api-row {\r
-  font-variant-numeric: tabular-nums;\r
-}\r
-\r
-.xray-panel .xray-network-row.selected,\r
-.xray-panel .xray-api-row.selected {\r
-  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));\r
-  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
-}\r
-\r
-.xray-panel .xray-path,\r
-.xray-panel .xray-api-path,\r
-.xray-panel .xray-response-heading h3 {\r
-  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent) 14%);\r
-  font-weight: 800;\r
-}\r
-\r
-.xray-panel .xray-bar-track {\r
-  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);\r
-  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-panel .xray-bar {\r
-  background: linear-gradient(90deg, var(--xray-accent), var(--xray-green));\r
-  box-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 28%, transparent);\r
-}\r
-\r
-.xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }\r
-.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }\r
-\r
-.xray-panel .xray-request-detail {\r
-  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);\r
-}\r
-\r
-.xray-panel .xray-detail-hero {\r
-  padding: calc(14px * var(--xray-density-scale, 1));\r
-  box-shadow: inset 3px 0 0 var(--xray-accent);\r
-}\r
-\r
-.xray-panel .xray-detail-tab,\r
-.xray-panel .xray-detail-views .xray-chip {\r
-  height: 30px;\r
-  border: 1px solid transparent;\r
-  color: var(--xray-subtext);\r
-  background: transparent;\r
-  font: 900 10px/1 var(--xray-font);\r
-  letter-spacing: .1em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-panel .xray-detail-tab.active,\r
-.xray-panel .xray-detail-views .xray-chip.active {\r
-  color: var(--xray-text);\r
-  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
-}\r
-\r
-.xray-panel .xray-operation-groups {\r
-  padding: 10px 12px;\r
-  background: color-mix(in srgb, var(--xray-surface) 75%, transparent);\r
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-}\r
-\r
-.xray-panel .xray-operation-group-label {\r
-  color: var(--xray-hint);\r
-  font-size: 9px;\r
-  font-weight: 900;\r
-  letter-spacing: .14em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-panel .xray-operation-btn {\r
-  min-height: 30px;\r
-  color: var(--xray-text);\r
-  font-size: 10px;\r
-}\r
-\r
-.xray-panel .xray-console-head {\r
-  min-height: var(--xray-chrome-h, 44px);\r
-}\r
-\r
-.xray-panel .xray-console-tabs .xray-mini-tab {\r
-  text-transform: none;\r
-  letter-spacing: .04em;\r
-}\r
-\r
-.xray-panel .xray-console-row {\r
-  font-variant-numeric: tabular-nums;\r
-}\r
-\r
-.xray-panel .xray-prompt {\r
-  gap: 10px;\r
-  padding: 10px 12px;\r
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));\r
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-}\r
-\r
-.xray-panel .xray-prompt::before {\r
-  content: '>';\r
-  color: var(--xray-accent);\r
-  font: 900 18px/1 var(--xray-font);\r
-  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
-}\r
-\r
-.xray-panel .xray-prompt .xray-input {\r
-  min-height: 40px;\r
-  border-radius: 10px;\r
-}\r
-\r
-.xray-panel .xray-statusbar {\r
-  min-height: 28px;\r
-  padding: 0 12px;\r
-  color: var(--xray-subtext);\r
-  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);\r
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  font-size: 10px;\r
-  font-weight: 900;\r
-  letter-spacing: .08em;\r
-  text-transform: lowercase;\r
-}\r
-\r
-.xray-panel .xray-page-head {\r
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));\r
-}\r
-\r
-.xray-panel .xray-page-head h3 {\r
-  margin: 0;\r
-  font-size: 14px;\r
-}\r
-\r
-.xray-panel .xray-page-head p {\r
-  color: var(--xray-subtext);\r
-}\r
-\r
-.xray-panel .xray-notebook-grid,\r
-.xray-panel .xray-insight-columns,\r
-.xray-panel .xray-insight-grid {\r
-  padding: 14px;\r
-}\r
-\r
-.xray-panel .xray-notebook-cell {\r
-  position: relative;\r
-  overflow: hidden;\r
-}\r
-\r
-.xray-panel .xray-notebook-cell::before,\r
-.xray-panel .xray-card::before,\r
-.xray-panel .xray-api-metric::before {\r
-  content: '';\r
-  position: absolute;\r
-  inset: 0 auto 0 0;\r
-  width: 3px;\r
-  background: linear-gradient(180deg, var(--xray-accent), transparent);\r
-  opacity: .75;\r
-}\r
-\r
-.xray-panel .xray-notebook-cell-head,\r
-.xray-panel .xray-notebook-title {\r
-  font-weight: 900;\r
-  letter-spacing: .08em;\r
-  text-transform: uppercase;\r
-}\r
-\r
-.xray-panel .xray-textarea {\r
-  min-height: 132px;\r
-  line-height: 1.6;\r
-  tab-size: 2;\r
-}\r
-\r
-.xray-panel .xray-insight-row {\r
-  border: 1px solid transparent;\r
-  border-radius: 9px;\r
-  background: color-mix(in srgb, var(--xray-surface2) 44%, transparent);\r
-}\r
-\r
-.xray-panel .xray-insight-row:hover {\r
-  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);\r
-  background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);\r
-}\r
-\r
-.xray-panel .xray-api-metric {\r
-  position: relative;\r
-  overflow: hidden;\r
-  border-color: var(--xray-border, rgba(108,112,134,.35));\r
-  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));\r
-}\r
-\r
-.xray-panel .xray-api-metric strong {\r
-  font-size: 18px;\r
-  color: var(--xray-text);\r
-  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);\r
-}\r
-\r
-/* XRAY Operator UI prompt layout hardening */\r
-.xray-panel .xray-prompt {\r
-  display: grid;\r
-  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);\r
-  gap: 10px;\r
-  align-items: center;\r
-  padding: 10px 14px;\r
-  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);\r
-  background:\r
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),\r
-    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);\r
-}\r
-\r
-.xray-panel .xray-prompt::before {\r
-  display: none;\r
-}\r
-\r
-.xray-panel .xray-prompt > svg {\r
-  color: var(--xray-accent-2);\r
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));\r
-}\r
-\r
-.xray-panel .xray-prompt-command {\r
-  min-width: 0;\r
-  display: grid;\r
-  grid-template-columns: minmax(0, 1fr) auto;\r
-  gap: 10px;\r
-  align-items: center;\r
-}\r
-\r
-.xray-panel .xray-prompt input {\r
-  min-width: 0;\r
-  width: 100%;\r
-  height: 38px;\r
-  padding: 0 13px;\r
-  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));\r
-  border-radius: 11px;\r
-  color: var(--xray-text);\r
-  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);\r
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);\r
-  font: inherit;\r
-}\r
-\r
-.xray-panel .xray-prompt input:focus {\r
-  outline: none;\r
-  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));\r
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
-}\r
-\r
-.xray-panel .xray-context-chip {\r
-  min-width: 0;\r
-  overflow: hidden;\r
-  text-overflow: ellipsis;\r
-  white-space: nowrap;\r
-  justify-self: end;\r
-  max-width: min(28vw, 460px);\r
-  padding: 8px 13px;\r
-  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));\r
-  border-radius: 999px;\r
-  color: var(--xray-text);\r
-  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);\r
-}\r
-\r
-@media (max-width: 860px) {\r
-  .xray-panel .xray-prompt {\r
-    grid-template-columns: auto minmax(0, 1fr);\r
-  }\r
-\r
-  .xray-panel .xray-prompt-command {\r
-    grid-column: 2 / -1;\r
-  }\r
-\r
-  .xray-panel .xray-context-chip {\r
-    grid-column: 2 / -1;\r
-    justify-self: stretch;\r
-    max-width: none;\r
-  }\r
-}\r
-\r
+  var styles_default = `* {
+  box-sizing: border-box;
+}
+
+.xray-app-root {
+  all: initial;
+  color: var(--xray-text);
+  font-family: var(--xray-font);
+}
+
+.xray-app-root *,
+.xray-hud * {
+  scrollbar-color: rgba(108, 112, 134, .62) rgba(var(--xray-bg-rgb), .44);
+  scrollbar-width: thin;
+  /* Absorb overscroll inside the panel so scrolling a list/detail to its edge
+     never chains through to the website behind an injected side panel or HUD. */
+  overscroll-behavior: contain;
+}
+
+.xray-app-root *::-webkit-scrollbar,
+.xray-hud *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.xray-app-root *::-webkit-scrollbar-track,
+.xray-hud *::-webkit-scrollbar-track {
+  background: rgba(var(--xray-bg-rgb), .44);
+}
+
+.xray-app-root *::-webkit-scrollbar-thumb,
+.xray-hud *::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(var(--xray-bg-rgb), .44);
+  border-radius: 999px;
+  background: rgba(108, 112, 134, .72);
+}
+
+.xray-app-root *::-webkit-scrollbar-thumb:hover,
+.xray-hud *::-webkit-scrollbar-thumb:hover {
+  background: rgba(137, 180, 250, .72);
+}
+
+.xray-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 2147483647;
+  width: var(--xray-panel-width, min(960px, 94vw));
+  max-width: 96vw;
+  height: 100vh;
+  display: none;
+  flex-direction: column;
+  color: var(--xray-text);
+  background: var(--xray-bg);
+  border-left: 1px solid rgba(108, 112, 134, .42);
+  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);
+  font: 12px/1.45 var(--xray-font);
+  overflow: hidden;
+}
+
+/* Left-dock mirror of the base (right-docked) side panel. Only added in the docked
+   side panel; the floating HUD's hud.css neutralizes it, and devtools/window modes
+   never get the dock class. */
+.xray-panel.xray-dock-left {
+  right: auto;
+  left: 0;
+  border-left: 0;
+  border-right: 1px solid rgba(108, 112, 134, .42);
+  box-shadow: 20px 0 80px rgba(0, 0, 0, .38);
+}
+
+/* Slide-in on open (docked side panel). One-shot animation, not a persistent
+   transform, so it never leaves a containing block behind for fixed children.
+   The right/left keyframes match the dock edge. Neutralized by reduced-motion. */
+@keyframes xray-panel-slide-right {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes xray-panel-slide-left {
+  from { transform: translateX(-24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.xray-panel.xray-mode-hud.xray-dock-right.xray-open {
+  animation: xray-panel-slide-right .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));
+}
+
+.xray-panel.xray-mode-hud.xray-dock-left.xray-open {
+  animation: xray-panel-slide-left .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));
+}
+
+/* Drag grabber on the panel's inner edge (toward the page). */
+.xray-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 3;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+  transition: background var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-panel.xray-dock-right .xray-resize-handle { left: -1px; }
+.xray-panel.xray-dock-left .xray-resize-handle { right: -1px; }
+
+.xray-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--xray-hint, rgba(120, 130, 150, .5));
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-resize-handle:hover,
+.xray-resize-handle:focus-visible,
+.xray-resize-handle.dragging {
+  background: color-mix(in srgb, var(--xray-accent) 22%, transparent);
+  outline: none;
+}
+
+.xray-resize-handle:hover::after,
+.xray-resize-handle:focus-visible::after,
+.xray-resize-handle.dragging::after {
+  opacity: 1;
+  background: var(--xray-accent);
+}
+
+/* Dock / close cluster, separated from the mode switcher by a hairline. */
+.xray-dock-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+}
+
+.xray-close-btn:hover {
+  color: var(--xray-red, #ff5c7a);
+  background: color-mix(in srgb, var(--xray-red, #ff5c7a) 16%, transparent);
+}
+
+/* The theme scope carries color tokens to the panel AND its sibling modals via
+   inheritance; display:contents means it adds no layout box. */
+.xray-theme-scope {
+  display: contents;
+}
+
+/* Theme token blocks key off the theme class alone (present on both .xray-theme-scope
+   and .xray-panel), so popups rendered outside .xray-panel inherit the active theme. */
+.xray-theme-operator {
+  --xray-bg: #0b0f14;
+  --xray-surface: #101720;
+  --xray-surface2: #151f2b;
+  --xray-surface3: #1b2836;
+  --xray-bg-rgb: 11, 15, 20;
+  --xray-surface-rgb: 16, 23, 32;
+  --xray-surface2-rgb: 21, 31, 43;
+  --xray-text-rgb: 216, 226, 239;
+  --xray-text: #d8e2ef;
+  --xray-subtext: #8fa1b7;
+  --xray-hint: #536274;
+  --xray-blue: #37d5ff;
+  --xray-mauve: #8b5cf6;
+  --xray-green: #38f29b;
+  --xray-yellow: #f6c76f;
+  --xray-red: #ff5c7a;
+  --xray-border: rgba(80, 114, 148, .42);
+  --xray-operator-grid: rgba(55, 213, 255, .035);
+}
+
+.xray-theme-dev-edition {
+  --xray-bg: #11131f;
+  --xray-surface: #171a2b;
+  --xray-surface2: #20243a;
+  --xray-surface3: #282d49;
+  --xray-bg-rgb: 17, 19, 31;
+  --xray-surface-rgb: 23, 26, 43;
+  --xray-surface2-rgb: 32, 36, 58;
+  --xray-text-rgb: 225, 231, 255;
+  --xray-text: #e1e7ff;
+  --xray-subtext: #a8b0cf;
+  --xray-hint: #6f789d;
+  --xray-blue: #75ddff;
+  --xray-mauve: #b18cff;
+  --xray-green: #62e6a8;
+  --xray-yellow: #ffd37a;
+  --xray-red: #ff6f91;
+  --xray-border: rgba(124, 138, 189, .36);
+  --xray-operator-grid: rgba(177, 140, 255, .04);
+}
+
+.xray-theme-midnight {
+  --xray-bg: #05070a;
+  --xray-surface: #090d12;
+  --xray-surface2: #0f151d;
+  --xray-surface3: #151d29;
+  --xray-bg-rgb: 5, 7, 10;
+  --xray-surface-rgb: 9, 13, 18;
+  --xray-surface2-rgb: 15, 21, 29;
+  --xray-text-rgb: 215, 247, 255;
+  --xray-text: #d7f7ff;
+  --xray-subtext: #83a4ad;
+  --xray-hint: #49626b;
+  --xray-blue: #00e5ff;
+  --xray-mauve: #7c3aed;
+  --xray-green: #00ff95;
+  --xray-yellow: #ffd166;
+  --xray-red: #ff3b6b;
+  --xray-border: rgba(0, 229, 255, .28);
+  --xray-operator-grid: rgba(0, 229, 255, .045);
+}
+
+.xray-theme-light-lab {
+  --xray-bg: #edf3fb;
+  --xray-surface: #f8fbff;
+  --xray-surface2: #e6eef9;
+  --xray-surface3: #d9e5f5;
+  --xray-bg-rgb: 237, 243, 251;
+  --xray-surface-rgb: 248, 251, 255;
+  --xray-surface2-rgb: 230, 238, 249;
+  --xray-text-rgb: 23, 32, 51;
+  --xray-text: #172033;
+  --xray-subtext: #526173;
+  --xray-hint: #75869a;
+  --xray-blue: #006adc;
+  --xray-mauve: #7048e8;
+  --xray-green: #087f5b;
+  --xray-yellow: #b7791f;
+  --xray-red: #d6336c;
+  --xray-border: rgba(82, 97, 115, .28);
+  --xray-operator-grid: rgba(0, 106, 220, .035);
+}
+
+.xray-theme-claude {
+  --xray-bg: #f0eee6;
+  --xray-surface: #faf9f5;
+  --xray-surface2: #eceae0;
+  --xray-surface3: #e4e1d5;
+  --xray-bg-rgb: 240, 238, 230;
+  --xray-surface-rgb: 250, 249, 245;
+  --xray-surface2-rgb: 236, 234, 224;
+  --xray-text-rgb: 35, 34, 31;
+  --xray-text: #23221f;
+  --xray-subtext: #6b675f;
+  --xray-hint: #9a968c;
+  --xray-blue: #4a6fa5;
+  --xray-mauve: #8a5cc4;
+  --xray-green: #3f8a4f;
+  --xray-yellow: #a9791c;
+  --xray-red: #c0392b;
+  --xray-teal: #2e8b8b;
+  --xray-peach: #d97757;
+  --xray-border: rgba(60, 55, 48, .18);
+  --xray-operator-grid: rgba(217, 119, 87, .05);
+}
+
+.xray-panel.xray-density-compact {
+  --xray-density-scale: .88;
+  --xray-row-h: 42px;
+  --xray-chrome-h: 40px;
+}
+
+.xray-panel.xray-density-comfortable {
+  --xray-density-scale: 1;
+  --xray-row-h: 52px;
+  --xray-chrome-h: 46px;
+}
+
+.xray-panel.xray-density-spacious {
+  --xray-density-scale: 1.14;
+  --xray-row-h: 64px;
+  --xray-chrome-h: 52px;
+}
+
+.xray-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent), transparent 32%),
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--xray-mauve) 12%, transparent), transparent 30%);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+  opacity: .8;
+}
+
+.xray-panel.xray-no-glow::before {
+  opacity: .28;
+}
+
+.xray-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.xray-panel.xray-open,
+.xray-panel.xray-devtools {
+  display: flex;
+}
+
+.xray-panel.xray-devtools {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  box-shadow: none;
+}
+
+.xray-panel.xray-mode-window {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  box-shadow: none;
+}
+
+.xray-topbar {
+  height: var(--xray-chrome-h, 44px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
+  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
+  flex-shrink: 0;
+}
+
+.xray-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.xray-drag-handle {
+  cursor: grab;
+}
+
+.xray-drag-handle:active {
+  cursor: grabbing;
+}
+
+.xray-brand-mark {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(135deg, var(--xray-accent, var(--xray-blue)), var(--xray-mauve));
+  border-radius: var(--xray-radius);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);
+}
+
+.xray-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--xray-hint);
+}
+
+.xray-live-dot.on {
+  background: var(--xray-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 18%, transparent), 0 0 16px color-mix(in srgb, var(--xray-green) 55%, transparent);
+}
+
+.xray-tabs,
+.xray-console-tabs,
+.xray-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.xray-tab,
+.xray-mini-tab,
+.xray-btn,
+.xray-chip,
+.xray-icon-btn {
+  border: 1px solid transparent;
+  color: var(--xray-subtext);
+  background: transparent;
+  font: 800 12px/1 var(--xray-font);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.xray-tab {
+  height: calc(var(--xray-chrome-h, 44px) - 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: var(--xray-radius);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-size: calc(11px * var(--xray-density-scale, 1));
+}
+
+.xray-tab:hover,
+.xray-mini-tab:hover,
+.xray-btn:hover,
+.xray-chip:hover,
+.xray-icon-btn:hover {
+  color: var(--xray-text);
+  background: rgba(var(--xray-text-rgb), .06);
+}
+
+.xray-tab.active,
+.xray-mini-tab.active,
+.xray-chip.active {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 16%, transparent), 0 0 22px color-mix(in srgb, var(--xray-accent) 12%, transparent);
+}
+
+.xray-no-glow .xray-tab.active,
+.xray-no-glow .xray-mini-tab.active,
+.xray-no-glow .xray-chip.active,
+.xray-no-glow .xray-brand-mark,
+.xray-no-glow .xray-live-dot.on {
+  box-shadow: none;
+}
+
+.xray-badge {
+  min-width: 18px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: var(--xray-text);
+  background: rgba(108, 112, 134, .28);
+  font-size: 9px;
+}
+
+.xray-spacer {
+  flex: 1;
+}
+
+.xray-summary {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-subtext);
+  font-size: calc(10px * var(--xray-density-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.xray-mode-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.xray-mode-switcher .xray-icon-btn.active {
+  color: var(--xray-accent, var(--xray-blue));
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--xray-bg) 96%, var(--xray-accent) 4%);
+}
+
+.xray-console-head {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-surface);
+}
+
+.xray-mini-tab {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border-right: 1px solid rgba(108, 112, 134, .28);
+  border-bottom: 2px solid transparent;
+}
+
+.xray-mini-tab.active {
+  border-bottom-color: var(--xray-blue);
+}
+
+.xray-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-right: 8px;
+}
+
+.xray-btn,
+.xray-icon-btn {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-color: rgba(108, 112, 134, .5);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface-rgb), .74);
+  color: var(--xray-text);
+}
+
+.xray-btn.primary {
+  color: var(--xray-accent, var(--xray-blue));
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);
+}
+
+.xray-btn.danger {
+  color: var(--xray-red);
+  border-color: rgba(243, 139, 168, .42);
+  background: rgba(243, 139, 168, .08);
+}
+
+.xray-icon-btn {
+  width: 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.xray-filterbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
+  padding: 12px;
+  background: var(--xray-surface);
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+}
+
+.xray-search {
+  position: relative;
+  min-width: 0;
+}
+
+.xray-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--xray-hint);
+}
+
+.xray-input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid rgba(108, 112, 134, .55);
+  border-radius: var(--xray-radius);
+  outline: none;
+  padding: 0 12px 0 38px;
+  color: var(--xray-text);
+  background: rgba(var(--xray-surface2-rgb), .5);
+  font: 800 13px/1 var(--xray-font);
+}
+
+.xray-input:focus,
+.xray-prompt input:focus,
+.xray-prompt textarea:focus {
+  border-color: var(--xray-accent, var(--xray-blue));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
+}
+
+.xray-filter-chips {
+  overflow-x: auto;
+}
+
+.xray-filter-chips.compact {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.xray-chip {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-color: rgba(108, 112, 134, .5);
+  border-radius: var(--xray-radius);
+  white-space: nowrap;
+}
+
+.xray-filter-chips.compact .xray-chip {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.xray-network {
+  min-height: 180px;
+  max-height: min(44vh, 380px);
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-bg);
+  overflow: hidden;
+}
+
+.xray-network-head,
+.xray-network-row {
+  display: grid;
+  grid-template-columns: 64px 60px minmax(180px, 1fr) 120px 80px 86px;
+  align-items: center;
+  gap: 0;
+}
+
+.xray-network-head {
+  height: 28px;
+  padding: 0 12px;
+  color: var(--xray-mauve);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.xray-virtual-list {
+  position: relative;
+  overflow: auto;
+  height: calc(100% - 28px);
+}
+
+.xray-network-row {
+  min-height: 32px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.xray-network-row:hover {
+  background: rgba(var(--xray-text-rgb), .04);
+}
+
+.xray-network-row.selected {
+  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);
+  box-shadow: inset 2px 0 0 var(--xray-accent, var(--xray-blue));
+}
+
+.xray-method {
+  color: var(--xray-green);
+}
+
+.xray-method.post,
+.xray-method.put {
+  color: var(--xray-yellow);
+}
+
+.xray-method.delete,
+.xray-method.del {
+  color: var(--xray-red);
+}
+
+.xray-status.ok {
+  color: var(--xray-green);
+}
+
+.xray-status.warn {
+  color: var(--xray-yellow);
+}
+
+.xray-status.error {
+  color: var(--xray-red);
+}
+
+.xray-path {
+  min-width: 0;
+  color: #b4befe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-muted {
+  color: var(--xray-hint);
+}
+
+.xray-timing {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-bar-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(108, 112, 134, .34);
+  overflow: hidden;
+}
+
+.xray-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--xray-blue);
+}
+
+.xray-bar.slow {
+  background: var(--xray-yellow);
+}
+
+.xray-bar.error {
+  background: var(--xray-red);
+}
+
+.xray-console-stream-wrap {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+}
+
+/* overflow: hidden here made the stream wheel-unscrollable \u2014 the virtualizer
+   could move it programmatically but the user could not. */
+.xray-console-stream {
+  min-height: 0;
+  flex: 1;
+  background: var(--xray-surface);
+  overflow-y: auto;
+}
+
+.xray-newmsg-pill {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid rgba(var(--xray-accent-rgb), .6);
+  border-radius: 999px;
+  color: var(--xray-text);
+  background: rgba(var(--xray-surface2-rgb), .95);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  font: 800 11px/1 var(--xray-font);
+}
+
+.xray-newmsg-pill:hover {
+  background: rgba(var(--xray-accent-rgb), .2);
+}
+
+.xray-repeat-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--xray-accent-rgb), .45);
+  background: rgba(var(--xray-accent-rgb), .14);
+  color: var(--xray-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-truncated-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 226, 175, .5);
+  background: rgba(249, 226, 175, .12);
+  color: var(--xray-yellow);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-error-stack {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--xray-red);
+  font: 600 11px/1.5 var(--xray-font);
+}
+
+.xray-chip-count {
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(var(--xray-surface2-rgb), .9);
+  font-size: 10px;
+}
+
+.xray-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes xray-spin {
+  to { transform: rotate(360deg); }
+}
+
+.xray-spin {
+  animation: xray-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-spin { animation: none; }
+}
+
+.xray-console-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 86px;
+  gap: 6px;
+  align-items: start;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .22);
+}
+
+.xray-console-row.error {
+  color: var(--xray-red);
+  background: rgba(243, 139, 168, .08);
+  border-left: 2px solid var(--xray-red);
+}
+
+.xray-console-row.warn {
+  color: var(--xray-yellow);
+  background: rgba(249, 226, 175, .07);
+  border-left: 2px solid var(--xray-yellow);
+}
+
+.xray-console-row.command {
+  color: var(--xray-mauve);
+}
+
+.xray-console-row.result {
+  border-left: 2px solid rgba(var(--xray-accent-rgb), .55);
+}
+
+.xray-console-message {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.xray-detail {
+  grid-column: 2 / 4;
+  min-width: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(108, 112, 134, .35);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-prompt {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-surface);
+  flex-shrink: 0;
+}
+
+.xray-prompt input,
+.xray-prompt textarea {
+  min-height: 34px;
+  border: 1px solid rgba(108, 112, 134, .55);
+  border-radius: var(--xray-radius);
+  outline: none;
+  padding: 9px 10px;
+  color: var(--xray-text);
+  background: var(--xray-surface2);
+  font: 800 12px/1.3 var(--xray-font);
+  resize: none;
+  overflow-y: auto;
+  max-height: 110px;
+}
+
+.xray-context-chip {
+  max-width: 260px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(137, 180, 250, .5);
+  border-radius: 999px;
+  color: var(--xray-text);
+  background: rgba(137, 180, 250, .12);
+  cursor: pointer;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.xray-statusbar {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 10px;
+  color: var(--xray-subtext);
+  background: var(--xray-bg);
+  border-top: 1px solid rgba(108, 112, 134, .35);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.xray-page {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background: var(--xray-bg);
+}
+
+.xray-page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.xray-page-head h3 {
+  margin: 0 0 3px;
+}
+
+.xray-page-head p {
+  margin: 0;
+  color: var(--xray-hint);
+  font-size: 11px;
+}
+
+.xray-split {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(280px, 42%) minmax(0, 1fr);
+}
+
+.xray-list-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(108, 112, 134, .35);
+  overflow: hidden;
+}
+
+.xray-list-panel > .xray-virtual-list {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.xray-list-controls {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background:
+    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),
+    var(--xray-surface);
+}
+
+.xray-api-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-bg);
+}
+
+.xray-api-metric,
+.xray-api-top-endpoint {
+  min-width: 0;
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid rgba(108, 112, 134, .30);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface-rgb), .64);
+}
+
+.xray-api-top-endpoint {
+  min-height: 36px;
+}
+
+.xray-api-metric {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.xray-api-metric svg {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--xray-blue);
+}
+
+.xray-api-metric span,
+.xray-api-top-endpoint span {
+  min-width: 0;
+  color: var(--xray-hint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.xray-api-metric strong,
+.xray-api-top-endpoint strong {
+  min-width: 0;
+  color: var(--xray-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.xray-api-metric.ok strong,
+.xray-api-metric.ok svg {
+  color: var(--xray-green);
+}
+
+.xray-api-metric.warn strong,
+.xray-api-metric.warn svg {
+  color: var(--xray-yellow);
+}
+
+.xray-api-metric.error strong,
+.xray-api-metric.error svg {
+  color: var(--xray-red);
+}
+
+.xray-api-workspace {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(var(--xray-bg-rgb), .24), transparent 180px),
+    var(--xray-bg);
+}
+
+.xray-api-body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(360px, 440px) minmax(280px, .64fr) minmax(560px, 1.55fr);
+  overflow: hidden;
+}
+
+.xray-api-collection-pane,
+.xray-request-context-pane,
+.xray-api-detail-drawer {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xray-api-collection-pane {
+  border-right: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-bg-rgb), .42);
+}
+
+.xray-api-collection-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .32);
+  background:
+    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),
+    rgba(var(--xray-surface-rgb), .88);
+}
+
+.xray-api-collection-title {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.xray-api-collection-title span,
+.xray-pane-kicker,
+.xray-api-summary-pill span {
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.xray-api-collection-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.xray-api-env-pill {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 226, 213, .30);
+  border-radius: var(--xray-radius);
+  color: var(--xray-teal);
+  background: rgba(148, 226, 213, .08);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.xray-api-summary-strip {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.xray-api-summary-pill {
+  min-width: 0;
+  height: 38px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 1px 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(108, 112, 134, .30);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-bg-rgb), .66);
+}
+
+.xray-api-summary-pill svg {
+  grid-row: 1 / 3;
+  color: var(--xray-blue);
+}
+
+.xray-api-summary-pill strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.xray-api-summary-pill.ok svg,
+.xray-api-summary-pill.ok strong {
+  color: var(--xray-green);
+}
+
+.xray-api-summary-pill.warn svg,
+.xray-api-summary-pill.warn strong {
+  color: var(--xray-yellow);
+}
+
+.xray-api-summary-pill.error svg,
+.xray-api-summary-pill.error strong {
+  color: var(--xray-red);
+}
+
+.xray-api-main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* New requests insert at the top under LATEST sort \u2014 the pill floats near the
+   top of the list, unlike the console variant that anchors at the bottom. */
+.xray-newreq-pill {
+  top: 46px;
+  bottom: auto;
+}
+
+.xray-api-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-api-search {
+  min-width: 0;
+  height: 36px;
+  align-self: start;
+}
+
+.xray-api-search .xray-input {
+  height: 36px;
+  font-size: 11px;
+}
+
+.xray-api-primary-filters {
+  justify-content: flex-start;
+  min-width: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.xray-api-secondary-controls {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xray-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.xray-api-table-head,
+.xray-api-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;
+  align-items: center;
+  gap: 7px;
+}
+
+.xray-api-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  color: var(--xray-hint);
+  background: rgba(var(--xray-surface-rgb), .96);
+  font: 900 10px/1 var(--xray-font);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.xray-api-table-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.xray-api-row {
+  width: 100%;
+  min-height: 68px;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .18);
+  color: var(--xray-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 800 11px/1.28 var(--xray-font);
+  outline: none;
+  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+.xray-api-row:hover,
+.xray-api-row:focus-visible {
+  background: rgba(var(--xray-text-rgb), .055);
+}
+
+.xray-api-row.selected {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 27%, transparent), color-mix(in srgb, var(--xray-accent) 8%, transparent)),
+    rgba(var(--xray-surface2-rgb), .42);
+  box-shadow:
+    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),
+    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),
+    0 8px 22px rgba(0, 0, 0, .14);
+}
+
+.xray-api-row.has-error {
+  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);
+}
+
+.xray-api-row.has-slow:not(.has-error) {
+  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);
+}
+
+.xray-api-row.selected.has-error,
+.xray-api-row.selected.has-slow {
+  box-shadow:
+    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),
+    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),
+    0 8px 22px rgba(0, 0, 0, .14);
+}
+
+.xray-api-row.group {
+  background: rgba(var(--xray-surface-rgb), .55);
+}
+
+.xray-api-row.child {
+  padding-left: 24px;
+  background: rgba(var(--xray-surface-rgb), .46);
+}
+
+.xray-api-row.pinned {
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);
+}
+
+.xray-api-path-cell {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.xray-api-flags {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.xray-api-flags.muted {
+  display: none;
+}
+
+.xray-api-flag {
+  min-width: 0;
+  max-width: 78px;
+  padding: 3px 6px;
+  border: 1px solid rgba(108, 112, 134, .36);
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-surface-rgb), .72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.xray-method.post {
+  color: var(--xray-teal);
+}
+
+.xray-method.patch {
+  color: var(--xray-peach);
+}
+
+.xray-method.put {
+  color: var(--xray-yellow);
+}
+
+.xray-api-flag.error {
+  color: var(--xray-red);
+  border-color: rgba(243, 139, 168, .38);
+  background: rgba(243, 139, 168, .10);
+}
+
+.xray-api-flag.slow,
+.xray-api-flag.repeated,
+.xray-api-flag.large {
+  color: var(--xray-yellow);
+  border-color: rgba(249, 226, 175, .34);
+  background: rgba(249, 226, 175, .10);
+}
+
+.xray-api-flag.empty {
+  color: var(--xray-peach);
+  border-color: rgba(250, 179, 135, .34);
+  background: rgba(250, 179, 135, .10);
+}
+
+.xray-api-flag.pinned {
+  color: var(--xray-mauve);
+  border-color: rgba(203, 166, 247, .36);
+  background: rgba(203, 166, 247, .10);
+}
+
+.xray-api-row-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: .62;
+  transition: opacity .15s ease;
+}
+
+.xray-api-row:hover .xray-api-row-actions,
+.xray-api-row:focus-visible .xray-api-row-actions,
+.xray-api-row.selected .xray-api-row-actions {
+  opacity: 1;
+}
+
+.xray-icon-btn {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(108, 112, 134, .36);
+  border-radius: var(--xray-radius);
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-surface-rgb), .72);
+  cursor: pointer;
+}
+
+.xray-icon-btn:hover,
+.xray-icon-btn:focus-visible,
+.xray-icon-btn.active {
+  color: var(--xray-accent, var(--xray-blue));
+  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+}
+
+.xray-request-context-pane {
+  border-right: 1px solid rgba(108, 112, 134, .35);
+  background:
+    linear-gradient(180deg, rgba(var(--xray-surface2-rgb), .30), transparent 160px),
+    rgba(var(--xray-surface-rgb), .78);
+}
+
+.xray-request-context-pane.empty {
+  justify-content: center;
+}
+
+.xray-request-context-head {
+  flex-shrink: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+}
+
+.xray-request-line {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-request-line code {
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 10px;
+  border: 1px solid rgba(108, 112, 134, .44);
+  border-radius: var(--xray-radius);
+  color: var(--xray-text);
+  background: rgba(var(--xray-bg-rgb), .76);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 11px/1 var(--xray-font);
+}
+
+.xray-request-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.xray-request-meta-grid span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 1px solid rgba(108, 112, 134, .28);
+  border-radius: var(--xray-radius);
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-bg-rgb), .48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.xray-request-meta-grid strong {
+  color: var(--xray-hint);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.xray-request-context-content {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background: rgba(var(--xray-bg-rgb), .45);
+}
+
+.xray-request-context-content .xray-json-editor {
+  min-width: 0;
+}
+
+.xray-request-context-content .xray-json-line-text {
+  overflow-wrap: anywhere;
+}
+
+.xray-request-context-footer {
+  flex-shrink: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(108, 112, 134, .30);
+  color: var(--xray-hint);
+  background: rgba(var(--xray-bg-rgb), .35);
+  font-size: 10px;
+}
+
+.xray-request-context-footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-request-tabs {
+  flex-shrink: 0;
+  padding: 0 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .30);
+  background: rgba(var(--xray-bg-rgb), .30);
+}
+
+.xray-api-detail-drawer {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--xray-surface);
+}
+
+.xray-api-drawer-body {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+
+.xray-entry-row {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(108, 112, 134, .20);
+  color: var(--xray-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 800 11px/1.35 var(--xray-font);
+}
+
+.xray-entry-row:hover {
+  background: rgba(var(--xray-text-rgb), .05);
+}
+
+.xray-entry-row.selected {
+  background: rgba(137, 180, 250, .16);
+  box-shadow: inset 3px 0 0 var(--xray-blue);
+}
+
+.xray-entry-row.child {
+  padding-left: 24px;
+  background: rgba(var(--xray-surface-rgb), .45);
+}
+
+.xray-entry-row.pinned {
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);
+}
+
+.xray-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--xray-hint);
+}
+
+.xray-status-dot.ok {
+  background: var(--xray-green);
+  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);
+}
+
+.xray-status-dot.warn {
+  background: var(--xray-yellow);
+  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);
+}
+
+.xray-status-dot.error {
+  background: var(--xray-red);
+  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);
+}
+
+.xray-entry-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.xray-entry-meta {
+  /* subtext, not hint: this 10px line carries the row's key facts and the
+     hint gray fell below WCAG AA contrast on the dark surfaces */
+  color: var(--xray-subtext, var(--xray-hint));
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.xray-entry-duration {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(24px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  color: var(--xray-subtext);
+  font-size: 10px;
+}
+
+.xray-count-pill,
+.xray-pin {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid rgba(108, 112, 134, .40);
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-surface-rgb), .74);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.xray-pin {
+  width: 26px;
+  padding: 0;
+  color: var(--xray-hint);
+}
+
+.xray-pin.active {
+  color: var(--xray-yellow);
+  border-color: rgba(249, 226, 175, .34);
+  background: rgba(249, 226, 175, .10);
+}
+
+.xray-detail-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: var(--xray-surface);
+}
+
+.xray-mobile-detail-panel {
+  display: none;
+}
+
+.xray-request-detail {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),
+    var(--xray-bg);
+}
+
+.xray-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-surface);
+}
+
+.xray-response-heading {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-response-heading h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.xray-response-chips {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-response-chip {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(108, 112, 134, .32);
+  border-radius: var(--xray-radius);
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-bg-rgb), .68);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.xray-response-chip.ok {
+  color: var(--xray-green);
+  border-color: rgba(166, 227, 161, .30);
+  background: rgba(166, 227, 161, .10);
+}
+
+.xray-response-chip.warn {
+  color: var(--xray-yellow);
+  border-color: rgba(249, 226, 175, .30);
+  background: rgba(249, 226, 175, .10);
+}
+
+.xray-response-chip.error {
+  color: var(--xray-red);
+  border-color: rgba(243, 139, 168, .30);
+  background: rgba(243, 139, 168, .10);
+}
+
+.xray-detail-nav {
+  flex-shrink: 0;
+  display: grid;
+  gap: 0;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-surface-rgb), .92);
+}
+
+.xray-detail-tabs,
+.xray-detail-views {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xray-detail-tabs::-webkit-scrollbar,
+.xray-detail-views::-webkit-scrollbar {
+  display: none;
+}
+
+.xray-detail-tabs {
+  padding: 0 12px;
+}
+
+.xray-detail-tab {
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--xray-hint);
+  background: transparent;
+  cursor: pointer;
+  font: 900 11px/1 var(--xray-font);
+  text-transform: capitalize;
+}
+
+.xray-detail-tab:hover,
+.xray-detail-tab.active {
+  color: var(--xray-text);
+  border-bottom-color: var(--xray-mauve);
+}
+
+.xray-detail-views {
+  padding: 7px 12px;
+  border-top: 1px solid rgba(108, 112, 134, .20);
+}
+
+.xray-detail-content {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),
+    rgba(var(--xray-bg-rgb), .74);
+}
+
+.xray-detail-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(108, 112, 134, .35);
+  background: var(--xray-surface);
+  overflow-x: auto;
+}
+
+.xray-smart-ops {
+  min-width: 0;
+}
+
+.xray-action-btn {
+  min-width: 0;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid rgba(108, 112, 134, .42);
+  border-radius: var(--xray-radius);
+  color: var(--xray-subtext);
+  background: transparent;
+  cursor: pointer;
+  font: 900 11px/1 var(--xray-font);
+}
+
+.xray-action-btn:hover,
+.xray-action-btn:focus-visible {
+  color: var(--xray-text);
+  border-color: rgba(137, 180, 250, .44);
+  background: rgba(137, 180, 250, .10);
+}
+
+.xray-action-btn.primary {
+  color: var(--xray-accent, var(--xray-blue));
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);
+}
+
+.xray-operation-groups {
+  flex-shrink: 0;
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-bg-rgb), .45);
+}
+
+.xray-operation-group {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-operation-group > span {
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.xray-operation-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: visible;
+}
+
+.xray-operation-bar .xray-chip {
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--xray-radius);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+}
+
+.xray-operation-chip.view {
+  color: var(--xray-mauve);
+  border-color: rgba(203, 166, 247, .28);
+  background: rgba(203, 166, 247, .07);
+}
+
+.xray-operation-chip.console {
+  color: var(--xray-blue);
+  border-color: rgba(137, 180, 250, .30);
+  background: rgba(137, 180, 250, .08);
+}
+
+.xray-operation-chip.snippet {
+  color: var(--xray-teal);
+  border-color: rgba(148, 226, 213, .30);
+  background: rgba(148, 226, 213, .08);
+}
+
+.xray-operation-chip.copy {
+  color: var(--xray-subtext);
+}
+
+.xray-operation-chip.export {
+  color: var(--xray-peach);
+  border-color: rgba(250, 179, 135, .32);
+  background: rgba(250, 179, 135, .08);
+}
+
+.xray-api-drawer-body .xray-filter-chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.xray-card,
+.xray-modal {
+  border: 1px solid rgba(108, 112, 134, .35);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+}
+
+.xray-card {
+  padding: 12px;
+}
+
+.xray-card h3,
+.xray-detail-panel h3,
+.xray-page h3 {
+  margin: 0 0 10px;
+  color: var(--xray-text);
+  font-size: 13px;
+}
+
+.xray-json {
+  margin: 0;
+  color: var(--xray-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 700 11px/1.6 var(--xray-font);
+}
+
+.xray-json-editor {
+  min-width: max-content;
+  padding: 10px 0;
+  border: 1px solid rgba(108, 112, 134, .22);
+  border-radius: var(--xray-radius);
+  background:
+    linear-gradient(90deg, rgba(var(--xray-bg-rgb), .84) 0 42px, rgba(var(--xray-surface-rgb), .52) 42px),
+    rgba(var(--xray-bg-rgb), .52);
+  box-shadow: inset 0 1px 0 rgba(var(--xray-text-rgb), .04);
+}
+
+.xray-json-line {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 18px;
+}
+
+.xray-json-line:hover {
+  background: rgba(137, 180, 250, .06);
+}
+
+.xray-json-line-no {
+  padding: 0 10px 0 0;
+  color: var(--xray-hint);
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid rgba(108, 112, 134, .20);
+}
+
+.xray-json-line-text {
+  min-width: 0;
+  padding: 0 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.xray-json-key {
+  color: var(--xray-mauve);
+}
+
+.xray-json-string {
+  color: var(--xray-green);
+}
+
+.xray-json-number {
+  color: var(--xray-teal);
+}
+
+.xray-json-bool {
+  color: var(--xray-peach);
+}
+
+.xray-json-null {
+  color: var(--xray-hint);
+}
+
+.xray-json-punct {
+  color: var(--xray-subtext);
+}
+
+.xray-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 700 11px/1.4 var(--xray-font);
+}
+
+.xray-table th,
+.xray-table td {
+  padding: 6px 8px;
+  border: 1px solid rgba(108, 112, 134, .28);
+  text-align: left;
+  vertical-align: top;
+}
+
+.xray-table th {
+  color: var(--xray-mauve);
+  background: var(--xray-bg);
+}
+
+.xray-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(var(--xray-bg-rgb), .72);
+  z-index: 2147483647;
+}
+
+.xray-modal {
+  width: min(820px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xray-modal h3 {
+  margin: 0;
+  color: var(--xray-text);
+  font-size: 13px;
+}
+
+.xray-modal-title-icon {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--xray-accent, var(--xray-blue));
+  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);
+}
+
+.xray-export-modal {
+  width: min(980px, 94vw);
+}
+
+.xray-modal-head,
+.xray-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+}
+
+.xray-modal-foot {
+  border-top: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 0;
+}
+
+.xray-modal-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.xray-modal-subtitle,
+.xray-export-subtitle {
+  max-width: 520px;
+  margin-top: 2px;
+  color: var(--xray-hint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-modal-version {
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-export-body {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.xray-export-rail {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border-right: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-surface-rgb), .55);
+}
+
+.xray-export-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.xray-export-group {
+  margin-bottom: 12px;
+}
+
+.xray-export-group-label {
+  margin: 0 0 6px;
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.xray-export-format {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius);
+  padding: 0 10px;
+  color: var(--xray-subtext);
+  background: transparent;
+  cursor: pointer;
+  font: 800 11px/1.2 var(--xray-font);
+  text-align: left;
+}
+
+.xray-export-format:hover {
+  color: var(--xray-text);
+  background: rgba(var(--xray-text-rgb), .06);
+}
+
+.xray-export-format.active {
+  color: var(--xray-text);
+  border-color: rgba(137, 180, 250, .55);
+  background: rgba(137, 180, 250, .13);
+}
+
+.xray-export-format:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.xray-export-format small {
+  color: var(--xray-hint);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.xray-export-preview {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xray-export-preview-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+}
+
+.xray-export-preview-head h3 {
+  margin: 0;
+  color: var(--xray-text);
+  font-size: 13px;
+}
+
+.xray-export-preview-head p {
+  margin: 3px 0 0;
+  color: var(--xray-hint);
+  font-size: 11px;
+}
+
+.xray-export-code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: rgba(var(--xray-bg-rgb), .54);
+}
+
+.xray-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid rgba(108, 112, 134, .5);
+  border-radius: var(--xray-radius);
+  padding: 10px;
+  color: var(--xray-text);
+  background: var(--xray-surface);
+  font: 800 12px/1.45 var(--xray-font);
+}
+
+.xray-toast {
+  position: absolute;
+  right: 14px;
+  bottom: 38px;
+  max-width: min(420px, calc(100% - 28px));
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 226, 213, .42);
+  border-radius: var(--xray-radius);
+  color: var(--xray-text);
+  background: rgba(var(--xray-surface-rgb), .94);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);
+  font: 800 11px/1.35 var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.xray-insight-columns,
+.xray-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.xray-insight-row {
+  width: 100%;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(108, 112, 134, .20);
+  padding: 7px 0;
+  color: var(--xray-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 800 11px/1.35 var(--xray-font);
+}
+
+.xray-insight-row:hover {
+  color: var(--xray-blue);
+}
+
+.xray-insight-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-status-mix-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: var(--xray-subtext);
+  font: 800 11px/1.35 var(--xray-font);
+}
+
+.xray-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.xray-settings-modal {
+  width: min(620px, 94vw);
+}
+
+.xray-settings-modal-body {
+  min-height: 400px;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.xray-settings-nav {
+  padding: 8px 0;
+  border-right: 1px solid rgba(108, 112, 134, .35);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-settings-nav-item {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-left: 2px solid transparent;
+  padding: 0 14px;
+  color: var(--xray-hint);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 800 11px/1 var(--xray-font);
+}
+
+.xray-settings-nav-item:hover {
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-surface2-rgb), .55);
+}
+
+.xray-settings-nav-item.active {
+  color: var(--xray-text);
+  border-left-color: var(--xray-accent, var(--xray-mauve));
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);
+}
+
+.xray-settings-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.xray-settings-section-title {
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.xray-settings-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(69, 71, 90, .25);
+  color: var(--xray-text);
+  font: 800 11px/1.35 var(--xray-font);
+}
+
+.xray-settings-row.read-only {
+  align-items: flex-start;
+}
+
+.xray-settings-row strong,
+.xray-settings-row small {
+  display: block;
+}
+
+.xray-settings-row small {
+  margin-top: 2px;
+  color: var(--xray-hint);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-toggle {
+  width: 36px;
+  height: 20px;
+  flex: 0 0 auto;
+  position: relative;
+  border: 0;
+  border-radius: 999px;
+  background: var(--xray-surface2);
+  cursor: pointer;
+}
+
+.xray-toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--xray-hint);
+  transition: transform .15s ease, background .15s ease;
+}
+
+.xray-toggle.on {
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-toggle.on::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.xray-number-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-number-input input,
+.xray-select {
+  height: 30px;
+  border: 1px solid rgba(108, 112, 134, .45);
+  border-radius: var(--xray-radius-sm);
+  color: var(--xray-text);
+  background: var(--xray-surface2);
+  font: 800 11px/1 var(--xray-font);
+}
+
+.xray-number-input input {
+  width: 76px;
+  padding: 0 8px;
+  text-align: right;
+}
+
+.xray-select {
+  min-width: 118px;
+  padding: 0 8px;
+}
+
+.xray-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.xray-color-swatch {
+  width: 23px;
+  height: 23px;
+  border: 2px solid transparent;
+  border-radius: var(--xray-radius-sm);
+  cursor: pointer;
+}
+
+.xray-color-swatch.active {
+  border-color: var(--xray-text);
+}
+
+.xray-settings-danger {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid rgba(243, 139, 168, .22);
+  border-radius: var(--xray-radius);
+  background: rgba(243, 139, 168, .04);
+}
+
+.xray-danger-title {
+  margin-bottom: 8px;
+  color: var(--xray-red);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.xray-danger-row {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  padding: 0 8px;
+  color: var(--xray-red);
+  background: transparent;
+  cursor: pointer;
+  font: 800 11px/1 var(--xray-font);
+}
+
+.xray-danger-row:hover {
+  background: rgba(243, 139, 168, .08);
+}
+
+.xray-confirm-modal {
+  width: min(460px, 92vw);
+}
+
+.xray-confirm-message {
+  margin: 0;
+  color: var(--xray-subtext);
+  font: 800 12px/1.55 var(--xray-font);
+}
+
+.xray-compact-rows .xray-api-row {
+  min-height: 42px;
+}
+
+.xray-compact-rows .xray-api-row .xray-entry-meta,
+.xray-compact-rows .xray-api-row .xray-api-flags {
+  display: none;
+}
+
+.xray-command-modal {
+  width: min(680px, 92vw);
+}
+
+.xray-command-search {
+  display: block;
+  padding: 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .35);
+}
+
+.xray-command-list {
+  display: grid;
+  gap: 4px;
+}
+
+.xray-command-row {
+  width: 100%;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius);
+  padding: 0 10px;
+  color: var(--xray-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 800 12px/1.25 var(--xray-font);
+}
+
+.xray-command-row:hover {
+  border-color: rgba(137, 180, 250, .42);
+  background: rgba(137, 180, 250, .10);
+}
+
+.xray-command-row small {
+  color: var(--xray-hint);
+  font-size: 10px;
+}
+
+@media (max-width: 1700px) {
+  .xray-api-body {
+    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
+  }
+
+  .xray-request-context-pane {
+    display: none;
+  }
+
+  .xray-api-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .xray-panel {
+    width: 100vw;
+  }
+
+  .xray-topbar {
+    gap: 6px;
+    padding: 0 8px;
+    overflow: hidden;
+  }
+
+  .xray-brand {
+    min-width: 112px;
+  }
+
+  .xray-tabs {
+    min-width: 0;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .xray-tabs::-webkit-scrollbar,
+  .xray-console-head::-webkit-scrollbar,
+  .xray-filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .xray-tab {
+    flex: 0 0 auto;
+    padding: 0 10px;
+  }
+
+  .xray-console-head {
+    overflow-x: auto;
+  }
+
+  .xray-console-tabs,
+  .xray-toolbar {
+    flex: 0 0 auto;
+  }
+
+  .xray-toolbar {
+    padding-right: 8px;
+  }
+
+  .xray-summary,
+  .xray-network-row > :nth-child(5),
+  .xray-network-row > :nth-child(6),
+  .xray-network-head > :nth-child(5),
+  .xray-network-head > :nth-child(6) {
+    display: none;
+  }
+
+  .xray-filterbar {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-filter-chips {
+    padding-bottom: 2px;
+  }
+
+  .xray-network-head,
+  .xray-network-row {
+    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;
+  }
+
+  .xray-split {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-detail-panel {
+    display: none;
+  }
+
+  .xray-api-workspace {
+    overflow: hidden;
+  }
+
+  .xray-api-body {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-api-toolbar {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  .xray-api-collection-pane {
+    border-right: 0;
+  }
+
+  .xray-api-collection-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xray-api-env-pill {
+    justify-self: start;
+  }
+
+  .xray-api-summary-strip {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .xray-api-summary-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .xray-api-summary-pill {
+    flex: 0 0 112px;
+  }
+
+  .xray-api-primary-filters,
+  .xray-api-secondary-controls,
+  .xray-api-secondary-controls .xray-filter-chips {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .xray-api-secondary-controls {
+    display: grid;
+    gap: 6px;
+  }
+
+  .xray-api-table-head,
+  .xray-api-row {
+    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;
+  }
+
+  .xray-api-table-head > :nth-child(4),
+  .xray-api-row > .xray-entry-duration {
+    display: none;
+  }
+
+  .xray-api-row-actions {
+    gap: 2px;
+  }
+
+  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {
+    display: none;
+  }
+
+  .xray-api-detail-drawer {
+    position: absolute;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: min(68vh, 560px);
+    border-left: 0;
+    border-top: 1px solid rgba(137, 180, 250, .34);
+    border-radius: var(--xray-radius-lg) var(--xray-radius-lg) 0 0;
+    background: var(--xray-surface);
+    box-shadow: 0 -22px 44px rgba(0, 0, 0, .28);
+    z-index: 8;
+    overflow: hidden;
+  }
+
+  .xray-api-drawer-body,
+  .xray-request-detail,
+  .xray-detail-content {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .xray-detail-content .xray-json-editor {
+    min-width: 0;
+  }
+
+  .xray-json-line {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .xray-json-line-no {
+    padding-right: 8px;
+  }
+
+  .xray-json-line-text {
+    padding: 0 9px;
+    overflow-wrap: anywhere;
+  }
+
+  .xray-detail-tabs,
+  .xray-detail-views,
+  .xray-operation-bar {
+    max-width: 100%;
+  }
+
+  .xray-detail-views {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .xray-detail-views .xray-chip {
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .xray-operation-group {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .xray-operation-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .xray-operation-bar .xray-chip {
+    justify-content: center;
+  }
+
+  .xray-detail-footer {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+    align-items: stretch;
+  }
+
+  .xray-detail-footer .xray-action-btn {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .xray-api-detail-drawer.empty {
+    display: none;
+  }
+
+  .xray-entry-row {
+    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;
+  }
+
+  .xray-list-panel > .xray-virtual-list {
+    min-height: 168px;
+  }
+
+  .xray-entry-duration {
+    display: none;
+  }
+
+  .xray-mobile-detail-panel {
+    display: block;
+    flex-shrink: 0;
+    max-height: 38vh;
+    overflow: auto;
+    border-top: 1px solid rgba(108, 112, 134, .35);
+    background: var(--xray-surface);
+  }
+
+  .xray-prompt {
+    grid-template-columns: 20px minmax(120px, 1fr) auto;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .xray-context-chip {
+    display: none;
+  }
+
+  .xray-export-modal {
+    width: 96vw;
+  }
+
+  .xray-settings-modal {
+    width: 96vw;
+    max-height: 88vh;
+  }
+
+  .xray-settings-modal-body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .xray-settings-nav {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+  }
+
+  .xray-settings-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .xray-settings-nav-item.active {
+    border-bottom-color: var(--xray-accent, var(--xray-mauve));
+  }
+
+  .xray-export-body {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-export-rail {
+    display: flex;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+    overflow-x: auto;
+  }
+
+  .xray-export-group {
+    min-width: 170px;
+    margin-bottom: 0;
+  }
+
+  .xray-export-preview-head {
+    display: grid;
+  }
+
+  .xray-insight-grid,
+  .xray-insight-columns,
+  .xray-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-page-head {
+    display: grid;
+  }
+}
+
+@media (max-width: 420px) {
+  .xray-api-table-head,
+  .xray-api-row {
+    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
+    gap: 5px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .xray-api-table-head > :nth-child(4),
+  .xray-api-row > .xray-entry-duration {
+    display: none;
+  }
+
+  .xray-response-chips,
+  .xray-detail-footer {
+    flex-wrap: wrap;
+  }
+
+  .xray-detail-footer {
+    overflow-x: visible;
+    align-items: stretch;
+  }
+
+  .xray-detail-footer .xray-action-btn {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .xray-detail-views {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .xray-detail-views .xray-chip {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .xray-operation-group {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-api-row-actions .xray-icon-btn {
+    width: 25px;
+  }
+}
+
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   XRAY Operator UI override layer
+   Configurable developer cockpit skin applied across existing tabs.
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.xray-panel .xray-api-workspace,
+.xray-panel .xray-console-workspace,
+.xray-panel .xray-insights,
+.xray-panel .xray-settings-page,
+.xray-panel .xray-logs-workspace {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-bg) 92%, var(--xray-accent) 8%), var(--xray-bg));
+}
+
+.xray-panel .xray-api-collection-pane,
+.xray-panel .xray-api-detail-pane,
+.xray-panel .xray-console-main,
+.xray-panel .xray-card,
+.xray-panel .xray-settings-card,
+.xray-panel .xray-modal-card {
+  border-color: var(--xray-border, rgba(108,112,134,.35));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);
+}
+
+.xray-panel .xray-api-row,
+.xray-panel .xray-entry-row,
+.xray-panel .xray-console-row,
+.xray-panel .xray-log-row {
+  min-height: var(--xray-row-h, 52px);
+  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));
+  transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;
+}
+
+.xray-panel .xray-api-row:hover,
+.xray-panel .xray-entry-row:hover,
+.xray-panel .xray-console-row:hover,
+.xray-panel .xray-log-row:hover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 9%, transparent), color-mix(in srgb, var(--xray-surface2) 72%, transparent));
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
+}
+
+.xray-glow .xray-api-row.selected,
+.xray-glow .xray-entry-row.selected,
+.xray-glow .xray-console-row.selected,
+.xray-glow .xray-log-row.selected {
+  box-shadow: inset 3px 0 0 var(--xray-accent), 0 0 28px color-mix(in srgb, var(--xray-accent) 12%, transparent);
+}
+
+.xray-panel .xray-method,
+.xray-panel .xray-status,
+.xray-panel .xray-response-chip,
+.xray-panel .xray-chip,
+.xray-panel .xray-badge {
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.xray-panel .xray-method.get { color: var(--xray-green); }
+.xray-panel .xray-method.post { color: var(--xray-blue); }
+.xray-panel .xray-method.put,
+.xray-panel .xray-method.patch { color: var(--xray-yellow); }
+.xray-panel .xray-method.delete { color: var(--xray-red); }
+
+.xray-panel .xray-input,
+.xray-panel .xray-select,
+.xray-panel textarea,
+.xray-panel input,
+.xray-panel select {
+  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);
+  border-color: var(--xray-border, rgba(108,112,134,.35));
+  color: var(--xray-text);
+  font-family: var(--xray-font);
+}
+
+.xray-panel .xray-input:focus,
+.xray-panel .xray-select:focus,
+.xray-panel textarea:focus,
+.xray-panel input:focus,
+.xray-panel select:focus {
+  outline: none;
+  border-color: var(--xray-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 18%, transparent);
+}
+
+.xray-panel .xray-json,
+.xray-panel .xray-json-editor,
+.xray-panel pre,
+.xray-panel code,
+.xray-panel kbd {
+  font-family: var(--xray-font);
+}
+
+.xray-panel .xray-json,
+.xray-panel .xray-json-editor {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),
+    color-mix(in srgb, var(--xray-bg) 86%, black 14%);
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-radius: var(--xray-radius);
+}
+
+.xray-panel .xray-json-line-no {
+  color: color-mix(in srgb, var(--xray-hint) 82%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
+}
+
+.xray-panel .xray-json-key { color: var(--xray-blue); }
+.xray-panel .xray-json-string { color: var(--xray-green); }
+.xray-panel .xray-json-number { color: var(--xray-peach); }
+.xray-panel .xray-json-bool { color: var(--xray-mauve); }
+.xray-panel .xray-json-null { color: var(--xray-hint); }
+
+.xray-panel .xray-detail-hero,
+.xray-panel .xray-console-head,
+.xray-panel .xray-api-toolbar,
+.xray-panel .xray-api-command-bar,
+.xray-panel .xray-detail-nav {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));
+  border-color: var(--xray-border, rgba(108,112,134,.35));
+}
+
+.xray-panel .xray-detail-tabs button,
+.xray-panel .xray-view-btn,
+.xray-panel .xray-operation-btn,
+.xray-panel .xray-action-btn,
+.xray-panel .xray-btn,
+.xray-panel .xray-icon-btn {
+  border-radius: var(--xray-radius);
+}
+
+.xray-panel .xray-operation-btn,
+.xray-panel .xray-action-btn.primary,
+.xray-panel .xray-btn.primary {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));
+  border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);
+}
+
+.xray-glow .xray-operation-btn:hover,
+.xray-glow .xray-action-btn.primary:hover,
+.xray-glow .xray-btn.primary:hover {
+  box-shadow: 0 0 24px color-mix(in srgb, var(--xray-accent) 18%, transparent);
+}
+
+.xray-panel .xray-settings-section-title,
+.xray-panel .xray-danger-title,
+.xray-panel h3,
+.xray-panel h4 {
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);
+}
+
+.xray-panel.xray-density-compact .xray-api-row,
+.xray-panel.xray-density-compact .xray-console-row,
+.xray-panel.xray-density-compact .xray-settings-row {
+  font-size: 11px;
+}
+
+.xray-panel.xray-density-spacious .xray-api-row,
+.xray-panel.xray-density-spacious .xray-console-row,
+.xray-panel.xray-density-spacious .xray-settings-row {
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-panel,
+  .xray-panel *,
+  .xray-panel *::before,
+  .xray-panel *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   XRAY Operator UI tab-specific polish
+   Firefox DevTools density + terminal-grade inspector ergonomics.
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.xray-panel .xray-filterbar {
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  background: color-mix(in srgb, var(--xray-surface) 84%, transparent);
+}
+
+.xray-panel .xray-search {
+  min-height: 38px;
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);
+}
+
+.xray-panel .xray-network-head,
+.xray-panel .xray-api-table-head {
+  min-height: 32px;
+  color: var(--xray-accent);
+  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.xray-panel .xray-network-row,
+.xray-panel .xray-api-row {
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-panel .xray-network-row.selected,
+.xray-panel .xray-api-row.selected {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+}
+
+.xray-panel .xray-path,
+.xray-panel .xray-api-path,
+.xray-panel .xray-response-heading h3 {
+  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent) 14%);
+  font-weight: 800;
+}
+
+.xray-panel .xray-bar-track {
+  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);
+  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);
+  overflow: hidden;
+}
+
+.xray-panel .xray-bar {
+  background: linear-gradient(90deg, var(--xray-accent), var(--xray-green));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 28%, transparent);
+}
+
+.xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }
+.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }
+
+.xray-panel .xray-request-detail {
+  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);
+}
+
+.xray-panel .xray-detail-hero {
+  padding: calc(14px * var(--xray-density-scale, 1));
+  box-shadow: inset 3px 0 0 var(--xray-accent);
+}
+
+.xray-panel .xray-detail-tab,
+.xray-panel .xray-detail-views .xray-chip {
+  height: 30px;
+  border: 1px solid transparent;
+  color: var(--xray-subtext);
+  background: transparent;
+  font: 900 10px/1 var(--xray-font);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.xray-panel .xray-detail-tab.active,
+.xray-panel .xray-detail-views .xray-chip.active {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+}
+
+.xray-panel .xray-operation-groups {
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--xray-surface) 75%, transparent);
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+}
+
+.xray-panel .xray-operation-group-label {
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.xray-panel .xray-operation-btn {
+  min-height: 30px;
+  color: var(--xray-text);
+  font-size: 10px;
+}
+
+.xray-panel .xray-console-head {
+  min-height: var(--xray-chrome-h, 44px);
+}
+
+.xray-panel .xray-console-tabs .xray-mini-tab {
+  text-transform: none;
+  letter-spacing: .04em;
+}
+
+.xray-panel .xray-console-row {
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-panel .xray-prompt {
+  gap: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
+}
+
+.xray-panel .xray-prompt::before {
+  content: '>';
+  color: var(--xray-accent);
+  font: 900 18px/1 var(--xray-font);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);
+}
+
+.xray-panel .xray-prompt .xray-input {
+  min-height: 40px;
+  border-radius: var(--xray-radius);
+}
+
+.xray-panel .xray-statusbar {
+  min-height: 28px;
+  padding: 0 12px;
+  color: var(--xray-subtext);
+  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: lowercase;
+}
+
+.xray-panel .xray-page-head {
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));
+}
+
+.xray-panel .xray-page-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.xray-panel .xray-page-head p {
+  color: var(--xray-subtext);
+}
+
+.xray-panel .xray-insight-columns,
+.xray-panel .xray-insight-grid {
+  padding: 14px;
+}
+
+.xray-panel .xray-card::before,
+.xray-panel .xray-api-metric::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--xray-accent), transparent);
+  opacity: .75;
+}
+
+.xray-panel .xray-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.xray-panel .xray-insight-row {
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-surface2) 44%, transparent);
+}
+
+.xray-panel .xray-insight-row:hover {
+  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);
+}
+
+.xray-panel .xray-api-metric {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--xray-border, rgba(108,112,134,.35));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));
+}
+
+.xray-panel .xray-api-metric strong {
+  font-size: 18px;
+  color: var(--xray-text);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);
+}
+
+/* XRAY Operator UI prompt layout hardening */
+.xray-panel .xray-prompt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);
+}
+
+.xray-panel .xray-prompt::before {
+  display: none;
+}
+
+.xray-panel .xray-prompt > svg {
+  color: var(--xray-accent-2);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));
+}
+
+.xray-panel .xray-prompt-command {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.xray-panel .xray-prompt input,
+.xray-panel .xray-prompt textarea {
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 13px;
+  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));
+  border-radius: var(--xray-radius-lg);
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+  font: inherit;
+}
+
+.xray-panel .xray-prompt input:focus,
+.xray-panel .xray-prompt textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);
+}
+
+.xray-panel .xray-context-chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-self: end;
+  max-width: min(28vw, 460px);
+  padding: 8px 13px;
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));
+  border-radius: 999px;
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
+}
+
+@media (max-width: 860px) {
+  .xray-panel .xray-prompt {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .xray-panel .xray-prompt-command {
+    grid-column: 2 / -1;
+  }
+
+  .xray-panel .xray-context-chip {
+    grid-column: 2 / -1;
+    justify-self: stretch;
+    max-width: none;
+  }
+}
+
+
+/* \u2500\u2500 God-tier feature styling: flags, drift, actions, waterfall, frames, tokens, rules, replay, AI \u2500\u2500 */
+
+.xray-api-flag.drift,
+.xray-api-flag.graphql {
+  color: var(--xray-mauve);
+  border-color: rgba(203, 166, 247, .40);
+  background: rgba(203, 166, 247, .12);
+}
+
+.xray-api-flag.ws {
+  color: var(--xray-teal);
+  border-color: rgba(148, 226, 213, .38);
+  background: rgba(148, 226, 213, .12);
+}
+
+.xray-api-flag.mocked,
+.xray-api-flag.replayed {
+  color: var(--xray-blue);
+  border-color: rgba(137, 180, 250, .38);
+  background: rgba(137, 180, 250, .12);
+}
+
+.xray-drift-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(203, 166, 247, .40);
+  border-radius: var(--xray-radius);
+  color: var(--xray-mauve);
+  background: rgba(203, 166, 247, .10);
+  font-size: 11px;
+}
+
+.xray-drift-banner span {
+  flex: 1;
+}
+
+.xray-detail-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.xray-waterfall-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.xray-waterfall-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.xray-waterfall-track {
+  display: flex;
+  width: 100%;
+  height: 16px;
+  border-radius: var(--xray-radius-sm);
+  overflow: hidden;
+  background: rgba(var(--xray-bg-rgb), .55);
+}
+
+.xray-waterfall-seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.xray-waterfall-seg.dns,
+.xray-waterfall-dot.dns { background: var(--xray-mauve); }
+.xray-waterfall-seg.connect,
+.xray-waterfall-dot.connect { background: var(--xray-blue); }
+.xray-waterfall-seg.tls,
+.xray-waterfall-dot.tls { background: var(--xray-teal); }
+.xray-waterfall-seg.ttfb,
+.xray-waterfall-dot.ttfb { background: var(--xray-yellow); }
+.xray-waterfall-seg.download,
+.xray-waterfall-dot.download { background: var(--xray-green); }
+.xray-waterfall-seg.total,
+.xray-waterfall-dot.total { background: var(--xray-accent, var(--xray-blue)); }
+
+.xray-waterfall-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.xray-waterfall-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--xray-subtext);
+}
+
+.xray-waterfall-legend strong {
+  color: var(--xray-text);
+}
+
+.xray-waterfall-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--xray-radius-sm);
+}
+
+/* Frames (WebSocket / SSE) */
+.xray-frames {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.xray-frames-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+}
+
+.xray-ws-state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--xray-subtext);
+  background: rgba(108, 112, 134, .2);
+}
+
+.xray-ws-state.open { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
+.xray-ws-state.closed { color: var(--xray-subtext); }
+.xray-ws-state.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
+
+.xray-frames-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.xray-frame-row {
+  display: grid;
+  grid-template-columns: 52px 64px 56px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: var(--xray-radius-sm);
+  background: rgba(var(--xray-bg-rgb), .4);
+  font-size: 11px;
+}
+
+.xray-frame-row.out { background: rgba(137, 180, 250, .08); }
+
+.xray-frame-dir {
+  font-weight: 800;
+  font-size: 10px;
+}
+
+.xray-frame-dir.in { color: var(--xray-green); }
+.xray-frame-dir.out { color: var(--xray-blue); }
+
+.xray-frame-time,
+.xray-frame-size {
+  color: var(--xray-hint);
+}
+
+.xray-frame-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-text);
+}
+
+.xray-initiator-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xray-initiator-list code {
+  color: var(--xray-subtext);
+  font-size: 11px;
+}
+
+/* JWT tokens */
+.xray-tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.xray-token-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.xray-token-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--xray-text);
+}
+
+.xray-token-exp {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.xray-token-exp.valid { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
+.xray-token-exp.expired { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
+
+.xray-token-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.xray-token-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--xray-hint);
+}
+
+/* Rules tab */
+.xray-rules-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 70%, transparent);
+}
+
+.xray-rules-toolbar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--xray-subtext);
+  margin-right: 2px;
+}
+
+.xray-rules-import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.xray-rules-import-field {
+  min-height: 96px;
+  resize: vertical;
+  font-family: var(--xray-font);
+  font-size: 11px;
+}
+
+.xray-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.xray-rules-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--xray-subtext);
+  padding: 32px;
+}
+
+.xray-rule-card.disabled {
+  opacity: .6;
+}
+
+.xray-rule-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.xray-rule-label {
+  flex: 1;
+  font-weight: 700;
+}
+
+.xray-rule-summary {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--xray-accent, var(--xray-blue));
+  white-space: nowrap;
+}
+
+.xray-rule-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.xray-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.xray-field > span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--xray-hint);
+}
+
+.xray-field-narrow {
+  flex: 0 0 120px;
+  min-width: 120px;
+}
+
+.xray-rule-body,
+.xray-replay-headers,
+.xray-replay-bodyfield {
+  min-height: 96px;
+  resize: vertical;
+  font-family: var(--xray-font);
+  line-height: 1.5;
+}
+
+.xray-rule-body {
+  margin-top: 10px;
+}
+
+/* Replay modal */
+.xray-replay-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.xray-replay-line {
+  display: flex;
+  gap: 8px;
+}
+
+.xray-replay-line .xray-select {
+  flex: 0 0 110px;
+}
+
+.xray-replay-line .xray-input {
+  flex: 1;
+}
+
+/* AI Explain modal */
+.xray-explain-body {
+  min-height: 160px;
+  padding: 6px 2px;
+}
+
+.xray-explain-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--xray-subtext);
+  padding: 24px 0;
+}
+
+.xray-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(137, 180, 250, .3);
+  border-top-color: var(--xray-accent, var(--xray-blue));
+  border-radius: 50%;
+  animation: xray-spin .7s linear infinite;
+}
+
+@keyframes xray-spin {
+  to { transform: rotate(360deg); }
+}
+
+.xray-explain-error {
+  display: flex;
+  gap: 10px;
+  color: var(--xray-red);
+  padding: 16px 0;
+}
+
+.xray-explain-error .xray-btn {
+  margin-top: 8px;
+}
+
+.xray-explain-result {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--xray-text);
+  font-size: 12px;
+}
+
+/* \u2500\u2500 Console snippet bar (folded-in Notebook) \u2500\u2500 */
+.xray-snippet-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+  background: color-mix(in srgb, var(--xray-surface) 82%, transparent);
+  overflow: hidden;
+}
+
+.xray-snippet-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--xray-hint);
+}
+
+.xray-snippet-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xray-snippet-chips::-webkit-scrollbar { display: none; }
+
+.xray-snippet-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 220px;
+  border: 1px solid rgba(108, 112, 134, .36);
+  border-radius: 999px;
+  background: rgba(var(--xray-surface-rgb), .6);
+  overflow: hidden;
+}
+
+.xray-snippet-load {
+  max-width: 190px;
+  padding: 4px 4px 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--xray-subtext);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.xray-snippet-load:hover {
+  color: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-snippet-remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--xray-hint);
+  cursor: pointer;
+}
+
+.xray-snippet-remove:hover { color: var(--xray-red); }
+
+.xray-snippet-save {
+  flex-shrink: 0;
+  padding: 5px 10px;
+}
+
+/* \u2500\u2500 Console live/paused stream toggle \u2500\u2500 */
+.xray-btn.xray-live {
+  color: var(--xray-green);
+  border-color: rgba(166, 227, 161, .32);
+  background: rgba(166, 227, 161, .08);
+}
+
+.xray-btn.xray-paused {
+  color: var(--xray-hint);
+}
+
+.xray-btn.xray-paused svg {
+  opacity: .6;
+}
+
+/* \u2500\u2500 Log detail (Logs tab) \u2500\u2500 */
+.xray-log-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  gap: 10px;
+}
+
+.xray-log-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xray-log-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--xray-subtext);
+  background: rgba(108, 112, 134, .18);
+}
+
+.xray-log-level.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
+.xray-log-level.warn { color: var(--xray-yellow); background: rgba(249, 226, 175, .14); }
+.xray-log-level.info { color: var(--xray-blue); background: rgba(137, 180, 250, .14); }
+
+.xray-log-load {
+  margin-left: auto;
+}
+
+.xray-log-message {
+  padding: 8px 10px;
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-bg-rgb), .5);
+  color: var(--xray-text);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.xray-log-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.xray-log-hint {
+  font-size: 11px;
+}
+
+/* \u2500\u2500 Visualize view: single-series horizontal bars \u2500\u2500 */
+.xray-viz {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.xray-viz-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.xray-viz-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.xray-viz-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.xray-viz-row {
+  display: grid;
+  grid-template-columns: minmax(60px, 160px) 1fr minmax(48px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.xray-viz-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--xray-subtext);
+}
+
+.xray-viz-track {
+  position: relative;
+  height: 14px;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
+}
+
+.xray-viz-fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: var(--xray-radius-sm);
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-viz-fill.negative {
+  background: var(--xray-red);
+}
+
+.xray-viz-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--xray-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-viz-foot {
+  font-size: 11px;
+}
+
+/* \u2500\u2500 Theme picker swatches (Settings \u2192 Appearance) \u2500\u2500 */
+.xray-theme-picker-row {
+  align-items: flex-start;
+}
+
+.xray-theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.xray-theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(128, 128, 160, .28);
+  border-radius: var(--xray-radius);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.xray-theme-swatch:hover {
+  transform: translateY(-1px);
+}
+
+.xray-theme-swatch.active {
+  border-color: var(--xray-accent, var(--xray-blue));
+  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue)), 0 6px 18px rgba(0, 0, 0, .3);
+}
+
+.xray-theme-swatch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.xray-theme-swatch-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* \u2500\u2500 Toast: slide in, auto-dismiss \u2500\u2500 */
+.xray-toast {
+  animation: xray-toast-in .18s cubic-bezier(.2, .8, .3, 1);
+}
+
+@keyframes xray-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* \u2500\u2500 Visualize bars: grow-in for perceived speed \u2500\u2500 */
+.xray-viz-fill {
+  transform-origin: left center;
+  animation: xray-bar-grow .32s cubic-bezier(.2, .8, .3, 1);
+}
+
+@keyframes xray-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* \u2500\u2500 Consistent focus-visible + interaction transitions \u2500\u2500 */
+.xray-app-root button:focus-visible,
+.xray-hud button:focus-visible,
+.xray-app-root [role="button"]:focus-visible,
+.xray-hud [role="button"]:focus-visible,
+.xray-app-root .xray-input:focus-visible,
+.xray-hud .xray-input:focus-visible {
+  outline: 2px solid var(--xray-accent, var(--xray-blue));
+  outline-offset: 1px;
+}
+
+.xray-chip,
+.xray-icon-btn,
+.xray-btn,
+.xray-api-row,
+.xray-network-row,
+.xray-entry-row {
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease;
+}
+
+.xray-icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* In-row action buttons live inside a scrolling virtualized list; the hover lift
+   reads as jitter there while the row itself stays put. Keep them flat. */
+.xray-api-row .xray-icon-btn:hover,
+.xray-api-row-actions .xray-icon-btn:hover,
+.xray-network-row .xray-icon-btn:hover,
+.xray-console-row .xray-icon-btn:hover,
+.xray-log-row .xray-icon-btn:hover {
+  transform: none;
+}
+
+.xray-api-table-scroll:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-toast,
+  .xray-viz-fill {
+    animation: none;
+  }
+}
+
+/* \u2500\u2500 Custom theme builder (Settings \u2192 Appearance) \u2500\u2500 */
+.xray-custom-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 14px;
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border-radius: var(--xray-radius-lg);
+  background: rgba(var(--xray-surface-rgb), .5);
+}
+
+.xray-custom-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+}
+
+.xray-custom-presets-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--xray-hint);
+  margin-right: 2px;
+}
+
+.xray-custom-preset-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.xray-custom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xray-custom-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.xray-custom-meta strong {
+  font-size: 12px;
+  color: var(--xray-text);
+}
+
+.xray-custom-meta small {
+  font-size: 10px;
+  color: var(--xray-hint);
+}
+
+.xray-custom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.xray-color-input {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
+  border-radius: var(--xray-radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.xray-color-input::-webkit-color-swatch-wrapper { padding: 3px; }
+.xray-color-input::-webkit-color-swatch { border: none; border-radius: var(--xray-radius-sm); }
+
+.xray-custom-hex {
+  width: 92px;
+  text-transform: lowercase;
+  font-variant-ligatures: none;
+}
+
+.xray-custom-hex.invalid {
+  border-color: var(--xray-red);
+}
+
+.xray-custom-note {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--xray-hint);
+}
+
+/* \u2500\u2500 Live theme preview (painted with the resolved theme vars) \u2500\u2500 */
+.xray-theme-preview {
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border-radius: var(--xray-radius);
+  background: var(--xray-bg);
+  color: var(--xray-text);
+  overflow: hidden;
+  font-size: 11px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+}
+
+.xray-tp-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
+  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
+}
+
+.xray-tp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--xray-accent);
+  box-shadow: 0 0 8px var(--xray-accent);
+}
+
+.xray-tp-brand {
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: 10px;
+}
+
+.xray-tp-tab {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--xray-subtext);
+}
+
+.xray-tp-tab.active {
+  color: var(--xray-accent);
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-tp-grow { flex: 1; }
+
+.xray-tp-btn {
+  padding: 2px 10px;
+  border-radius: var(--xray-radius-sm, 6px);
+  font-weight: 700;
+  color: var(--xray-bg);
+  background: var(--xray-accent);
+}
+
+.xray-tp-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.xray-tp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 55%, transparent);
+}
+
+.xray-tp-row.selected {
+  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--xray-accent);
+}
+
+.xray-tp-method {
+  font-weight: 800;
+  font-size: 10px;
+  min-width: 44px;
+}
+
+.xray-tp-method.get { color: var(--xray-green); }
+.xray-tp-method.post { color: var(--xray-blue); }
+.xray-tp-method.delete { color: var(--xray-red); }
+
+.xray-tp-path {
+  flex: 1;
+  color: var(--xray-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-tp-code {
+  font-weight: 800;
+  font-size: 10px;
+}
+
+.xray-tp-code.ok { color: var(--xray-green); }
+.xray-tp-code.warn { color: var(--xray-yellow); }
+.xray-tp-code.err { color: var(--xray-red); }
+
+.xray-tp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 10px;
+  background: var(--xray-surface);
+}
+
+.xray-tp-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+
+.xray-tp-badge.green { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 16%, transparent); }
+.xray-tp-badge.yellow { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 16%, transparent); }
+.xray-tp-badge.red { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 16%, transparent); }
+.xray-tp-badge.blue { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 16%, transparent); }
+.xray-tp-badge.mauve { color: var(--xray-mauve); background: color-mix(in srgb, var(--xray-mauve) 16%, transparent); }
+
+/* \u2500\u2500 Full-freedom token editor (grouped swatch grid) \u2500\u2500 */
+.xray-custom-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xray-custom-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.xray-custom-group-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--xray-subtext);
+}
+
+.xray-custom-group-hint {
+  font-size: 10px;
+  color: var(--xray-hint);
+}
+
+.xray-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.xray-token-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 60%, transparent);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface-rgb), .45);
+  transition: border-color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-token-field.pinned {
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 7%, rgba(var(--xray-surface-rgb), .45));
+}
+
+.xray-token-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.xray-token-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--xray-text);
+}
+
+.xray-token-state {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 999px;
+  color: var(--xray-hint);
+  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+}
+
+.xray-token-field.pinned .xray-token-state {
+  color: var(--xray-accent);
+  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
+}
+
+.xray-token-meta .xray-custom-hex {
+  width: 100%;
+  height: 24px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.xray-token-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.xray-token-btn,
+.xray-token-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-hint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast) var(--xray-ease), color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-token-field:hover .xray-token-btn,
+.xray-token-field:focus-within .xray-token-btn,
+.xray-token-field:hover .xray-token-reset,
+.xray-token-field:focus-within .xray-token-reset,
+.xray-token-field.pinned .xray-token-reset {
+  opacity: 1;
+}
+
+.xray-token-btn:hover,
+.xray-token-reset:hover:not(:disabled) {
+  color: var(--xray-accent);
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-token-reset:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+.xray-custom-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+  font-size: 10px;
+  color: var(--xray-subtext);
+}
+
+@media (max-width: 560px) {
+  .xray-custom-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Themeable corner radius: every rounded-rect radius across the stylesheet is
+   driven by the --xray-radius scale (pills at 999px and 50% circles keep their
+   shape). The base --xray-radius is set inline per panel from settings.radius. */
+
+/* \u2500\u2500 Range slider (radius) \u2500\u2500 */
+.xray-range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xray-range {
+  width: 120px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--xray-surface2) 80%, transparent);
+  outline: none;
+  cursor: pointer;
+}
+
+.xray-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--xray-accent, var(--xray-blue));
+  border: 2px solid var(--xray-surface);
+  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue));
+}
+
+.xray-range::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--xray-surface);
+  border-radius: 50%;
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-range-value {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--xray-subtext);
+}
+
+/* \u2500\u2500 Theme Studio toolbar + import \u2500\u2500 */
+.xray-custom-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+}
+
+.xray-custom-import {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xray-custom-import-field {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  font-family: var(--xray-font);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* \u2500\u2500 Hacker mode: CRT scanlines + vignette + moving scan sweep + phosphor bloom \u2500\u2500
+   Cosmetic, opt-in, pointer-events:none. Layer 1 (sweep) is the only layer the
+   keyframes move; scanlines and vignette stay put. \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.xray-panel.xray-hacker::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent) 45%, transparent 90%),
+    linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, .18) 50%),
+    radial-gradient(ellipse 130% 100% at 50% 50%, transparent 50%, rgba(0, 0, 0, .34) 100%);
+  background-size: 100% 42%, 100% 3px, 100% 100%;
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-position: 0 -42%, 0 0, 0 0;
+}
+
+/* phosphor bloom on text + a faint scanned tint over the whole panel */
+.xray-panel.xray-hacker {
+  text-shadow: 0 0 4px color-mix(in srgb, var(--xray-accent) 30%, transparent);
+}
+
+.xray-panel.xray-hacker .xray-json-line-text,
+.xray-panel.xray-hacker .xray-console-message,
+.xray-panel.xray-hacker .xray-path,
+.xray-panel.xray-hacker .xray-method {
+  text-shadow: 0 0 7px color-mix(in srgb, var(--xray-green) 42%, transparent);
+}
+
+.xray-panel.xray-hacker .xray-brand-mark {
+  box-shadow: 0 0 18px color-mix(in srgb, var(--xray-accent) 55%, transparent);
+}
+
+@keyframes xray-crt-sweep {
+  0% { background-position: 0 -42%, 0 0, 0 0; }
+  100% { background-position: 0 142%, 0 0, 0 0; }
+}
+
+@keyframes xray-crt-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: .82; }
+  98% { opacity: 1; }
+  99% { opacity: .9; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .xray-panel.xray-hacker::after {
+    animation: xray-crt-sweep 5.5s linear infinite, xray-crt-flicker 7s steps(1) infinite;
+  }
+}
+
+/* \u2500\u2500 Contrast report (Theme Studio) \u2500\u2500 */
+.xray-contrast {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border-radius: var(--xray-radius, 8px);
+  background: rgba(var(--xray-bg-rgb), .4);
+}
+
+.xray-contrast-title {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--xray-hint);
+  margin-bottom: 2px;
+}
+
+.xray-contrast-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.xray-contrast-label {
+  color: var(--xray-subtext);
+}
+
+.xray-contrast-row strong {
+  color: var(--xray-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-contrast-grade {
+  min-width: 58px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.xray-contrast-grade.ok {
+  color: var(--xray-green);
+  background: color-mix(in srgb, var(--xray-green) 16%, transparent);
+}
+
+.xray-contrast-grade.warn {
+  color: var(--xray-yellow);
+  background: color-mix(in srgb, var(--xray-yellow) 16%, transparent);
+}
+
+.xray-contrast-grade.fail {
+  color: var(--xray-red);
+  background: color-mix(in srgb, var(--xray-red) 18%, transparent);
+}
+
+/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+   Frontend elevation \u2014 command center, empty states, motion, micro-interactions
+   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
+
+/* \u2500\u2500 Command center \u2500\u2500 */
+.xray-command-modal {
+  width: min(620px, 94vw);
+}
+
+.xray-command-search {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.xray-command-search .xray-input {
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.xray-command-search .xray-input:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.xray-command-list {
+  max-height: min(56vh, 460px);
+  overflow-y: auto;
+  padding: 6px;
+  scroll-padding: 40px 0;
+}
+
+.xray-command-group + .xray-command-group {
+  margin-top: 2px;
+}
+
+.xray-command-group-label {
+  padding: 8px 10px 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: var(--xray-hint);
+}
+
+.xray-command-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-command-row.active {
+  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 40%, transparent);
+}
+
+.xray-command-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  color: var(--xray-subtext);
+}
+
+.xray-command-row.active .xray-command-icon {
+  color: var(--xray-accent);
+}
+
+.xray-command-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-command-label mark {
+  background: transparent;
+  color: var(--xray-accent);
+  font-weight: 800;
+}
+
+.xray-cmd-method {
+  min-width: 34px;
+  padding: 2px 5px;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  color: currentColor;
+}
+
+.xray-command-hint {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--xray-hint);
+}
+
+.xray-command-enter {
+  color: var(--xray-accent);
+  flex-shrink: 0;
+}
+
+.xray-command-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--xray-subtext);
+}
+
+.xray-command-empty svg { color: var(--xray-hint); }
+.xray-command-empty small { color: var(--xray-hint); font-size: 11px; }
+
+.xray-command-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+  font-size: 10px;
+  color: var(--xray-hint);
+}
+
+.xray-command-foot kbd {
+  display: inline-block;
+  min-width: 16px;
+  margin-right: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
+  border-radius: var(--xray-radius-sm);
+  background: rgba(var(--xray-surface-rgb), .8);
+  font-family: var(--xray-font);
+  font-size: 10px;
+  color: var(--xray-subtext);
+}
+
+/* \u2500\u2500 Global search (Find in traffic) \u2500\u2500 */
+.xray-gsearch-modal {
+  width: min(720px, 94vw);
+}
+
+.xray-gsearch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+}
+
+.xray-gsearch-input {
+  flex: 1;
+  margin: 0;
+}
+
+.xray-gsearch-list {
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.xray-gsearch-error {
+  padding: 14px 16px;
+  color: var(--xray-red);
+  font-size: 12px;
+}
+
+.xray-gsearch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.xray-gsearch-row.active {
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-gsearch-row .xray-cmd-method {
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.xray-gsearch-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.xray-gsearch-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xray-gsearch-field {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);
+}
+
+.xray-gsearch-snippet {
+  font-family: var(--xray-font);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--xray-subtext);
+  word-break: break-word;
+}
+
+.xray-gsearch-snippet mark {
+  background: color-mix(in srgb, var(--xray-accent) 34%, transparent);
+  color: var(--xray-text);
+  border-radius: var(--xray-radius-sm);
+  padding: 0 1px;
+}
+
+.xray-gsearch-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* \u2500\u2500 Elegant empty states \u2500\u2500 */
+.xray-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  padding: 28px 20px;
+  margin: auto;
+  text-align: center;
+  animation: xray-empty-in 320ms var(--xray-ease-out);
+}
+
+@keyframes xray-empty-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.xray-empty-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: var(--xray-accent);
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent) 22%, transparent), 0 0 28px color-mix(in srgb, var(--xray-accent) 16%, transparent);
+}
+
+.xray-empty-title {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--xray-text);
+}
+
+.xray-empty-hint {
+  margin: 0;
+  max-width: 320px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--xray-subtext);
+}
+
+.xray-empty-action {
+  margin-top: 6px;
+}
+
+/* \u2500\u2500 Animated active-tab indicator \u2500\u2500 */
+.xray-tab {
+  position: relative;
+}
+
+.xray-tab::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--xray-accent, var(--xray-blue));
+  transform: scaleX(0);
+  transform-origin: center;
+  opacity: 0;
+  transition: transform var(--xray-dur) var(--xray-ease-out), opacity var(--xray-dur) var(--xray-ease-out);
+}
+
+.xray-tab.active::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* \u2500\u2500 Refined modal entrance \u2500\u2500 */
+.xray-modal {
+  animation: xray-modal-in 200ms var(--xray-ease-out);
+}
+
+.xray-modal-backdrop {
+  animation: xray-fade-in 160ms ease-out;
+  backdrop-filter: blur(3px);
+}
+
+@keyframes xray-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes xray-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* \u2500\u2500 Selection & row micro-interactions \u2500\u2500 */
+.xray-api-row.selected,
+.xray-network-row.selected,
+.xray-entry-row.selected {
+  box-shadow: inset 3px 0 0 var(--xray-accent, var(--xray-blue));
+}
+
+.xray-live-dot.on {
+  animation: xray-pulse 2.4s var(--xray-ease) infinite;
+}
+
+@keyframes xray-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--xray-green) 55%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--xray-green) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-empty,
+  .xray-modal,
+  .xray-modal-backdrop,
+  .xray-live-dot.on {
+    animation: none;
+  }
+  .xray-tab::after {
+    transition: none;
+  }
+}
+
+/* \u2500\u2500 Version tag in the header brand \u2500\u2500 */
+.xray-brand-ver {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
+  background: rgba(var(--xray-surface2-rgb), .5);
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: help;
+}
+
+/* \u2500\u2500 API tab rework: headers grid, structural diff, initiator frames \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.xray-headers-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.xray-headers-filter {
+  max-width: 340px;
+}
+
+.xray-headers-section h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: var(--xray-subtext, var(--xray-text));
+}
+
+.xray-headers-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(108, 112, 134, .3);
+  border-radius: var(--xray-radius);
+  overflow: hidden;
+}
+
+.xray-header-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 26px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .18);
+  font-size: 11px;
+}
+
+.xray-header-row:last-child {
+  border-bottom: none;
+}
+
+.xray-header-row:hover {
+  background: rgba(var(--xray-surface2-rgb), .55);
+}
+
+.xray-header-name {
+  color: var(--xray-accent, var(--xray-blue));
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-header-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-text);
+}
+
+.xray-header-row .xray-icon-btn {
+  opacity: 0;
+}
+
+.xray-header-row:hover .xray-icon-btn,
+.xray-header-row .xray-icon-btn:focus-visible {
+  opacity: 1;
+}
+
+.xray-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xray-diff-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.xray-diff-lines {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(108, 112, 134, .3);
+  border-radius: var(--xray-radius);
+  overflow: hidden;
+  font-size: 11px;
+}
+
+.xray-diff-line {
+  display: grid;
+  grid-template-columns: 18px minmax(120px, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .16);
+}
+
+.xray-diff-line:last-child {
+  border-bottom: none;
+}
+
+.xray-diff-line.added {
+  background: rgba(166, 227, 161, .09);
+}
+
+.xray-diff-line.removed {
+  background: rgba(243, 139, 168, .09);
+}
+
+.xray-diff-line.changed {
+  background: rgba(249, 226, 175, .07);
+}
+
+.xray-diff-kind {
+  font-weight: 900;
+}
+
+.xray-diff-line.added .xray-diff-kind { color: var(--xray-green); }
+.xray-diff-line.removed .xray-diff-kind { color: var(--xray-red); }
+.xray-diff-line.changed .xray-diff-kind { color: var(--xray-yellow); }
+
+.xray-diff-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-text);
+  font-weight: 700;
+}
+
+.xray-diff-before,
+.xray-diff-after {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-diff-before { color: var(--xray-red); }
+.xray-diff-after { color: var(--xray-green); }
+
+.xray-initiator-frame {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) 26px;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.xray-initiator-fn {
+  font-weight: 800;
+  color: var(--xray-text);
+}
+
+.xray-initiator-loc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-subtext, var(--xray-hint));
+}
+
+.xray-initiator-frame .xray-icon-btn {
+  opacity: 0;
+}
+
+.xray-initiator-frame:hover .xray-icon-btn,
+.xray-initiator-frame .xray-icon-btn:focus-visible {
+  opacity: 1;
+}
+
+.xray-json-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Closed drawer: give the space back to the list and context panes instead of
+   parking a 560px "Nothing selected" column (the detail-open hook previously
+   matched no CSS at all). */
+.xray-api-workspace:not(.detail-open) .xray-api-detail-drawer.empty {
+  display: none;
+}
+
+.xray-api-workspace:not(.detail-open) .xray-api-body {
+  grid-template-columns: minmax(360px, 1fr) minmax(280px, 1.1fr);
+}
+
+/* Nothing selected at all: the (auto-hidden) context pane frees its column too. */
+.xray-api-workspace:not(.detail-open) .xray-api-body:has(.xray-request-context-pane.empty) {
+  grid-template-columns: minmax(0, 1fr);
+}
 `;
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles\hud.css
-  var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: 10px;\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: 10px;\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: 10px 10px 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n@media (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
+  var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: var(--xray-radius, 10px);\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: var(--xray-radius);\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\n   These rules only exist in the HUD because hud.css is loaded only there. */\n.xray-panel.xray-mode-hud .xray-resize-handle,\n.xray-panel.xray-mode-hud .xray-dock-controls {\n  display: none;\n}\n\n@media (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
 
   // src/panel/hud-main.tsx
-  var import_jsx_runtime17 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime21 = __toESM(require_jsx_runtime());
+  function installHudCaptureListener() {
+    const w = window;
+    if (w.__xray_hud_capture__) return;
+    w.__xray_hud_capture__ = true;
+    window.addEventListener("message", (event) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || !data.__xray_capture__) return;
+      const token = w.__XRAY_BRIDGE_TOKEN__ || w.__XRAY_bridgeToken;
+      if (!token || data.token !== token) return;
+      const store = usePanelStore.getState();
+      if (data.update && data.entry) {
+        store.updateEntry(data.entry);
+        return;
+      }
+      if (data.batch && Array.isArray(data.entries)) {
+        store.addEntries(data.entries.filter(Boolean));
+        return;
+      }
+      if (data.entry) store.addEntry(data.entry);
+    });
+  }
   async function mountHud() {
+    const w = window;
     const script = document.currentScript;
     const rootNode = script?.getRootNode?.();
-    const shadowRoot = rootNode instanceof ShadowRoot ? rootNode : null;
+    const shadowRoot = w.__xrayHudShadow instanceof ShadowRoot ? w.__xrayHudShadow : rootNode instanceof ShadowRoot ? rootNode : null;
     if (!shadowRoot) return;
+    if (shadowRoot.host instanceof HTMLElement) isolatePanelEvents(shadowRoot.host);
     if (!shadowRoot.querySelector("style[data-xray-hud-ui]")) {
       const style = document.createElement("style");
       style.setAttribute("data-xray-hud-ui", "1");
@@ -20729,12 +26292,33 @@ ${hud_default}`;
       mount.className = "xray-app-root";
       shadowRoot.appendChild(mount);
     }
+    installHudCaptureListener();
     await usePanelStore.getState().restorePreferences();
     usePanelStore.getState().setOpen(true);
     usePanelStore.getState().setDevtoolsMode(false);
     usePanelStore.getState().setInitialized(true);
-    (0, import_client.createRoot)(mount).render(/* @__PURE__ */ (0, import_jsx_runtime17.jsx)(App, { mode: "hud" }));
+    (0, import_client.createRoot)(mount).render(/* @__PURE__ */ (0, import_jsx_runtime21.jsx)(App, { mode: "hud" }));
+    syncHostTheme(shadowRoot);
   }
+  var HOST_MIRROR_VARS = ["--xray-radius", "--xray-bg", "--xray-surface", "--xray-surface2", "--xray-text", "--xray-accent"];
+  function syncHostTheme(shadowRoot) {
+    const host = shadowRoot.host;
+    if (!(host instanceof HTMLElement)) return;
+    const apply = () => {
+      const panel = shadowRoot.querySelector(".xray-panel");
+      if (!panel) return;
+      const cs = getComputedStyle(panel);
+      for (const name of HOST_MIRROR_VARS) {
+        const value = cs.getPropertyValue(name).trim();
+        if (value) host.style.setProperty(name, value);
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    usePanelStore.subscribe(() => requestAnimationFrame(apply));
+  }
+  window.__xrayHudRemount = () => {
+    void mountHud();
+  };
   void mountHud();
 })();
 /*! Bundled license information:
@@ -20798,12 +26382,17 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/createReactComponent.mjs:
 @tabler/icons-react/dist/esm/icons/IconAdjustments.mjs:
 @tabler/icons-react/dist/esm/icons/IconAlertTriangle.mjs:
+@tabler/icons-react/dist/esm/icons/IconArrowBackUp.mjs:
 @tabler/icons-react/dist/esm/icons/IconArrowDownLeft.mjs:
+@tabler/icons-react/dist/esm/icons/IconArrowDown.mjs:
+@tabler/icons-react/dist/esm/icons/IconArrowRight.mjs:
 @tabler/icons-react/dist/esm/icons/IconArrowUpRight.mjs:
+@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs:
 @tabler/icons-react/dist/esm/icons/IconArrowsMaximize.mjs:
 @tabler/icons-react/dist/esm/icons/IconBolt.mjs:
+@tabler/icons-react/dist/esm/icons/IconBookmarkPlus.mjs:
+@tabler/icons-react/dist/esm/icons/IconBookmark.mjs:
 @tabler/icons-react/dist/esm/icons/IconBraces.mjs:
-@tabler/icons-react/dist/esm/icons/IconBrandTypescript.mjs:
 @tabler/icons-react/dist/esm/icons/IconChartBar.mjs:
 @tabler/icons-react/dist/esm/icons/IconCheck.mjs:
 @tabler/icons-react/dist/esm/icons/IconChevronDown.mjs:
@@ -20811,38 +26400,55 @@ react/cjs/react-jsx-runtime.production.js:
 @tabler/icons-react/dist/esm/icons/IconChevronRight.mjs:
 @tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs:
 @tabler/icons-react/dist/esm/icons/IconCircleX.mjs:
+@tabler/icons-react/dist/esm/icons/IconClipboard.mjs:
 @tabler/icons-react/dist/esm/icons/IconClock.mjs:
 @tabler/icons-react/dist/esm/icons/IconCode.mjs:
+@tabler/icons-react/dist/esm/icons/IconColorPicker.mjs:
 @tabler/icons-react/dist/esm/icons/IconCopy.mjs:
+@tabler/icons-react/dist/esm/icons/IconDatabaseImport.mjs:
 @tabler/icons-react/dist/esm/icons/IconDatabase.mjs:
 @tabler/icons-react/dist/esm/icons/IconDeviceLaptop.mjs:
+@tabler/icons-react/dist/esm/icons/IconDice.mjs:
 @tabler/icons-react/dist/esm/icons/IconDownload.mjs:
+@tabler/icons-react/dist/esm/icons/IconEraser.mjs:
 @tabler/icons-react/dist/esm/icons/IconFileDiff.mjs:
 @tabler/icons-react/dist/esm/icons/IconFileExport.mjs:
+@tabler/icons-react/dist/esm/icons/IconFileImport.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilterOff.mjs:
 @tabler/icons-react/dist/esm/icons/IconFilter.mjs:
+@tabler/icons-react/dist/esm/icons/IconHelp.mjs:
 @tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs:
+@tabler/icons-react/dist/esm/icons/IconKey.mjs:
 @tabler/icons-react/dist/esm/icons/IconKeyboard.mjs:
+@tabler/icons-react/dist/esm/icons/IconLayoutSidebarLeftExpand.mjs:
+@tabler/icons-react/dist/esm/icons/IconLayoutSidebarRightExpand.mjs:
+@tabler/icons-react/dist/esm/icons/IconLetterCase.mjs:
 @tabler/icons-react/dist/esm/icons/IconLock.mjs:
 @tabler/icons-react/dist/esm/icons/IconNetwork.mjs:
-@tabler/icons-react/dist/esm/icons/IconNotebook.mjs:
 @tabler/icons-react/dist/esm/icons/IconPalette.mjs:
 @tabler/icons-react/dist/esm/icons/IconPictureInPicture.mjs:
 @tabler/icons-react/dist/esm/icons/IconPin.mjs:
 @tabler/icons-react/dist/esm/icons/IconPinnedOff.mjs:
 @tabler/icons-react/dist/esm/icons/IconPlayerPlay.mjs:
 @tabler/icons-react/dist/esm/icons/IconPlayerRecord.mjs:
+@tabler/icons-react/dist/esm/icons/IconPlugConnected.mjs:
 @tabler/icons-react/dist/esm/icons/IconPlus.mjs:
+@tabler/icons-react/dist/esm/icons/IconRadar2.mjs:
 @tabler/icons-react/dist/esm/icons/IconRefresh.mjs:
+@tabler/icons-react/dist/esm/icons/IconRegex.mjs:
+@tabler/icons-react/dist/esm/icons/IconRepeat.mjs:
 @tabler/icons-react/dist/esm/icons/IconRoute.mjs:
 @tabler/icons-react/dist/esm/icons/IconSearch.mjs:
 @tabler/icons-react/dist/esm/icons/IconSend.mjs:
 @tabler/icons-react/dist/esm/icons/IconServer.mjs:
 @tabler/icons-react/dist/esm/icons/IconSettings.mjs:
+@tabler/icons-react/dist/esm/icons/IconShare.mjs:
+@tabler/icons-react/dist/esm/icons/IconSparkles.mjs:
 @tabler/icons-react/dist/esm/icons/IconTable.mjs:
 @tabler/icons-react/dist/esm/icons/IconTerminal2.mjs:
 @tabler/icons-react/dist/esm/icons/IconTimeline.mjs:
 @tabler/icons-react/dist/esm/icons/IconTrash.mjs:
+@tabler/icons-react/dist/esm/icons/IconWand.mjs:
 @tabler/icons-react/dist/esm/icons/IconWorld.mjs:
 @tabler/icons-react/dist/esm/icons/IconX.mjs:
 @tabler/icons-react/dist/esm/tabler-icons-react.mjs:

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "XRAY — Encrypted API Visualizer",
-  "version": "0.2.0",
-  "description": "Ultra-fast API interceptor with auto-decryption, console capture, and world-class visualization. Built to outperform Chrome DevTools.",
+  "name": "XRAY — API Operations Console",
+  "version": "0.3.0",
+  "description": "Capture, understand, and bend API traffic: fetch/XHR/WebSocket/GraphQL capture, mock rules, replay, schema-drift detection, JWT decoding, and BYOK AI explanations.",
 
   "permissions": ["storage", "scripting", "activeTab", "clipboardWrite", "debugger", "windows"],
   "host_permissions": ["<all_urls>"],
@@ -35,7 +35,6 @@
         "shared/decrypt.js",
         "shared/store.js",
         "shared/worker-client.js",
-        "shared/console-helpers.js",
         "panel/console.js",
         "dist/panel-ui.js",
         "content/content.js"
@@ -57,7 +56,8 @@
         "workers/xray-worker.js",
         "window.html",
         "dist/hud-ui.js",
-        "dist/window-ui.js"
+        "dist/window-ui.js",
+        "shared/console-helpers.js"
       ],
       "matches": ["<all_urls>"]
     }

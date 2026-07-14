@@ -1,12 +1,15 @@
 import type { DetailView, XrayEntry } from '../types';
-import { duration, entryPath, isApi } from './entries';
-import { buildCurl, buildFetch, buildMockPayload, entryResponse, safeStringify, schema } from '../utils';
+import { duration, entryGroupPath, entryPath, isApi } from './entries';
+import { buildCurl, buildFetch, buildMockPayload, entryResponse, entrySchema, safeStringify } from '../utils';
 
 export interface ResponseOperation {
   id: string;
   label: string;
-  kind: 'view' | 'console' | 'notebook' | 'copy' | 'export' | 'select';
+  kind: 'view' | 'console' | 'snippet' | 'copy' | 'export' | 'select';
   command?: string;
+  // Copy payloads that are expensive to build (full 500KB bodies, mock
+  // payloads) are produced on click, not on every render of the action bar.
+  lazyCommand?: () => string;
   view?: DetailView;
   toast?: string;
   priority: number;
@@ -30,7 +33,7 @@ function isLargePayload(entry: XrayEntry, value: unknown): boolean {
 }
 
 function sameEndpoint(a: XrayEntry, b: XrayEntry): boolean {
-  return isApi(a) && isApi(b) && entryPath(a) === entryPath(b);
+  return isApi(a) && isApi(b) && entryGroupPath(a) === entryGroupPath(b);
 }
 
 function previousSameEndpoint(entry: XrayEntry, entries: XrayEntry[]): XrayEntry | null {
@@ -42,9 +45,11 @@ function previousSameEndpoint(entry: XrayEntry, entries: XrayEntry[]): XrayEntry
 }
 
 function hasSchemaDrift(entry: XrayEntry, entries: XrayEntry[]): boolean {
+  // Drift was already detected at capture time — no need to re-derive it.
+  if (entry.driftFromId) return true;
   const previous = previousSameEndpoint(entry, entries);
   if (!previous) return false;
-  return safeStringify(schema(entryResponse(previous)), 0, 20_000) !== safeStringify(schema(entryResponse(entry)), 0, 20_000);
+  return safeStringify(entrySchema(previous), 0, 20_000) !== safeStringify(entrySchema(entry), 0, 20_000);
 }
 
 function pushUnique(operations: ResponseOperation[], operation: ResponseOperation): void {
@@ -84,7 +89,7 @@ export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): R
   }
 
   if (isLargePayload(entry, response)) {
-    pushUnique(operations, { id: 'copy-full', label: 'Copy Full', kind: 'copy', command: safeStringify(response, 2, 500_000), toast: 'Full response copied.', priority: 70 });
+    pushUnique(operations, { id: 'copy-full', label: 'Copy Full', kind: 'copy', lazyCommand: () => safeStringify(response, 2, 500_000), toast: 'Full response copied.', priority: 70 });
     pushUnique(operations, { id: 'schema', label: 'Schema', kind: 'view', view: 'schema', command: 'schema(res)', priority: 69 });
   }
 
@@ -102,9 +107,9 @@ export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): R
 
   pushUnique(operations, { id: 'copy-curl', label: 'Copy cURL', kind: 'copy', command: buildCurl(entry), toast: 'cURL copied.', priority: 45 });
   pushUnique(operations, { id: 'copy-fetch', label: 'Copy fetch', kind: 'copy', command: buildFetch(entry), toast: 'fetch snippet copied.', priority: 44 });
-  pushUnique(operations, { id: 'mock', label: 'Mock', kind: 'copy', command: buildMockPayload(entry), toast: 'Mock response copied.', priority: 43 });
+  pushUnique(operations, { id: 'mock', label: 'Mock', kind: 'copy', lazyCommand: () => buildMockPayload(entry), toast: 'Mock response copied.', priority: 43 });
   pushUnique(operations, { id: 'send-console', label: 'Send to Console', kind: 'console', command: 'res', priority: 43 });
-  pushUnique(operations, { id: 'send-notebook', label: 'Send to Notebook', kind: 'notebook', command: `// ${entry.method || 'GET'} ${path}\nschema(res)`, priority: 42 });
+  pushUnique(operations, { id: 'save-snippet', label: 'Save Snippet', kind: 'snippet', command: 'schema(res)', priority: 42 });
   pushUnique(operations, { id: 'export', label: 'Export', kind: 'export', priority: 41 });
 
   return operations.sort((a, b) => b.priority - a.priority).slice(0, 14);

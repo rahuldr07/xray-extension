@@ -19,8 +19,15 @@
     port.postMessage({ type: 'xray:devtools:init', tabId: inspectedTabId });
 
     port.onMessage.addListener((msg) => {
-      if (!msg || msg.type !== 'xray:capture' || !msg.entry) return;
-      XRAY_Panel.add(msg.entry);
+      if (!msg) return;
+      if (msg.type === 'xray:capture' && msg.entry) {
+        XRAY_Panel.add(msg.entry);
+      } else if (msg.type === 'xray:capture-batch' && Array.isArray(msg.entries)) {
+        if (XRAY_Panel.addAll) XRAY_Panel.addAll(msg.entries);
+        else msg.entries.forEach((entry) => entry && XRAY_Panel.add(entry));
+      } else if (msg.type === 'xray:capture-update' && msg.update) {
+        XRAY_Panel.update(msg.update);
+      }
     });
   }
 

@@ -104,7 +104,10 @@
 
     const style = document.createElement('style');
     style.textContent = `
-      :host { contain: layout style; }
+      /* 'style' only — 'layout' containment would make the host a containing block
+         for position:fixed descendants (e.g. the theme popover), anchoring them to
+         the HUD box instead of the viewport. */
+      :host { contain: style; }
       .xray-hud-pill {
         width: 100%;
         height: 100%;
@@ -135,10 +138,17 @@
 
   function injectReactScript() {
     if (!shadow) return;
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('dist/hud-ui.js');
-    script.async = false;
-    shadow.appendChild(script);
+    // A <script> inside a shadow tree executes with document.currentScript =
+    // null, so the bundle could never find this closed root on its own. Both
+    // this file and the bundle run in the isolated world: stash the root on
+    // the (page-invisible) isolated-world window and load the bundle as a
+    // module. Re-toggles reuse the already-imported module via the remount hook.
+    window.__xrayHudShadow = shadow;
+    if (typeof window.__xrayHudRemount === 'function') {
+      window.__xrayHudRemount();
+      return;
+    }
+    import(chrome.runtime.getURL('dist/hud-ui.js')).catch(() => {});
   }
 
   function createHandles() {

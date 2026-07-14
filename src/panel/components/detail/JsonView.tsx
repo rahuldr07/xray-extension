@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { safeStringify } from '../../utils';
 
 interface JsonToken {
@@ -8,17 +8,27 @@ interface JsonToken {
 
 const tokenPattern = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}\[\],:]/g;
 
-export function JsonView({ value }: { value: unknown }): React.ReactElement {
-  const text = safeStringify(value);
-  const lines = text.split('\n');
-  if (lines.length > 600) return <pre className="xray-json xray-json-editor">{text}</pre>;
+// Memoized: this renders inside virtualized rows that re-commit on every
+// captured event, and stringify + tokenize of an 80k-char body is far too
+// expensive to redo per commit while a detail happens to be expanded.
+export const JsonView = React.memo(function JsonView({ value }: { value: unknown }): React.ReactElement {
+  const { text, tokenLines } = useMemo(() => {
+    const stringified = safeStringify(value);
+    const lines = stringified.split('\n');
+    return {
+      text: stringified,
+      tokenLines: lines.length > 600 ? null : lines.map((line) => tokenizeJsonLine(line)),
+    };
+  }, [value]);
+
+  if (!tokenLines) return <pre className="xray-json xray-json-editor">{text}</pre>;
   return (
     <pre className="xray-json xray-json-editor" aria-label="JSON preview with line numbers">
-      {lines.map((line, index) => (
+      {tokenLines.map((tokens, index) => (
         <span key={index} className="xray-json-line">
           <span className="xray-json-line-no">{index + 1}</span>
           <span className="xray-json-line-text">
-            {line ? tokenizeJsonLine(line).map((token, tokenIndex) => (
+            {tokens.length ? tokens.map((token, tokenIndex) => (
               <span key={tokenIndex} className={token.className}>{token.text}</span>
             )) : ' '}
           </span>
@@ -26,7 +36,7 @@ export function JsonView({ value }: { value: unknown }): React.ReactElement {
       ))}
     </pre>
   );
-}
+});
 
 function tokenizeJsonLine(line: string): JsonToken[] {
   const tokens: JsonToken[] = [];

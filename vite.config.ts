@@ -4,6 +4,10 @@ import { build as buildWithEsbuild, type Plugin as EsbuildPlugin } from 'esbuild
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+// A build stamp injected into every bundle so the UI can show when it was built —
+// the quickest way to tell whether a loaded extension is the current build.
+const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+
 function inlineCssPlugin(): EsbuildPlugin {
   return {
     name: 'inline-css',
@@ -36,7 +40,7 @@ function extraIifeEntrypoints() {
           platform: 'browser',
           target: 'es2020',
           jsx: 'automatic',
-          define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+          define: { 'process.env.NODE_ENV': JSON.stringify('production'), __XRAY_BUILD__: JSON.stringify(BUILD_STAMP) },
           plugins: [inlineCssPlugin()],
         }),
         buildWithEsbuild({
@@ -49,7 +53,7 @@ function extraIifeEntrypoints() {
           platform: 'browser',
           target: 'es2020',
           jsx: 'automatic',
-          define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+          define: { 'process.env.NODE_ENV': JSON.stringify('production'), __XRAY_BUILD__: JSON.stringify(BUILD_STAMP) },
           plugins: [inlineCssPlugin()],
         }),
       ]);
@@ -61,6 +65,7 @@ export default defineConfig({
   plugins: [react(), extraIifeEntrypoints()],
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
+    __XRAY_BUILD__: JSON.stringify(BUILD_STAMP),
   },
   build: {
     emptyOutDir: false,

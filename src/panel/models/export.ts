@@ -13,6 +13,7 @@ export type ExportFormat =
   | 'zod'
   | 'jest'
   | 'msw'
+  | 'playwright'
   | 'session-json'
   | 'session-csv'
   | 'session-har';
@@ -32,7 +33,7 @@ export const exportGroups: ExportGroup[] = [
   { label: 'Request', formats: ['curl', 'fetch', 'axios'] },
   { label: 'Response', formats: ['json', 'raw', 'schema', 'mock'] },
   { label: 'Types', formats: ['typescript', 'zod'] },
-  { label: 'Tests', formats: ['jest', 'msw'] },
+  { label: 'Tests', formats: ['jest', 'msw', 'playwright'] },
   { label: 'Session', formats: ['session-json', 'session-csv', 'session-har'] },
 ];
 
@@ -50,6 +51,7 @@ export const exportMeta: Record<ExportFormat, ExportMeta> = {
   zod: { title: 'Zod schema', desc: 'Runtime validation schema inferred from response data.', extension: 'ts' },
   jest: { title: 'Jest test', desc: 'Starter test with mocked response behavior.', extension: 'test.ts' },
   msw: { title: 'MSW handler', desc: 'Mock Service Worker handler for the captured endpoint.', extension: 'ts' },
+  playwright: { title: 'Playwright test', desc: 'API test that re-fires the request and asserts its status.', extension: 'spec.ts' },
   'session-json': { title: 'Session JSON', desc: 'All captured entries in XRAY session format.', extension: 'json' },
   'session-csv': { title: 'Session CSV', desc: 'Flat API request summary for spreadsheets.', extension: 'csv' },
   'session-har': { title: 'Session HAR', desc: 'HTTP Archive compatible export.', extension: 'har' },
@@ -205,6 +207,30 @@ function buildMsw(entry: XrayEntry | null): string {
   return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${method}(${JSON.stringify(String(entry.url || entry.urlPath || ''))}, async () => {\n    return ${response};\n  }),\n];`;
 }
 
+function buildPlaywright(entry: XrayEntry | null): string {
+  if (!entry) return '// Select an API request first';
+  const method = String(entry.method || 'GET').toLowerCase();
+  const url = String(entry.url || entry.urlPath || '');
+  const status = Number(entry.status) || 200;
+  const title = `${String(entry.method || 'GET').toUpperCase()} ${String(entry.urlPath || url || 'request')}`;
+  const headers = headerObject(entry);
+  const body = entryRequest(entry);
+  // Playwright's APIRequestContext has get/post/put/patch/delete/head convenience
+  // methods; anything else goes through the generic request.fetch(url, { method }).
+  const convenience = ['get', 'post', 'put', 'patch', 'delete', 'head'].includes(method);
+  const options: Record<string, unknown> = {};
+  if (!convenience) options.method = String(entry.method || 'GET').toUpperCase();
+  if (Object.keys(headers).length) options.headers = headers;
+  if (body != null && method !== 'get' && method !== 'head') options.data = body;
+  const optsArg = Object.keys(options).length ? `, ${safeStringify(options, 2, 120_000)}` : '';
+  const call = convenience
+    ? `request.${method}(${JSON.stringify(url)}${optsArg})`
+    : `request.fetch(${JSON.stringify(url)}${optsArg})`;
+  const isJson = responseContentType(entry).toLowerCase().includes('json');
+  const bodyLine = isJson ? '  const body = await response.json();' : '  const body = await response.text();';
+  return `import { test, expect } from '@playwright/test';\n\ntest(${JSON.stringify(title)}, async ({ request }) => {\n  const response = await ${call};\n  expect(response.status()).toBe(${status});\n${bodyLine}\n  expect(body).toBeTruthy();\n});`;
+}
+
 export function filenameForExport(entry: XrayEntry | null, format: ExportFormat): string {
   const path = String(entry?.urlPath || entry?.url || 'session')
     .replace(/^https?:\/\//, '')
@@ -229,7 +255,9 @@ export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format
   if (format === 'session-json') return safeStringify({ entries }, 2, 500_000);
   if (format === 'session-csv') return buildSessionCsv(entries);
   if (format === 'session-har') return buildSessionHar(entries);
-  if (!entry) return '// Select an API request first';
+  // Log entries have no URL/method/response, so every entry-scoped format
+  // would render nonsense like `curl "" -X GET` for them.
+  if (!entry || entry.type !== 'api') return '// Select an API request first';
   if (format === 'curl') return buildCurl(entry);
   if (format === 'fetch') return buildFetch(entry);
   if (format === 'axios') return buildAxios(entry);
@@ -242,6 +270,7 @@ export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format
   if (format === 'zod') return buildZodSchema(entryResponse(entry));
   if (format === 'jest') return buildJest(entry);
   if (format === 'msw') return buildMsw(entry);
+  if (format === 'playwright') return buildPlaywright(entry);
   if (format === 'raw') {
     const raw = entry.responseDecrypted ?? entry.responseRaw ?? entryResponse(entry);
     return typeof raw === 'string' ? raw : safeStringify(raw, 2, 120_000);

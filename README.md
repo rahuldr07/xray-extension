@@ -42,18 +42,35 @@
 
 ## The Pitch
 
-Chrome DevTools is powerful, but API investigation still becomes a tab-switching routine: Network panel, Console, copied JSON, external formatter, copied cURL, handmade mocks, notes somewhere else.
+Chrome DevTools shows you HTTP. XRAY understands your API — and lets you bend it.
 
-XRAY compresses that workflow into one extension surface.
+API investigation is normally a tab-switching routine: Network panel, Console, copied JSON, external formatter, copied cURL, handmade mocks, Postman for replay, notes somewhere else. XRAY compresses that whole loop into one extension surface, and adds the things DevTools never had: mock rules, request replay, GraphQL grouping, WebSocket frame capture, schema-drift detection, JWT decoding, and optional BYOK AI explanations.
 
 <table>
   <tr>
-    <td width="25%"><strong>Capture</strong><br><sub>fetch, XHR, console logs, timing, size, headers.</sub></td>
-    <td width="25%"><strong>Inspect</strong><br><sub>tree, raw, grid, schema, diff, waterfall, headers.</sub></td>
-    <td width="25%"><strong>Operate</strong><br><sub>contextual commands and response-native actions.</sub></td>
-    <td width="25%"><strong>Export</strong><br><sub>cURL, fetch, axios, JSON, HAR, types, tests.</sub></td>
+    <td width="25%"><strong>Capture</strong><br><sub>fetch, XHR, WebSocket, SSE, GraphQL, console logs, real timing.</sub></td>
+    <td width="25%"><strong>Understand</strong><br><sub>tree, grid, schema, diff, drift, JWT tokens, initiator stacks.</sub></td>
+    <td width="25%"><strong>Operate</strong><br><sub>replay, edit-and-replay, mock rules, AI explain, console ops.</sub></td>
+    <td width="25%"><strong>Export</strong><br><sub>cURL, fetch, axios, types, tests, HAR — and HAR/session import.</sub></td>
   </tr>
 </table>
+
+## What's New in 0.3
+
+| Capability | What it does |
+| --- | --- |
+| **Mock rules** | Match requests by URL/method and return a mock body/status, inject latency, or force failure — applied in the page before the real network call. Seed a rule from any captured response with **Mock this**. |
+| **Replay & Edit-and-Replay** | Re-fire any captured request from the page, or edit method/URL/headers/body first. Auth survives: the original request's sensitive headers are restored in the page (they never leave it) and cookies re-attach via credentialed replay. Replays are recaptured and diffed against the original. |
+| **Real Visualize** | The Visualize view charts the response — numeric fields across rows, key/value magnitudes, or categorical frequency — as a single-series bar chart, and says so honestly when there's nothing numeric to plot. |
+| **Theme Studio** | Presets (Operator, Dev, Midnight, Light, Claude) plus a full custom theme: pick any background/surface/text/accent, generate a whole theme from one color, randomize, adjustable corner radius, opt-in CRT "hacker" overlay, a live WCAG contrast checker, and shareable theme codes (`xray1:…` / `window.html#theme=…`). Every theme is scoped to the panel via inline CSS variables — it never touches the page or the capture runtime. |
+| **GraphQL awareness** | Parses `operationName`/`query`/`variables` and groups by operation instead of piling everything under `POST /graphql`. |
+| **WebSocket & SSE capture** | Wraps `WebSocket` and `EventSource`, streaming frames into a live Frames view with direction, size, and timing. |
+| **Schema-drift watchdog** | Keeps a per-endpoint schema baseline and flags responses whose shape changed, with a one-click diff. |
+| **Real timing waterfall** | Joins Resource Timing for DNS, connect, TLS, TTFB, and download phases — not a single fake bar. |
+| **Initiator stacks** | Shows where each request was fired from on the page. |
+| **JWT lens** | Detects and decodes JWTs in headers and bodies, showing header, payload, and expiry. |
+| **AI explain (BYOK)** | Bring your own Anthropic or OpenAI key; XRAY calls the provider directly from the extension background to explain a request. Keys stay in local extension storage. |
+| **Sessions & import** | Captured traffic survives page reloads, and you can import HAR files or XRAY session exports. |
 
 ## The Debugging Loop
 
@@ -279,35 +296,34 @@ http://127.0.0.1:8765/preview/ui-preview.html?tab=api
 
 ```txt
 xray-extension/
-  background.js                 # service worker, toggles, debugger eval, DevTools relay
+  background.js                 # service worker: toggles, debugger eval, DevTools relay, AI provider bridge
   manifest.json                 # MV3 scripts, permissions, web accessible bundles
   window.html                   # pop-out window host
   content/
-    interceptor.js              # MAIN world fetch/XHR capture
+    interceptor.js              # MAIN world fetch/XHR/WebSocket/SSE capture, mock rules, replay
     console-capture.js          # MAIN world console capture
     console-executor.js         # MAIN world command execution bridge
     decrypt-bridge.js           # MAIN world decrypt relay
-    content.js                  # isolated relay into XRAY_Panel
+    content.js                  # isolated relay into XRAY_Panel (adds/updates entries)
     hud-mount.js                # closed-shadow floating HUD host
   src/panel/
     App.tsx                     # shared React app
-    main.tsx                    # panel bundle entry
-    hud-main.tsx                # HUD bundle entry
-    window-main.tsx             # pop-out bundle entry
-    store.ts                    # Zustand state
-    components/                 # Console, API, Detail, Export, Settings, Notebook, Insights
-    models/                     # typed pure logic for entries, export, ops, settings
-    runtime/                    # bridges to vanilla console/storage/capture config
+    main.tsx / hud-main.tsx / window-main.tsx   # bundle entries (panel, HUD, pop-out)
+    store.ts                    # Zustand state (entries, rules, AI settings, drift, sessions)
+    components/                 # console, api, detail, export, rules, replay, ai, settings, notebook, insights
+    models/                     # pure logic: entries, operations, export, import, rules, drift, lenses, detail
+    runtime/                    # bridges to console, storage, capture config, AI
     styles/                     # tokens and HUD styles
   shared/
     console-helpers.js          # request-aware helper primitives
     decrypt.js                  # pluggable decrypt function
     store.js                    # storage wrapper
     worker-client.js            # worker client with fallback
-  preview/
-    ui-preview.html             # local React preview harness
-  test/
-    security-regressions.test.js
+  panel/
+    console.js                  # console engine (the only retained vanilla panel script)
+  workers/xray-worker.js        # off-main-thread schema/diff/grid/detail analysis + IndexedDB
+  preview/ui-preview.html       # local React preview harness
+  test/security-regressions.test.js
 ```
 
 ## Verification
@@ -318,7 +334,7 @@ Current baseline:
 npm run check
 typecheck: passed
 build: passed
-tests: 52 passed
+tests: 76 passed
 ```
 
 Extra syntax sweep used for retained vanilla JavaScript:

@@ -1,345 +1,103 @@
 # XRAY Extension — Copilot Instructions
 
-## Build Commands
+XRAY is a Manifest V3 browser extension that captures, understands, and rewrites API
+traffic. The UI is **React + TypeScript** (built to `dist/*.js`); the capture runtime
+is **vanilla JavaScript** content scripts and a service worker. Keep that boundary:
 
-### Bundle CodeMirror
-```bash
-node cm-bundler.js
 ```
-Bundles CodeMirror dependencies into `panel/codemirror.bundle.js`. Run this after updating CodeMirror packages or modifying `cm-entry.js`.
+React owns UI.  Vanilla scripts own the extension runtime.
+```
 
-### Install Dependencies
+## Build & test
+
 ```bash
 npm install
+npm run typecheck   # tsc --noEmit
+npm run build       # Vite lib build -> dist/panel-ui.js, + esbuild -> dist/hud-ui.js, dist/window-ui.js
+npm test            # node --test (static + pure-logic regression tests)
+npm run check       # typecheck + build + test  (the gate before shipping)
 ```
 
-### Development Workflow
-1. Load extension in Chrome/Edge via `chrome://extensions` → **Load unpacked**
-2. Make code changes
-3. If modifying CodeMirror integration: run `node cm-bundler.js`
-4. Click **🔄 refresh** icon on extension card
-5. Reload target page to test changes
+There is no CodeMirror build step anymore (the legacy vanilla panel UI was removed).
+`panel/console.js` is the only retained vanilla panel script.
 
 ## Architecture
 
-### High-Performance Design (v0.2.0+)
+### Extension worlds (see `manifest.json`)
 
-XRAY uses a multi-layered architecture optimized for handling 100K+ entries:
+**MAIN world** (`world: "MAIN"`, `document_start`) — can touch the page's real objects:
+- `content/interceptor.js` — wraps `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`.
+  Captures requests, parses GraphQL, records initiator stacks + Resource Timing, applies
+  user **mock/delay/fail rules**, and serves **replay** requests. Emits entries via
+  `window.postMessage({ __xray_capture__: true, token, entry })` and in-place updates via
+  `{ __xray_capture__: true, update: true, entry }` (WS frames, deferred timing).
+- `content/console-capture.js` — hijacks console methods (lazy, batched).
+- `content/console-executor.js` — CSP-safe user-code execution (session-nonce gated).
+- `content/decrypt-bridge.js` — pluggable `window.__XRAY_decrypt__(token, data)`.
+
+**ISOLATED world** — has chrome APIs, not page objects:
+- `content/content.js` — receives capture messages, calls `XRAY_Panel.add/update`, relays
+  to DevTools, feeds the worker. Implements the focus trap.
+- `shared/*` — worker client, storage wrapper, console helpers, decrypt placeholder.
+- `panel/console.js` — console engine (`window.XRAY_Console`).
+- `dist/panel-ui.js` — the React app.
+
+**Service worker** (`background.js`) — toggles, pop-out window, DevTools port relay,
+privileged `chrome.debugger` console eval, and the **AI provider bridge**
+(`xray:ai-explain` → Anthropic/OpenAI; the key comes from the message, never stored here).
+
+**Web worker** (`workers/xray-worker.js`) — off-thread schema/diff/grid/detail analysis
+and IndexedDB, with main-thread fallbacks.
+
+### React app (`src/panel/`)
+
+- One `App` mounted three ways: content-script panel (`main.tsx`, open shadow root),
+  floating HUD (`hud-main.tsx`, closed shadow root — **note: this bundle runs in the MAIN
+  world and installs its own capture listener**), pop-out window (`window-main.tsx`).
+- `store.ts` — single Zustand store. New surfaces: `rules`, `aiSettings`, `driftCount`,
+  `replayEditorEntry`, `explainEntry`, plus `updateEntry`, `restoreEntries`, `replayEntry`,
+  and rule CRUD. Preferences, rules, AI settings, and a bounded session snapshot persist to
+  `chrome.storage.local`.
+- `models/` — **pure, testable logic**: `entries` (filters, flags, GraphQL grouping),
+  `operations` (contextual smart ops), `export`/`import` (formats + HAR/session import),
+  `rules` (normalize + serialize for the interceptor), `drift` (schema signatures),
+  `lenses` (JWT decode), `detail` (timing phases, grid/viz).
+- `runtime/` — bridges to the vanilla runtime: `captureConfig` (publishes capture toggles
+  and rules to the MAIN world via a bridge token), `consoleBridge`, `storageBridge`,
+  `aiBridge`.
+
+### Data flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         PAGE (MAIN WORLD)                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │ interceptor │  │   console   │  │    decrypt-bridge.js    │ │
-│  │     .js     │  │ capture.js  │  │  console-executor.js    │ │
-│  └──────┬──────┘  └──────┬──────┘  └───────────────────────┬─┘ │
-│         │ postMessage     │ postMessage (batched)          │    │
-└─────────┼─────────────────┼────────────────────────────────┼────┘
-          ▼                 ▼                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CONTENT SCRIPTS (ISOLATED WORLD)             │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │                      content.js                            │ │
-│  │  • Receives entries from MAIN world                       │ │
-│  │  • Initializes worker and panel                           │ │
-│  │  • Forwards entries to worker for indexing                │ │
-│  └────────────────────────────┬──────────────────────────────┘ │
-│                               │                                 │
-│  ┌────────────────────────────▼──────────────────────────────┐ │
-│  │                 shared/worker-client.js                    │ │
-│  │  • Promise-based API for worker communication              │ │
-│  │  • Automatic fallback if worker unavailable               │ │
-│  └────────────────────────────┬──────────────────────────────┘ │
-└───────────────────────────────┼─────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    WEB WORKER (OFF MAIN THREAD)                 │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │                   workers/xray-worker.js                   │ │
-│  │  • IndexedDB storage (unlimited, persistent)               │ │
-│  │  • Pre-computed search tokens (instant search)             │ │
-│  │  • JSON stats, diff computation, export (CSV, HAR)         │ │
-│  │  • Analytics and pattern detection                         │ │
-│  └───────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+page fetch/WS -> interceptor.js (MAIN) --postMessage--> content.js (ISOLATED)
+  -> XRAY_Panel.add/update -> Zustand store -> React
+  (HUD bundle runs in MAIN and listens to the same postMessage directly)
+config/rules:  React store -> captureConfig.postMessage({ __xray_config__ }) -> interceptor
+replay:        React store -> postMessage({ __xray_replay__ }) -> interceptor re-fires fetch
+AI explain:    React -> chrome.runtime.sendMessage('xray:ai-explain') -> background -> provider
 ```
 
-### Extension Worlds (Manifest V3)
+## Conventions
 
-**MAIN world scripts** (`world: "MAIN"` in manifest.json):
-- `content/interceptor.js` — Wraps `window.fetch` and `XMLHttpRequest` to capture API calls
-- `content/console-capture.js` — Hijacks `console.log/warn/error` to capture logs
-- `content/decrypt-bridge.js` — Exposes `window.__XRAY_decrypt__()` for decryption (CSP-safe)
-- `content/console-executor.js` — Executes user console code (CSP-safe)
-- Must run in MAIN world to access the page's real fetch/XHR/console objects
-- Communicate with ISOLATED world via `window.postMessage` → `window.addEventListener('message')`
-
-**ISOLATED world scripts** (`world: "ISOLATED"` in manifest.json):
-- `content/content.js` — Receives postMessage events from MAIN world, stores data, manages panel
-- `shared/worker-client.js` — Promise-based API for Web Worker communication
-- `panel/floating.js` — Renders the Shadow DOM panel UI
-- `panel/virtual-list.js` — Virtual scrolling for large lists (100K+ items)
-- `panel/insights.js` — Analytics dashboard with worker-powered analysis
-- All other `panel/*` and `shared/*` files
-- Cannot directly access page's window objects, but has access to chrome APIs
-
-**Web Worker** (`workers/xray-worker.js`):
-- Runs on separate thread — never blocks UI
-- IndexedDB storage for unlimited, persistent entries
-- Pre-computed search tokens for instant filtering
-- JSON stats computation, diff calculation
-- Export to CSV, HAR formats
-- Analytics and pattern detection
-
-### Data Flow
-
-**API/Log Capture:**
-```
-1. Page fetch() → interceptor.js (MAIN) captures request/response
-2. interceptor.js calls window.__XRAY_decrypt__() if available
-3. interceptor.js emits via window.postMessage({ __xray_capture__: true, entry })
-4. content.js (ISOLATED) listens to 'message' event
-5. content.js stores entry and forwards to panel
-6. floating.js renders in Shadow DOM panel
-```
-
-**Console Execution (CSP-safe):**
-```
-1. User types code in console UI
-2. console.js (ISOLATED) serializes context and code
-3. console.js sends window.postMessage({ type: 'XRAY_EXEC_REQUEST', id, code, context })
-4. console-executor.js (MAIN) receives message
-5. console-executor.js executes code with new Function() in MAIN world
-6. console-executor.js sends window.postMessage({ type: 'XRAY_EVAL_RESULT', id, result })
-7. console.js (ISOLATED) receives result and displays in UI
-```
-
-**Why this architecture?** Inline script injection from ISOLATED world violates Content Security Policy (CSP). By running code in MAIN world scripts that are part of the extension, we bypass CSP restrictions.
-
-### Panel UI System
-
-**Shadow DOM isolation:**
-- Panel is rendered inside a Shadow DOM (`#__xray_root__` host element)
-- All styles are scoped via `:host` selector
-- Uses CSS custom properties (e.g., `var(--xr-bg)`, `var(--xr-text)`) for theming
-
-**View modes:**
-- `tree` — Collapsible JSON tree view (default)
-- `raw` — CodeMirror-powered raw JSON editor
-- `waterfall` — Timeline visualization of API calls
-- `grid` and `diff` planned for Phase 2/3
-
-**State management:**
-- Global `_state` object in `floating.js` holds all UI state
-- Persisted to `chrome.storage.local` (via `shared/store.js`)
-- State keys: `open`, `activeTab`, `activeView`, `selectedId`, `theme`, `filter`, `entries`, etc.
-
-### Decrypt Integration
-
-The `content/decrypt-bridge.js` file (MAIN world) contains the decrypt function:
-- Exposes `window.__XRAY_decrypt__(token, data)` directly in MAIN world
-- `token` is read from the `X-Parse-Token` request header
-- `data` is the parsed response JSON
-- Return decrypted value or `null` if no decryption needed
-- **Must be synchronous** — no async/await, use pure-JS crypto libraries
-
-**CSP-safe design:** The decrypt function runs in MAIN world as part of the extension, avoiding inline script injection that would violate CSP.
-
-## Key Conventions
-
-### File Organization
-- `content/*` — Content scripts (MAIN and ISOLATED world)
-- `panel/*` — UI rendering, themes, shortcuts, search
-- `shared/*` — Utilities shared across content and panel (store, decrypt, utils)
-- `devtools/*` — DevTools panel integration (Phase 4)
-- `settings/*` — Settings page (Phase 4)
-
-### Naming Patterns
-- Private functions/variables prefixed with `_` (e.g., `_uid()`, `_emit()`, `_state`)
-- Global modules exposed on `window` (e.g., `window.XRAY_Panel`, `window.XRAY_Decrypt`)
-- Event property names use double underscores (e.g., `{ __xray_capture__: true }`)
-- IDs use snake_case with prefixes (e.g., `xr_<timestamp>_<random>`)
-
-### Data Model
-```javascript
-{
-  id: 'xr_...',              // Unique entry ID
-  type: 'api' | 'log',       // Entry type
-  timestamp: number,         // Unix timestamp (ms)
-  
-  // API entries
-  method: 'GET' | 'POST' | ...,
-  url: string,
-  urlPath: string,           // Path only (no origin)
-  status: number,
-  duration: number,          // ms
-  size: number,              // bytes
-  requestHeaders: {},
-  requestBody: any,
-  responseHeaders: {},
-  responseRaw: string,
-  responseDecrypted: any,    // Decrypted JSON if available
-  decryptStatus: 'ok' | 'failed' | 'none',
-  parseToken: string,        // X-Parse-Token header value
-  
-  // Log entries
-  logData: any,              // Preview or full data
-  logLevel: 'log' | 'warn' | 'error' | 'info' | 'debug',
-  objectRefs: string[],      // IDs for lazy-loading full objects
-  
-  // Internal (added by worker)
-  _searchTokens: string[],   // Pre-computed search tokens
-  
-  // Common
-  pinned: boolean,
-}
-```
-
-**Lazy Object Loading:**
-Log entries may contain `__xray_ref__` markers in `logData`:
-```javascript
-// Preview stored in logData
-{ username: "john", __xray_ref__: "xrl_abc123" }
-
-// Full object retrieved via:
-const full = await window.__XRAY_fetchLogObject__('xrl_abc123');
-```
-
-### Error Handling
-- All interceptor code wrapped in try/catch to prevent page crashes
-- Errors logged to `console.error` with `[XRAY]` prefix
-- Original `fetch`/`XHR`/`console` behavior always preserved — extension never interferes
-
-### Performance Constraints (v0.2.0+)
-- Console capture overhead target: **< 0.1ms per log** (lazy serialization)
-- API intercept overhead target: **< 2ms per call**
-- Search latency target: **< 50ms for 10K entries** (pre-indexed tokens)
-- Panel render target: **< 16ms** (virtual scrolling)
-- Memory limit: **< 50 MB for 10K stored entries**
-- Max stored entries: configurable, default 500 (unlimited with IndexedDB)
-
-### Performance Optimizations
-
-**Console Capture (`content/console-capture.js`):**
-- Zero-copy for primitives — passes values directly
-- Lazy serialization — stores WeakRef, serializes on-demand
-- Batched emission — groups rapid logs into single postMessage (16ms batching)
-- Circular reference safe — handles self-referential objects
-- Captures: `log`, `warn`, `error`, `info`, `debug`, `table`, `dir`
-
-**Search (`panel/search.js`):**
-- Pre-computed tokens per entry (URL parts, methods, status, keys)
-- Token-based matching (no full JSON serialization)
-- 150ms debounce for typing
-- WeakMap cache for tokens (auto-GC on entry removal)
-- Supports structured queries: `status:404 method:POST /api/users`
-
-**Virtual Scrolling (`panel/virtual-list.js`):**
-- Renders only visible items + 5 overscan
-- Handles 100K+ items smoothly
-- 32px default item height
-- Keyboard navigation: ↑↓, Home, End
-
-**Web Worker (`workers/xray-worker.js`):**
-- IndexedDB with indexes on timestamp, type, url, status
-- Async cloning that yields to prevent blocking
-- Pre-computed search tokens stored with entries
-- Export to CSV, HAR without blocking UI
-
-### Keyboard Shortcuts
-Defined in `panel/shortcuts.js` and `manifest.json`:
-- `Ctrl+Shift+X` — Toggle panel
-- `Ctrl+F` — Focus search
-- `T` — Tree view
-- `R` — Raw view
-- `G` — Grid view (Phase 2)
-- `D` — Diff view (Phase 2)
-- `S` — Star/pin entry
-- `C` — Copy JSON
-- `E` — Expand all
-- `W` — Collapse all
-- `Esc` — Close panel
-- `↑↓` — Navigate entries
-
-### Themes
-Five themes available (switched via Settings → Theme):
-1. `zinc` (default) — Obsidian Pro
-2. `mocha` — Graphite Pro
-3. `latte` — Frost Light
-4. `dracula` — Violet Night
-5. `nord` — Ocean Glass
-
-Theme colors defined in `panel/themes.js` as CSS custom properties.
+- Private helpers prefixed with `_`. Globals on `window.XRAY_*`. Event flags use double
+  underscores (`__xray_capture__`, `__xray_config__`, `__xray_replay__`).
+- Entry shape lives in `src/panel/types.ts` (`XrayEntry`). New fields: `graphql`, `initiator`,
+  `timing`, `wsFrames`/`wsState`, `mocked`/`mockRuleId`, `replayed`, `driftFromId`, `imported`.
+- Interceptor code is wrapped in try/catch and always preserves original behavior.
+- Sensitive headers are redacted in the interceptor before an entry is stored.
+- Prefer editing pure model logic (easy to unit-test) over stuffing logic into components.
 
 ## Testing
 
-No automated tests currently exist. Manual testing workflow:
-1. Load extension in browser
-2. Navigate to a page with API calls or console logs
-3. Open XRAY panel with `Ctrl+Shift+X`
-4. Verify API calls appear in **API** tab
-5. Verify console logs appear in **LOGS** tab
-6. Test keyboard shortcuts, search, view modes, themes
+`test/security-regressions.test.js` mixes pure-logic execution (for `.js` files, run via
+`vm`) with static source assertions (for `.ts`/`.tsx`, which can't be `vm`-executed raw).
+When adding a feature, add an assertion for its key invariant. Keep `npm run check` green.
 
-## Development Phases
+## Security notes
 
-Currently in **Phase 1** (complete):
-- ✅ Fetch + XHR interceptor
-- ✅ Console capture
-- ✅ Floating Shadow DOM panel
-- ✅ Tree/Raw/Waterfall views
-- ✅ Basic search + keyboard shortcuts
-- ✅ Four themes
-
-**Phase 2** (planned):
-- Grid view for tabular data
-- Diff view for comparing responses
-
-**Phase 3** (planned):
-- Fuzzy search (`Ctrl+K`)
-- Pin/star entries
-- Enhanced keyboard navigation
-
-**Phase 4** (planned):
-- DevTools panel tab
-- Settings page
-- Export functionality
-
-**Phase 5** (planned):
-- Full decrypt integration
-
-**Phase 6** (planned):
-- GitHub polish + Edge store submission
-
-## Security Notes
-
-- Extension only reads HTTP response bodies
-- Never accesses cookies, passwords, or form data
-- Decrypt key (`X-Parse-Token`) is in-memory only, never persisted
-- All errors caught silently — extension never crashes host page
-- Original browser APIs fully preserved
-
-## Common Tasks
-
-### Adding a new keyboard shortcut
-1. Add handler in `panel/shortcuts.js` → `_handleKey()` function
-2. Update `_buildCSS()` in `floating.js` if visual feedback needed
-3. Document in README.md keyboard table
-
-### Adding a new theme
-1. Add theme colors in `panel/themes.js` → `_loadTheme()` function
-2. Add theme selector dot in `floating.js` → `_buildHTML()` header section
-3. Update README.md themes table
-
-### Modifying interceptor logic
-1. Edit `content/interceptor.js` (fetch) or XHR hooks
-2. Reload extension in `chrome://extensions`
-3. Reload target page to apply changes
-4. Check browser console for `[XRAY]` error logs
-
-### Debugging Shadow DOM panel
-1. Open DevTools → Elements tab
-2. Find `#__xray_root__` element
-3. Expand Shadow Root to inspect panel DOM
-4. Console logs from panel scripts appear in page console
+- Response bodies only; sensitive headers redacted; decrypt key in-memory only.
+- Mock rules and replays run in the page; rule payloads are length-bounded and sanitized
+  in the interceptor before use.
+- AI is opt-in and bring-your-own-key; the key is stored in local extension storage and sent
+  only to the selected provider from the background worker.
+- Captured values render as text, not HTML; large/circular values serialize safely.
