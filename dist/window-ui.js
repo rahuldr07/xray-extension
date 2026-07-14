@@ -19385,7 +19385,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 08:40 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 08:55 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -26610,7 +26610,7 @@ ${bodyLine}
 .xray-collapsible-chevron {
   flex: 0 0 auto;
   color: var(--xray-hint, var(--xray-subtext));
-  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);
+  transition: transform 300ms cubic-bezier(.4, 0, .2, 1);
 }
 
 .xray-collapsible.collapsed .xray-collapsible-chevron {
@@ -26635,10 +26635,12 @@ ${bodyLine}
 
 .xray-collapsible-body {
   min-height: 0;
-  /* grid trick animates height from 0 without knowing the content height */
+  /* grid trick animates height from 0 without knowing the content height.
+     Its own slower/ease-out timing (not the shared 180ms token) so the section
+     unfolds gently rather than snapping open. */
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows var(--xray-dur, .18s) var(--xray-ease, ease);
+  transition: grid-template-rows 300ms cubic-bezier(.4, 0, .2, 1);
 }
 
 .xray-collapsible.collapsed > .xray-collapsible-body {
