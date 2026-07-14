@@ -1656,3 +1656,38 @@ test('theme studio has a live preview, screen eyedropper, and per-token copy', (
   assert.match(settingsModal, /onCopy=\{\(\) => \{ void copyText/);
   assert.match(styles, /\.xray-token-btn/);
 });
+
+test('one reusable collapsible-section primitive drives every collapsible region', () => {
+  const primitive = read('src/panel/components/common/CollapsibleSection.tsx');
+  const styles = read('src/panel/styles.css');
+  const store = read('src/panel/store.ts');
+  const persistence = read('src/panel/models/panelPersistence.ts');
+  const api = read('src/panel/components/api/EntriesWorkspace.tsx');
+  const insights = read('src/panel/components/insights/Insights.tsx');
+
+  // native button gives Enter/Space; aria-expanded + aria-controls wire the body
+  assert.match(primitive, /export function CollapsibleSection/);
+  assert.match(primitive, /aria-expanded=\{!collapsed\}/);
+  assert.match(primitive, /aria-controls=\{bodyId\}/);
+  // collapsed body is inert (keeps layout for the animation, out of tab order)
+  assert.match(primitive, /inert=\{collapsed\}/);
+  assert.match(primitive, /state\.collapsedSections\.has\(id\)/);
+
+  // collapsed state is a persisted set, mirrored like expandedGroups
+  assert.match(store, /collapsedSections: new Set<string>\(\)/);
+  assert.match(store, /toggleSection: \(id\)/);
+  assert.match(persistence, /collapsedSections: Array\.from\(state\.collapsedSections\)/);
+  assert.match(persistence, /collapsedSections: new Set\(preferences\.collapsedSections\)/);
+
+  // the grid-rows height animation + reduced-motion opt-out
+  assert.match(styles, /\.xray-collapsible-body \{[\s\S]*grid-template-rows: 1fr/);
+  assert.match(styles, /\.xray-collapsible\.collapsed > \.xray-collapsible-body \{[\s\S]*grid-template-rows: 0fr/);
+  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.xray-collapsible-body/);
+
+  // reused across surfaces, not re-implemented per section
+  assert.match(api, /import \{ CollapsibleSection \}/);
+  assert.match(api, /id="api-stats"/);
+  assert.match(api, /id="api-filters"/);
+  assert.match(insights, /import \{ CollapsibleSection \}/);
+  assert.match(insights, /id="insights-status"/);
+});

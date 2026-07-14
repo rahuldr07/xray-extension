@@ -20,6 +20,7 @@ export interface PanelPreferencesState {
   statusFilters: Set<string>;
   typeFilters: Set<string>;
   expandedGroups: Set<string>;
+  collapsedSections: Set<string>;
   sortField: SortField;
   sortOrder: SortOrder;
   recording: boolean;
@@ -43,6 +44,7 @@ export interface SerializedPanelPreferences {
   statusFilters?: string[];
   typeFilters?: string[];
   expandedGroups?: string[];
+  collapsedSections?: string[];
   sortField?: SortField;
   sortOrder?: SortOrder;
   recording?: boolean;
@@ -67,6 +69,7 @@ export function serializePanelPreferences(state: PanelPreferencesState): Seriali
     statusFilters: Array.from(state.statusFilters),
     typeFilters: Array.from(state.typeFilters),
     expandedGroups: Array.from(state.expandedGroups),
+    collapsedSections: Array.from(state.collapsedSections),
     sortField: state.sortField,
     sortOrder: state.sortOrder,
     recording: state.recording,
@@ -102,6 +105,7 @@ export function applyPanelPreferences(preferences: SerializedPanelPreferences): 
     ...(Array.isArray(preferences.statusFilters) ? { statusFilters: new Set(preferences.statusFilters) } : {}),
     ...(Array.isArray(preferences.typeFilters) ? { typeFilters: new Set(preferences.typeFilters) } : {}),
     ...(Array.isArray(preferences.expandedGroups) ? { expandedGroups: new Set(preferences.expandedGroups) } : {}),
+    ...(Array.isArray(preferences.collapsedSections) ? { collapsedSections: new Set(preferences.collapsedSections) } : {}),
     ...(preferences.sortField ? { sortField: preferences.sortField } : {}),
     ...(preferences.sortOrder ? { sortOrder: preferences.sortOrder } : {}),
     ...(typeof preferences.recording === 'boolean' ? { recording: preferences.recording } : {}),

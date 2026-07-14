@@ -15,6 +15,7 @@ import {
   IconServer,
   IconWorld,
 } from '@tabler/icons-react';
+import { CollapsibleSection } from '../common/CollapsibleSection';
 import { EmptyState } from '../common/EmptyState';
 import { PaneDivider } from '../common/PaneDivider';
 import { RequestDetail } from '../detail/RequestDetail';
@@ -367,12 +368,14 @@ function ApiCollectionHeader({ summary, visibleCount }: { summary: ApiListSummar
         <IconWorld {...iconProps} />
         <span>Live page</span>
       </div>
-      <div className="xray-api-summary-strip" aria-label="Captured request summary">
-        <SummaryPill tone="ok" icon={<IconDatabase {...iconProps} />} label="Visible" value={String(visibleCount)} />
-        <SummaryPill tone={summary.errors ? 'error' : 'ok'} icon={<IconServer {...iconProps} />} label="Errors" value={String(summary.errors)} />
-        <SummaryPill tone={summary.slow ? 'warn' : 'ok'} icon={<IconClock {...iconProps} />} label="Avg" value={`${Math.round(summary.avgDuration)}ms`} />
-        <SummaryPill tone="info" icon={<IconDatabase {...iconProps} />} label="Bytes" value={formatBytes(summary.totalBytes)} />
-      </div>
+      <CollapsibleSection id="api-stats" title="Summary" className="xray-api-stats-collapsible">
+        <div className="xray-api-summary-strip" aria-label="Captured request summary">
+          <SummaryPill tone="ok" icon={<IconDatabase {...iconProps} />} label="Visible" value={String(visibleCount)} />
+          <SummaryPill tone={summary.errors ? 'error' : 'ok'} icon={<IconServer {...iconProps} />} label="Errors" value={String(summary.errors)} />
+          <SummaryPill tone={summary.slow ? 'warn' : 'ok'} icon={<IconClock {...iconProps} />} label="Avg" value={`${Math.round(summary.avgDuration)}ms`} />
+          <SummaryPill tone="info" icon={<IconDatabase {...iconProps} />} label="Bytes" value={formatBytes(summary.totalBytes)} />
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -428,12 +431,20 @@ function ApiInspectorToolbar({ summary }: { summary: ApiListSummary }): React.Re
     );
   };
 
+  const activeFilterCount = methodFilters.size + typeFilters.size + statusFilters.size + (apiQuickFilter !== 'all' ? 1 : 0);
+
   return (
     <div className="xray-api-toolbar">
       <label className="xray-search xray-api-search">
         <IconSearch {...iconProps} />
         <input className="xray-input" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Filter method, status, path, domain, source, content type..." />
       </label>
+      <CollapsibleSection
+        id="api-filters"
+        title="Filters &amp; Sort"
+        className="xray-api-filters-collapsible"
+        right={activeFilterCount > 0 ? <span className="xray-chip-count">{activeFilterCount}</span> : undefined}
+      >
       <div className="xray-filter-chips xray-api-primary-filters" aria-label="Primary API filters">
         <button className={`xray-chip ${apiQuickFilter === 'all' && !methodFilters.size && !typeFilters.size && !statusFilters.size ? 'active' : ''}`} onClick={clearApiFilters}>
           All
@@ -468,6 +479,7 @@ function ApiInspectorToolbar({ summary }: { summary: ApiListSummary }): React.Re
           <button className="xray-chip" onClick={clearApiFilters}><IconFilterOff {...iconProps} />Reset</button>
         </div>
       </div>
+      </CollapsibleSection>
     </div>
   );
 }

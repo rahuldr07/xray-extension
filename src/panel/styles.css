@@ -1206,8 +1206,17 @@
   font-weight: 900;
 }
 
-.xray-api-summary-strip {
+.xray-api-stats-collapsible {
   grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* The stats collapsible carries its own header, so drop the strip's padding. */
+.xray-api-stats-collapsible .xray-collapsible-header {
+  padding: 2px 0 6px;
+}
+
+.xray-api-summary-strip {
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5458,4 +5467,107 @@
 /* Nothing selected at all: the (auto-hidden) context pane frees its column too. */
 .xray-api-workspace:not(.detail-open) .xray-api-body:has(.xray-request-context-pane.empty) {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* ── Collapsible section primitive (CollapsibleSection.tsx) ───────────────── */
+
+.xray-collapsible {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.xray-collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--xray-subtext, var(--xray-text));
+  cursor: pointer;
+  font: 800 10px/1 var(--xray-font);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.xray-collapsible-header:hover {
+  color: var(--xray-text);
+}
+
+.xray-collapsible-chevron {
+  flex: 0 0 auto;
+  color: var(--xray-hint, var(--xray-subtext));
+  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);
+}
+
+.xray-collapsible.collapsed .xray-collapsible-chevron {
+  transform: rotate(-90deg);
+}
+
+.xray-collapsible-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-collapsible-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.xray-collapsible-body {
+  min-height: 0;
+  /* grid trick animates height from 0 without knowing the content height */
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--xray-dur, .18s) var(--xray-ease, ease);
+}
+
+.xray-collapsible.collapsed > .xray-collapsible-body {
+  grid-template-rows: 0fr;
+}
+
+.xray-collapsible-body > .xray-collapsible-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-collapsible-chevron,
+  .xray-collapsible-body {
+    transition: none;
+  }
+}
+
+/* API filters collapsible: keep the chip blocks spaced like the old toolbar. */
+.xray-api-filters-collapsible .xray-collapsible-header {
+  padding: 0 0 2px;
+}
+
+.xray-api-filters-collapsible .xray-collapsible-inner {
+  display: grid;
+  gap: 8px;
+}
+
+/* Insight cards use the collapsible header in place of the old <h3>. Keep the
+   card's inner padding but let the header title read like the old heading. */
+.xray-card.xray-collapsible {
+  padding: 12px;
+}
+
+.xray-card.xray-collapsible > .xray-collapsible-header {
+  padding: 0 0 8px;
+  font-size: 12px;
+}
+
+.xray-insight-overview .xray-collapsible-header {
+  padding: 0 0 6px;
 }

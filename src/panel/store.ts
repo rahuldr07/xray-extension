@@ -43,6 +43,8 @@ interface PanelState {
   statusFilters: Set<string>;
   typeFilters: Set<string>;
   expandedGroups: Set<string>;
+  // Ids of collapsible sections the user has collapsed (default = expanded).
+  collapsedSections: Set<string>;
   sortField: SortField;
   sortOrder: SortOrder;
   recording: boolean;
@@ -88,6 +90,7 @@ interface PanelState {
   togglePinned(id: string): void;
   clearPinned(): void;
   toggleGroup(key: string): void;
+  toggleSection(id: string): void;
   setSort(field: SortField): void;
   setRecording(value: boolean): void;
   addEntry(entry: XrayEntry): void;
@@ -193,6 +196,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   statusFilters: new Set<string>(),
   typeFilters: new Set<string>(),
   expandedGroups: new Set<string>(),
+  collapsedSections: new Set<string>(),
   sortField: 'timestamp',
   sortOrder: 'desc',
   recording: true,
@@ -295,6 +299,13 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     if (expandedGroups.has(key)) expandedGroups.delete(key);
     else expandedGroups.add(key);
     set({ expandedGroups });
+    persistPanelPreferences(get());
+  },
+  toggleSection: (id) => {
+    const collapsedSections = new Set(get().collapsedSections);
+    if (collapsedSections.has(id)) collapsedSections.delete(id);
+    else collapsedSections.add(id);
+    set({ collapsedSections });
     persistPanelPreferences(get());
   },
   setSort: (field) => {
