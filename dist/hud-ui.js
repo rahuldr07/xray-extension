@@ -19086,7 +19086,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 06:41 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 07:28 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime13 = __toESM(require_jsx_runtime());
@@ -20891,6 +20891,13 @@ ${bodyLine}
 }
 
 .xray-panel {
+  /* The panel is a size container: everything inside responds to the PANEL's
+     width via @container rules, not the window's \u2014 a 380px docked panel on a
+     4K monitor must stack exactly like a small window. Modals are DOM siblings
+     of the panel (see App.tsx), so the layout containment this creates never
+     affects their fixed positioning. */
+  container-type: inline-size;
+  container-name: xray;
   position: fixed;
   top: 0;
   right: 0;
@@ -23467,7 +23474,7 @@ ${bodyLine}
   font-size: 10px;
 }
 
-@media (max-width: 1700px) {
+@container xray (max-width: 1700px) {
   .xray-api-body {
     grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
   }
@@ -23481,11 +23488,72 @@ ${bodyLine}
   }
 }
 
+/* Window-coupled rules stay media-based: the panel's own width, and the modal
+   overlays that live OUTSIDE the panel and size against the viewport. */
 @media (max-width: 760px) {
   .xray-panel {
     width: 100vw;
   }
 
+  .xray-export-modal {
+    width: 96vw;
+  }
+
+  .xray-settings-modal {
+    width: 96vw;
+    max-height: 88vh;
+  }
+
+  .xray-settings-modal-body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .xray-settings-nav {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+  }
+
+  .xray-settings-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .xray-settings-nav-item.active {
+    border-bottom-color: var(--xray-accent, var(--xray-mauve));
+  }
+
+  .xray-export-body {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-export-rail {
+    display: flex;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+    overflow-x: auto;
+  }
+
+  .xray-export-group {
+    min-width: 170px;
+    margin-bottom: 0;
+  }
+
+  .xray-export-preview-head {
+    display: grid;
+  }
+
+  .xray-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container xray (max-width: 760px) {
   .xray-topbar {
     gap: 6px;
     padding: 0 8px;
@@ -23747,62 +23815,8 @@ ${bodyLine}
     display: none;
   }
 
-  .xray-export-modal {
-    width: 96vw;
-  }
-
-  .xray-settings-modal {
-    width: 96vw;
-    max-height: 88vh;
-  }
-
-  .xray-settings-modal-body {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
-  .xray-settings-nav {
-    display: flex;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-  }
-
-  .xray-settings-nav-item {
-    flex: 0 0 auto;
-    width: auto;
-    border-left: 0;
-    border-bottom: 2px solid transparent;
-  }
-
-  .xray-settings-nav-item.active {
-    border-bottom-color: var(--xray-accent, var(--xray-mauve));
-  }
-
-  .xray-export-body {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-export-rail {
-    display: flex;
-    gap: 8px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-    overflow-x: auto;
-  }
-
-  .xray-export-group {
-    min-width: 170px;
-    margin-bottom: 0;
-  }
-
-  .xray-export-preview-head {
-    display: grid;
-  }
-
   .xray-insight-grid,
-  .xray-insight-columns,
-  .xray-settings-grid {
+  .xray-insight-columns {
     grid-template-columns: 1fr;
   }
 
@@ -23811,7 +23825,7 @@ ${bodyLine}
   }
 }
 
-@media (max-width: 420px) {
+@container xray (max-width: 420px) {
   .xray-api-table-head,
   .xray-api-row {
     grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
@@ -24311,7 +24325,7 @@ ${bodyLine}
   background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
-@media (max-width: 860px) {
+@container xray (max-width: 860px) {
   .xray-panel .xray-prompt {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -26244,7 +26258,7 @@ ${bodyLine}
 `;
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles\hud.css
-  var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: var(--xray-radius, 10px);\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: var(--xray-radius);\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\n   These rules only exist in the HUD because hud.css is loaded only there. */\n.xray-panel.xray-mode-hud .xray-resize-handle,\n.xray-panel.xray-mode-hud .xray-dock-controls {\n  display: none;\n}\n\n@media (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
+  var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: var(--xray-radius, 10px);\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: var(--xray-radius);\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\n   These rules only exist in the HUD because hud.css is loaded only there. */\n.xray-panel.xray-mode-hud .xray-resize-handle,\n.xray-panel.xray-mode-hud .xray-dock-controls {\n  display: none;\n}\n\n/* Container-based: the HUD's width is user-dragged and independent of the window. */\n@container xray (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
 
   // src/panel/hud-main.tsx
   var import_jsx_runtime21 = __toESM(require_jsx_runtime());

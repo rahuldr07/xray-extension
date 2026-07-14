@@ -483,7 +483,9 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(detail, /Snippet/);
   assert.match(detail, /Copy/);
   assert.match(detail, /Export/);
-  assert.match(styles, /@media \(max-width: 420px\)/);
+  // panel-internal breakpoints are container-based (the docked panel's width
+  // is independent of the window)
+  assert.match(styles, /@container xray \(max-width: 420px\)/);
   assert.match(styles, /\.xray-detail-footer/);
   assert.match(styles, /\.xray-detail-footer \.xray-action-btn\s*\{[\s\S]*flex:\s*1 1 calc\(50% - 8px\)/);
   assert.doesNotMatch(entriesWorkspace, /dangerouslySetInnerHTML|innerHTML/);
@@ -801,6 +803,10 @@ test('React console accepts prepared commands and owns saved snippets', () => {
 test('React preview CSS protects narrow viewport console ergonomics', () => {
   const styles = read('src/panel/styles.css');
 
+  // the panel is an inline-size container; narrow-panel ergonomics key off the
+  // panel's own width, while window-coupled rules (panel width, modals) stay media
+  assert.match(styles, /container-type: inline-size/);
+  assert.match(styles, /@container xray \(max-width: 760px\)/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.xray-tabs\s*\{[\s\S]*overflow-x: auto/);
   assert.match(styles, /\.xray-console-head\s*\{[\s\S]*overflow-x: auto/);

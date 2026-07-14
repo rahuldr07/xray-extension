@@ -50,7 +50,8 @@
   display: none;
 }
 
-@media (max-width: 520px) {
+/* Container-based: the HUD's width is user-dragged and independent of the window. */
+@container xray (max-width: 520px) {
   .xray-panel.xray-mode-hud .xray-summary,
   .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {
     display: none;

@@ -41,6 +41,13 @@
 }
 
 .xray-panel {
+  /* The panel is a size container: everything inside responds to the PANEL's
+     width via @container rules, not the window's — a 380px docked panel on a
+     4K monitor must stack exactly like a small window. Modals are DOM siblings
+     of the panel (see App.tsx), so the layout containment this creates never
+     affects their fixed positioning. */
+  container-type: inline-size;
+  container-name: xray;
   position: fixed;
   top: 0;
   right: 0;
@@ -2617,7 +2624,7 @@
   font-size: 10px;
 }
 
-@media (max-width: 1700px) {
+@container xray (max-width: 1700px) {
   .xray-api-body {
     grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
   }
@@ -2631,11 +2638,72 @@
   }
 }
 
+/* Window-coupled rules stay media-based: the panel's own width, and the modal
+   overlays that live OUTSIDE the panel and size against the viewport. */
 @media (max-width: 760px) {
   .xray-panel {
     width: 100vw;
   }
 
+  .xray-export-modal {
+    width: 96vw;
+  }
+
+  .xray-settings-modal {
+    width: 96vw;
+    max-height: 88vh;
+  }
+
+  .xray-settings-modal-body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .xray-settings-nav {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+  }
+
+  .xray-settings-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .xray-settings-nav-item.active {
+    border-bottom-color: var(--xray-accent, var(--xray-mauve));
+  }
+
+  .xray-export-body {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-export-rail {
+    display: flex;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(108, 112, 134, .35);
+    overflow-x: auto;
+  }
+
+  .xray-export-group {
+    min-width: 170px;
+    margin-bottom: 0;
+  }
+
+  .xray-export-preview-head {
+    display: grid;
+  }
+
+  .xray-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container xray (max-width: 760px) {
   .xray-topbar {
     gap: 6px;
     padding: 0 8px;
@@ -2897,62 +2965,8 @@
     display: none;
   }
 
-  .xray-export-modal {
-    width: 96vw;
-  }
-
-  .xray-settings-modal {
-    width: 96vw;
-    max-height: 88vh;
-  }
-
-  .xray-settings-modal-body {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
-  .xray-settings-nav {
-    display: flex;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-  }
-
-  .xray-settings-nav-item {
-    flex: 0 0 auto;
-    width: auto;
-    border-left: 0;
-    border-bottom: 2px solid transparent;
-  }
-
-  .xray-settings-nav-item.active {
-    border-bottom-color: var(--xray-accent, var(--xray-mauve));
-  }
-
-  .xray-export-body {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-export-rail {
-    display: flex;
-    gap: 8px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-    overflow-x: auto;
-  }
-
-  .xray-export-group {
-    min-width: 170px;
-    margin-bottom: 0;
-  }
-
-  .xray-export-preview-head {
-    display: grid;
-  }
-
   .xray-insight-grid,
-  .xray-insight-columns,
-  .xray-settings-grid {
+  .xray-insight-columns {
     grid-template-columns: 1fr;
   }
 
@@ -2961,7 +2975,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@container xray (max-width: 420px) {
   .xray-api-table-head,
   .xray-api-row {
     grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
@@ -3461,7 +3475,7 @@
   background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
-@media (max-width: 860px) {
+@container xray (max-width: 860px) {
   .xray-panel .xray-prompt {
     grid-template-columns: auto minmax(0, 1fr);
   }
