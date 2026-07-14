@@ -46,32 +46,45 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   const dockSide = settings.dockSide;
   // Live width during a resize drag overrides the persisted width; committed on release.
   const [dragWidth, setDragWidth] = React.useState<number | null>(null);
-  const resize = React.useRef<{ startX: number; width: number } | null>(null);
+  // `startWidth` stays fixed for the whole drag — the width is always
+  // startWidth + total pointer delta, never accumulated move-to-move (which
+  // made the panel grow several times faster than the cursor). `latest` holds
+  // the most recent computed width so release can commit it.
+  const resize = React.useRef<{ startX: number; startWidth: number; latest: number } | null>(null);
+  const resizeRaf = React.useRef(0);
   const appliedWidth = dragWidth ?? settings.panelWidth;
+
+  React.useEffect(() => () => { if (resizeRaf.current) cancelAnimationFrame(resizeRaf.current); }, []);
 
   function onResizePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    resize.current = { startX: event.clientX, width: settings.panelWidth };
+    resize.current = { startX: event.clientX, startWidth: settings.panelWidth, latest: settings.panelWidth };
     setDragWidth(settings.panelWidth);
   }
   function onResizePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
     const state = resize.current;
     if (!state) return;
-    // Dragging toward the page shrinks; the sign flips with the dock side.
+    // Total delta from the drag start; the sign flips with the dock side
+    // (dragging toward the page shrinks a right-docked panel).
     const delta = dockSide === 'right' ? state.startX - event.clientX : event.clientX - state.startX;
-    const next = clampPanelWidth(state.width + delta);
-    state.width = next;
-    setDragWidth(next);
+    state.latest = clampPanelWidth(state.startWidth + delta);
+    // Coalesce to one width update per frame so the drag stays smooth.
+    if (resizeRaf.current) return;
+    resizeRaf.current = requestAnimationFrame(() => {
+      resizeRaf.current = 0;
+      if (resize.current) setDragWidth(resize.current.latest);
+    });
   }
   function commitResize(event: React.PointerEvent<HTMLDivElement>): void {
     const state = resize.current;
     if (!state) return;
     resize.current = null;
+    if (resizeRaf.current) { cancelAnimationFrame(resizeRaf.current); resizeRaf.current = 0; }
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
     setDragWidth(null);
-    if (state.width !== settings.panelWidth) updateSettings({ panelWidth: state.width });
+    if (state.latest !== settings.panelWidth) updateSettings({ panelWidth: state.latest });
   }
   function onResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     const grow = dockSide === 'right' ? 'ArrowLeft' : 'ArrowRight';

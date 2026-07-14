@@ -19385,7 +19385,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 09:22 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 09:44 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -20897,32 +20897,43 @@ ${bodyLine}
     const dockSide = settings.dockSide;
     const [dragWidth, setDragWidth] = import_react17.default.useState(null);
     const resize = import_react17.default.useRef(null);
+    const resizeRaf = import_react17.default.useRef(0);
     const appliedWidth = dragWidth ?? settings.panelWidth;
+    import_react17.default.useEffect(() => () => {
+      if (resizeRaf.current) cancelAnimationFrame(resizeRaf.current);
+    }, []);
     function onResizePointerDown(event) {
       if (event.button !== 0) return;
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      resize.current = { startX: event.clientX, width: settings.panelWidth };
+      resize.current = { startX: event.clientX, startWidth: settings.panelWidth, latest: settings.panelWidth };
       setDragWidth(settings.panelWidth);
     }
     function onResizePointerMove(event) {
       const state = resize.current;
       if (!state) return;
       const delta = dockSide === "right" ? state.startX - event.clientX : event.clientX - state.startX;
-      const next = clampPanelWidth(state.width + delta);
-      state.width = next;
-      setDragWidth(next);
+      state.latest = clampPanelWidth(state.startWidth + delta);
+      if (resizeRaf.current) return;
+      resizeRaf.current = requestAnimationFrame(() => {
+        resizeRaf.current = 0;
+        if (resize.current) setDragWidth(resize.current.latest);
+      });
     }
     function commitResize(event) {
       const state = resize.current;
       if (!state) return;
       resize.current = null;
+      if (resizeRaf.current) {
+        cancelAnimationFrame(resizeRaf.current);
+        resizeRaf.current = 0;
+      }
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
       } catch {
       }
       setDragWidth(null);
-      if (state.width !== settings.panelWidth) updateSettings({ panelWidth: state.width });
+      if (state.latest !== settings.panelWidth) updateSettings({ panelWidth: state.latest });
     }
     function onResizeKeyDown(event) {
       const grow = dockSide === "right" ? "ArrowLeft" : "ArrowRight";
