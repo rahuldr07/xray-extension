@@ -19361,7 +19361,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 08:08 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 08:17 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -21222,13 +21222,16 @@ ${bodyLine}
   animation: xray-panel-slide-left .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));
 }
 
-/* Drag grabber on the panel's inner edge (toward the page). */
-.xray-resize-handle {
+/* Drag grabber on the panel's inner edge (toward the page). Scoped as a direct
+   child of .xray-panel so it outranks the broad \`.xray-panel > * { position:
+   relative }\` rule below \u2014 otherwise the handle collapses to 0 height (top:0 +
+   bottom:0 on a position:relative box) and can't be grabbed. */
+.xray-panel > .xray-resize-handle {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 8px;
-  z-index: 3;
+  z-index: 6;
   cursor: ew-resize;
   touch-action: none;
   background: transparent;
