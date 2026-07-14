@@ -19361,7 +19361,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 08:01 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 08:07 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -21723,8 +21723,11 @@ ${bodyLine}
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
 }
 
+/* Chips wrap onto multiple rows rather than overflowing/clipping \u2014 a narrow
+   panel must never hide filters behind an invisible horizontal scroll. */
 .xray-filter-chips {
-  overflow-x: auto;
+  flex-wrap: wrap;
+  row-gap: 5px;
 }
 
 .xray-filter-chips.compact {
@@ -24005,8 +24008,7 @@ ${bodyLine}
   .xray-api-secondary-controls,
   .xray-api-secondary-controls .xray-filter-chips {
     justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-wrap: wrap;
   }
 
   .xray-api-secondary-controls {

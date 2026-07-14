@@ -598,8 +598,11 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
 }
 
+/* Chips wrap onto multiple rows rather than overflowing/clipping — a narrow
+   panel must never hide filters behind an invisible horizontal scroll. */
 .xray-filter-chips {
-  overflow-x: auto;
+  flex-wrap: wrap;
+  row-gap: 5px;
 }
 
 .xray-filter-chips.compact {
@@ -2880,8 +2883,7 @@
   .xray-api-secondary-controls,
   .xray-api-secondary-controls .xray-filter-chips {
     justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-wrap: wrap;
   }
 
   .xray-api-secondary-controls {
