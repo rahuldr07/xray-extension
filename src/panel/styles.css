@@ -5571,3 +5571,14 @@
 .xray-insight-overview .xray-collapsible-header {
   padding: 0 0 6px;
 }
+
+/* Density toggle in the API table header (last column, right-aligned). */
+.xray-api-table-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.xray-density-toggle {
+  width: 24px;
+  height: 24px;
+}

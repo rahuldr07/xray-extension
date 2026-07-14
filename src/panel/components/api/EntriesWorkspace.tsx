@@ -6,6 +6,8 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconClock,
+  IconLayoutList,
+  IconLayoutRows,
   IconCopy,
   IconDatabase,
   IconFilter,
@@ -491,8 +493,26 @@ function ApiTableHeader(): React.ReactElement {
       <span>Request</span>
       <span>Status</span>
       <span>Timing</span>
-      <span>Tools</span>
+      <span className="xray-api-table-tools"><DensityToggle /></span>
     </div>
+  );
+}
+
+// Quick per-list switch between the two-line (expanded) and single-line
+// (compact) row modes — the same `compactRows` setting the Settings panel
+// exposes, surfaced where the list actually is.
+function DensityToggle(): React.ReactElement {
+  const compactRows = usePanelStore((state) => state.settings.compactRows);
+  const updateSettings = usePanelStore((state) => state.updateSettings);
+  return (
+    <button
+      className="xray-icon-btn xray-density-toggle"
+      aria-pressed={compactRows}
+      title={compactRows ? 'Switch to expanded (two-line) rows' : 'Switch to compact (single-line) rows'}
+      onClick={() => updateSettings({ compactRows: !compactRows })}
+    >
+      {compactRows ? <IconLayoutRows {...iconProps} /> : <IconLayoutList {...iconProps} />}
+    </button>
   );
 }
 
