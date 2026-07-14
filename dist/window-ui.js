@@ -19385,7 +19385,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 08:55 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-14 09:22 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -26607,10 +26607,17 @@ ${bodyLine}
   color: var(--xray-text);
 }
 
+/* One knob for the whole collapse/expand feel. Deliberately slow + even-paced
+   so sections unfold like a drawer, not a snap. */
+.xray-collapsible {
+  --xray-collapse-dur: 420ms;
+  --xray-collapse-ease: cubic-bezier(.4, 0, .2, 1);
+}
+
 .xray-collapsible-chevron {
   flex: 0 0 auto;
   color: var(--xray-hint, var(--xray-subtext));
-  transition: transform 300ms cubic-bezier(.4, 0, .2, 1);
+  transition: transform var(--xray-collapse-dur) var(--xray-collapse-ease);
 }
 
 .xray-collapsible.collapsed .xray-collapsible-chevron {
@@ -26635,12 +26642,10 @@ ${bodyLine}
 
 .xray-collapsible-body {
   min-height: 0;
-  /* grid trick animates height from 0 without knowing the content height.
-     Its own slower/ease-out timing (not the shared 180ms token) so the section
-     unfolds gently rather than snapping open. */
+  /* grid trick animates height from 0 without knowing the content height */
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 300ms cubic-bezier(.4, 0, .2, 1);
+  transition: grid-template-rows var(--xray-collapse-dur) var(--xray-collapse-ease);
 }
 
 .xray-collapsible.collapsed > .xray-collapsible-body {
@@ -26650,11 +26655,23 @@ ${bodyLine}
 .xray-collapsible-body > .xray-collapsible-inner {
   min-height: 0;
   overflow: hidden;
+  /* Fade + slight rise so content eases in with the height, rather than being
+     hard-clipped \u2014 this reads far gentler than a pure height reveal. */
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--xray-collapse-dur) var(--xray-collapse-ease),
+              transform var(--xray-collapse-dur) var(--xray-collapse-ease);
+}
+
+.xray-collapsible.collapsed > .xray-collapsible-body > .xray-collapsible-inner {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .xray-collapsible-chevron,
-  .xray-collapsible-body {
+  .xray-collapsible-body,
+  .xray-collapsible-body > .xray-collapsible-inner {
     transition: none;
   }
 }
