@@ -847,12 +847,44 @@
 
 .xray-console-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 86px;
-  gap: 6px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: start;
-  min-height: 34px;
-  padding: 7px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .22);
+  /* Denser rows for a log stream where scan-density matters (research). */
+  min-height: 26px;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .16);
+}
+
+/* Right-side cell: optional source location + timestamp. Timestamps read as
+   optional clutter (Firefox/Chrome default them off), so keep them quiet and
+   reveal on row hover; the source location stays for error provenance. */
+.xray-console-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.xray-console-source {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.xray-console-time {
+  color: var(--xray-hint, var(--xray-subtext));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-console-row:hover .xray-console-time,
+.xray-console-row.command .xray-console-time,
+.xray-console-row.result .xray-console-time {
+  opacity: .65;
 }
 
 .xray-console-row.error {
@@ -3392,6 +3424,9 @@
 
 .xray-panel .xray-console-row {
   font-variant-numeric: tabular-nums;
+  /* Message stream scans best dense — override the shared 52px operator row
+     height (that height is tuned for the API/log tables, not a log stream). */
+  min-height: 28px;
 }
 
 .xray-panel .xray-prompt {

@@ -183,8 +183,10 @@ export function ConsoleWorkspace(): React.ReactElement {
           </div>
         </section>
       )}
+      {/* Sub-tabs are mutually exclusive: Network shows the request waterfall,
+          Console shows the message stream. The prompt/snippets/status are shared. */}
       {mini === 'network' && <NetworkTable />}
-      <ConsoleStream levelFilter={levelFilter} query={consoleQuery} onClearFilter={() => { setLevelFilter('all'); setConsoleQuery(''); }} />
+      {mini === 'console' && <ConsoleStream levelFilter={levelFilter} query={consoleQuery} onClearFilter={() => { setLevelFilter('all'); setConsoleQuery(''); }} />}
       <SnippetBar />
       <ConsolePrompt />
       <Statusbar />
@@ -480,6 +482,27 @@ function extractConsoleError(event: ConsoleEvent): ConsoleError | null {
   return null;
 }
 
+// The top user frame of an error's stack — its origin location, e.g.
+// "https://…/app.js:42:10". Empty when the stack has no locatable frame.
+function errorOrigin(error: ConsoleError): string {
+  for (const line of error.stack.split('\n')) {
+    const match = line.match(/((?:https?|chrome-extension|webpack|file|blob):[^)\s]+:\d+:\d+)/);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+// "https://host/path/app.js:42:10" -> "app.js:42" for a compact right-aligned tag.
+// An inline document script has no basename ("https://host/:90:1"); label it
+// "(index):90" the way DevTools does, rather than a bare ":90".
+function shortLocation(location: string): string {
+  const noQuery = location.split('?')[0];
+  const file = noQuery.split('/').pop() || noQuery;
+  const parts = file.split(':');
+  const name = parts[0] || '(index)';
+  return parts.length >= 2 ? `${name}:${parts[1]}` : file;
+}
+
 // A JS stack's first line is usually "Name: message" (redundant with the row);
 // each remaining "at fn (file:line:col)" frame becomes a function + location pair.
 function ErrorBlock({ error }: { error: ConsoleError }): React.ReactElement {
@@ -661,7 +684,12 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
         {count > 1 && <span className="xray-repeat-badge" title={`${count} identical consecutive messages`}>×{count}</span>}
         {event.truncated && <span className="xray-truncated-badge" title="The result was truncated to fit the transfer limit">truncated</span>}
       </span>
-      <span className="xray-muted">{formatTime(event.timestamp)}</span>
+      <span className="xray-console-aside">
+        {/* Error origin (top stack frame) shown where it's free — the parsed
+            stack already has it (Chrome/Firefox file:line convention). */}
+        {consoleError && errorOrigin(consoleError) && <span className="xray-console-source" title={errorOrigin(consoleError)}>{shortLocation(errorOrigin(consoleError))}</span>}
+        <span className="xray-console-time">{formatTime(event.timestamp)}</span>
+      </span>
       {isExpanded && (
         <div className="xray-detail">
           {consoleError ? (
