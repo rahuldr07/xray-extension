@@ -3,6 +3,20 @@
   --xray-bg: #1e1e2e;
   --xray-surface: #181825;
   --xray-surface2: #313244;
+  /* RGB triples so translucent surfaces (rgba(var(--…-rgb), a)) adapt per theme */
+  --xray-bg-rgb: 30, 30, 46;
+  --xray-surface-rgb: 24, 24, 37;
+  --xray-surface2-rgb: 49, 50, 68;
+  --xray-text-rgb: 205, 214, 244;
+  /* corner-radius scale — base is set inline per-panel from settings.radius */
+  --xray-radius: 10px;
+  --xray-radius-sm: calc(var(--xray-radius) * 0.6);
+  --xray-radius-lg: calc(var(--xray-radius) * 1.4);
+  /* motion system — one easing/duration language across the UI */
+  --xray-ease: cubic-bezier(0.22, 0.8, 0.28, 1);
+  --xray-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --xray-dur-fast: 120ms;
+  --xray-dur: 180ms;
   --xray-text: #cdd6f4;
   --xray-green: #a6e3a1;
   --xray-blue: #89b4fa;

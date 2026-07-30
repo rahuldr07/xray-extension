@@ -3,6 +3,7 @@ import { IconAlertTriangle, IconBolt, IconClock, IconDatabase, IconRoute, IconSe
 import { usePanelStore } from '../../store';
 import { buildInsightsSummary } from '../../models/insights';
 import { formatBytes } from '../../utils';
+import { CollapsibleSection } from '../common/CollapsibleSection';
 import { iconProps } from '../shell/panelTabs';
 
 export function Insights(): React.ReactElement {
@@ -24,16 +25,17 @@ export function Insights(): React.ReactElement {
           <p>Deterministic local signals from captured requests. No external AI service is used.</p>
         </div>
       </header>
-      <div className="xray-insight-grid">
-        <InsightMetric icon={<IconDatabase {...iconProps} />} label="Requests" value={String(summary.requests)} />
-        <InsightMetric icon={<IconAlertTriangle {...iconProps} />} label="Errors" value={String(summary.errors)} tone={summary.errors ? 'error' : 'ok'} />
-        <InsightMetric icon={<IconBolt {...iconProps} />} label="Slow" value={String(summary.slow)} tone={summary.slow ? 'warn' : 'ok'} />
-        <InsightMetric icon={<IconClock {...iconProps} />} label="Average" value={`${Math.round(summary.avgDuration)}ms`} />
-        <InsightMetric icon={<IconServer {...iconProps} />} label="Payload" value={formatBytes(summary.totalBytes)} />
-      </div>
+      <CollapsibleSection id="insights-overview" title="Overview" className="xray-insight-overview">
+        <div className="xray-insight-grid">
+          <InsightMetric icon={<IconDatabase {...iconProps} />} label="Requests" value={String(summary.requests)} />
+          <InsightMetric icon={<IconAlertTriangle {...iconProps} />} label="Errors" value={String(summary.errors)} tone={summary.errors ? 'error' : 'ok'} />
+          <InsightMetric icon={<IconBolt {...iconProps} />} label="Slow" value={String(summary.slow)} tone={summary.slow ? 'warn' : 'ok'} />
+          <InsightMetric icon={<IconClock {...iconProps} />} label="Average" value={`${Math.round(summary.avgDuration)}ms`} />
+          <InsightMetric icon={<IconServer {...iconProps} />} label="Payload" value={formatBytes(summary.totalBytes)} />
+        </div>
+      </CollapsibleSection>
       <div className="xray-insight-columns">
-        <section className="xray-card">
-          <h3>Repeated endpoints</h3>
+        <CollapsibleSection id="insights-repeated" title="Repeated endpoints" className="xray-card">
           {summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => (
             <button key={item.path} className="xray-insight-row" onClick={() => openEndpoint(item.path)}>
               <IconRoute {...iconProps} />
@@ -41,9 +43,8 @@ export function Insights(): React.ReactElement {
               <strong>{item.count}x</strong>
             </button>
           )) : <p className="xray-muted">No repeated endpoint pattern above threshold.</p>}
-        </section>
-        <section className="xray-card">
-          <h3>Slowest requests</h3>
+        </CollapsibleSection>
+        <CollapsibleSection id="insights-slowest" title="Slowest requests" className="xray-card">
           {summary.topSlowRequests.map((item) => (
             <button key={item.id} className="xray-insight-row" onClick={() => openEndpoint(item.path)}>
               <span className="xray-method">{item.method}</span>
@@ -51,9 +52,8 @@ export function Insights(): React.ReactElement {
               <strong>{Math.round(item.duration)}ms</strong>
             </button>
           ))}
-        </section>
-        <section className="xray-card">
-          <h3>Status mix</h3>
+        </CollapsibleSection>
+        <CollapsibleSection id="insights-status" title="Status mix" className="xray-card">
           {Object.entries(summary.statusCounts).map(([bucket, count]) => (
             <div key={bucket} className="xray-status-mix-row">
               <span>{bucket}</span>
@@ -61,7 +61,7 @@ export function Insights(): React.ReactElement {
               <strong>{count}</strong>
             </div>
           ))}
-        </section>
+        </CollapsibleSection>
       </div>
     </section>
   );

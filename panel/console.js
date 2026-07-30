@@ -79,10 +79,58 @@ window.XRAY_Console = (() => {
     _historyIndex = -1;
   }
 
-  function _contextPayload() {
+  const MAX_CONTEXT_ENTRIES = 300;
+  const MAX_SAME_ENDPOINT_FULL = 10;
+
+  function _slimEntry(entry) {
+    if (!entry) return entry;
     return {
-      currentEntry: _currentEntry,
-      entries: _entries(),
+      id: entry.id,
+      type: entry.type,
+      source: entry.source,
+      method: entry.method,
+      url: entry.url,
+      urlPath: entry.urlPath,
+      status: entry.status,
+      duration: entry.duration,
+      size: entry.size,
+      timestamp: entry.timestamp,
+      ...(entry.logLevel ? { logLevel: entry.logLevel } : {}),
+      ...(entry.graphql ? { graphql: { operationType: entry.graphql.operationType, operationName: entry.graphql.operationName } } : {}),
+      ...(entry.mocked ? { mocked: true } : {}),
+      ...(entry.replayed ? { replayed: true } : {}),
+      __slim__: true,
+    };
+  }
+
+  // The payload is structured-cloned to the background, JSON-inlined into a
+  // debugger expression, and parsed again in the page — shipping every entry
+  // with full bodies cost megabytes per Run. Helpers only need full data for
+  // the current entry and its same-endpoint neighbours (res/req/prev/next/
+  // diff); the rest travels as slim projections for $all()/$errors()/$slow().
+  function _contextPayload() {
+    const all = _entries();
+    const current = _currentEntry;
+    const windowed = all.slice(-MAX_CONTEXT_ENTRIES);
+    const fullIds = new Set();
+    if (current) {
+      fullIds.add(current.id);
+      const currentPath = String(current.urlPath || current.url || '');
+      if (currentPath) {
+        const sameEndpoint = [];
+        for (const entry of windowed) {
+          if (entry && entry.type === 'api' && String(entry.urlPath || entry.url || '') === currentPath) {
+            sameEndpoint.push(entry.id);
+          }
+        }
+        sameEndpoint.slice(-MAX_SAME_ENDPOINT_FULL).forEach((id) => fullIds.add(id));
+      }
+    }
+    const entries = windowed.map((entry) => (entry && fullIds.has(entry.id) ? entry : _slimEntry(entry)));
+    if (current && !entries.some((entry) => entry && entry.id === current.id)) entries.push(current);
+    return {
+      currentEntry: current,
+      entries,
       scope: _scope,
       pins: _pins,
     };
@@ -93,9 +141,10 @@ window.XRAY_Console = (() => {
     if (!trimmed) return { type: 'empty' };
     init();
     _saveHistory(trimmed);
-    const privileged = await _executePrivileged(trimmed, _contextPayload());
+    const context = _contextPayload();
+    const privileged = await _executePrivileged(trimmed, context);
     if (privileged) return privileged;
-    return _executeInMainWorld(trimmed, _contextPayload());
+    return _executeInMainWorld(trimmed, context);
   }
 
   function _executePrivileged(code, context) {

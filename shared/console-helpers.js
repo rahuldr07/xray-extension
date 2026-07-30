@@ -268,8 +268,42 @@
       omit,
       flatten,
       _: lodashLite,
+      $help: HELP_TEXT,
+      help: HELP_TEXT,
     };
   }
+
+  const HELP_TEXT = [
+    'XRAY console helpers — the prompt evaluates against the selected request.',
+    '',
+    'Selected request',
+    '  res / response        parsed response body',
+    '  req / request         parsed request body',
+    '  entry                 the full captured entry',
+    '  headers / requestHeaders    response / request headers',
+    '  $curl, $fetch         copy-ready cURL / fetch() for the request',
+    '',
+    'Navigate & query',
+    '  prev, next            previous / next response on this endpoint',
+    '  prevEntry, nextEntry  the matching entries',
+    '  all()                 every captured entry (recent ones in full)',
+    '  similar()             entries for the same endpoint',
+    '  errors()              entries with status >= 400',
+    '  slow(ms = 1000)       entries slower than ms',
+    '',
+    'Transform',
+    '  schema(x)             infer a structural schema',
+    '  diff(a, b)            structural diff of two values',
+    '  pick(obj, keys), omit(obj, keys), flatten(obj)',
+    '  toCSV(rows), toTable(rows), mock(entry?)',
+    '  _.groupBy / _.sortBy / _.uniq / _.countBy ...',
+    '',
+    'Utilities',
+    '  copy(x)               copy a value to the clipboard',
+    '  pin("name")           pin the selected entry as a variable',
+    '',
+    'Multiline: Shift+Enter. History: ArrowUp / ArrowDown.',
+  ].join('\n');
 
   window.XRAY_ConsoleHelpers = {
     parseBody,

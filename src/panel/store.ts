@@ -8,11 +8,21 @@ import {
   type SerializedPanelPreferences,
 } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS, normalizePanelSettings } from './models/panelSettings';
-import { publishCaptureSettings } from './runtime/captureConfig';
-import type { ActiveTab, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConfirmationRequest, ConsoleEvent, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, NotebookCell, PanelSettings, SortField, SortOrder, XrayEntry } from './types';
+import { postToPageBridge, publishCaptureSettings, publishTrafficRules } from './runtime/captureConfig';
+import { detectDrift } from './models/drift';
+import { TRAFFIC_RULES_KEY, defaultRule, normalizeRule, normalizeRules } from './models/rules';
+import { AI_SETTINGS_KEY, SESSION_ENTRIES_KEY, deserializeSessionEntries, serializeSessionEntries } from './models/sessionStore';
+import type { ActiveTab, AiSettings, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConfirmationRequest, ConsoleEvent, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, PanelSettings, Snippet, SortField, SortOrder, TrafficRule, XrayEntry } from './types';
 
 const MAX_ENTRIES = 1000;
 const MAX_CONSOLE_EVENTS = 2000;
+
+const DEFAULT_AI_SETTINGS: AiSettings = { provider: 'anthropic', model: 'claude-fable-5', apiKey: '' };
+
+let _sessionPersistTimer: ReturnType<typeof setTimeout> | null = null;
+// The page element that held focus when the injected side panel opened, so we can
+// hand focus back to the page when it closes (Escape / close button).
+let _lastPageFocus: HTMLElement | null = null;
 
 interface PanelState {
   initialized: boolean;
@@ -33,19 +43,29 @@ interface PanelState {
   statusFilters: Set<string>;
   typeFilters: Set<string>;
   expandedGroups: Set<string>;
+  // Ids of collapsible sections the user has collapsed (default = expanded).
+  collapsedSections: Set<string>;
   sortField: SortField;
   sortOrder: SortOrder;
   recording: boolean;
+  pausedCount: number;
   entries: XrayEntry[];
   consoleEvents: ConsoleEvent[];
   consoleDraft: string;
-  notebookCells: NotebookCell[];
+  snippets: Snippet[];
+  rules: TrafficRule[];
+  aiSettings: AiSettings;
+  driftCount: number;
   selectedId: string | null;
   expandedId: string | null;
   pinnedIds: Set<string>;
   exportOpen: boolean;
   settingsOpen: boolean;
+  settingsSection: string;
   commandOpen: boolean;
+  globalSearchOpen: boolean;
+  replayEditorEntry: XrayEntry | null;
+  explainEntry: XrayEntry | null;
   pendingConfirmation: ConfirmationRequest | null;
   settings: PanelSettings;
   toastMessage: string | null;
@@ -70,22 +90,39 @@ interface PanelState {
   togglePinned(id: string): void;
   clearPinned(): void;
   toggleGroup(key: string): void;
+  toggleSection(id: string): void;
   setSort(field: SortField): void;
   setRecording(value: boolean): void;
   addEntry(entry: XrayEntry): void;
+  addEntries(batch: XrayEntry[]): void;
+  updateEntry(patch: Partial<XrayEntry> & { id: string }): void;
+  restoreEntries(entries: XrayEntry[]): void;
+  addRule(rule?: Partial<TrafficRule>): void;
+  updateRule(id: string, patch: Partial<TrafficRule>): void;
+  removeRule(id: string): void;
+  toggleRule(id: string): void;
+  setRules(rules: TrafficRule[]): void;
+  setAiSettings(patch: Partial<AiSettings>): void;
+  replayEntry(entry: XrayEntry, overrides?: Partial<XrayEntry>): void;
+  openReplayEditor(entry: XrayEntry): void;
+  closeReplayEditor(): void;
+  openExplain(entry: XrayEntry): void;
+  closeExplain(): void;
   clearConsole(): void;
   clearEntries(): void;
   addConsoleEvent(event: ConsoleEvent): void;
   setConsoleDraft(command: string): void;
   insertConsoleCommand(command: string): void;
-  addNotebookCell(cell: Pick<NotebookCell, 'code'> & Partial<Pick<NotebookCell, 'title' | 'id'>>): void;
-  updateNotebookCell(id: string, code: string): void;
-  setNotebookCellResult(id: string, result: { output?: unknown; error?: string; running?: boolean }): void;
-  selectEntry(id: string | null): void;
+  saveSnippet(snippet: { code: string; title?: string }): void;
+  renameSnippet(id: string, title: string): void;
+  removeSnippet(id: string): void;
+  selectEntry(id: string | null, options?: { openDetail?: boolean }): void;
   toggleExpanded(id: string): void;
   setExportOpen(value: boolean): void;
   setSettingsOpen(value: boolean): void;
+  openSettings(section: string): void;
   setCommandOpen(value: boolean): void;
+  setGlobalSearchOpen(value: boolean): void;
   updateSettings(patch: Partial<PanelSettings>): void;
   resetSettings(): void;
   requestConfirmation(request: Omit<ConfirmationRequest, 'id'> & { id?: string }): void;
@@ -117,11 +154,28 @@ function entryToConsoleEvent(entry: XrayEntry): ConsoleEvent {
     type: 'log',
     level,
     timestamp: Number(entry.timestamp) || Date.now(),
-    message: String(entry.message ?? data.map((item) => typeof item === 'string' ? item : JSON.stringify(item)).join(' ')),
+    message: String(entry.message ?? data.map((item) => typeof item === 'string' ? item : previewJson(item)).join(' ')).slice(0, 600),
     args: data,
     entryId: entry.id,
   };
 }
+
+// Message previews must not expose the internal __xray_ref__ lazy-load marker.
+function previewJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, (key, item) => (key === '__xray_ref__' ? undefined : item)) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+// Events captured while the stream is paused are buffered here (not dropped)
+// and flushed back into the stream when the user resumes.
+let _pausedEvents: ConsoleEvent[] = [];
+
+// Entry patches awaiting the coalesced updateEntry flush.
+let _pendingEntryPatches = new Map<string, Partial<XrayEntry> & { id: string }>();
+let _entryPatchTimer: number | null = null;
 
 export const usePanelStore = create<PanelState>((set, get) => ({
   initialized: false,
@@ -142,26 +196,47 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   statusFilters: new Set<string>(),
   typeFilters: new Set<string>(),
   expandedGroups: new Set<string>(),
+  collapsedSections: new Set<string>(),
   sortField: 'timestamp',
   sortOrder: 'desc',
   recording: true,
+  pausedCount: 0,
   entries: [],
   consoleEvents: [],
   consoleDraft: '',
-  notebookCells: [{ id: 'cell_default', title: 'Current response schema', code: 'schema(res)' }],
+  snippets: [{ id: 'snip_default', title: 'Response schema', code: 'schema(res)' }],
+  rules: [],
+  aiSettings: DEFAULT_AI_SETTINGS,
+  driftCount: 0,
   selectedId: null,
   expandedId: null,
   pinnedIds: new Set<string>(),
   exportOpen: false,
   settingsOpen: false,
+  settingsSection: 'general',
   commandOpen: false,
+  globalSearchOpen: false,
+  replayEditorEntry: null,
+  explainEntry: null,
   pendingConfirmation: null,
   settings: DEFAULT_PANEL_SETTINGS,
   toastMessage: null,
   setInitialized: (value) => set({ initialized: value }),
   setOpen: (value) => {
     window.__XRAY_focusTrapActive = value;
+    // Only the injected side panel (not devtools/window) hands focus back to the
+    // page on close. Capture on open while focus is still on the page element.
+    const sidePanel = !get().devtoolsMode;
+    if (value && sidePanel) {
+      const active = document.activeElement;
+      _lastPageFocus = active instanceof HTMLElement && active.id !== '__xray_root__' ? active : null;
+    }
     set({ open: value });
+    if (!value && sidePanel && _lastPageFocus) {
+      const el = _lastPageFocus;
+      _lastPageFocus = null;
+      try { el.focus(); } catch {}
+    }
   },
   setDevtoolsMode: (value) => set({ devtoolsMode: value, open: value ? true : get().open }),
   setActiveTab: (tab) => { set({ activeTab: tab }); persistPanelPreferences(get()); },
@@ -197,16 +272,14 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     set({ typeFilters });
     persistPanelPreferences(get());
   },
+  // Clears FILTERS only. Sort, grouping mode, and the typed search survive —
+  // "All"/Reset silently discarding those was a repeated complaint.
   clearApiFilters: () => {
     set({
-      apiSearchQuery: '',
       apiQuickFilter: 'all',
-      apiGroupingMode: 'flat',
       methodFilters: new Set<string>(),
       statusFilters: new Set<string>(),
       typeFilters: new Set<string>(),
-      sortField: 'timestamp',
-      sortOrder: 'desc',
     });
     persistPanelPreferences(get());
   },
@@ -228,6 +301,13 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     set({ expandedGroups });
     persistPanelPreferences(get());
   },
+  toggleSection: (id) => {
+    const collapsedSections = new Set(get().collapsedSections);
+    if (collapsedSections.has(id)) collapsedSections.delete(id);
+    else collapsedSections.add(id);
+    set({ collapsedSections });
+    persistPanelPreferences(get());
+  },
   setSort: (field) => {
     const { sortField, sortOrder } = get();
     set({
@@ -236,22 +316,148 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     });
     persistPanelPreferences(get());
   },
-  setRecording: (value) => { set({ recording: value }); persistPanelPreferences(get()); },
-  addEntry: (entry) => {
-    const id = entry.id || 'entry_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-    const normalized = { ...entry, id };
-    const maxEntries = Math.max(50, Math.min(5000, Number(get().settings.maxEntries) || MAX_ENTRIES));
-    const entries = [...get().entries, normalized].slice(-maxEntries);
-    const next: Partial<PanelState> = { entries };
-    if (get().recording) {
-      next.consoleEvents = [...get().consoleEvents, entryToConsoleEvent(normalized)].slice(-MAX_CONSOLE_EVENTS);
+  setRecording: (value) => {
+    if (value && _pausedEvents.length) {
+      const buffered = _pausedEvents;
+      _pausedEvents = [];
+      set({
+        recording: true,
+        pausedCount: 0,
+        consoleEvents: [...get().consoleEvents, ...buffered].slice(-MAX_CONSOLE_EVENTS),
+      });
+    } else {
+      set({ recording: value, ...(value ? { pausedCount: 0 } : {}) });
+    }
+    persistPanelPreferences(get());
+  },
+  addEntry: (entry) => get().addEntries([entry]),
+  // Capture batches (log storms flush ~16ms of messages at once) land as ONE
+  // store commit: one entries copy, one consoleEvents copy, one render pass —
+  // instead of an O(entries) copy and full re-render per message.
+  addEntries: (batch) => {
+    if (!batch.length) return;
+    const state = get();
+    const maxEntries = Math.max(50, Math.min(5000, Number(state.settings.maxEntries) || MAX_ENTRIES));
+    const entries = state.entries.slice();
+    let driftCount = state.driftCount;
+    const added: ConsoleEvent[] = [];
+    for (const raw of batch) {
+      if (!raw) continue;
+      const id = raw.id || 'entry_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      const drift = detectDrift({ ...raw, id }, entries);
+      const normalized: XrayEntry = { ...raw, id, ...(drift.driftFromId ? { driftFromId: drift.driftFromId } : {}) };
+      entries.push(normalized);
+      if (drift.driftFromId) driftCount += 1;
+      added.push(entryToConsoleEvent(normalized));
+    }
+    const next: Partial<PanelState> = {
+      entries: entries.length > maxEntries ? entries.slice(-maxEntries) : entries,
+    };
+    if (driftCount !== state.driftCount) next.driftCount = driftCount;
+    if (state.recording) {
+      next.consoleEvents = [...state.consoleEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
+    } else {
+      _pausedEvents = [..._pausedEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
+      next.pausedCount = _pausedEvents.length;
     }
     set(next);
+    scheduleSessionPersist(get);
   },
-  clearConsole: () => set({ consoleEvents: [], expandedId: null, selectedId: null }),
+  // Patches are coalesced: each WS/SSE socket flushes frames independently and
+  // fetch completions land unthrottled — mapping the whole entries array (and
+  // re-rendering every subscriber) once per patch caused storms. One flush per
+  // 50ms window applies all pending patches in a single commit.
+  updateEntry: (patch) => {
+    const pending = _pendingEntryPatches.get(patch.id);
+    _pendingEntryPatches.set(patch.id, pending ? { ...pending, ...patch } : patch);
+    if (_entryPatchTimer !== null) return;
+    _entryPatchTimer = window.setTimeout(() => {
+      _entryPatchTimer = null;
+      const patches = _pendingEntryPatches;
+      if (!patches.size) return;
+      _pendingEntryPatches = new Map();
+      let changed = false;
+      const entries = get().entries.map((entry) => {
+        const merge = patches.get(entry.id);
+        if (!merge) return entry;
+        changed = true;
+        return { ...entry, ...merge };
+      });
+      if (!changed) return;
+      set({ entries });
+      scheduleSessionPersist(get);
+    }, 50);
+  },
+  restoreEntries: (restored) => {
+    if (!restored.length) return;
+    const maxEntries = Math.max(50, Math.min(5000, Number(get().settings.maxEntries) || MAX_ENTRIES));
+    const existing = new Set(get().entries.map((entry) => entry.id));
+    const merged = [...restored.filter((entry) => !existing.has(entry.id)), ...get().entries].slice(-maxEntries);
+    set({ entries: merged });
+  },
+  addRule: (rule) => {
+    const created = normalizeRule({ ...defaultRule(), ...(rule || {}) });
+    const rules = [...get().rules, created].slice(0, 50);
+    set({ rules, activeTab: 'rules' });
+    persistRules(rules);
+  },
+  updateRule: (id, patch) => {
+    const rules = get().rules.map((rule) => rule.id === id ? normalizeRule({ ...rule, ...patch, match: { ...rule.match, ...(patch.match || {}) }, action: { ...rule.action, ...(patch.action || {}) } }) : rule);
+    set({ rules });
+    persistRules(rules);
+  },
+  removeRule: (id) => {
+    const rules = get().rules.filter((rule) => rule.id !== id);
+    set({ rules });
+    persistRules(rules);
+  },
+  toggleRule: (id) => {
+    const rules = get().rules.map((rule) => rule.id === id ? { ...rule, enabled: !rule.enabled } : rule);
+    set({ rules });
+    persistRules(rules);
+  },
+  setRules: (rules) => {
+    const normalized = normalizeRules(rules);
+    set({ rules: normalized });
+    persistRules(normalized);
+  },
+  setAiSettings: (patch) => {
+    const aiSettings = { ...get().aiSettings, ...patch };
+    set({ aiSettings });
+    void setStoredValue(AI_SETTINGS_KEY, aiSettings);
+  },
+  replayEntry: (entry, overrides) => {
+    const source = { ...entry, ...(overrides || {}) };
+    const request = {
+      url: String(source.url || ''),
+      method: String(source.method || 'GET'),
+      headers: source.requestHeaders || {},
+      body: source.requestBody ?? null,
+      replayOf: entry.id,
+    };
+    if (postToPageBridge('replay', { request })) {
+      get().showToast('Replaying request…');
+    } else {
+      get().showToast('Replay needs a live page — open XRAY on the page itself.');
+    }
+  },
+  openReplayEditor: (entry) => set({ replayEditorEntry: entry }),
+  closeReplayEditor: () => set({ replayEditorEntry: null }),
+  openExplain: (entry) => set({ explainEntry: entry }),
+  closeExplain: () => set({ explainEntry: null }),
+  // Clearing the stream keeps the selected request: the prompt's eval context
+  // (res/$curl) still targets it, so dropping the selection here desynced the
+  // chip from what the runtime actually evaluated against.
+  clearConsole: () => {
+    _pausedEvents = [];
+    set({ consoleEvents: [], expandedId: null, pausedCount: 0 });
+  },
   clearEntries: () => {
-    set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: new Set<string>() });
+    _pausedEvents = [];
+    setConsoleContext(null);
+    set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: new Set<string>(), driftCount: 0, pausedCount: 0 });
     persistPanelPreferences(get());
+    void setStoredValue(SESSION_ENTRIES_KEY, []);
   },
   addConsoleEvent: (event) => {
     const events = [...get().consoleEvents, event].slice(-MAX_CONSOLE_EVENTS);
@@ -262,37 +468,47 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   },
   setConsoleDraft: (command) => set({ consoleDraft: command }),
   insertConsoleCommand: (command) => set({ consoleDraft: command, activeTab: 'console' }),
-  addNotebookCell: (cell) => set({
-    notebookCells: [
-      ...get().notebookCells,
-      {
-        id: cell.id || 'cell_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-        title: cell.title,
-        code: cell.code,
-      },
-    ],
-    activeTab: 'notebook',
-  }),
-  updateNotebookCell: (id, code) => set({
-    notebookCells: get().notebookCells.map((cell) => cell.id === id ? { ...cell, code, error: undefined } : cell),
-  }),
-  setNotebookCellResult: (id, result) => set({
-    notebookCells: get().notebookCells.map((cell) => cell.id === id ? { ...cell, ...result } : cell),
-  }),
-  selectEntry: (id) => {
+  saveSnippet: (snippet) => {
+    const code = snippet.code.trim();
+    if (!code) return;
+    const existing = get().snippets.filter((item) => item.code !== code);
+    const saved: Snippet = {
+      id: 'snip_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+      title: snippet.title,
+      code,
+    };
+    const snippets = [saved, ...existing].slice(0, 30);
+    set({ snippets, activeTab: 'console' });
+    persistPanelPreferences(get());
+  },
+  renameSnippet: (id, title) => {
+    const trimmed = title.trim();
+    set({ snippets: get().snippets.map((snippet) => snippet.id === id ? { ...snippet, title: trimmed || undefined } : snippet) });
+    persistPanelPreferences(get());
+  },
+  removeSnippet: (id) => {
+    set({ snippets: get().snippets.filter((snippet) => snippet.id !== id) });
+    persistPanelPreferences(get());
+  },
+  // detailView is deliberately NOT reset per selection: arrowing through rows
+  // while comparing Schema/Headers must keep the inspection context. openDetail
+  // false (keyboard navigation) also respects a drawer the user closed.
+  selectEntry: (id, options) => {
     const entry = id ? get().entries.find((item) => item.id === id) || null : null;
     setConsoleContext(entry);
+    const openDetail = options?.openDetail !== false;
     set({
       selectedId: id,
       expandedId: id ? 'evt_' + id : null,
-      detailView: entry?.type === 'api' ? get().settings.defaultDetailView : get().detailView,
-      apiDetailOpen: entry?.type === 'api' ? true : get().apiDetailOpen,
+      apiDetailOpen: entry?.type === 'api' && openDetail ? true : get().apiDetailOpen,
     });
   },
   toggleExpanded: (id) => set({ expandedId: get().expandedId === id ? null : id }),
   setExportOpen: (value) => set({ exportOpen: value }),
   setSettingsOpen: (value) => set({ settingsOpen: value }),
+  openSettings: (section) => set({ settingsSection: section, settingsOpen: true }),
   setCommandOpen: (value) => set({ commandOpen: value }),
+  setGlobalSearchOpen: (value) => set({ globalSearchOpen: value }),
   updateSettings: (patch) => {
     const settings = normalizePanelSettings({ ...get().settings, ...patch });
     set({
@@ -330,12 +546,46 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   showToast: (message) => set({ toastMessage: message }),
   clearToast: () => set({ toastMessage: null }),
   restorePreferences: async () => {
-    const preferences = await getStoredValue<SerializedPanelPreferences>(REACT_PANEL_PREFERENCES_KEY, {});
+    const [preferences, storedRules, aiSettings, sessionEntries] = await Promise.all([
+      getStoredValue<SerializedPanelPreferences>(REACT_PANEL_PREFERENCES_KEY, {}),
+      getStoredValue<unknown>(TRAFFIC_RULES_KEY, []),
+      getStoredValue<AiSettings | null>(AI_SETTINGS_KEY, null),
+      getStoredValue<unknown>(SESSION_ENTRIES_KEY, []),
+    ]);
     const restored = applyPanelPreferences(preferences);
-    set(restored);
-    publishCaptureSettings(usePanelStore.getState().settings);
+    const rules = normalizeRules(storedRules);
+    set({
+      ...restored,
+      rules,
+      ...(aiSettings ? { aiSettings: { ...DEFAULT_AI_SETTINGS, ...aiSettings } } : {}),
+    });
+    const settings = usePanelStore.getState().settings;
+    publishCaptureSettings(settings);
+    publishTrafficRules(rules);
+    const previousEntries = deserializeSessionEntries(sessionEntries);
+    if (previousEntries.length && !usePanelStore.getState().entries.length) {
+      usePanelStore.getState().restoreEntries(previousEntries);
+    }
   },
 }));
+
+function scheduleSessionPersist(get: () => PanelState): void {
+  if (_sessionPersistTimer) return;
+  // Serializing the session copies up to 500 entries (bodies, frames) into one
+  // storage write — at 1.5s a busy WebSocket kept a multi-MB write loop running
+  // continuously, so batch a little longer; crash-loss window stays small.
+  _sessionPersistTimer = setTimeout(() => {
+    _sessionPersistTimer = null;
+    try {
+      void setStoredValue(SESSION_ENTRIES_KEY, serializeSessionEntries(get().entries));
+    } catch {}
+  }, 4000);
+}
+
+function persistRules(rules: TrafficRule[]): void {
+  void setStoredValue(TRAFFIC_RULES_KEY, rules);
+  publishTrafficRules(rules);
+}
 
 function persistPanelPreferences(state: PanelState): void {
   void setStoredValue(REACT_PANEL_PREFERENCES_KEY, serializePanelPreferences(state));

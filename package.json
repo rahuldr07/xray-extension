@@ -1,6 +1,6 @@
 {
   "name": "xray-extension",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "> A production-grade browser extension that auto-intercepts API calls, auto-decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel. Built for **Chrome & Edge** (Manifest V3).",
   "main": "background.js",
   "scripts": {
@@ -32,14 +32,6 @@
     "vite": "^8.0.14"
   },
   "dependencies": {
-    "@codemirror/autocomplete": "^6.20.1",
-    "@codemirror/commands": "^6.10.3",
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/language": "^6.12.3",
-    "@codemirror/lint": "^6.9.5",
-    "@codemirror/search": "^6.6.0",
-    "@codemirror/state": "^6.6.0",
-    "@codemirror/view": "^6.40.0",
     "@tabler/icons-react": "^3.44.0",
     "@tanstack/react-virtual": "^3.13.26",
     "react": "^19.2.6",

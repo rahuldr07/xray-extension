@@ -12,9 +12,32 @@ export function parseBody(value: unknown): unknown {
   }
 }
 
+export function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+// Parsing a 250KB responseRaw per call site per commit was the dominant cost
+// under streaming traffic. Entries are immutable between patches (updateEntry
+// mints a new object), so caching by object identity is self-invalidating.
+const entryResponseCache = new WeakMap<object, unknown>();
+const entrySchemaCache = new WeakMap<object, unknown>();
+
 export function entryResponse(entry: XrayEntry | null): unknown {
   if (!entry) return null;
-  return parseBody(entry.responseDecrypted ?? entry.responseRaw ?? entry.response ?? null);
+  if (entryResponseCache.has(entry)) return entryResponseCache.get(entry);
+  const parsed = parseBody(entry.responseDecrypted ?? entry.responseRaw ?? entry.response ?? null);
+  entryResponseCache.set(entry, parsed);
+  return parsed;
+}
+
+export function entrySchema(entry: XrayEntry | null): unknown {
+  if (!entry) return null;
+  if (entrySchemaCache.has(entry)) return entrySchemaCache.get(entry);
+  const result = schema(entryResponse(entry));
+  entrySchemaCache.set(entry, result);
+  return result;
 }
 
 export function entryRequest(entry: XrayEntry | null): unknown {
@@ -22,13 +45,39 @@ export function entryRequest(entry: XrayEntry | null): unknown {
   return parseBody(entry.requestBody ?? null);
 }
 
+// toLocaleTimeString constructs a fresh Intl formatter per call — measurable at
+// ~30 visible rows × every store commit during traffic bursts. One shared
+// formatter plus a per-second string cache makes repeat calls ~free.
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour12: false,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+const timeCache = new Map<number, string>();
+
 export function formatTime(timestamp?: number): string {
-  return new Date(timestamp || Date.now()).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const time = timestamp || Date.now();
+  const second = Math.floor(time / 1000);
+  const cached = timeCache.get(second);
+  if (cached !== undefined) return cached;
+  if (timeCache.size > 512) timeCache.clear();
+  const formatted = timeFormatter.format(time);
+  timeCache.set(second, formatted);
+  return formatted;
+}
+
+// Captured object previews carry an internal __xray_ref__ marker used to fetch
+// the full object lazily. It must never surface in user-facing JSON.
+export function stripXrayRefs(value: unknown, depth = 6): unknown {
+  if (value == null || typeof value !== 'object' || depth <= 0) return value;
+  if (Array.isArray(value)) return value.map((item) => stripXrayRefs(item, depth - 1));
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (key === '__xray_ref__') continue;
+    out[key] = stripXrayRefs(item, depth - 1);
+  }
+  return out;
 }
 
 export function formatBytes(value: unknown): string {

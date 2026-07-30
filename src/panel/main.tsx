@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { App } from './App';
 import { createPanelApi } from './bridge/panelApi';
+import { isolatePanelEvents } from './runtime/eventIsolation';
 import { usePanelStore } from './store';
 import type { XrayAppMode, XrayPanelInitOptions } from './types';
 import tokensCss from './styles/tokens.css?inline';
@@ -23,6 +24,36 @@ function injectStyles(target: Document | ShadowRoot, useShadowTokens = true): vo
   styleTarget.appendChild(style);
 }
 
+// Neutralize page CSS that could match our host and either turn it into a
+// containing block for the panel's `position: fixed` layout (transform / filter /
+// perspective / contain) or clip it (clip-path / overflow / mask). Applied with
+// !important so an aggressive page stylesheet can't override it.
+const HOST_HARDENING: Record<string, string> = {
+  position: 'static',
+  inset: 'auto',
+  margin: '0',
+  padding: '0',
+  border: '0',
+  transform: 'none',
+  filter: 'none',
+  perspective: 'none',
+  contain: 'none',
+  'clip-path': 'none',
+  mask: 'none',
+  'will-change': 'auto',
+  opacity: '1',
+  'mix-blend-mode': 'normal',
+  'max-width': 'none',
+  'max-height': 'none',
+  overflow: 'visible',
+};
+
+function hardenHost(host: HTMLElement): void {
+  for (const [prop, value] of Object.entries(HOST_HARDENING)) {
+    host.style.setProperty(prop, value, 'important');
+  }
+}
+
 function createShadowMount(): HTMLElement {
   let host = document.getElementById('__xray_root__') as HTMLElement | null;
   if (!host) {
@@ -31,6 +62,9 @@ function createShadowMount(): HTMLElement {
     document.documentElement.appendChild(host);
   }
   shadowHost = host;
+  hardenHost(host);
+  // Shield the underlying website from the panel's own scroll/click/keyboard.
+  isolatePanelEvents(host);
   const root = host.shadowRoot || host.attachShadow({ mode: 'open' });
   injectStyles(root);
   let node = root.querySelector('#xray-react-root') as HTMLElement | null;
@@ -64,12 +98,24 @@ function installKeyboard(): void {
       event.preventDefault();
       usePanelStore.getState().setCommandOpen(true);
     }
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'f') {
+      event.preventDefault();
+      usePanelStore.getState().setGlobalSearchOpen(true);
+    }
     if (key === 'escape') {
       const store = usePanelStore.getState();
       if (store.pendingConfirmation) store.closeConfirmation();
       else if (store.exportOpen) store.setExportOpen(false);
       else if (store.commandOpen) store.setCommandOpen(false);
+      else if (store.globalSearchOpen) store.setGlobalSearchOpen(false);
       else if (store.settingsOpen) store.setSettingsOpen(false);
+      else if (store.replayEditorEntry) store.closeReplayEditor();
+      // The detail drawer closes before the panel itself does (and this is the
+      // only Escape layer that also works in devtools/window mode).
+      else if (store.apiDetailOpen && store.activeTab === 'api') store.setApiDetailOpen(false);
+      // Nothing layered on top: Escape dismisses the docked side panel itself.
+      // Devtools/window views persist (they aren't dismissible this way).
+      else if (store.open && !store.devtoolsMode) store.setOpen(false);
     }
   }, true);
 }

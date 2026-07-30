@@ -4,7 +4,7 @@
   height: 100%;
   overflow: hidden;
   border: 1px solid var(--xray-surface2);
-  border-radius: 10px;
+  border-radius: var(--xray-radius, 10px);
   background: var(--xray-bg);
   box-shadow: 0 18px 60px rgba(0, 0, 0, .38);
 }
@@ -26,12 +26,12 @@
   display: flex;
   border: 0;
   border-left: 0;
-  border-radius: 10px;
+  border-radius: var(--xray-radius);
   box-shadow: none;
 }
 
 .xray-panel.xray-mode-hud .xray-topbar {
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--xray-radius) var(--xray-radius) 0 0;
 }
 
 .xray-panel.xray-mode-hud .xray-drag-handle {
@@ -42,7 +42,16 @@
   cursor: grabbing;
 }
 
-@media (max-width: 520px) {
+/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so
+   the docked side panel's resize grabber and dock/close cluster don't belong here.
+   These rules only exist in the HUD because hud.css is loaded only there. */
+.xray-panel.xray-mode-hud .xray-resize-handle,
+.xray-panel.xray-mode-hud .xray-dock-controls {
+  display: none;
+}
+
+/* Container-based: the HUD's width is user-dragged and independent of the window. */
+@container xray (max-width: 520px) {
   .xray-panel.xray-mode-hud .xray-summary,
   .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {
     display: none;

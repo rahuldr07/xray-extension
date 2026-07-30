@@ -170,32 +170,77 @@
   <main class="app">
     <header class="head">
       <h1>⬡ XRAY Settings</h1>
-      <p>Configure default panel behavior for all inspected tabs.</p>
+      <p>These preferences are shared with the in-page panel, DevTools tab, and pop-out window.</p>
     </header>
     <section class="body">
       <div class="setting">
-        <label for="theme">🎨 Theme · macOS Premium</label>
+        <label for="theme">Theme</label>
         <select id="theme">
-          <option value="zinc">Obsidian Pro (default)</option>
-          <option value="mocha">Graphite Pro</option>
-          <option value="latte">Frost Light</option>
-          <option value="dracula">Violet Night</option>
-          <option value="nord">Ocean Glass</option>
+          <option value="operator">Operator (default)</option>
+          <option value="dev-edition">Dev Edition</option>
+          <option value="midnight">Midnight</option>
+          <option value="light-lab">Light Lab</option>
+          <option value="claude">Claude</option>
+          <option value="custom">Custom (Theme Studio)</option>
+        </select>
+      </div>
+
+      <div class="setting">
+        <label for="accent">Accent</label>
+        <select id="accent">
+          <option value="blue">Blue (default)</option>
+          <option value="mauve">Mauve</option>
+          <option value="teal">Teal</option>
+          <option value="green">Green</option>
+          <option value="peach">Peach</option>
+          <option value="coral">Coral</option>
+        </select>
+      </div>
+
+      <div class="setting">
+        <label for="font">Font stack</label>
+        <select id="font">
+          <option value="jetbrains">JetBrains Mono (default)</option>
+          <option value="cascadia">Cascadia Code</option>
+          <option value="iosevka">Iosevka</option>
+          <option value="system">System monospace</option>
+        </select>
+      </div>
+
+      <div class="setting">
+        <label for="density">Density</label>
+        <select id="density">
+          <option value="compact">Compact (default)</option>
+          <option value="comfortable">Comfortable</option>
+          <option value="spacious">Spacious</option>
         </select>
       </div>
 
       <div class="setting">
         <label for="maxEntries">Max Stored Entries</label>
-        <input type="number" id="maxEntries" value="500" min="50" max="10000" step="50">
+        <input type="number" id="maxEntries" value="1000" min="50" max="5000" step="50">
         <div class="hint">Older entries are dropped when this limit is reached.</div>
       </div>
 
       <div class="setting">
-        <label for="autoOpen">Behavior</label>
+        <label for="slowThreshold">Slow request threshold (ms)</label>
+        <input type="number" id="slowThreshold" value="500" min="100" max="5000" step="50">
+        <div class="hint">Requests above this duration are flagged as slow.</div>
+      </div>
+
+      <div class="setting">
+        <label>Capture</label>
         <div class="switch-row">
-          <div class="switch-copy">Auto-open panel on API capture</div>
+          <div class="switch-copy">Intercept fetch() requests</div>
           <label class="switch">
-            <input type="checkbox" id="autoOpen">
+            <input type="checkbox" id="captureFetch" checked>
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="switch-row">
+          <div class="switch-copy">Intercept XMLHttpRequest calls</div>
+          <label class="switch">
+            <input type="checkbox" id="captureXhr" checked>
             <span class="switch-track"></span>
           </label>
         </div>

@@ -1,11 +1,14 @@
 import type { ApiGroupingMode, ApiQuickFilter, SortField, SortOrder, XrayEntry } from '../types';
 import { entryResponse, preview, safeStringify } from '../utils';
 
-export type ApiEntryFlag = 'error' | 'slow' | 'repeated' | 'large' | 'empty' | 'pinned';
+export type ApiEntryFlag = 'error' | 'slow' | 'repeated' | 'large' | 'empty' | 'pinned' | 'drift' | 'graphql' | 'ws' | 'mocked' | 'replayed';
 
 export interface EntryListItem {
   key: string;
   entry: XrayEntry;
+  // Precomputed once per pipeline run so virtualized rows don't redo O(n)
+  // group scans and full-body parses on every commit.
+  flags: ApiEntryFlag[];
   groupKey?: string;
   groupCount?: number;
   groupExpanded?: boolean;
@@ -74,6 +77,21 @@ export function entryPath(entry: XrayEntry): string {
   return String(entry.urlPath || entry.url || '(unknown)');
 }
 
+// Grouping key: GraphQL requests collapse to `path#operationName` so distinct
+// operations don't all pile under a single POST /graphql row.
+export function entryGroupPath(entry: XrayEntry): string {
+  const path = entryPath(entry);
+  if (entry.graphql?.operationName) return `${path}#${entry.graphql.operationName}`;
+  return path;
+}
+
+export function entryGroupLabel(entry: XrayEntry): string {
+  if (entry.graphql?.operationName) {
+    return `${entry.graphql.operationType} ${entry.graphql.operationName}`;
+  }
+  return entryPath(entry);
+}
+
 export function getEntryDomain(entry: XrayEntry): string {
   const url = String(entry.url || '');
   if (!url) return '';
@@ -134,32 +152,73 @@ export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet
   };
 }
 
+// Group stats are memoized per entries-array identity: the store replaces the
+// array on every commit, so one O(n) pass serves every row/filter/flag lookup
+// for that commit instead of an O(n) scan per call site.
+const groupStatsCache = new WeakMap<readonly XrayEntry[], Map<string, EntryGroupStats>>();
+
+function groupStatsMap(entries: XrayEntry[]): Map<string, EntryGroupStats> {
+  let map = groupStatsCache.get(entries);
+  if (map) return map;
+  map = new Map();
+  const totals = new Map<string, number>();
+  for (const entry of entries) {
+    if (!isApi(entry)) continue;
+    const key = entryGroupPath(entry);
+    const stats = map.get(key) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
+    const time = duration(entry);
+    stats.count += 1;
+    if (Number(entry.status) >= 400) stats.errors += 1;
+    stats.maxDuration = Math.max(stats.maxDuration, time);
+    totals.set(key, (totals.get(key) || 0) + time);
+    map.set(key, stats);
+  }
+  for (const [key, stats] of map) {
+    stats.avgDuration = stats.count ? (totals.get(key) || 0) / stats.count : 0;
+  }
+  groupStatsCache.set(entries, map);
+  return map;
+}
+
 export function entryGroupStats(entry: XrayEntry, entries: XrayEntry[]): EntryGroupStats {
-  const group = entries.filter((candidate) => isApi(candidate) && entryPath(candidate) === entryPath(entry));
-  const totalDuration = group.reduce((sum, item) => sum + duration(item), 0);
-  return {
-    count: group.length,
-    errors: group.filter((item) => Number(item.status) >= 400).length,
-    avgDuration: group.length ? totalDuration / group.length : 0,
-    maxDuration: group.reduce((max, item) => Math.max(max, duration(item)), 0),
-  };
+  return groupStatsMap(entries).get(entryGroupPath(entry)) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
+}
+
+// Body-derived flags parse/stringify up to 250KB — cache per entry object
+// (entries are immutable between patches; updateEntry mints a new object).
+const bodyFlagCache = new WeakMap<XrayEntry, { empty: boolean; large: boolean }>();
+
+function bodyFlags(entry: XrayEntry): { empty: boolean; large: boolean } {
+  const cached = bodyFlagCache.get(entry);
+  if (cached) return cached;
+  const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
+
+  let empty = false;
+  if (Number(entry.status) === 204 || raw == null || raw === '') {
+    empty = true;
+  } else {
+    const parsed = entryResponse(entry);
+    if (Array.isArray(parsed)) empty = parsed.length === 0;
+    else if (parsed && typeof parsed === 'object') empty = Object.keys(parsed as Record<string, unknown>).length === 0;
+  }
+
+  let large = Number(entry.size) >= 100_000;
+  if (!large) {
+    if (typeof raw === 'string') large = raw.length >= 100_000;
+    else if (raw != null) large = safeStringify(raw, 0, 120_000).length >= 100_000;
+  }
+
+  const flags = { empty, large };
+  bodyFlagCache.set(entry, flags);
+  return flags;
 }
 
 function isEmptyApiResponse(entry: XrayEntry): boolean {
-  if (Number(entry.status) === 204) return true;
-  const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
-  if (raw == null || raw === '') return true;
-  const parsed = entryResponse(entry);
-  if (Array.isArray(parsed)) return parsed.length === 0;
-  if (parsed && typeof parsed === 'object') return Object.keys(parsed as Record<string, unknown>).length === 0;
-  return false;
+  return bodyFlags(entry).empty;
 }
 
 function isLargeApiPayload(entry: XrayEntry): boolean {
-  if (Number(entry.size) >= 100_000) return true;
-  const raw = entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
-  if (typeof raw === 'string' && raw.length >= 100_000) return true;
-  return safeStringify(raw, 0, 120_000).length >= 100_000;
+  return bodyFlags(entry).large;
 }
 
 export function getEntryFlags(entry: XrayEntry, entries: XrayEntry[], pinnedIds: ReadonlySet<string> = new Set(), slowThresholdMs = 500): ApiEntryFlag[] {
@@ -168,6 +227,11 @@ export function getEntryFlags(entry: XrayEntry, entries: XrayEntry[], pinnedIds:
   const status = Number(entry.status) || 0;
   const stats = entryGroupStats(entry, entries);
   if (status >= 400) flags.push('error');
+  if (entry.driftFromId) flags.push('drift');
+  if (entry.mocked) flags.push('mocked');
+  if (entry.replayed) flags.push('replayed');
+  if (entry.graphql) flags.push('graphql');
+  if (entry.source === 'ws' || entry.source === 'sse') flags.push('ws');
   if (duration(entry) >= slowThresholdMs) flags.push('slow');
   if (stats.count >= 3) flags.push('repeated');
   if (isLargeApiPayload(entry)) flags.push('large');
@@ -184,40 +248,63 @@ export function matchesApiQuickFilter(
   slowThresholdMs = 500,
 ): boolean {
   if (filter === 'all') return true;
-  return getEntryFlags(entry, entries, pinnedIds, slowThresholdMs).includes(filter === 'errors' ? 'error' : filter);
+  if (filter === 'drift') return !!entry.driftFromId;
+  if (filter === 'graphql') return !!entry.graphql;
+  if (filter === 'ws') return entry.source === 'ws' || entry.source === 'sse';
+  if (filter === 'mocked') return !!entry.mocked;
+  if (filter === 'replayed') return !!entry.replayed;
+  // Direct predicates: routing these through the full flag machinery made an
+  // active chip O(n) body work per entry per commit.
+  if (filter === 'errors') return (Number(entry.status) || 0) >= 400;
+  if (filter === 'slow') return duration(entry) >= slowThresholdMs;
+  if (filter === 'pinned') return pinnedIds.has(entry.id);
+  if (filter === 'repeated') return entryGroupStats(entry, entries).count >= 3;
+  if (filter === 'large') return isLargeApiPayload(entry);
+  if (filter === 'empty') return isEmptyApiResponse(entry);
+  return true;
 }
+
+// The search haystack (URL parse, header scan, logData stringify) is cached
+// per entry object — rebuilt only when an entry is patched, not per keystroke
+// per commit.
+const haystackCache = new WeakMap<XrayEntry, string>();
 
 export function matchesEntry(entry: XrayEntry, query: string): boolean {
   if (!query) return true;
-  const haystack = [
-    entry.method,
-    entry.status,
-    entry.url,
-    entry.urlPath,
-    entry.source,
-    getEntryDomain(entry),
-    getEntryContentType(entry),
-    entry.logLevel,
-    entry.message,
-    preview(entry.logData, 240),
-  ].join(' ').toLowerCase();
+  let haystack = haystackCache.get(entry);
+  if (haystack === undefined) {
+    haystack = [
+      entry.method,
+      entry.status,
+      entry.url,
+      entry.urlPath,
+      entry.source,
+      getEntryDomain(entry),
+      getEntryContentType(entry),
+      entry.logLevel,
+      entry.message,
+      preview(entry.logData, 240),
+    ].join(' ').toLowerCase();
+    haystackCache.set(entry, haystack);
+  }
   return haystack.includes(query.toLowerCase());
 }
 
 export function buildEndpointGroups(entries: XrayEntry[]): EndpointGroup[] {
   const groups = new Map<string, XrayEntry[]>();
   entries.filter(isApi).forEach((entry) => {
-    const path = entryPath(entry);
+    const path = entryGroupPath(entry);
     const items = groups.get(path) || [];
     items.push(entry);
     groups.set(path, items);
   });
 
-  return Array.from(groups.entries()).map(([path, groupEntries]) => {
+  return Array.from(groups.entries()).map(([groupKey, groupEntries]) => {
     const sorted = groupEntries.slice().sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
     const totalDuration = sorted.reduce((sum, entry) => sum + duration(entry), 0);
+    const path = entryGroupLabel(sorted[0]);
     return {
-      key: 'api:' + path,
+      key: 'api:' + groupKey,
       path,
       entries: sorted,
       latestEntry: sorted[0],
@@ -279,21 +366,36 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
     return bp - ap || compareEntries(a, b, sortField, sortOrder);
   };
 
+  // Flags are computed once per pipeline run here — virtualized rows render
+  // them as data instead of re-deriving O(n) group scans per row per commit.
+  const flagsFor = (entry: XrayEntry): ApiEntryFlag[] => getEntryFlags(entry, entries, pinnedIds, slowThresholdMs);
+
   if (mode === 'logs') {
-    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry }));
+    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
   }
 
   if (apiGroupingMode === 'flat') {
-    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry }));
+    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
   }
 
+  // Grouped mode: order the GROUPS (pinned-containing first, then by their
+  // latest entry under the active sort) and emit each header followed by its
+  // children contiguously. The previous global re-sort of the flattened rows
+  // interleaved unrelated group headers between a parent and its children.
+  const groups = buildEndpointGroups(base).sort((groupA, groupB) => {
+    const aPinned = groupA.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
+    const bPinned = groupB.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
+    return bPinned - aPinned || compareEntries(groupA.latestEntry, groupB.latestEntry, sortField, sortOrder);
+  });
+
   const rows: EntryListItem[] = [];
-  buildEndpointGroups(base).forEach((group) => {
+  groups.forEach((group) => {
     const sorted = group.entries.slice().sort(pinnedFirst);
     const expanded = expandedGroups.has(group.key);
     rows.push({
       key: group.key,
       entry: sorted[0],
+      flags: flagsFor(sorted[0]),
       groupKey: group.key,
       groupCount: sorted.length,
       groupExpanded: expanded,
@@ -303,15 +405,12 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
       sorted.slice(1).forEach((entry) => rows.push({
         key: entry.id,
         entry,
+        flags: flagsFor(entry),
         groupKey: group.key,
         groupChild: true,
       }));
     }
   });
 
-  return rows.sort((a, b) => {
-    const ap = pinnedIds.has(a.entry.id) ? 1 : 0;
-    const bp = pinnedIds.has(b.entry.id) ? 1 : 0;
-    return bp - ap || compareEntries(a.entry, b.entry, sortField, sortOrder);
-  });
+  return rows;
 }

@@ -39,50 +39,52 @@ test('overlay focus trap preserves XRAY toggle and browser modifier shortcuts', 
   assert.match(bridge, /if \(nextOpen\) focusPanelInput\(deps\)/);
 });
 
+test('injected panel isolates its own scroll/click/keyboard from the page behind it', () => {
+  const iso = read('src/panel/runtime/eventIsolation.ts');
+  const main = read('src/panel/main.tsx');
+  const hud = read('src/panel/hud-main.tsx');
+  const styles = read('src/panel/styles.css');
+
+  // the isolation stops leak-prone events on the shadow host in the BUBBLE phase
+  // (not capture), so the panel handles them first and the page never does
+  assert.match(iso, /export function isolatePanelEvents/);
+  assert.match(iso, /event\.stopPropagation\(\)/);
+  for (const type of ['wheel', 'click', 'keydown', 'pointerdown', 'contextmenu', 'touchmove',
+    // focus, drag, and clipboard events also compose across the shadow boundary
+    'focusin', 'focusout', 'dragstart', 'drop', 'copy', 'paste']) {
+    assert.match(iso, new RegExp(`'${type}'`), `isolation should cover ${type}`);
+  }
+  // bubble phase => no third `true` capture arg on the host listener
+  assert.match(iso, /host\.addEventListener\(type, stop\);/);
+  // attached once per host
+  assert.match(iso, /dataset\[ISOLATED_FLAG\] === '1'/);
+
+  // both injected surfaces wire it onto their shadow host
+  assert.match(main, /isolatePanelEvents\(host\)/);
+  assert.match(hud, /isolatePanelEvents\(shadowRoot\.host\)/);
+
+  // scroll chaining is contained panel-wide so a list scrolled to its edge
+  // doesn't scroll the website behind it
+  assert.match(styles, /overscroll-behavior:\s*contain/);
+});
+
 test('console executor ignores postMessage events from non-window sources', () => {
   const executor = read('content/console-executor.js');
   assert.match(executor, /event\.source\s*!==\s*window/);
 });
 
-test('floating list escapes captured URL and path before innerHTML rendering', () => {
-  const floating = read('panel/floating.js');
-  assert.doesNotMatch(floating, /title="\$\{entry\.url \|\| ''\}"/);
-  assert.doesNotMatch(floating, /\$\{path\}<\/div>/);
-});
-
-test('console table output builds cells with textContent instead of interpolating data into HTML', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.doesNotMatch(consoleUi, /table\.innerHTML\s*=\s*html/);
-  assert.doesNotMatch(consoleUi, /result\.error\.message\}<\/div>/);
-});
-
-test('console renders JSON results as readable expandable text-safe trees', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /function _parseJSONText/);
-  assert.match(consoleUi, /function _isStructuredValue/);
-  assert.match(consoleUi, /window\.XRAY_Renderer\.buildTree\(parsedJSON\)/);
-  assert.match(consoleUi, /expanded:\s*shouldExpand/);
-  assert.match(consoleUi, /event\.expanded\)\s*\{\s*_expanded\.clear\(\);\s*_expanded\.add\(event\.id\);/);
-  assert.match(consoleUi, /xr-console-row-detail \.xr-key/);
-  assert.doesNotMatch(consoleUi, /parsedJSON[\s\S]{0,200}innerHTML/);
-});
-
-test('console keeps one expanded row and highlights the selected request context', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /function _isSelectedEvent/);
-  assert.match(consoleUi, /classes\.push\('xr-expanded'\)/);
-  assert.match(consoleUi, /classes\.push\('xr-selected'\)/);
-  assert.match(consoleUi, /_expanded\.has\(id\)[\s\S]{0,140}_expanded\.clear\(\);[\s\S]{0,80}_expanded\.add\(id\);/);
-  assert.match(consoleUi, /Selected \$\{_activeContext\.method \|\| 'GET'\}/);
-  assert.match(consoleUi, /contextChip\.classList\.add\('xr-selected'\)/);
-  assert.match(consoleUi, /contextChip\.classList\.remove\('xr-selected'\)/);
-  assert.match(consoleUi, /_scheduleRenderRows\(false\)/);
-});
-
 test('console uses a shared helper module in both extension worlds', () => {
+  // Chrome injects a given file only once per frame even when it is listed in
+  // both content-script groups, so the isolated world must dynamically import
+  // the helpers (content.js) instead of listing the file a second time.
   const manifest = read('manifest.json');
   const helperRefs = manifest.match(/shared\/console-helpers\.js/g) || [];
   assert.equal(helperRefs.length, 2);
+  const parsed = JSON.parse(manifest);
+  assert.ok(parsed.content_scripts[0].js.includes('shared/console-helpers.js'));
+  assert.ok(!parsed.content_scripts[1].js.includes('shared/console-helpers.js'));
+  assert.ok(parsed.web_accessible_resources[0].resources.includes('shared/console-helpers.js'));
+  assert.match(read('content/content.js'), /import\(chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)\)/);
   assert.match(read('shared/console-helpers.js'), /window\.XRAY_ConsoleHelpers/);
 });
 
@@ -108,56 +110,6 @@ test('console uses privileged debugger evaluation before MAIN-world fallback', (
   assert.match(consoleEngine, /type:\s*'xray:console-eval'/);
 });
 
-test('console ui models devtools-style events and avoids unsafe inline rendering', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /type:\s*'log'/);
-  assert.match(consoleUi, /type:\s*'network'/);
-  assert.match(consoleUi, /type:\s*'command'/);
-  assert.match(consoleUi, /type:\s*'result'/);
-  assert.match(consoleUi, /type:\s*'error'/);
-  assert.match(consoleUi, /xr-console-row-detail/);
-  assert.match(consoleUi, /xr-notebook-pane/);
-  assert.doesNotMatch(consoleUi, /xr-console-inspector/);
-  assert.doesNotMatch(consoleUi, /xr-console-stream-wrap/);
-  assert.doesNotMatch(consoleUi, /xr-console-notebook-drawer/);
-  assert.doesNotMatch(consoleUi, /outWrap\.innerHTML\s*=\s*`/);
-  assert.match(consoleUi, /textContent\s*=/);
-});
-
-test('console uses screenshot-style network workspace controls', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /CONSOLE_TABS/);
-  assert.match(consoleUi, /label:\s*'Network'/);
-  assert.match(consoleUi, /label:\s*'Console'/);
-  assert.doesNotMatch(consoleUi, /label:\s*'Schema'/);
-  assert.doesNotMatch(consoleUi, /label:\s*'Snippets'/);
-  assert.match(consoleUi, /NETWORK_FILTERS/);
-  assert.match(consoleUi, /function _svgIcon/);
-  assert.match(consoleUi, /icon:\s*'network'/);
-  assert.match(consoleUi, /icon:\s*'terminal'/);
-  assert.match(consoleUi, /Filter by path, method, status/);
-  assert.match(consoleUi, /recordLabel\.textContent = 'Record'/);
-  assert.match(consoleUi, /exportButton\.append\(_svgIcon\('download'/);
-  assert.match(consoleUi, /clearButton\.append\(_svgIcon\('trash'/);
-  assert.doesNotMatch(consoleUi, /message:\s*'> '\s*\+\s*command/);
-  assert.match(consoleUi, /stroke-width',\s*'1\.7'/);
-  assert.match(consoleUi, /function _renderNetworkTable/);
-  assert.match(consoleUi, /function _renderConsoleStream/);
-});
-
-test('console record, filter, selection, and export are local UI behaviors', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /function _setRecording\(active\)/);
-  assert.match(consoleUi, /if \(!_recording\) return;\s*_appendEvent\(_eventFromEntry\(entry\)\)/);
-  assert.match(consoleUi, /function _setNetworkFilter\(filter\)/);
-  assert.match(consoleUi, /_searchQuery\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(consoleUi, /function _selectNetworkEvent\(eventId\)/);
-  assert.match(consoleUi, /_expanded\.clear\(\);\s*_expanded\.add\(event\.id\);/);
-  assert.match(consoleUi, /function _exportConsoleSelection/);
-  assert.match(consoleUi, /window\.XRAY_Panel\?\.openExport\?\.\(\)/);
-  assert.match(consoleUi, /clearButton\.addEventListener\('click'[\s\S]{0,140}_events = \[\]/);
-});
-
 test('manifest does not load a separate intelligence script', () => {
   const manifest = JSON.parse(read('manifest.json'));
   const isolated = manifest.content_scripts[1].js;
@@ -171,7 +123,9 @@ test('manifest loads the React UI bundle after vanilla runtime scripts', () => {
 
   assert.ok(isolated.includes('panel/console.js'));
   assert.ok(isolated.includes('dist/panel-ui.js'));
-  assert.ok(isolated.includes('shared/console-helpers.js'));
+  // shared/console-helpers.js is deliberately absent here: Chrome injects a
+  // file only once per frame across worlds, so content.js imports it instead.
+  assert.ok(!isolated.includes('shared/console-helpers.js'));
   assert.ok(isolated.includes('shared/worker-client.js'));
   assert.ok(isolated.indexOf('panel/console.js') < isolated.indexOf('dist/panel-ui.js'));
   assert.ok(isolated.indexOf('dist/panel-ui.js') < isolated.indexOf('content/content.js'));
@@ -429,8 +383,12 @@ test('React API list parity logic is pure and covers grouping, filters, sorting,
   assert.match(entriesModel, /statusFilters\.has\(statusRange\(entry\)\)/);
   assert.match(entriesModel, /typeFilters\.has\(String\(entry\.source \|\| 'fetch'\)\.toLowerCase\(\)\)/);
   assert.match(entriesModel, /const groups = new Map<string, XrayEntry\[\]>\(\)/);
-  assert.match(entriesModel, /key:\s*'api:' \+ path/);
-  assert.match(entriesModel, /pinnedIds\.has\(a\.entry\.id\)/);
+  assert.match(entriesModel, /key:\s*'api:' \+ groupKey/);
+  // groups are ordered as units and emitted header+children contiguously — a
+  // global row re-sort used to interleave unrelated groups between a parent
+  // and its expanded children
+  assert.match(entriesModel, /groupA\.entries\.some\(\(entry\) => pinnedIds\.has\(entry\.id\)\)/);
+  assert.doesNotMatch(entriesModel, /return rows\.sort/);
 });
 
 test('React virtualized rows provide TanStack measurement indexes', () => {
@@ -471,7 +429,11 @@ test('React API tab has premium request intelligence controls and mobile detail 
   assert.match(store, /apiDetailOpen:\s*false/);
   assert.match(store, /methodFilters:\s*new Set<string>\(\)/);
   assert.match(styles, /\.xray-api-workspace/);
-  assert.match(styles, /grid-template-columns:\s*minmax\(360px,\s*440px\) minmax\(280px,\s*\.64fr\) minmax\(560px,\s*1\.55fr\)/);
+  // list track = minmax(min, --xray-api-split): the divider caps the width but
+  // the list still yields to the detail pane's min when the panel shrinks, so
+  // an outer resize can't starve the inner panes
+  assert.match(styles, /grid-template-columns:\s*minmax\(260px,\s*var\(--xray-api-split,\s*440px\)\) minmax\(260px,\s*\.64fr\) minmax\(400px,\s*1\.55fr\)/);
+  assert.match(styles, /\.xray-pane-divider/);
   assert.match(styles, /\.xray-request-context-pane/);
   assert.match(styles, /\.xray-api-row\.selected/);
   assert.match(styles, /\.xray-api-detail-drawer/);
@@ -502,7 +464,9 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(entriesWorkspace, /toggleMethodFilter/);
   assert.match(entriesWorkspace, /Flat/);
   assert.match(entriesWorkspace, /Endpoint Groups/);
-  assert.match(entriesWorkspace, /role="button"/);
+  // rows are proper listbox options with selection semantics for screen readers
+  assert.match(entriesWorkspace, /role="option"/);
+  assert.match(entriesWorkspace, /aria-selected=\{selected\}/);
   assert.match(entriesWorkspace, /onKeyDown/);
   assert.match(entriesWorkspace, /copyText\(String\(entry\.url \|\| path\)\)/);
   assert.match(entriesWorkspace, /setApiDetailOpen\(true\)/);
@@ -520,10 +484,12 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(detail, /View modes/);
   assert.match(detail, /xray-detail-footer/);
   assert.match(detail, /Console/);
-  assert.match(detail, /Notebook/);
+  assert.match(detail, /Snippet/);
   assert.match(detail, /Copy/);
   assert.match(detail, /Export/);
-  assert.match(styles, /@media \(max-width: 420px\)/);
+  // panel-internal breakpoints are container-based (the docked panel's width
+  // is independent of the window)
+  assert.match(styles, /@container xray \(max-width: 420px\)/);
   assert.match(styles, /\.xray-detail-footer/);
   assert.match(styles, /\.xray-detail-footer \.xray-action-btn\s*\{[\s\S]*flex:\s*1 1 calc\(50% - 8px\)/);
   assert.doesNotMatch(entriesWorkspace, /dangerouslySetInnerHTML|innerHTML/);
@@ -644,9 +610,11 @@ test('React shell navigation and command palette share tab metadata', () => {
   assert.match(tabs, /id:\s*'console'/);
   assert.match(tabs, /id:\s*'api'/);
   assert.match(tabs, /id:\s*'logs'/);
-  assert.match(tabs, /id:\s*'notebook'/);
+  assert.match(tabs, /id:\s*'rules'/);
   assert.match(tabs, /id:\s*'insights'/);
-  assert.match(tabs, /id:\s*'settings'/);
+  // Notebook and Settings are no longer top-level tabs
+  assert.doesNotMatch(tabs, /id:\s*'notebook'/);
+  assert.doesNotMatch(tabs, /id:\s*'settings'/);
   assert.match(palette, /panelTabs\.map/);
   assert.match(palette, /setActiveTab\(tab\.id\)/);
   assert.match(shell, /panelTabs\.map/);
@@ -667,60 +635,59 @@ test('React shell navigation and command palette share tab metadata', () => {
 
 test('React secondary tabs are separate components instead of App inline placeholders', () => {
   const app = read('src/panel/App.tsx');
-  const notebook = read('src/panel/components/notebook/Notebook.tsx');
   const insights = read('src/panel/components/insights/Insights.tsx');
-  const settings = read('src/panel/components/settings/Settings.tsx');
+  const rules = read('src/panel/components/rules/Rules.tsx');
   const insightsModel = read('src/panel/models/insights.ts');
 
-  assert.match(app, /import \{ Notebook \}/);
   assert.match(app, /import \{ Insights \}/);
-  assert.match(app, /import \{ Settings \}/);
-  assert.match(notebook, /export function Notebook/);
-  assert.match(notebook, /notebookCells/);
-  assert.match(notebook, /addNotebookCell/);
-  assert.match(notebook, /updateNotebookCell/);
-  assert.match(notebook, /Add cell/);
+  assert.match(app, /import \{ Rules \}/);
   assert.match(insights, /export function Insights/);
   assert.match(insights, /buildInsightsSummary\(entries\)/);
+  assert.match(rules, /export function Rules/);
   assert.match(insightsModel, /export function buildInsightsSummary/);
   assert.match(insightsModel, /repeatedEndpoints/);
-  assert.match(settings, /export function Settings/);
-  assert.match(settings, /clearEntries/);
-  assert.doesNotMatch(app, /function Notebook/);
+  // Notebook was cut and folded into Console snippets; Settings is modal-only.
+  assert.doesNotMatch(app, /import \{ Notebook \}/);
+  assert.doesNotMatch(app, /activeTab === 'notebook'/);
+  assert.doesNotMatch(app, /activeTab === 'settings'/);
   assert.doesNotMatch(app, /function Insights/);
-  assert.doesNotMatch(app, /function Settings/);
   assert.doesNotMatch(app, /function repeatedEndpoints/);
+  assert.ok(!fs.existsSync(path.join(root, 'src/panel/components/notebook/Notebook.tsx')));
+  assert.ok(!fs.existsSync(path.join(root, 'src/panel/components/settings/Settings.tsx')));
 });
 
-test('React secondary tabs have real parity workflows, not placeholder panels', () => {
-  const notebook = read('src/panel/components/notebook/Notebook.tsx');
+test('Console owns saved snippets and secondary tabs have real workflows', () => {
+  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
   const insights = read('src/panel/components/insights/Insights.tsx');
-  const settings = read('src/panel/components/settings/Settings.tsx');
   const palette = read('src/panel/components/shell/CommandPalette.tsx');
   const insightsModel = read('src/panel/models/insights.ts');
   const store = read('src/panel/store.ts');
 
-  assert.match(notebook, /executeConsoleCommand/);
-  assert.match(notebook, /runNotebookCell/);
-  assert.match(notebook, /setNotebookCellResult/);
-  assert.match(notebook, /IconPlayerPlay/);
-  assert.match(notebook, /IconSend/);
+  // snippets replace the notebook and live in the console
+  assert.match(consoleWorkspace, /function SnippetBar/);
+  assert.match(consoleWorkspace, /state\.snippets/);
+  // snippets are saved with an optional name, renameable in place, and
+  // deletion is undoable
+  assert.match(consoleWorkspace, /saveSnippet\(\{ code: draft, title: nameText/);
+  assert.match(consoleWorkspace, /renameSnippet\(id, renameText\)/);
+  assert.match(consoleWorkspace, /removeSnippet\(snippet\.id\)/);
+  assert.match(consoleWorkspace, /Undo delete/);
+  assert.match(store, /saveSnippet: \(snippet\)/);
+  assert.match(store, /renameSnippet: \(id, title\)/);
+  assert.match(store, /removeSnippet: \(id\)/);
+  assert.match(store, /snippets:/);
   assert.match(insightsModel, /statusCounts/);
   assert.match(insightsModel, /topSlowRequests/);
   assert.match(insightsModel, /nPlusOneCandidates/);
   assert.match(insights, /InsightMetric/);
   assert.match(insights, /Repeated endpoints/);
   assert.match(insights, /Slowest requests/);
-  assert.match(settings, /clearPinned/);
-  assert.match(settings, /clearApiFilters/);
-  assert.match(settings, /setExportOpen\(true\)/);
-  assert.match(settings, /setRecording\(!recording\)/);
   assert.match(palette, /const commands =/);
   assert.match(palette, /filteredCommands/);
   assert.match(palette, /insertConsoleCommand/);
   assert.match(palette, /setExportOpen\(true\)/);
   assert.match(store, /clearPinned\(\): void/);
-  assert.match(store, /setNotebookCellResult/);
+  assert.match(store, /saveSnippet\(snippet: \{ code: string; title\?: string \}\): void/);
 });
 
 test('React detail parity logic is typed outside the component tree', () => {
@@ -745,7 +712,7 @@ test('React detail parity logic is typed outside the component tree', () => {
   assert.match(detailModel, /schema\(value\)/);
   assert.match(requestDetail, /detailValue\(entry, detailTab\)/);
   assert.match(requestDetail, /gridRows\(value\)/);
-  assert.match(requestDetail, /vizSummary\(value\)/);
+  assert.match(requestDetail, /buildVizSpec\(value\)/);
   assert.match(jsonView, /safeStringify\(value\)/);
   assert.match(emptyState, /export function EmptyState/);
   assert.match(entriesWorkspace, /import \{ RequestDetail \}/);
@@ -761,9 +728,13 @@ test('React export parity logic is isolated and keeps old export formats', () =>
   const exportModal = read('src/panel/components/export/ExportModal.tsx');
 
   assert.match(exportModel, /export type ExportFormat =/);
-  for (const format of ['json', 'curl', 'fetch', 'axios', 'schema', 'mock', 'typescript', 'zod', 'jest', 'msw', 'session-json', 'session-csv', 'session-har']) {
+  for (const format of ['json', 'curl', 'fetch', 'axios', 'schema', 'mock', 'typescript', 'zod', 'jest', 'msw', 'playwright', 'session-json', 'session-csv', 'session-har']) {
     assert.match(exportModel, new RegExp("'" + format + "'"));
   }
+  // Playwright API test generation dispatches through exportText like the others
+  assert.match(exportModel, /function buildPlaywright/);
+  assert.match(exportModel, /buildPlaywright\(entry\)/);
+  assert.match(exportModel, /@playwright\/test/);
   assert.match(exportModel, /export const exportFormats/);
   assert.match(exportModel, /export const exportGroups/);
   assert.match(exportModel, /export const exportMeta/);
@@ -791,7 +762,7 @@ test('React export parity logic is isolated and keeps old export formats', () =>
   assert.match(exportModal, /mode === 'selected'/);
   assert.match(exportModal, /mode === 'session'/);
   assert.match(exportModal, /insertConsoleCommand\(text\)/);
-  assert.match(exportModal, /addNotebookCell/);
+  assert.match(exportModal, /saveSnippet/);
   assert.match(exportModal, /showToast/);
   assert.doesNotMatch(exportModal, /dangerouslySetInnerHTML|innerHTML/);
   assert.match(app, /import \{ ExportModal \}/);
@@ -806,39 +777,40 @@ test('React response detail has native contextual operations, not a separate cop
 
   assert.match(operations, /export interface ResponseOperation/);
   assert.match(operations, /export function getResponseOperations/);
-  assert.match(operations, /kind: 'view' \| 'console' \| 'notebook' \| 'copy' \| 'export' \| 'select'/);
-  for (const label of ['Schema', 'Table', 'Visualize', 'Compare Previous', 'Mock', 'Copy cURL', 'Copy fetch', 'Send to Console', 'Send to Notebook', 'Export', 'Related Errors', 'Similar Calls']) {
+  assert.match(operations, /kind: 'view' \| 'console' \| 'snippet' \| 'copy' \| 'export' \| 'select'/);
+  for (const label of ['Schema', 'Table', 'Visualize', 'Compare Previous', 'Mock', 'Copy cURL', 'Copy fetch', 'Send to Console', 'Save Snippet', 'Export', 'Related Errors', 'Similar Calls']) {
     assert.match(operations, new RegExp(label));
   }
   assert.match(detail, /insertConsoleCommand\('res'\)/);
-  assert.match(detail, /addNotebookCell/);
+  assert.match(detail, /saveSnippet\(/);
   assert.match(detail, /copyActiveValue/);
   assert.match(detail, /setExportOpen\(true\)/);
   assert.doesNotMatch(detail, /dangerouslySetInnerHTML/);
   assert.match(store, /insertConsoleCommand\(command: string\): void/);
-  assert.match(store, /addNotebookCell\(cell:/);
+  assert.match(store, /saveSnippet\(snippet:/);
 });
 
-test('React console and notebook accept prepared commands without executing them', () => {
+test('React console accepts prepared commands and owns saved snippets', () => {
   const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
-  const notebook = read('src/panel/components/notebook/Notebook.tsx');
   const store = read('src/panel/store.ts');
 
   assert.match(store, /consoleDraft: string/);
-  assert.match(store, /notebookCells:/);
+  assert.match(store, /snippets: Snippet\[\]/);
   assert.match(store, /insertConsoleCommand: \(command\) => set\(\{ consoleDraft: command/);
   assert.match(consoleWorkspace, /const command = usePanelStore\(\(state\) => state\.consoleDraft\)/);
   assert.match(consoleWorkspace, /setConsoleDraft\(event\.currentTarget\.value\)/);
   assert.match(consoleWorkspace, /executeConsoleCommand\(code\)/);
-  assert.match(notebook, /notebookCells/);
-  assert.match(notebook, /updateNotebookCell/);
-  assert.match(notebook, /insertConsoleCommand\(cell\.code\)/);
-  assert.match(notebook, /runNotebookCell\(cell\.id, cell\.code\)/);
+  // snippets load into the prompt, they do not auto-execute
+  assert.match(consoleWorkspace, /setConsoleDraft\(snippet\.code\)/);
 });
 
 test('React preview CSS protects narrow viewport console ergonomics', () => {
   const styles = read('src/panel/styles.css');
 
+  // the panel is an inline-size container; narrow-panel ergonomics key off the
+  // panel's own width, while window-coupled rules (panel width, modals) stay media
+  assert.match(styles, /container-type: inline-size/);
+  assert.match(styles, /@container xray \(max-width: 760px\)/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /\.xray-tabs\s*\{[\s\S]*overflow-x: auto/);
   assert.match(styles, /\.xray-console-head\s*\{[\s\S]*overflow-x: auto/);
@@ -896,7 +868,8 @@ test('React settings persist user preferences and publish capture config to vani
   assert.match(store, /updateSettings\(patch: Partial<PanelSettings>\): void/);
   assert.match(store, /publishCaptureSettings\(settings\)/);
   assert.match(captureConfig, /__xray_config__/);
-  assert.match(captureConfig, /token:\s*window\.__XRAY_bridgeToken/);
+  assert.match(captureConfig, /__XRAY_bridgeToken/);
+  assert.match(captureConfig, /__XRAY_BRIDGE_TOKEN__/);
   assert.match(interceptor, /event\.source !== window/);
   assert.match(interceptor, /event\.data\.token !== _bridgeToken/);
   assert.match(interceptor, /captureFetch/);
@@ -912,7 +885,7 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   const shell = read('src/panel/components/shell/PanelShell.tsx');
   const styles = read('src/panel/styles.css');
 
-  assert.match(types, /export type PanelTheme = 'operator' \| 'dev-edition' \| 'midnight' \| 'light-lab'/);
+  assert.match(types, /export type PanelTheme = 'operator' \| 'dev-edition' \| 'midnight' \| 'light-lab' \| 'claude' \| 'custom'/);
   assert.match(types, /export type PanelFont = 'jetbrains' \| 'cascadia' \| 'iosevka' \| 'system'/);
   assert.match(types, /export type PanelDensity = 'compact' \| 'comfortable' \| 'spacious'/);
   assert.match(settingsModel, /PANEL_FONT_VALUES/);
@@ -927,14 +900,14 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   assert.match(shell, /xray-density-\$\{settings\.density\}/);
   assert.match(shell, /xray-font-\$\{settings\.font\}/);
   assert.match(shell, /PANEL_FONT_VALUES\[settings\.font\]/);
-  for (const className of ['xray-theme-operator', 'xray-theme-dev-edition', 'xray-theme-midnight', 'xray-theme-light-lab', 'xray-density-compact', 'xray-density-comfortable', 'xray-density-spacious']) {
+  for (const className of ['xray-theme-operator', 'xray-theme-dev-edition', 'xray-theme-midnight', 'xray-theme-light-lab', 'xray-theme-claude', 'xray-density-compact', 'xray-density-comfortable', 'xray-density-spacious']) {
     assert.match(styles, new RegExp(`\\.${className}`));
   }
   assert.match(styles, /XRAY Operator UI override layer/);
   assert.match(styles, /prefers-reduced-motion/);
 });
 
-test('Operator UI applies tab-specific Network, Detail, Console, Notebook, and Insights polish', () => {
+test('Operator UI applies tab-specific Network, Detail, Console, Snippet, and Insights polish', () => {
   const styles = read('src/panel/styles.css');
 
   assert.match(styles, /XRAY Operator UI tab-specific polish/);
@@ -946,9 +919,11 @@ test('Operator UI applies tab-specific Network, Detail, Console, Notebook, and I
   assert.match(styles, /\.xray-panel \.xray-prompt::before/);
   assert.match(styles, /content: '>'/);
   assert.match(styles, /\.xray-panel \.xray-statusbar/);
-  assert.match(styles, /\.xray-panel \.xray-notebook-cell::before/);
+  assert.match(styles, /\.xray-snippet-bar/);
   assert.match(styles, /\.xray-panel \.xray-insight-row:hover/);
   assert.match(styles, /\.xray-panel \.xray-api-metric strong/);
+  // Notebook CSS was removed with the Notebook tab
+  assert.doesNotMatch(styles, /\.xray-notebook/);
 });
 
 test('content bridge requires a MAIN-world bridge token for capture and lazy object messages', () => {
@@ -1028,14 +1003,19 @@ test('React response detail renders native smart operations and bounded schema d
   const detail = read('src/panel/components/detail/RequestDetail.tsx');
   const operations = read('src/panel/models/operations.ts');
 
-  assert.match(detail, /getResponseOperations\(entry, entries\)/);
+  // reads the fresh array via getState so streaming commits don't re-run the
+  // operations pipeline while the drawer is open
+  assert.match(detail, /getResponseOperations\(entry, usePanelStore\.getState\(\)\.entries\)/);
   assert.match(detail, /xray-smart-ops/);
   assert.match(detail, /xray-operation-groups/);
   assert.match(detail, /runOperation/);
   assert.match(detail, /setDetailView\(operation\.view\)/);
   assert.match(detail, /insertConsoleCommand\(operation\.command\)/);
-  assert.match(detail, /addNotebookCell\(\{ title: operation\.label/);
-  assert.match(detail, /copyText\(operation\.command\)/);
+  assert.match(detail, /saveSnippet\(\{ title:/);
+  // copy payloads may be lazy (built on click) — 500KB copy-full strings are
+  // no longer materialized on every render of the action bar
+  assert.match(detail, /operation\.command \?\? operation\.lazyCommand\?\.\(\)/);
+  assert.match(operations, /lazyCommand: \(\) => safeStringify\(response, 2, 500_000\)/);
   assert.match(detail, /setExportOpen\(true\)/);
   assert.match(detail, /detailView === 'schema'/);
   assert.match(detail, /detailView === 'diff'/);
@@ -1072,56 +1052,37 @@ test('worker core owns expensive schema, diff, grid, and detail analysis operati
   assert.match(types, /detailAnalysis\(current: unknown, previous\?: unknown\): Promise<unknown>/);
 
   assert.match(detail, /window\.XRAY_Worker\.detailAnalysis\(activeValue, previousValue\)/);
-  assert.match(detail, /workerAnalysis\?\.schema \?\? schema\(activeValue\)/);
+  assert.match(detail, /workerSchema \?\? schema\(value\)/);
   assert.match(detail, /workerGrid\?: ReturnType<typeof gridRows>/);
-  assert.match(detail, /workerDiff\?: unknown/);
-  assert.match(detail, /main-thread-fallback/);
+  // the structural diff renders added/removed/changed paths with a baseline jump
+  assert.match(detail, /structuralDiff/);
+  assert.match(detail, /Jump to baseline/);
 });
 
-test('console exposes insertion hooks without a separate intelligence strip', () => {
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(consoleUi, /function insertCommand/);
-  assert.match(consoleUi, /function sendCommandToNotebook/);
-  assert.match(consoleUi, /res\.data/);
-  assert.match(consoleUi, /_pathCompletion/);
-  assert.match(consoleUi, /xr-console-suggestions/);
-  assert.doesNotMatch(consoleUi, new RegExp('xr-co' + 'pilot'));
-  assert.doesNotMatch(consoleUi, new RegExp('update' + 'Findings'));
-  assert.doesNotMatch(consoleUi, /XRAY_Console\.execute\(action\.command/);
-});
-
-test('panel feeds captured entries into the primary console stream', () => {
-  const floating = read('panel/floating.js');
-  assert.match(floating, /activeTab:\s*'console'/);
-  assert.match(floating, /XRAY_ConsoleUI\?\.addEntry/);
-  assert.doesNotMatch(floating, /xr-response-ops/);
-  assert.match(floating, /setActiveTab\(tab\)/);
-});
-
-test('notebook is a separate tab and API responses have a visualization view', () => {
-  const floating = read('panel/floating.js');
-  const consoleUi = read('panel/console-ui.js');
-  assert.match(floating, /data-tab="notebook"/);
-  assert.match(floating, /id="xr-notebook-pane"/);
-  assert.match(floating, /data-view="viz"|id:\s*'viz'/);
-  assert.match(floating, /_renderVizView/);
-  assert.match(consoleUi, /_buildNotebookUI/);
-  assert.doesNotMatch(consoleUi, /notebookButton/);
-});
-
-test('open floating panel traps focus and input events away from the page', () => {
-  const floating = read('panel/floating.js');
-  const content = read('content/content.js');
-  assert.match(floating, /XRAY_ISOLATED_EVENTS/);
-  assert.match(floating, /_trapOpenPanelEvent/);
-  assert.match(floating, /stopImmediatePropagation/);
-  assert.match(floating, /_focusPanelSoon/);
-  assert.match(floating, /document\.addEventListener\(type,\s*_trapOpenPanelEvent,\s*true\)/);
-  assert.match(floating, /__XRAY_focusTrapActive/);
-  assert.match(content, /XRAY_FOCUS_TRAP_EVENTS/);
-  assert.match(content, /_trapFocusedPanelEvent/);
-  assert.match(content, /XRAY_FOCUS_TRAP_TARGETS/);
-  assert.match(content, /target\.addEventListener\(type,\s*_trapFocusedPanelEvent,\s*true\)/);
+test('legacy vanilla panel UI stays deleted', () => {
+  for (const retired of [
+    'panel/floating.js',
+    'panel/console-ui.js',
+    'panel/command-palette-v2.js',
+    'panel/hud-core.js',
+    'panel/entry-list.js',
+    'panel/renderer.js',
+    'panel/insights.js',
+    'panel/export.js',
+    'panel/search.js',
+    'panel/shortcuts.js',
+    'panel/themes.js',
+    'panel/virtual-list.js',
+    'panel/waterfall.js',
+    'panel/n-plus-one.js',
+    'panel/codemirror.bundle.js',
+    'cm-bundler.js',
+    'cm-entry.js',
+  ]) {
+    assert.ok(!fs.existsSync(path.join(root, retired)), `${retired} should stay deleted`);
+  }
+  const pkg = JSON.parse(read('package.json'));
+  assert.ok(!Object.keys(pkg.dependencies || {}).some((name) => name.startsWith('@codemirror/')));
 });
 
 test('shared console helpers build request-aware runtime helpers', () => {
@@ -1156,4 +1117,600 @@ test('privileged console runtime declares friendly response aliases', () => {
   assert.match(background, /'headers'/);
   assert.match(background, /'entry'/);
   assert.match(background, /'table'/);
+});
+
+test('interceptor wraps WebSocket and EventSource and streams frames', () => {
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /const _OrigWebSocket = window\.WebSocket/);
+  assert.match(interceptor, /const _OrigEventSource = window\.EventSource/);
+  assert.match(interceptor, /window\.WebSocket = WrappedWebSocket/);
+  assert.match(interceptor, /window\.EventSource = WrappedEventSource/);
+  assert.match(interceptor, /source:\s*'ws'/);
+  assert.match(interceptor, /source:\s*'sse'/);
+  assert.match(interceptor, /wsFrames/);
+  assert.match(interceptor, /MAX_WS_FRAMES/);
+  assert.match(interceptor, /update:\s*true/);
+});
+
+test('interceptor captures GraphQL operations, initiator stacks, and resource timing', () => {
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /function _graphqlInfo/);
+  assert.match(interceptor, /operationName/);
+  assert.match(interceptor, /function _initiatorStack/);
+  assert.match(interceptor, /function _resourceTiming/);
+  assert.match(interceptor, /getEntriesByName/);
+});
+
+test('interceptor applies mock, delay, and fail rules before the real network call', () => {
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /function _matchRule/);
+  assert.match(interceptor, /function _sanitizeRule/);
+  assert.match(interceptor, /rule\.action\.type === 'mock'/);
+  assert.match(interceptor, /rule\.action\.type === 'fail'/);
+  assert.match(interceptor, /rule\.action\.type === 'delay'/);
+  // Null-body statuses (204/205/304) must not be handed a body — Response() throws.
+  assert.match(interceptor, /new Response\(status === 204 \|\| status === 205 \|\| status === 304 \? null : body/);
+  assert.match(interceptor, /function _simulateXhrResponse/);
+  assert.match(interceptor, /mocked:\s*true/);
+});
+
+test('interceptor serves panel replay requests from the page world', () => {
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /__xray_replay__/);
+  assert.match(interceptor, /replayed:\s*true/);
+});
+
+test('rules model bounds runtime payloads and only ships enabled matchers', () => {
+  const rules = read('src/panel/models/rules.ts');
+  assert.match(rules, /export function normalizeRule/);
+  assert.match(rules, /export function serializeRulesForRuntime/);
+  // only enabled rules with a non-empty URL matcher reach the interceptor
+  assert.match(rules, /rule\.enabled && rule\.match\.url\.trim\(\)/);
+  // status is clamped to a valid HTTP range
+  assert.match(rules, /clampNumber\(action\.status, 200, 100, 599\)/);
+  // rule bodies are length-bounded
+  assert.match(rules, /slice\(0, 100_000\)/);
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /const MAX_RULES = 50/);
+  assert.match(interceptor, /_config\.rules = config\.rules\.slice\(0, MAX_RULES\)\.map\(_sanitizeRule\)\.filter\(Boolean\)/);
+});
+
+test('rules have a starter preset library and portable export/import', () => {
+  const rules = read('src/panel/models/rules.ts');
+  const rulesUi = read('src/panel/components/rules/Rules.tsx');
+  // preset library + round-trippable rule-set serialization
+  assert.match(rules, /export const RULE_PRESETS/);
+  assert.match(rules, /export function serializeRuleSet/);
+  assert.match(rules, /export function parseRuleSet/);
+  // imported rules get fresh ids so they never collide with existing ones
+  assert.match(rules, /id: createRuleId\(\)/);
+  // the Rules page wires presets + export (copy) + import (paste) in
+  assert.match(rulesUi, /RULE_PRESETS\.map/);
+  assert.match(rulesUi, /serializeRuleSet\(rules\)/);
+  assert.match(rulesUi, /parseRuleSet\(importText\)/);
+  assert.match(rulesUi, /setRules\(\[\.\.\.rules, \.\.\.parsed\]\)/);
+});
+
+test('global search finds text across every captured URL, header, and body', () => {
+  const model = read('src/panel/models/globalSearch.ts');
+  const component = read('src/panel/components/search/GlobalSearch.tsx');
+  const app = read('src/panel/App.tsx');
+  const main = read('src/panel/main.tsx');
+  const store = read('src/panel/store.ts');
+  const palette = read('src/panel/components/shell/CommandPalette.tsx');
+
+  // pure, testable search model: substring by default, opt-in regex, bounded
+  assert.match(model, /export function searchEntries/);
+  assert.match(model, /new RegExp\(q, caseSensitive \? '' : 'i'\)/);
+  assert.match(model, /Invalid regular expression/);
+  assert.match(model, /Response body/);
+  assert.match(model, /Request body/);
+  // reports exact match offsets so highlighting survives regex matches
+  assert.match(model, /matchStart/);
+  assert.match(model, /MAX_MATCHES/);
+
+  // wired as a modal with its own store flag, mounted in the app
+  assert.match(store, /globalSearchOpen: boolean/);
+  assert.match(store, /setGlobalSearchOpen: \(value\) => set\(\{ globalSearchOpen: value \}\)/);
+  assert.match(app, /<GlobalSearch \/>/);
+  assert.match(component, /searchEntries\(entries, query, \{ regex, caseSensitive \}\)/);
+
+  // Ctrl/Cmd+Shift+F shortcut + Escape layering + command-palette entry
+  assert.match(main, /event\.shiftKey && key === 'f'/);
+  assert.match(main, /store\.globalSearchOpen\) store\.setGlobalSearchOpen\(false\)/);
+  assert.match(palette, /setGlobalSearchOpen\(true\)/);
+});
+
+test('drift detection is a pure module wired into the store', () => {
+  const drift = read('src/panel/models/drift.ts');
+  assert.match(drift, /export function schemaSignature/);
+  assert.match(drift, /export function detectDrift/);
+  assert.match(drift, /driftFromId/);
+  const store = read('src/panel/store.ts');
+  // drift runs inside the batched ingest so a capture batch is one store commit
+  assert.match(store, /addEntries: \(batch\)/);
+  assert.match(store, /detectDrift\(\{ \.\.\.raw, id \}, entries\)/);
+  assert.match(store, /driftCount/);
+});
+
+test('JWT lens decodes base64url tokens found in headers and bodies', () => {
+  const lenses = read('src/panel/models/lenses.ts');
+  assert.match(lenses, /export function decodeJwt/);
+  assert.match(lenses, /export function extractJwts/);
+  assert.match(lenses, /const JWT_PATTERN = \/eyJ/);
+  assert.match(lenses, /base64UrlDecode/);
+  assert.match(lenses, /TextDecoder/);
+  assert.match(lenses, /toIso\(payloadRecord\.exp\)/);
+  // scans headers and bodies, request and response
+  assert.match(lenses, /collectStrings\(entry\.requestHeaders/);
+  assert.match(lenses, /collectStrings\(entry\.responseHeaders/);
+  const detail = read('src/panel/components/detail/RequestDetail.tsx');
+  assert.match(detail, /extractJwts\(entry\)/);
+  assert.match(detail, /TokensView/);
+});
+
+test('HAR and session import parse into XRAY entries', () => {
+  const importer = read('src/panel/models/import.ts');
+  assert.match(importer, /export function parseImport/);
+  // HAR detection via log.entries
+  assert.match(importer, /log && Array\.isArray\(log\.entries\)/);
+  assert.match(importer, /harEntryToXray/);
+  // XRAY session detection via entries array
+  assert.match(importer, /Array\.isArray\(sessionEntries\)/);
+  assert.match(importer, /imported: true/);
+  const exportModal = read('src/panel/components/export/ExportModal.tsx');
+  assert.match(exportModal, /parseImport\(content\)/);
+  assert.match(exportModal, /restoreEntries\(result\.entries\)/);
+  assert.match(exportModal, /Import HAR \/ session/);
+});
+
+test('background service worker explains requests through a BYOK provider bridge', () => {
+  const background = read('background.js');
+  assert.match(background, /xray:ai-explain/);
+  assert.match(background, /api\.anthropic\.com\/v1\/messages/);
+  assert.match(background, /api\.openai\.com\/v1\/chat\/completions/);
+  assert.match(background, /AI_TIMEOUT_MS/);
+  assert.match(background, /MAX_AI_PROMPT_CHARS/);
+});
+
+test('HUD bundle listens for capture events directly in the MAIN world', () => {
+  const hud = read('src/panel/hud-main.tsx');
+  assert.match(hud, /installHudCaptureListener/);
+  assert.match(hud, /event\.source !== window/);
+  assert.match(hud, /__XRAY_BRIDGE_TOKEN__/);
+  assert.match(hud, /store\.updateEntry/);
+  assert.match(hud, /store\.addEntry/);
+});
+
+test('capture config bridge resolves the MAIN or ISOLATED token and relays updates', () => {
+  const captureConfig = read('src/panel/runtime/captureConfig.ts');
+  assert.match(captureConfig, /publishTrafficRules/);
+  assert.match(captureConfig, /serializeRulesForRuntime/);
+  assert.match(captureConfig, /captureWs/);
+  const content = read('content/content.js');
+  assert.match(content, /e\.data\.update && e\.data\.entry/);
+  assert.match(content, /XRAY_Panel\?\.update\?\.\(e\.data\.entry\)/);
+});
+
+test('new panel surfaces are wired into the app shell and tabs', () => {
+  const app = read('src/panel/App.tsx');
+  assert.match(app, /<Rules \/>/);
+  assert.match(app, /<ReplayModal \/>/);
+  assert.match(app, /<ExplainModal \/>/);
+  const tabs = read('src/panel/components/shell/panelTabs.tsx');
+  assert.match(tabs, /id: 'rules'/);
+});
+
+test('options page reads and writes the shared React preference record', () => {
+  const settings = read('settings/settings.js');
+  assert.match(settings, /xray_react_panel_preferences/);
+  assert.match(settings, /captureFetch/);
+  assert.match(settings, /slowThreshold/);
+  assert.doesNotMatch(settings, /autoOpen/);
+});
+
+test('Visualize view renders a real chart, not fake metadata JSON', () => {
+  const viz = read('src/panel/models/viz.ts');
+  const detail = read('src/panel/components/detail/RequestDetail.tsx');
+  assert.match(viz, /export function buildVizSpec/);
+  assert.match(viz, /kind: 'bars' \| 'none'/);
+  assert.match(viz, /function coerceRows/);
+  assert.match(viz, /function frequency/);
+  assert.match(detail, /buildVizSpec\(value\)/);
+  assert.match(detail, /xray-viz-bars/);
+  assert.match(detail, /xray-viz-fill/);
+  // the old fake viz that rendered schema metadata as JSON is gone
+  assert.doesNotMatch(detail, /engine: workerMeta\?\.engine/);
+  assert.doesNotMatch(detail, /main-thread-fallback/);
+});
+
+test('replay restores sensitive headers from a MAIN-world-only store', () => {
+  const interceptor = read('content/interceptor.js');
+  assert.match(interceptor, /const _secretStore = new Map\(\)/);
+  assert.match(interceptor, /function _rememberSecrets/);
+  assert.match(interceptor, /_secretStore\.get\(replayOf\)/);
+  assert.match(interceptor, /credentials: 'include'/);
+  assert.match(interceptor, /FORBIDDEN_REPLAY_HEADER/);
+  // secrets are never emitted to the panel; only redacted headers leave the page
+  assert.doesNotMatch(interceptor, /_emit\([^)]*_secretStore/);
+  assert.match(interceptor, /_rememberSecrets\(id, req\.headers, init\.headers\)/);
+  assert.match(interceptor, /_rememberSecrets\(xr\.id, xr\.rawSecrets\)/);
+});
+
+test('Logs tab can lazily load full logged objects', () => {
+  const bridge = read('src/panel/runtime/logObjects.ts');
+  const logDetail = read('src/panel/components/detail/LogDetail.tsx');
+  const workspace = read('src/panel/components/api/EntriesWorkspace.tsx');
+  assert.match(bridge, /export async function fetchLogObject/);
+  assert.match(bridge, /__XRAY_fetchLogObject__/);
+  assert.match(bridge, /__XRAY_getLogObject__/);
+  assert.match(logDetail, /export function LogDetail/);
+  assert.match(logDetail, /fetchLogObject\(ref\)/);
+  assert.match(logDetail, /Load full object/);
+  assert.match(workspace, /<LogDetail entry=\{selected\}/);
+});
+
+test('console Record button is honestly labelled as a stream pause, not capture', () => {
+  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const store = read('src/panel/store.ts');
+  // paused = buffered (never dropped): the label counts what's waiting and the
+  // store flushes the buffer back into the stream on resume
+  assert.match(consoleWorkspace, /recording \? 'Live' : pausedCount > 0 \? `Paused · \$\{pausedCount\} new` : 'Paused'/);
+  assert.match(consoleWorkspace, /Messages keep buffering and flush back in when you resume/);
+  assert.match(store, /_pausedEvents = \[\];/);
+  assert.match(store, /pausedCount: 0/);
+  assert.match(settingsModal, /Stream to console live/);
+});
+
+test('header palette button opens Settings to Appearance with visual theme swatches', () => {
+  const switcher = read('src/panel/components/shell/ThemeSwitcher.tsx');
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const store = read('src/panel/store.ts');
+  const styles = read('src/panel/styles.css');
+
+  // The palette button reuses the proven Settings modal path (no fragile custom
+  // popover), jumping straight to the Appearance section.
+  assert.match(switcher, /export function ThemeSwitcher/);
+  assert.match(switcher, /openSettings\('appearance'\)/);
+  assert.match(store, /openSettings: \(section\) => set\(\{ settingsSection: section, settingsOpen: true \}\)/);
+  assert.match(shell, /<ThemeSwitcher \/>/);
+
+  // Settings modal syncs to the requested section and renders visual theme swatches
+  assert.match(settingsModal, /THEME_PREVIEWS/);
+  assert.match(settingsModal, /if \(open\) setSection\(settingsSection as SettingsSection\)/);
+  assert.match(settingsModal, /updateSettings\(preview\.accentPref \? \{ theme: preview\.id, accent: preview\.accentPref \} : \{ theme: preview\.id \}\)/);
+  assert.match(settingsModal, /id: 'claude', label: 'Claude'/);
+  assert.match(settingsModal, /accentPref: 'coral'/);
+  assert.match(styles, /\.xray-theme-swatch/);
+  assert.match(styles, /\.xray-theme-claude\s*\{/);
+
+  // the HUD host must not use layout containment (it would trap fixed descendants)
+  const hud = read('content/hud-mount.js');
+  assert.match(hud, /:host \{ contain: style; \}/);
+  assert.doesNotMatch(hud, /contain: layout/);
+});
+
+test('toasts auto-dismiss and the request list supports keyboard navigation', () => {
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const workspace = read('src/panel/components/api/EntriesWorkspace.tsx');
+  // toast auto-dismisses on a timer
+  assert.match(shell, /setTimeout\(clearToast/);
+  // arrow-key navigation + Enter to open, with virtualizer scroll-into-view
+  assert.match(workspace, /function handleListKeyDown/);
+  assert.match(workspace, /event\.key === 'ArrowDown'/);
+  assert.match(workspace, /virtualizer\.scrollToIndex\(nextIndex/);
+  assert.match(workspace, /role="listbox"/);
+});
+
+test('interaction polish honors reduced-motion and consistent focus rings', () => {
+  const styles = read('src/panel/styles.css');
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /button:focus-visible/);
+  assert.match(styles, /@keyframes xray-bar-grow/);
+});
+
+test('custom theme gives full color freedom, stays scoped, and never affects the extension', () => {
+  const model = read('src/panel/models/customTheme.ts');
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const styles = read('src/panel/styles.css');
+
+  // pure derivation: four user colors -> a full, coherent token set
+  assert.match(model, /export function buildCustomThemeVars/);
+  assert.match(model, /export function normalizeCustomTheme/);
+  assert.match(model, /export function clampHex/);
+  assert.match(model, /'--xray-bg-rgb'/);
+  assert.match(model, /'--xray-surface-rgb'/);
+  assert.match(model, /'--xray-text-rgb'/);
+  // status colors adapt to the chosen background's brightness
+  assert.match(model, /DARK_STATUS/);
+  assert.match(model, /LIGHT_STATUS/);
+  assert.match(model, /luminance\(bg\) > 140/);
+
+  // applied ONLY as inline CSS variables on .xray-panel -> scoped, cannot leak to the page or runtime
+  assert.match(shell, /buildCustomThemeVars\(settings\.customTheme\)/);
+  assert.match(shell, /settings\.theme === 'custom' \? buildCustomThemeVars/);
+  assert.match(shell, /\.\.\.customVars/);
+
+  // shadcn-style live editor with color + hex inputs and starter presets
+  assert.match(settingsModal, /function CustomThemeEditor/);
+  assert.match(settingsModal, /type="color"/);
+  assert.match(settingsModal, /CUSTOM_PRESETS/);
+  assert.match(settingsModal, /theme: 'custom', customTheme:/);
+  assert.match(styles, /\.xray-custom-theme/);
+  assert.match(styles, /\.xray-color-input/);
+});
+
+test('theme studio: radius, generate/randomize, import-export, and opt-in hacker overlay', () => {
+  const model = read('src/panel/models/customTheme.ts');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const settingsModel = read('src/panel/models/panelSettings.ts');
+  const styles = read('src/panel/styles.css');
+
+  // generate a whole theme from one color; coherent random; shareable export/import
+  assert.match(model, /export function generateFromAccent/);
+  assert.match(model, /export function randomTheme/);
+  assert.match(model, /export function exportThemeCss/);
+  assert.match(model, /export function parseThemeInput/);
+  // editor exposes them
+  assert.match(settingsModal, /generateFromAccent\(custom\.accent, 'dark'\)/);
+  assert.match(settingsModal, /randomTheme\(Math\.random\(\)\)/);
+  assert.match(settingsModal, /exportThemeCss\(custom\)/);
+  assert.match(settingsModal, /parseThemeInput\(importText\)/);
+
+  // radius + hacker are real settings, applied via scoped inline vars / class
+  assert.match(settingsModel, /radius: 10/);
+  assert.match(settingsModel, /hacker: false/);
+  assert.match(settingsModel, /clampNumber\(base\.radius, DEFAULT_PANEL_SETTINGS\.radius, 0, 20\)/);
+  assert.match(shell, /'--xray-radius': `\$\{settings\.radius\}px`/);
+  assert.match(shell, /settings\.hacker \? 'xray-hacker' : ''/);
+  assert.match(styles, /--xray-radius/);
+  assert.match(styles, /\.xray-panel\.xray-hacker::after/);
+  // hacker flicker only runs when motion is allowed
+  assert.match(styles, /@media \(prefers-reduced-motion: no-preference\)/);
+
+  // radius is a real token scale used everywhere, not a hand-picked allowlist
+  const tokens = read('src/panel/styles/tokens.css');
+  assert.match(tokens, /--xray-radius-sm: calc\(var\(--xray-radius\) \* 0\.6\)/);
+  assert.match(tokens, /--xray-radius-lg: calc\(var\(--xray-radius\) \* 1\.4\)/);
+  // every rounded-rect radius is token-driven across ALL stylesheets (incl. the HUD
+  // frame); only 999px pills / 50% circles are literal
+  const hudCss = read('src/panel/styles/hud.css');
+  const literalRadii = [...styles.matchAll(/border-radius:\s*[0-9]+px/g), ...hudCss.matchAll(/border-radius:\s*[0-9]+px/g)].map((m) => m[0]);
+  for (const decl of literalRadii) {
+    assert.match(decl, /999px/, `non-pill literal radius should use the token: ${decl}`);
+  }
+  // the HUD frame is an ancestor of the panel, so its vars are mirrored onto the host
+  const hudMain = read('src/panel/hud-main.tsx');
+  assert.match(hudMain, /syncHostTheme/);
+  assert.match(hudMain, /'--xray-radius'/);
+});
+
+test('command center: fuzzy search across commands and requests, keyboard nav, groups', () => {
+  const fuzzy = read('src/panel/models/fuzzy.ts');
+  const palette = read('src/panel/components/shell/CommandPalette.tsx');
+  const empty = read('src/panel/components/common/EmptyState.tsx');
+  const tokens = read('src/panel/styles/tokens.css');
+  const styles = read('src/panel/styles.css');
+
+  // fuzzy matcher with scoring + highlight ranges
+  assert.match(fuzzy, /export function fuzzyMatch/);
+  assert.match(fuzzy, /export function highlightSegments/);
+  assert.match(fuzzy, /BOUNDARY/);
+
+  // command center: still shares tab metadata, plus fuzzy + keyboard nav + requests
+  assert.match(palette, /const commands =/);
+  assert.match(palette, /filteredCommands/);
+  assert.match(palette, /panelTabs\.map/);
+  assert.match(palette, /setActiveTab\(tab\.id\)/);
+  assert.match(palette, /fuzzyMatch\(q, command\.label\)/);
+  assert.match(palette, /requestCommands/);
+  assert.match(palette, /event\.key === 'ArrowDown'/);
+  assert.match(palette, /selectEntry\(entry\.id\)/);
+  assert.match(palette, /highlightSegments/);
+  assert.match(palette, /xray-command-foot/);
+
+  // elegant empty state with hint/action
+  assert.match(empty, /export function EmptyState/);
+  assert.match(empty, /hint\?/);
+  assert.match(empty, /xray-empty-glyph/);
+
+  // motion system + animated tab indicator
+  assert.match(tokens, /--xray-ease:/);
+  assert.match(tokens, /--xray-dur:/);
+  assert.match(styles, /\.xray-tab\.active::after/);
+  assert.match(styles, /@keyframes xray-modal-in/);
+});
+
+test('theme studio: WCAG contrast checker and shareable theme codes (with URL hash)', () => {
+  const model = read('src/panel/models/customTheme.ts');
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const windowMain = read('src/panel/window-main.tsx');
+
+  // WCAG contrast
+  assert.match(model, /export function contrastRatio/);
+  assert.match(model, /export function contrastGrade/);
+  assert.match(model, /ratio >= 4\.5/);
+  assert.match(settingsModal, /function ContrastReport/);
+  // grades read the fully-resolved tokens (pinned or derived), not just the raw base four
+  assert.match(settingsModal, /resolveThemeColors\(theme\)/);
+  assert.match(settingsModal, /contrastRatio\(c\.text, c\.bg\)/);
+  // covers the pairs themes most often fail: muted-on-bg and text-over-accent
+  assert.match(settingsModal, /contrastRatio\(c\.subtext, c\.bg\)/);
+  assert.match(settingsModal, /contrastRatio\(c\.text, c\.accent\)/);
+
+  // portable share codes carry the whole look (colors + font + radius + effect)
+  assert.match(model, /export function encodeTheme/);
+  assert.match(model, /export function decodeTheme/);
+  assert.match(model, /const CODE_PREFIX = 'xray1:'/);
+  assert.match(settingsModal, /encodeTheme\(\{ colors: custom, font, radius, hacker \}\)/);
+  assert.match(settingsModal, /decodeTheme\(importText\)/);
+
+  // a shared theme can arrive as a window URL hash (#theme=…) and only mutates
+  // panel settings — both import paths share one package→settings mapping
+  assert.match(windowMain, /applyThemeFromHash/);
+  assert.match(windowMain, /decodeTheme\(hash\)/);
+  assert.match(windowMain, /themePackageToSettings\(pkg\)/);
+  assert.match(read('src/panel/models/customTheme.ts'), /export function themePackageToSettings/);
+});
+
+test('surfaces use theme RGB tokens so light themes (Light Lab, Claude) render correctly', () => {
+  const styles = read('src/panel/styles.css');
+  const tokens = read('src/panel/styles/tokens.css');
+  // no Catppuccin-dark surface values baked into rules — they must be tokenized
+  for (const dark of ['rgba(17, 17, 27', 'rgba(24, 24, 37', 'rgba(30, 30, 46', 'rgba(49, 50, 68', 'rgba(205, 214, 244']) {
+    assert.doesNotMatch(styles, new RegExp(dark.replace(/[()]/g, '\\$&')), `${dark} must be a theme token, not hardcoded`);
+  }
+  // the translucent-surface tokens exist on the base and every theme
+  assert.match(tokens, /--xray-surface-rgb:/);
+  assert.match(tokens, /--xray-text-rgb:/);
+  for (const theme of ['operator', 'dev-edition', 'midnight', 'light-lab', 'claude']) {
+    const block = styles.match(new RegExp(`\\.xray-theme-${theme}\\s*\\{[^}]*\\}`));
+    assert.ok(block, `theme block for ${theme} not found`);
+    assert.match(block[0], /--xray-bg-rgb:/);
+    assert.match(block[0], /--xray-surface-rgb:/);
+    assert.match(block[0], /--xray-text-rgb:/);
+  }
+});
+
+test('theme tokens reach popups too, not just the panel', () => {
+  const app = read('src/panel/App.tsx');
+  const styles = read('src/panel/styles.css');
+  const tokens = read('src/panel/styles/tokens.css');
+
+  // A display:contents wrapper carries theme tokens to the panel AND the sibling
+  // modals (Settings, Export, Command palette, Global search, …) via inheritance.
+  assert.match(app, /xray-theme-scope xray-theme-\$\{settings\.theme\}/);
+  assert.match(app, /'--xray-accent': PANEL_ACCENT_VALUES\[settings\.accent\]/);
+  assert.match(app, /settings\.theme === 'custom' \? buildCustomThemeVars/);
+  // the wrapper contains the modals (they're inside the same element, not siblings of it)
+  assert.match(app, /<div className={`xray-theme-scope[\s\S]*<SettingsModal \/>[\s\S]*<GlobalSearch \/>[\s\S]*<\/div>/);
+  assert.match(styles, /\.xray-theme-scope\s*\{\s*display: contents;/);
+  // preset token blocks are no longer panel-scoped, so the wrapper matches them
+  assert.doesNotMatch(styles, /\.xray-panel\.xray-theme-operator/);
+  // the default token fallback still exists for both the shadow host and plain mount
+  assert.match(tokens, /:host,\s*\.xray-app-root/);
+});
+
+test('injected side panel is resizable, dockable, persisted, and dismissible', () => {
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+  const settings = read('src/panel/models/panelSettings.ts');
+  const types = read('src/panel/types.ts');
+  const persistence = read('src/panel/models/panelPersistence.ts');
+  const styles = read('src/panel/styles.css');
+  const hud = read('src/panel/styles/hud.css');
+  const main = read('src/panel/main.tsx');
+
+  // width + dock side live in PanelSettings, so they round-trip through the existing
+  // persisted preferences record (no captured data stored)
+  assert.match(types, /panelWidth: number/);
+  assert.match(types, /dockSide: DockSide/);
+  assert.match(settings, /panelWidth: 960/);
+  assert.match(settings, /dockSide: 'right'/);
+  assert.match(settings, /PANEL_WIDTH_MIN/);
+  // settings already persist via serializePanelPreferences -> no new storage key needed
+  assert.match(persistence, /settings: state\.settings/);
+
+  // a keyboard-accessible resize grabber drives an inline --xray-panel-width
+  assert.match(shell, /xray-resize-handle/);
+  assert.match(shell, /role="separator"/);
+  assert.match(shell, /'--xray-panel-width'/);
+  assert.match(shell, /onPointerMove=\{onResizePointerMove\}/);
+  assert.match(shell, /updateSettings\(\{ panelWidth/);
+  assert.match(styles, /width: var\(--xray-panel-width/);
+  assert.match(styles, /\.xray-dock-left/);
+
+  // dockable chrome is gated to the docked side panel and hidden inside the floating HUD
+  assert.match(shell, /const dockable = mode === 'hud'/);
+  assert.match(hud, /xray-mode-hud \.xray-resize-handle/);
+
+  // Escape dismisses the docked panel (but not devtools/window), with focus returned to the page
+  assert.match(main, /store\.open && !store\.devtoolsMode\) store\.setOpen\(false\)/);
+  assert.match(read('src/panel/store.ts'), /_lastPageFocus/);
+
+  // the host is hardened against page CSS that would break fixed positioning
+  assert.match(main, /function hardenHost/);
+  assert.match(main, /transform: 'none'/);
+
+  // slide-in is a one-shot animation neutralized by reduced-motion (which now includes the panel itself)
+  assert.match(styles, /@keyframes xray-panel-slide-right/);
+  assert.match(styles, /\(prefers-reduced-motion: reduce\) \{\s*\n\s*\.xray-panel,/);
+});
+
+test('theme studio has a live preview, screen eyedropper, and per-token copy', () => {
+  const settingsModal = read('src/panel/components/settings/SettingsModal.tsx');
+  const styles = read('src/panel/styles.css');
+
+  // a composed preview painted with the exact resolved theme vars (so you can see a theme while editing it)
+  assert.match(settingsModal, /function ThemePreview/);
+  assert.match(settingsModal, /buildCustomThemeVars\(theme\)/);
+  assert.match(settingsModal, /<ThemePreview theme=\{custom\} \/>/);
+  assert.match(styles, /\.xray-theme-preview/);
+
+  // per-token screen eyedropper (feature-checked) and copy
+  assert.match(settingsModal, /'EyeDropper' in window/);
+  assert.match(settingsModal, /new Ctor\(\)\.open\(\)/);
+  assert.match(settingsModal, /IconColorPicker/);
+  assert.match(settingsModal, /onCopy=\{\(\) => \{ void copyText/);
+  assert.match(styles, /\.xray-token-btn/);
+});
+
+test('JSON viewer is an interactive collapsible tree with expand/collapse all and a size fallback', () => {
+  const jsonView = read('src/panel/components/detail/JsonView.tsx');
+  const styles = read('src/panel/styles.css');
+
+  // per-node expand/collapse via a recursive tree, not a flat <pre>
+  assert.match(jsonView, /function TreeNode/);
+  assert.match(jsonView, /role="tree"/);
+  assert.match(jsonView, /aria-expanded=\{open\}/);
+  assert.match(jsonView, /xray-json-chevron/);
+  // expand-all / collapse-all
+  assert.match(jsonView, /Expand all/);
+  assert.match(jsonView, /Collapse all/);
+  // syntax colors preserved (token classes still emitted)
+  assert.match(jsonView, /xray-json-key/);
+  assert.match(jsonView, /xray-json-string/);
+  // huge payloads fall back to the flat text view instead of thousands of nodes
+  assert.match(jsonView, /TREE_CHAR_BUDGET/);
+  assert.match(jsonView, /safeStringify\(value\)/);
+  assert.match(styles, /\.xray-json-tree/);
+  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.xray-json-chevron/);
+});
+
+test('one reusable collapsible-section primitive drives every collapsible region', () => {
+  const primitive = read('src/panel/components/common/CollapsibleSection.tsx');
+  const styles = read('src/panel/styles.css');
+  const store = read('src/panel/store.ts');
+  const persistence = read('src/panel/models/panelPersistence.ts');
+  const api = read('src/panel/components/api/EntriesWorkspace.tsx');
+  const insights = read('src/panel/components/insights/Insights.tsx');
+
+  // native button gives Enter/Space; aria-expanded + aria-controls wire the body
+  assert.match(primitive, /export function CollapsibleSection/);
+  assert.match(primitive, /aria-expanded=\{!collapsed\}/);
+  assert.match(primitive, /aria-controls=\{bodyId\}/);
+  // collapsed body is inert (keeps layout for the animation, out of tab order)
+  assert.match(primitive, /inert=\{collapsed\}/);
+  assert.match(primitive, /state\.collapsedSections\.has\(id\)/);
+
+  // collapsed state is a persisted set, mirrored like expandedGroups
+  assert.match(store, /collapsedSections: new Set<string>\(\)/);
+  assert.match(store, /toggleSection: \(id\)/);
+  assert.match(persistence, /collapsedSections: Array\.from\(state\.collapsedSections\)/);
+  assert.match(persistence, /collapsedSections: new Set\(preferences\.collapsedSections\)/);
+
+  // the grid-rows height animation + reduced-motion opt-out
+  assert.match(styles, /\.xray-collapsible-body \{[\s\S]*grid-template-rows: 1fr/);
+  assert.match(styles, /\.xray-collapsible\.collapsed > \.xray-collapsible-body \{[\s\S]*grid-template-rows: 0fr/);
+  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.xray-collapsible-body/);
+
+  // reused across surfaces, not re-implemented per section
+  assert.match(api, /import \{ CollapsibleSection \}/);
+  assert.match(api, /id="api-stats"/);
+  assert.match(api, /id="api-filters"/);
+  assert.match(insights, /import \{ CollapsibleSection \}/);
+  assert.match(insights, /id="insights-status"/);
 });

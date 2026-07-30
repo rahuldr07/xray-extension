@@ -4,6 +4,14 @@
 (function () {
   'use strict';
 
+  // Chrome injects a given file only once per frame even when it is listed in
+  // both the MAIN and ISOLATED content-script groups, so the isolated world
+  // never receives shared/console-helpers.js from the manifest. Import it here
+  // (helpers are only read lazily, so the async load is safe).
+  if (!window.XRAY_ConsoleHelpers) {
+    import(chrome.runtime.getURL('shared/console-helpers.js')).catch(() => {});
+  }
+
   let _panelReady = false;
   let _workerReady = false;
   let _bridgeToken = null;
@@ -83,32 +91,54 @@
     });
   }
 
+  function _relayUpdateToDevtools(update) {
+    chrome.runtime.sendMessage({ type: 'xray:capture-update', update }, () => {
+      void chrome.runtime.lastError;
+    });
+  }
+
+  function _relayBatchToDevtools(entries) {
+    chrome.runtime.sendMessage({ type: 'xray:capture-batch', entries }, () => {
+      void chrome.runtime.lastError;
+    });
+  }
+
   // Receive captured entries from MAIN world via postMessage
   // Supports both single entries and batched entries for performance
   window.addEventListener('message', async (e) => {
     if (e.source !== window) return;
-    if (e.data?.__xray_bridge_ready__ && typeof e.data.token === 'string') {
+    // First write wins: the interceptor posts the handshake at document_start,
+    // before any page script runs, so a later forged __xray_bridge_ready__
+    // cannot swap in an attacker-chosen token.
+    if (!_bridgeToken && e.data?.__xray_bridge_ready__ && typeof e.data.token === 'string') {
       _bridgeToken = e.data.token;
       window.__XRAY_bridgeToken = _bridgeToken;
       return;
     }
     if (!e.data?.__xray_capture__) return;
     if (!_bridgeToken || e.data.token !== _bridgeToken) return;
-    
+
     await _initPanel();
-    
-    // Handle batched entries (from console-capture.js)
+
+    // Handle in-place entry updates (WebSocket/SSE frames, deferred timing)
+    if (e.data.update && e.data.entry) {
+      window.XRAY_Panel?.update?.(e.data.entry);
+      _relayUpdateToDevtools(e.data.entry);
+      return;
+    }
+
+    // Handle batched entries (from console-capture.js): one store commit and
+    // one devtools IPC per batch instead of one of each per message.
     if (e.data.batch && Array.isArray(e.data.entries)) {
-      const entries = e.data.entries;
-      for (const entry of entries) {
-        if (!entry) continue;
-        window.XRAY_Panel?.add?.(entry);
-        _relayToDevtools(entry);
-        
-        // Send to worker for indexing (non-blocking)
-        if (_workerReady && window.XRAY_Worker) {
-          window.XRAY_Worker.addEntry(entry).catch(() => {});
-        }
+      const entries = e.data.entries.filter(Boolean);
+      if (!entries.length) return;
+      if (window.XRAY_Panel?.addAll) window.XRAY_Panel.addAll(entries);
+      else entries.forEach((entry) => window.XRAY_Panel?.add?.(entry));
+      _relayBatchToDevtools(entries);
+
+      // Send to worker for indexing (non-blocking)
+      if (_workerReady && window.XRAY_Worker) {
+        entries.forEach((entry) => window.XRAY_Worker.addEntry(entry).catch(() => {}));
       }
       return;
     }
@@ -148,6 +178,18 @@
 
   // Receive toggle / show command from background.js
   chrome.runtime.onMessage.addListener((msg) => {
+    // Relayed config/replay from surfaces without an in-page bridge (DevTools
+    // panel). Re-post into the MAIN world with this frame's bridge token; the
+    // interceptor sanitizes the payload itself.
+    if (msg.type === 'xray:page-bridge') {
+      if (!_bridgeToken) return;
+      if (msg.kind === 'config' && msg.config && typeof msg.config === 'object') {
+        window.postMessage({ __xray_config__: true, source: 'xray-relay', token: _bridgeToken, config: msg.config }, '*');
+      } else if (msg.kind === 'replay' && msg.request && typeof msg.request === 'object') {
+        window.postMessage({ __xray_replay__: true, source: 'xray-relay', token: _bridgeToken, request: msg.request }, '*');
+      }
+      return;
+    }
     if (msg.type === 'xray:toggle') {
       const now = Date.now();
       const lastLocalToggle = Number(window.__XRAY_lastToggleShortcutTs || 0);

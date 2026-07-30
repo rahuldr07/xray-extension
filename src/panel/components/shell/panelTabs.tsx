@@ -1,10 +1,9 @@
 import React from 'react';
 import {
-  IconBrandTypescript,
   IconChartBar,
   IconCircleCheck,
   IconNetwork,
-  IconSettings,
+  IconPlugConnected,
   IconTerminal2,
 } from '@tabler/icons-react';
 import type { ActiveTab } from '../../types';
@@ -15,7 +14,6 @@ export const panelTabs: Array<{ id: ActiveTab; label: string; icon: React.ReactN
   { id: 'console', label: 'Console', icon: <IconTerminal2 {...iconProps} /> },
   { id: 'api', label: 'API', icon: <IconNetwork {...iconProps} /> },
   { id: 'logs', label: 'Logs', icon: <IconCircleCheck {...iconProps} /> },
-  { id: 'notebook', label: 'Notebook', icon: <IconBrandTypescript {...iconProps} /> },
+  { id: 'rules', label: 'Rules', icon: <IconPlugConnected {...iconProps} /> },
   { id: 'insights', label: 'Insights', icon: <IconChartBar {...iconProps} /> },
-  { id: 'settings', label: 'Settings', icon: <IconSettings {...iconProps} /> },
 ];

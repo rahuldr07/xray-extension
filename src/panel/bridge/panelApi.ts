@@ -43,6 +43,13 @@ export function createPanelApi(deps: PanelApiDeps): XrayPanelApi {
       ensureInit();
       usePanelStore.getState().addEntry(entry);
     },
+    addAll(entries: XrayEntry[]) {
+      ensureInit();
+      usePanelStore.getState().addEntries(entries.filter(Boolean));
+    },
+    update(patch: Partial<XrayEntry> & { id: string }) {
+      usePanelStore.getState().updateEntry(patch);
+    },
     show() {
       ensureInit();
       setOpenState(true);

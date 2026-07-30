@@ -1,9 +1,13 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
+  IconArrowDown,
+  IconArrowUp,
   IconChevronDown,
   IconChevronRight,
   IconClock,
+  IconLayoutList,
+  IconLayoutRows,
   IconCopy,
   IconDatabase,
   IconFilter,
@@ -13,19 +17,22 @@ import {
   IconServer,
   IconWorld,
 } from '@tabler/icons-react';
+import { CollapsibleSection } from '../common/CollapsibleSection';
 import { EmptyState } from '../common/EmptyState';
+import { PaneDivider, usePaneSplit } from '../common/PaneDivider';
 import { RequestDetail } from '../detail/RequestDetail';
+import { LogDetail } from '../detail/LogDetail';
 import { JsonView } from '../detail/JsonView';
 import { usePanelStore } from '../../store';
 import {
   buildApiListSummary,
   buildEntryListItems,
   duration,
+  entryGroupLabel,
   entryGroupStats,
   entryPath,
   getEntryContentType,
   getEntryDomain,
-  getEntryFlags,
   isApi,
   type ApiEntryFlag,
   type EntryListItem,
@@ -46,6 +53,11 @@ const secondaryQuickFilters: Array<{ id: ApiQuickFilter; label: string }> = [
   { id: 'pinned', label: 'Pinned' },
   { id: 'large', label: 'Large' },
   { id: 'empty', label: 'Empty' },
+  { id: 'drift', label: 'Drift' },
+  { id: 'graphql', label: 'GraphQL' },
+  { id: 'ws', label: 'Streams' },
+  { id: 'mocked', label: 'Mocked' },
+  { id: 'replayed', label: 'Replays' },
 ];
 
 const sortOptions: Array<{ id: SortField; label: string }> = [
@@ -62,9 +74,16 @@ const flagLabels: Record<ApiEntryFlag, string> = {
   large: 'Large',
   empty: 'Empty',
   pinned: 'Pinned',
+  drift: 'Drift',
+  graphql: 'GraphQL',
+  ws: 'Stream',
+  mocked: 'Mocked',
+  replayed: 'Replay',
 };
 
 type RequestContextTab = 'request' | 'params' | 'headers' | 'body' | 'timeline';
+
+// Split-divider bounds. 0 persis
 
 const requestContextTabs: Array<{ id: RequestContextTab; label: string }> = [
   { id: 'request', label: 'Request' },
@@ -121,34 +140,116 @@ function ApiWorkspace(): React.ReactElement {
   const pinnedIds = usePanelStore((state) => state.pinnedIds);
   const compactRows = usePanelStore((state) => state.settings.compactRows);
   const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
+  const showHostInPath = usePanelStore((state) => state.settings.showHostInPath);
+  const sortField = usePanelStore((state) => state.sortField);
+  const sortOrder = usePanelStore((state) => state.sortOrder);
+  const apiSplit = usePanelStore((state) => state.settings.apiSplit);
+  const updateSettings = usePanelStore((state) => state.updateSettings);
   const rows = useEntryListItems('api');
   const selected = selectedId ? entries.find((entry) => entry.id === selectedId && entry.type === 'api') || null : null;
   const maxDuration = useMemo(() => Math.max(100, ...entries.filter(isApi).map((entry) => duration(entry))), [entries]);
   const summary = useMemo(() => buildApiListSummary(entries, pinnedIds, slowThresholdMs), [entries, pinnedIds, slowThresholdMs]);
   const parentRef = useRef<HTMLDivElement | null>(null);
+  const getItemKey = useCallback((index: number) => rows[index]?.key || index, [rows]);
+  const estimateSize = useCallback(() => (compactRows ? 42 : 68), [compactRows]);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => compactRows ? 42 : 68,
-    getItemKey: (index) => rows[index]?.key || index,
-    measureElement: (element) => element.getBoundingClientRect().height,
+    estimateSize,
+    getItemKey,
     overscan: 14,
   });
 
-  function selectApiEntry(entry: XrayEntry): void {
+  // Under the default LATEST sort, new requests insert at the TOP. When the
+  // user has scrolled down to read something, don't shift rows under them —
+  // count arrivals into a jump pill instead.
+  const followsTop = sortField === 'timestamp' && sortOrder === 'desc';
+  const awayFromTopRef = useRef(false);
+  const [newCount, setNewCount] = useState(0);
+  const lastTotalRef = useRef(0);
+
+  useEffect(() => {
+    const total = summary.total;
+    const delta = total - lastTotalRef.current;
+    lastTotalRef.current = total;
+    if (delta > 0 && followsTop && awayFromTopRef.current) {
+      setNewCount((count) => count + delta);
+    }
+  }, [summary.total, followsTop]);
+
+  const handleListScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const away = el.scrollTop > 120;
+    awayFromTopRef.current = away;
+    if (!away) setNewCount(0);
+  }, []);
+
+  const jumpToTop = useCallback(() => {
+    setNewCount(0);
+    awayFromTopRef.current = false;
+    const el = parentRef.current;
+    if (el) el.scrollTop = 0;
+  }, []);
+
+  const handleSelect = useCallback((entry: XrayEntry) => {
     selectEntry(entry.id);
     setApiDetailOpen(true);
+  }, [selectEntry, setApiDetailOpen]);
+
+  const handleToggleGroup = useCallback((groupKey?: string) => {
+    if (groupKey) toggleGroup(groupKey);
+  }, [toggleGroup]);
+
+  const handleTogglePinned = useCallback((id: string) => togglePinned(id), [togglePinned]);
+
+  // Draggable list/detail split. apiSplit (0 = auto) drives the grid's first
+  // column via a CSS var; the hook keeps the divider's max and the applied
+  // width clamped to the CURRENT container width so an outer resize can never
+  // starve the detail pane. Container queries still override the whole grid
+  // when the panel stacks.
+  const split = usePaneSplit({ stored: apiSplit, varName: '--xray-api-split', minList: 260, minRest: 340 });
+
+  // Arrow-key navigation through the (possibly grouped) request rows, like the
+  // DevTools network panel. Navigation only moves the selection — Enter opens
+  // the drawer, and a drawer the user closed stays closed while arrowing.
+  function handleListKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
+    if (!rows.length) return;
+    const currentIndex = rows.findIndex((row) => row.entry.id === selectedId);
+    if (event.key === 'Enter') {
+      if (currentIndex >= 0) { setApiDetailOpen(true); event.preventDefault(); }
+      return;
+    }
+    event.preventDefault();
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = currentIndex < 0
+      ? (delta === 1 ? 0 : rows.length - 1)
+      : Math.min(rows.length - 1, Math.max(0, currentIndex + delta));
+    const next = rows[nextIndex];
+    if (!next) return;
+    selectEntry(next.entry.id, { openDetail: false });
+    virtualizer.scrollToIndex(nextIndex, { align: 'auto' });
   }
 
   return (
     <section className={`xray-api-workspace ${selected && apiDetailOpen ? 'detail-open' : ''}`}>
-      <div className="xray-api-body">
-        <div className="xray-api-collection-pane">
+      <div className="xray-api-body" style={split.splitStyle} ref={split.containerRef}>
+        <div className="xray-api-collection-pane" ref={split.paneRef}>
+          <PaneDivider
+            label="Resize request list"
+            value={split.value}
+            min={split.min}
+            max={split.max}
+            onLiveChange={split.setLive}
+            onCommit={(next) => { split.setLive(null); updateSettings({ apiSplit: next }); }}
+            onReset={() => { split.setLive(null); updateSettings({ apiSplit: 0 }); }}
+          />
           <ApiCollectionHeader summary={summary} visibleCount={rows.length} />
-          <ApiInspectorToolbar />
+          <ApiInspectorToolbar summary={summary} />
           <div className="xray-api-main">
             <ApiTableHeader />
-            <div className="xray-api-table-scroll" ref={parentRef}>
+            <div className="xray-api-table-scroll" ref={parentRef} tabIndex={0} role="listbox" aria-label="Captured requests" onKeyDown={handleListKeyDown} onScroll={handleListScroll}>
               <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
                 {virtualizer.getVirtualItems().map((item) => {
                   const row = rows[item.index];
@@ -161,16 +262,23 @@ function ApiWorkspace(): React.ReactElement {
                         maxDuration={maxDuration}
                         selected={selectedId === entry.id}
                         pinned={pinnedIds.has(entry.id)}
-                        onSelect={() => selectApiEntry(entry)}
-                        onToggleGroup={() => row.groupKey && toggleGroup(row.groupKey)}
-                        onTogglePinned={() => togglePinned(entry.id)}
+                        slowThresholdMs={slowThresholdMs}
+                        showHostInPath={showHostInPath}
+                        onSelect={handleSelect}
+                        onToggleGroup={handleToggleGroup}
+                        onTogglePinned={handleTogglePinned}
                       />
                     </div>
                   );
                 })}
               </div>
-              {!rows.length && <EmptyState label="No API requests captured" />}
+              {!rows.length && <EmptyState label="No API requests yet" hint="Browse the page or trigger a call — fetch, XHR, GraphQL, and WebSocket traffic streams in here live. Press Ctrl/⌘+K to jump anywhere." />}
             </div>
+            {newCount > 0 && (
+              <button className="xray-newmsg-pill xray-newreq-pill" onClick={jumpToTop}>
+                <IconArrowUp size={14} stroke={2} />{newCount} new
+              </button>
+            )}
           </div>
         </div>
         <RequestContextPane entry={selected} />
@@ -186,6 +294,9 @@ function LogsWorkspace(): React.ReactElement {
   const selectEntry = usePanelStore((state) => state.selectEntry);
   const togglePinned = usePanelStore((state) => state.togglePinned);
   const pinnedIds = usePanelStore((state) => state.pinnedIds);
+  const logsSplit = usePanelStore((state) => state.settings.logsSplit);
+  const updateSettings = usePanelStore((state) => state.updateSettings);
+  const logsSplitState = usePaneSplit({ stored: logsSplit, varName: '--xray-logs-split', minList: 240, minRest: 300 });
   const rows = useEntryListItems('logs');
   const selected = selectedId ? entries.find((entry) => entry.id === selectedId) || null : null;
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -199,8 +310,17 @@ function LogsWorkspace(): React.ReactElement {
   });
 
   return (
-    <section className="xray-split">
-      <div className="xray-list-panel">
+    <section className="xray-split" style={logsSplitState.splitStyle} ref={logsSplitState.containerRef}>
+      <div className="xray-list-panel" ref={logsSplitState.paneRef}>
+        <PaneDivider
+          label="Resize log list"
+          value={logsSplitState.value}
+          min={logsSplitState.min}
+          max={logsSplitState.max}
+          onLiveChange={logsSplitState.setLive}
+          onCommit={(next) => { logsSplitState.setLive(null); updateSettings({ logsSplit: next }); }}
+          onReset={() => { logsSplitState.setLive(null); updateSettings({ logsSplit: 0 }); }}
+        />
         <ListControls mode="logs" />
         <div className="xray-virtual-list" ref={parentRef}>
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -213,11 +333,11 @@ function LogsWorkspace(): React.ReactElement {
               );
             })}
           </div>
-          {!rows.length && <EmptyState label="No logs captured" />}
+          {!rows.length && <EmptyState label="No logs captured" hint="Page console.log output and captured objects land here — trigger some activity on the page to populate the list." />}
         </div>
         <MobileSelectedDetail entry={selected} />
       </div>
-      <div className="xray-detail-panel">{selected ? <RequestDetail entry={selected} /> : <EmptyState label="Select an entry" />}</div>
+      <div className="xray-detail-panel">{selected ? <LogDetail entry={selected} /> : <EmptyState label="Select an entry" hint="Pick a log on the left to inspect its arguments and expand nested objects." />}</div>
     </section>
   );
 }
@@ -233,12 +353,14 @@ function ApiCollectionHeader({ summary, visibleCount }: { summary: ApiListSummar
         <IconWorld {...iconProps} />
         <span>Live page</span>
       </div>
-      <div className="xray-api-summary-strip" aria-label="Captured request summary">
-        <SummaryPill tone="ok" icon={<IconDatabase {...iconProps} />} label="Visible" value={String(visibleCount)} />
-        <SummaryPill tone={summary.errors ? 'error' : 'ok'} icon={<IconServer {...iconProps} />} label="Errors" value={String(summary.errors)} />
-        <SummaryPill tone={summary.slow ? 'warn' : 'ok'} icon={<IconClock {...iconProps} />} label="Avg" value={`${Math.round(summary.avgDuration)}ms`} />
-        <SummaryPill tone="info" icon={<IconDatabase {...iconProps} />} label="Bytes" value={formatBytes(summary.totalBytes)} />
-      </div>
+      <CollapsibleSection id="api-stats" title="Summary" className="xray-api-stats-collapsible">
+        <div className="xray-api-summary-strip" aria-label="Captured request summary">
+          <SummaryPill tone="ok" icon={<IconDatabase {...iconProps} />} label="Visible" value={String(visibleCount)} />
+          <SummaryPill tone={summary.errors ? 'error' : 'ok'} icon={<IconServer {...iconProps} />} label="Errors" value={String(summary.errors)} />
+          <SummaryPill tone={summary.slow ? 'warn' : 'ok'} icon={<IconClock {...iconProps} />} label="Avg" value={`${Math.round(summary.avgDuration)}ms`} />
+          <SummaryPill tone="info" icon={<IconDatabase {...iconProps} />} label="Bytes" value={formatBytes(summary.totalBytes)} />
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -253,7 +375,7 @@ function SummaryPill({ icon, label, value, tone }: { icon: React.ReactNode; labe
   );
 }
 
-function ApiInspectorToolbar(): React.ReactElement {
+function ApiInspectorToolbar({ summary }: { summary: ApiListSummary }): React.ReactElement {
   const query = usePanelStore((state) => state.apiSearchQuery);
   const setQuery = usePanelStore((state) => state.setApiSearchQuery);
   const apiQuickFilter = usePanelStore((state) => state.apiQuickFilter);
@@ -270,6 +392,31 @@ function ApiInspectorToolbar(): React.ReactElement {
   const setSort = usePanelStore((state) => state.setSort);
   const sortField = usePanelStore((state) => state.sortField);
   const sortOrder = usePanelStore((state) => state.sortOrder);
+  const entries = usePanelStore((state) => state.entries);
+  const driftCount = useMemo(() => entries.reduce((count, entry) => count + (entry.driftFromId ? 1 : 0), 0), [entries]);
+
+  // Clicking an active quick filter deselects it — previously the only way out
+  // was "All"/Reset, which also destroyed sort, grouping, and the search text.
+  const pickQuickFilter = (id: ApiQuickFilter): void => setApiQuickFilter(apiQuickFilter === id ? 'all' : id);
+  const chipCount = (id: ApiQuickFilter): number | null => {
+    if (id === 'errors') return summary.errors;
+    if (id === 'slow') return summary.slow;
+    if (id === 'pinned') return summary.pinned;
+    if (id === 'repeated') return summary.repeatedEndpoints;
+    if (id === 'drift') return driftCount;
+    return null;
+  };
+  const renderQuickChip = (filter: { id: ApiQuickFilter; label: string }): React.ReactElement => {
+    const count = chipCount(filter.id);
+    return (
+      <button key={filter.id} className={`xray-chip ${apiQuickFilter === filter.id ? 'active' : ''}`} onClick={() => pickQuickFilter(filter.id)} aria-pressed={apiQuickFilter === filter.id}>
+        {filter.label}
+        {count != null && count > 0 && <span className="xray-chip-count">{count}</span>}
+      </button>
+    );
+  };
+
+  const activeFilterCount = methodFilters.size + typeFilters.size + statusFilters.size + (apiQuickFilter !== 'all' ? 1 : 0);
 
   return (
     <div className="xray-api-toolbar">
@@ -277,6 +424,12 @@ function ApiInspectorToolbar(): React.ReactElement {
         <IconSearch {...iconProps} />
         <input className="xray-input" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Filter method, status, path, domain, source, content type..." />
       </label>
+      <CollapsibleSection
+        id="api-filters"
+        title="Filters &amp; Sort"
+        className="xray-api-filters-collapsible"
+        right={activeFilterCount > 0 ? <span className="xray-chip-count">{activeFilterCount}</span> : undefined}
+      >
       <div className="xray-filter-chips xray-api-primary-filters" aria-label="Primary API filters">
         <button className={`xray-chip ${apiQuickFilter === 'all' && !methodFilters.size && !typeFilters.size && !statusFilters.size ? 'active' : ''}`} onClick={clearApiFilters}>
           All
@@ -287,26 +440,20 @@ function ApiInspectorToolbar(): React.ReactElement {
           </button>
         ))}
         {['xhr', 'fetch'].map((type) => <button key={type} className={`xray-chip ${typeFilters.has(type) ? 'active' : ''}`} onClick={() => toggleType(type)}>{type === 'xhr' ? 'XHR' : 'Fetch'}</button>)}
-        {quickFilters.map((filter) => (
-          <button key={filter.id} className={`xray-chip ${apiQuickFilter === filter.id ? 'active' : ''}`} onClick={() => setApiQuickFilter(filter.id)}>
-            {filter.label}
-          </button>
-        ))}
+        {quickFilters.map(renderQuickChip)}
       </div>
       <div className="xray-api-secondary-controls">
         <div className="xray-filter-chips compact" aria-label="Status and source filters">
           <span className="xray-filter-label"><IconFilter {...iconProps} />Match</span>
           {['2xx', '3xx', '4xx', '5xx'].map((status) => <button key={status} className={`xray-chip ${statusFilters.has(status) ? 'active' : ''}`} onClick={() => toggleStatus(status)}>{status}</button>)}
-          {secondaryQuickFilters.map((filter) => (
-            <button key={filter.id} className={`xray-chip ${apiQuickFilter === filter.id ? 'active' : ''}`} onClick={() => setApiQuickFilter(filter.id)}>
-              {filter.label}
-            </button>
-          ))}
+          {secondaryQuickFilters.map(renderQuickChip)}
         </div>
         <div className="xray-filter-chips compact" aria-label="API sort and grouping">
+          <span className="xray-filter-label">Sort</span>
           {sortOptions.map((field) => (
-            <button key={field.id} className={`xray-chip ${sortField === field.id ? 'active' : ''}`} onClick={() => setSort(field.id)}>
-              {field.label}{sortField === field.id ? ` ${sortOrder === 'asc' ? 'up' : 'down'}` : ''}
+            <button key={field.id} className={`xray-chip ${sortField === field.id ? 'active' : ''}`} onClick={() => setSort(field.id)} aria-pressed={sortField === field.id}>
+              {field.label}
+              {sortField === field.id && (sortOrder === 'asc' ? <IconArrowUp size={13} stroke={2.2} /> : <IconArrowDown size={13} stroke={2.2} />)}
             </button>
           ))}
           {(['flat', 'endpoint'] as ApiGroupingMode[]).map((grouping) => (
@@ -317,6 +464,7 @@ function ApiInspectorToolbar(): React.ReactElement {
           <button className="xray-chip" onClick={clearApiFilters}><IconFilterOff {...iconProps} />Reset</button>
         </div>
       </div>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -328,17 +476,37 @@ function ApiTableHeader(): React.ReactElement {
       <span>Request</span>
       <span>Status</span>
       <span>Timing</span>
-      <span>Tools</span>
+      <span className="xray-api-table-tools"><DensityToggle /></span>
     </div>
   );
 }
 
-function ApiRequestRow({
+// Quick per-list switch between the two-line (expanded) and single-line
+// (compact) row modes — the same `compactRows` setting the Settings panel
+// exposes, surfaced where the list actually is.
+function DensityToggle(): React.ReactElement {
+  const compactRows = usePanelStore((state) => state.settings.compactRows);
+  const updateSettings = usePanelStore((state) => state.updateSettings);
+  return (
+    <button
+      className="xray-icon-btn xray-density-toggle"
+      aria-pressed={compactRows}
+      title={compactRows ? 'Switch to expanded (two-line) rows' : 'Switch to compact (single-line) rows'}
+      onClick={() => updateSettings({ compactRows: !compactRows })}
+    >
+      {compactRows ? <IconLayoutRows {...iconProps} /> : <IconLayoutList {...iconProps} />}
+    </button>
+  );
+}
+
+const ApiRequestRow = React.memo(function ApiRequestRow({
   row,
   entries,
   maxDuration,
   selected,
   pinned,
+  slowThresholdMs,
+  showHostInPath,
   onSelect,
   onToggleGroup,
   onTogglePinned,
@@ -348,20 +516,22 @@ function ApiRequestRow({
   maxDuration: number;
   selected: boolean;
   pinned: boolean;
-  onSelect(): void;
-  onToggleGroup(): void;
-  onTogglePinned(): void;
+  slowThresholdMs: number;
+  showHostInPath: boolean;
+  onSelect(entry: XrayEntry): void;
+  onToggleGroup(groupKey?: string): void;
+  onTogglePinned(id: string): void;
 }): React.ReactElement {
   const entry = row.entry;
-  const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
-  const showHostInPath = usePanelStore((state) => state.settings.showHostInPath);
   const status = Number(entry.status) || 0;
   const path = entryPath(entry);
+  // GraphQL rows show `query GetUser` instead of an undifferentiated POST /graphql.
+  const label = entryGroupLabel(entry);
   const domain = getEntryDomain(entry) || 'local';
   const type = String(entry.source || 'fetch').toLowerCase();
   const stats = row.groupStats || entryGroupStats(entry, entries);
   const displayBytes = row.groupStats?.totalBytes ?? entry.size;
-  const flags = getEntryFlags(entry, entries, pinned ? new Set([entry.id]) : new Set(), slowThresholdMs);
+  const flags = row.flags;
   const pct = Math.max(8, Math.min(100, duration(entry) / maxDuration * 100));
   const isGroup = Boolean(row.groupCount && row.groupCount > 1 && !row.groupChild);
   const contentType = getEntryContentType(entry) || 'response';
@@ -369,7 +539,7 @@ function ApiRequestRow({
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      onSelect();
+      onSelect(entry);
     }
   }
 
@@ -381,14 +551,15 @@ function ApiRequestRow({
   return (
     <div
       className={`xray-api-row ${selected ? 'selected' : ''} ${row.groupChild ? 'child' : ''} ${pinned ? 'pinned' : ''} ${isGroup ? 'group' : ''} ${status >= 400 ? 'has-error' : ''} ${duration(entry) >= slowThresholdMs ? 'has-slow' : ''}`}
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
+      role="option"
+      aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
+      onClick={() => onSelect(entry)}
       onKeyDown={handleKeyDown}
     >
       <span className={`xray-method ${methodClass(entry.method)}`}>{String(entry.method || 'GET').toUpperCase().replace('DELETE', 'DEL')}</span>
       <span className="xray-api-path-cell">
-        <span className="xray-path" title={path}>{path}</span>
+        <span className="xray-path" title={String(entry.url || path)}>{label}</span>
         <span className="xray-entry-meta">
           {isGroup ? `${stats.count} calls - ${stats.errors} errors - avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} - ${type.toUpperCase()} - ${formatBytes(displayBytes)} - ${formatTime(entry.timestamp)}`}
         </span>
@@ -401,18 +572,18 @@ function ApiRequestRow({
       </span>
       <span className="xray-api-row-actions">
         {row.groupCount && row.groupCount > 1 && (
-          <button className="xray-icon-btn" aria-label={row.groupExpanded ? 'Collapse endpoint group' : 'Expand endpoint group'} onClick={(event) => { event.stopPropagation(); onToggleGroup(); }}>
+          <button className="xray-icon-btn" tabIndex={-1} aria-label={row.groupExpanded ? 'Collapse endpoint group' : 'Expand endpoint group'} onClick={(event) => { event.stopPropagation(); onToggleGroup(row.groupKey); }}>
             {row.groupExpanded ? <IconChevronDown {...iconProps} /> : <IconChevronRight {...iconProps} />}
           </button>
         )}
-        <button className="xray-icon-btn" aria-label="Copy request URL" onClick={(event) => void copyPath(event)}><IconCopy {...iconProps} /></button>
-        <button className={`xray-icon-btn ${pinned ? 'active' : ''}`} aria-label={pinned ? 'Unpin request' : 'Pin request'} onClick={(event) => { event.stopPropagation(); onTogglePinned(); }}>
+        <button className="xray-icon-btn" tabIndex={-1} aria-label="Copy request URL" onClick={(event) => void copyPath(event)}><IconCopy {...iconProps} /></button>
+        <button className={`xray-icon-btn ${pinned ? 'active' : ''}`} tabIndex={-1} aria-label={pinned ? 'Unpin request' : 'Pin request'} onClick={(event) => { event.stopPropagation(); onTogglePinned(entry.id); }}>
           <IconPin {...iconProps} />
         </button>
       </span>
     </div>
   );
-}
+});
 
 function ApiFlagPills({ flags }: { flags: ApiEntryFlag[] }): React.ReactElement {
   if (!flags.length) return <span className="xray-api-flags muted">None</span>;
@@ -425,17 +596,20 @@ function ApiFlagPills({ flags }: { flags: ApiEntryFlag[] }): React.ReactElement 
   );
 }
 
-function RequestContextPane({ entry }: { entry: XrayEntry | null }): React.ReactElement {
+const RequestContextPane = React.memo(function RequestContextPane({ entry }: { entry: XrayEntry | null }): React.ReactElement {
+  // The tab deliberately survives selection changes: arrowing through rows
+  // while comparing Params/Headers keeps the pane on the same facet.
   const [activeTab, setActiveTab] = React.useState<RequestContextTab>('request');
 
-  React.useEffect(() => {
-    setActiveTab('request');
-  }, [entry?.id]);
+  // Memoized so a stable value identity reaches the memoized JsonView — a
+  // fresh object per render forced a re-stringify + re-tokenize per commit.
+  const query = useMemo(() => (entry ? requestQueryParams(entry) : {}), [entry]);
+  const contextValue = useMemo(() => (entry ? requestContextValue(entry, activeTab, query) : null), [entry, activeTab, query]);
 
   if (!entry) {
     return (
       <aside className="xray-request-context-pane empty" aria-label="Selected request context">
-        <EmptyState label="Select a request" />
+        <EmptyState label="Select a request" hint="Pick a request from the list to inspect its response, headers, timing, and smart operations." />
       </aside>
     );
   }
@@ -443,8 +617,6 @@ function RequestContextPane({ entry }: { entry: XrayEntry | null }): React.React
   const status = Number(entry.status) || 0;
   const path = entryPath(entry);
   const domain = getEntryDomain(entry) || 'local';
-  const query = requestQueryParams(entry);
-  const contextValue = requestContextValue(entry, activeTab, query);
 
   return (
     <aside className="xray-request-context-pane" aria-label="Selected request context">
@@ -477,7 +649,7 @@ function RequestContextPane({ entry }: { entry: XrayEntry | null }): React.React
       </div>
     </aside>
   );
-}
+});
 
 function requestQueryParams(entry: XrayEntry): Record<string, string> {
   const url = String(entry.url || '');
@@ -517,7 +689,7 @@ function ApiDetailDrawer({ entry, onClose }: { entry: XrayEntry | null; onClose(
   return (
     <aside className={`xray-api-detail-drawer ${entry ? '' : 'empty'}`} aria-label="Selected API request detail">
       <div className="xray-api-drawer-body">
-        {entry ? <RequestDetail entry={entry} onClose={onClose} /> : <EmptyState label="Select a request" />}
+        {entry ? <RequestDetail entry={entry} onClose={onClose} /> : <EmptyState label="Nothing selected" hint="Choose a request to open the detail drawer — preview, schema, diff, replay, and more." />}
       </div>
     </aside>
   );
@@ -555,7 +727,7 @@ function LogRow({
 
 function MobileSelectedDetail({ entry }: { entry: XrayEntry | null }): React.ReactElement | null {
   if (!entry) return null;
-  return <div className="xray-mobile-detail-panel"><RequestDetail entry={entry} /></div>;
+  return <div className="xray-mobile-detail-panel">{entry.type === 'log' ? <LogDetail entry={entry} /> : <RequestDetail entry={entry} />}</div>;
 }
 
 function ListControls({ mode }: { mode: 'api' | 'logs' }): React.ReactElement {

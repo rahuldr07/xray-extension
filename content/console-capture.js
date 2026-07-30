@@ -37,18 +37,34 @@
     return 'xrl_' + (++_idCounter).toString(36) + '_' + (Date.now() % 100000).toString(36);
   }
 
-  function _storeObject(obj) {
+  function _storeObject(obj, fallbackPreview) {
     const id = _uid();
     try {
-      // Store WeakRef so GC can still reclaim if needed
+      // Store WeakRef so GC can still reclaim if needed. The caller passes the
+      // preview it already computed so each logged object is walked only once.
       _objectStore.set(id, {
         ref: typeof WeakRef !== 'undefined' ? new WeakRef(obj) : null,
-        fallback: _createPreview(obj, 0),
+        fallback: fallbackPreview !== undefined ? fallbackPreview : _createPreview(obj, 0),
       });
     } catch {
       _objectStore.set(id, { ref: null, fallback: String(obj) });
     }
+    // Trim opportunistically instead of letting a log storm hold thousands of
+    // previews until the 60s sweep.
+    if (_objectStore.size > 600) {
+      const keys = Array.from(_objectStore.keys());
+      keys.slice(0, keys.length - 500).forEach((key) => _objectStore.delete(key));
+    }
     return id;
+  }
+
+  // The emitted preview carries __xray_ref__ for lazy loading, but the stored
+  // fallback must stay clean — clone the top level before tagging.
+  function _tagPreview(preview, refId) {
+    if (preview === null || typeof preview !== 'object') return preview;
+    const tagged = Array.isArray(preview) ? preview.slice() : Object.assign({}, preview);
+    tagged.__xray_ref__ = refId;
+    return tagged;
   }
 
   // Expose for panel to retrieve full object
@@ -226,11 +242,12 @@
         // Primitives: direct value
         data = arg;
       } else {
-        // Objects: store ref, create preview
-        const refId = _storeObject(arg);
+        // Objects: one preview walk shared between the emitted data and the
+        // stored fallback (this runs for every console.log on every page).
+        const preview = _createPreview(arg, 0);
+        const refId = _storeObject(arg, preview);
         objectRefs.push(refId);
-        data = _createPreview(arg, 0);
-        data.__xray_ref__ = refId;
+        data = _tagPreview(preview, refId);
       }
     } else {
       // Multiple args
@@ -238,13 +255,10 @@
         if (arg === null || arg === undefined || typeof arg !== 'object') {
           return arg;
         }
-        const refId = _storeObject(arg);
-        objectRefs.push(refId);
         const preview = _createPreview(arg, 0);
-        if (typeof preview === 'object' && preview !== null) {
-          preview.__xray_ref__ = refId;
-        }
-        return preview;
+        const refId = _storeObject(arg, preview);
+        objectRefs.push(refId);
+        return _tagPreview(preview, refId);
       });
     }
 

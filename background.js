@@ -14,7 +14,7 @@ const RUNTIME_HELPER_NAMES = [
   'schema', 'pick', 'omit', 'flatten', '_',
   'entry', 'res', 'response', 'req', 'request', 'headers', 'responseHeaders',
   'requestHeaders', 'prev', 'next', 'prevEntry', 'nextEntry', 'all', 'similar',
-  'errors', 'slow', 'csv', 'table', 'mock',
+  'errors', 'slow', 'csv', 'table', 'mock', '$help', 'help',
 ];
 
 function _addCandidateTabId(ids, tabLike) {
@@ -240,13 +240,28 @@ function _debuggerCommand(target, method, params = {}) {
   });
 }
 
-async function _evaluateConsoleInTab(tabId, code, context) {
-  if (!Number.isInteger(tabId) || tabId < 0) {
-    return { type: 'error', error: { message: 'No inspected tab available for console execution.' } };
-  }
+// Attaching the debugger costs 50-300ms and re-flashes Chrome's debugging
+// infobar; paying that per eval made every console Run feel sluggish. Cache the
+// attachment per tab and detach only after an idle window.
+const DEBUGGER_IDLE_DETACH_MS = 30000;
+const _debuggerSessions = new Map(); // tabId -> { timer }
 
+function _scheduleDebuggerDetach(tabId) {
+  const session = _debuggerSessions.get(tabId);
+  if (session?.timer) clearTimeout(session.timer);
+  const timer = setTimeout(() => {
+    _debuggerSessions.delete(tabId);
+    try { chrome.debugger.detach({ tabId }, () => void chrome.runtime.lastError); } catch {}
+  }, DEBUGGER_IDLE_DETACH_MS);
+  _debuggerSessions.set(tabId, { timer });
+}
+
+async function _ensureDebuggerAttached(tabId) {
   const target = { tabId };
-  let attached = false;
+  if (_debuggerSessions.has(tabId)) {
+    _scheduleDebuggerDetach(tabId);
+    return;
+  }
   try {
     await new Promise((resolve, reject) => {
       chrome.debugger.attach(target, '1.3', () => {
@@ -255,9 +270,37 @@ async function _evaluateConsoleInTab(tabId, code, context) {
         else resolve();
       });
     });
-    attached = true;
+  } catch (err) {
+    // The attachment can outlive this service worker instance; if the stale
+    // attach still answers commands, adopt it instead of failing.
+    try {
+      await _debuggerCommand(target, 'Runtime.enable');
+      _scheduleDebuggerDetach(tabId);
+      return;
+    } catch {
+      throw err;
+    }
+  }
+  await _debuggerCommand(target, 'Runtime.enable');
+  _scheduleDebuggerDetach(tabId);
+}
 
-    await _debuggerCommand(target, 'Runtime.enable');
+chrome.debugger.onDetach.addListener((source) => {
+  const tabId = source?.tabId;
+  if (!Number.isInteger(tabId)) return;
+  const session = _debuggerSessions.get(tabId);
+  if (session?.timer) clearTimeout(session.timer);
+  _debuggerSessions.delete(tabId);
+});
+
+async function _evaluateConsoleInTab(tabId, code, context) {
+  if (!Number.isInteger(tabId) || tabId < 0) {
+    return { type: 'error', error: { message: 'No inspected tab available for console execution.' } };
+  }
+
+  const target = { tabId };
+  try {
+    await _ensureDebuggerAttached(tabId);
     const expression = _buildConsoleExpression(code, context);
     const evalPromise = _debuggerCommand(target, 'Runtime.evaluate', {
       expression,
@@ -287,6 +330,12 @@ async function _evaluateConsoleInTab(tabId, code, context) {
     }
     return result?.result?.value || { type: 'undefined' };
   } catch (err) {
+    // Drop a dead cached session (closed tab, user cancelled the infobar) so
+    // the next eval re-attaches instead of failing forever.
+    const session = _debuggerSessions.get(tabId);
+    if (session?.timer) clearTimeout(session.timer);
+    _debuggerSessions.delete(tabId);
+    try { chrome.debugger.detach(target, () => void chrome.runtime.lastError); } catch {}
     return {
       type: 'error',
       error: {
@@ -294,13 +343,71 @@ async function _evaluateConsoleInTab(tabId, code, context) {
         stack: err?.message || String(err),
       },
     };
-  } finally {
-    if (attached) {
-      try { await _debuggerCommand(target, 'Runtime.disable'); } catch {}
-      try {
-        await new Promise((resolve) => chrome.debugger.detach(target, () => resolve()));
-      } catch {}
-    }
+  }
+}
+
+const AI_TIMEOUT_MS = 45000;
+const MAX_AI_PROMPT_CHARS = 60000;
+
+async function _callAnthropic(settings, prompt) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': settings.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: settings.model || 'claude-fable-5',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Anthropic error ${response.status}`);
+  }
+  const text = Array.isArray(data?.content) ? data.content.map((part) => part?.text || '').join('').trim() : '';
+  return text || 'No explanation returned.';
+}
+
+async function _callOpenAI(settings, prompt) {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${settings.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: settings.model || 'gpt-4o-mini',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `OpenAI error ${response.status}`);
+  }
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  return text || 'No explanation returned.';
+}
+
+async function _runAiExplain(settings, prompt) {
+  if (!settings || typeof settings.apiKey !== 'string' || !settings.apiKey) {
+    return { ok: false, error: 'Missing API key.' };
+  }
+  const safePrompt = String(prompt || '').slice(0, MAX_AI_PROMPT_CHARS);
+  const provider = settings.provider === 'openai' ? 'openai' : 'anthropic';
+  try {
+    const call = provider === 'openai' ? _callOpenAI(settings, safePrompt) : _callAnthropic(settings, safePrompt);
+    const text = await Promise.race([
+      call,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`AI request timed out after ${AI_TIMEOUT_MS / 1000}s`)), AI_TIMEOUT_MS)),
+    ]);
+    return { ok: true, text };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
   }
 }
 
@@ -372,6 +479,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Config/replay relay for surfaces without an in-page bridge (DevTools panel):
+  // forward to the inspected tab's content script, which posts into the MAIN
+  // world with its own bridge token.
+  if (msg.type === 'xray:page-bridge') {
+    const tabId = Number(msg.tabId);
+    const kind = msg.kind;
+    if (!Number.isInteger(tabId) || tabId < 0 || (kind !== 'config' && kind !== 'replay')) {
+      sendResponse({ ok: false });
+      return true;
+    }
+    chrome.tabs.sendMessage(tabId, { type: 'xray:page-bridge', kind, config: msg.config, request: msg.request })
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+
   if (msg.type === 'xray:capture') {
     const tabId = sender?.tab?.id;
     if (Number.isInteger(tabId) && msg.entry) {
@@ -380,6 +503,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         try { port.postMessage({ type: 'xray:capture', entry: msg.entry }); } catch {}
       }
     }
+  }
+
+  if (msg.type === 'xray:capture-batch') {
+    const tabId = sender?.tab?.id;
+    if (Number.isInteger(tabId) && Array.isArray(msg.entries)) {
+      const port = _devtoolsPortsByTab.get(tabId);
+      if (port) {
+        try { port.postMessage({ type: 'xray:capture-batch', entries: msg.entries }); } catch {}
+      }
+    }
+  }
+
+  if (msg.type === 'xray:capture-update') {
+    const tabId = sender?.tab?.id;
+    if (Number.isInteger(tabId) && msg.update) {
+      const port = _devtoolsPortsByTab.get(tabId);
+      if (port) {
+        try { port.postMessage({ type: 'xray:capture-update', update: msg.update }); } catch {}
+      }
+    }
+  }
+
+  if (msg.type === 'xray:ai-explain') {
+    _runAiExplain(msg.settings, msg.prompt)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
   }
 
   if (msg.type === 'xray:console-eval') {
