@@ -165,11 +165,23 @@
     return out;
   }
 
-  function _rememberSecrets(id, ...sources) {
+  function _originOf(url) {
+    try {
+      return new URL(String(url), window.location.href).origin;
+    } catch {
+      return null;
+    }
+  }
+
+  // Secrets are pinned to the origin they were captured from. Edit & Replay lets
+  // the URL be rewritten freely, so without this an authed request retargeted at
+  // another host would carry the original site's bearer token to it — see the
+  // origin check in the replay handler below.
+  function _rememberSecrets(id, url, ...sources) {
     const secret = {};
     sources.forEach((source) => { if (source) Object.assign(secret, _collectSecrets(source)); });
     if (!Object.keys(secret).length) return;
-    _secretStore.set(id, secret);
+    _secretStore.set(id, { origin: _originOf(url), values: secret });
     if (_secretStore.size > MAX_SECRETS) {
       const oldest = _secretStore.keys().next().value;
       _secretStore.delete(oldest);
@@ -336,7 +348,7 @@
         url        = req.url; // Request.url is always absolute
         method     = (init.method || req.method || 'GET').toUpperCase();
         reqHeaders = Object.assign(_parseHeaders(req.headers), _parseHeaders(init.headers));
-        _rememberSecrets(id, req.headers, init.headers);
+        _rememberSecrets(id, url, req.headers, init.headers);
         try { reqBody = await req.clone().json(); } catch { reqBody = null; }
         if (reqBody === null && init.body) {
           try { reqBody = JSON.parse(init.body); } catch { reqBody = init.body; }
@@ -345,7 +357,7 @@
         url        = _resolveUrl(String(req)); // Resolve relative URLs
         method     = (init.method || 'GET').toUpperCase();
         reqHeaders = _parseHeaders(init.headers);
-        _rememberSecrets(id, init.headers);
+        _rememberSecrets(id, url, init.headers);
         if (init.body) {
           try { reqBody = JSON.parse(init.body); } catch { reqBody = init.body; }
         }
@@ -353,7 +365,7 @@
     } catch { /* ignore parse errors */ }
 
     const graphql = _graphqlInfo(url, reqBody);
-    const jwtLenses = _extractJwtLenses(_secretStore.get(id));
+    const jwtLenses = _extractJwtLenses(_secretStore.get(id)?.values);
     const baseEntry = {
       id, type: 'api', timestamp: start,
       source: 'fetch',
@@ -507,7 +519,7 @@
     if (!this.__xr) return _origXHRSend.apply(this, arguments);
     const xr = this.__xr;
     xr.start = Date.now();
-    _rememberSecrets(xr.id, xr.rawSecrets);
+    _rememberSecrets(xr.id, xr.url, xr.rawSecrets);
 
     let reqBody = null;
     if (body) { try { reqBody = JSON.parse(body); } catch { reqBody = body; } }
@@ -767,7 +779,16 @@
     // Restore the original request's sensitive header values (kept only here in
     // the MAIN world) so authed requests replay successfully. The panel only ever
     // sent us '[redacted]' placeholders.
-    const secrets = replayOf ? (_secretStore.get(replayOf) || {}) : {};
+    //
+    // Only restore them when the replay still targets the origin the secrets came
+    // from: Edit & Replay lets the URL be rewritten, and the editor hides the
+    // redacted auth rows, so a request retargeted at another host would silently
+    // carry the original site's bearer token there. On a mismatch the placeholders
+    // are dropped instead (the replay just fails unauthenticated). Cookies need no
+    // such check — the browser only ever attaches an origin's own cookies.
+    const record = replayOf ? _secretStore.get(replayOf) : null;
+    const sameOrigin = !!record && !!record.origin && record.origin === _originOf(url);
+    const secrets = sameOrigin ? record.values : {};
     const headers = {};
     const applied = new Set();
     if (request.headers && typeof request.headers === 'object') {

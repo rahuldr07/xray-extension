@@ -1333,8 +1333,27 @@ test('replay restores sensitive headers from a MAIN-world-only store', () => {
   assert.match(interceptor, /FORBIDDEN_REPLAY_HEADER/);
   // secrets are never emitted to the panel; only redacted headers leave the page
   assert.doesNotMatch(interceptor, /_emit\([^)]*_secretStore/);
-  assert.match(interceptor, /_rememberSecrets\(id, req\.headers, init\.headers\)/);
-  assert.match(interceptor, /_rememberSecrets\(xr\.id, xr\.rawSecrets\)/);
+  // each record is pinned to the origin its request went to, so every call site
+  // must hand _rememberSecrets that URL
+  assert.match(interceptor, /_secretStore\.set\(id, \{ origin: _originOf\(url\), values: secret \}\)/);
+  assert.match(interceptor, /_rememberSecrets\(id, url, req\.headers, init\.headers\)/);
+  assert.match(interceptor, /_rememberSecrets\(id, url, init\.headers\)/);
+  assert.match(interceptor, /_rememberSecrets\(xr\.id, xr\.url, xr\.rawSecrets\)/);
+  assert.match(interceptor, /_extractJwtLenses\(_secretStore\.get\(id\)\?\.values\)/);
+});
+
+test('replay only re-attaches remembered secrets to the origin they came from', () => {
+  const interceptor = read('content/interceptor.js');
+  // Edit & Replay lets the URL be rewritten and hides the redacted auth rows, so
+  // an unchecked restore would forward a live bearer token to any host the user
+  // typed. On a mismatch the placeholders are dropped and the replay goes out
+  // unauthenticated instead.
+  assert.match(interceptor, /const record = replayOf \? _secretStore\.get\(replayOf\) : null;/);
+  assert.match(interceptor, /const sameOrigin = !!record && !!record\.origin && record\.origin === _originOf\(url\);/);
+  assert.match(interceptor, /const secrets = sameOrigin \? record\.values : \{\};/);
+  assert.match(interceptor, /function _originOf\(url\)/);
+  // the raw map value is never spread into the outgoing headers unguarded
+  assert.doesNotMatch(interceptor, /const secrets = replayOf \? \(_secretStore\.get\(replayOf\) \|\| \{\}\) : \{\};/);
 });
 
 test('Logs tab can lazily load full logged objects', () => {
@@ -1361,6 +1380,22 @@ test('console Record button is honestly labelled as a stream pause, not capture'
   assert.match(store, /_pausedEvents = \[\];/);
   assert.match(store, /pausedCount: 0/);
   assert.match(settingsModal, /Stream to console live/);
+});
+
+test('console and network tails follow real arrivals only, and survive a shrinking list', () => {
+  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+  // widening a filter re-slices the same history: rebaseline against it instead
+  // of counting the difference as arrivals and popping a false "N new" pill
+  assert.match(consoleWorkspace, /const filterKey = `\$\{levelFilter\} \$\{query\}`;/);
+  assert.match(consoleWorkspace, /const filterKey = `\$\{networkFilter\} \$\{searchQuery\}`;/);
+  assert.match(consoleWorkspace, /filterKeyRef\.current = filterKey;\s*\n\s*lastTotalRef\.current = total;\s*\n\s*setNewCount\(0\);/);
+  // the settle beats after a jump re-check the pin, so one landing after the
+  // user scrolled away can't drag them back to the tail; the last is cancellable
+  assert.match(consoleWorkspace, /const pin = \(\): void => \{\s*\n\s*if \(!pinnedRef\.current\) return;/);
+  assert.match(consoleWorkspace, /window\.clearTimeout\(pinTimerRef\.current\);\s*\n\s*pinTimerRef\.current = window\.setTimeout\(pin, 80\);/);
+  assert.match(consoleWorkspace, /useEffect\(\(\) => \(\) => window\.clearTimeout\(pinTimerRef\.current\), \[\]\);/);
+  // a virtual index can outlive the row it points at (filter keystroke, clear)
+  assert.match(consoleWorkspace, /const row = rows\[item\.index\];\s*\n\s*if \(!row\) return null;/);
 });
 
 test('header palette button opens Settings to Appearance with visual theme swatches', () => {

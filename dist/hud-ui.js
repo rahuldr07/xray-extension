@@ -18166,6 +18166,8 @@ Double-click to rename`,
     const pinnedRef = (0, import_react8.useRef)(false);
     const lastTotalRef = (0, import_react8.useRef)(0);
     const didInitRef = (0, import_react8.useRef)(false);
+    const pinTimerRef = (0, import_react8.useRef)(0);
+    const filterKeyRef = (0, import_react8.useRef)(`${networkFilter}\0${searchQuery}`);
     const [pinnedUi, setPinnedUi] = (0, import_react8.useState)(false);
     const [newCount, setNewCount] = (0, import_react8.useState)(0);
     const waterfall = (0, import_react8.useMemo)(() => {
@@ -18194,6 +18196,7 @@ Double-click to rename`,
     const scrollToBottom = (0, import_react8.useCallback)(() => {
       if (events.length) virtualizer.scrollToIndex(events.length - 1, { align: "end" });
       const pin = () => {
+        if (!pinnedRef.current) return;
         const el = parentRef.current;
         if (el) el.scrollTop = el.scrollHeight;
       };
@@ -18201,8 +18204,10 @@ Double-click to rename`,
         pin();
         requestAnimationFrame(pin);
       });
-      window.setTimeout(pin, 80);
+      window.clearTimeout(pinTimerRef.current);
+      pinTimerRef.current = window.setTimeout(pin, 80);
     }, [events.length, virtualizer]);
+    (0, import_react8.useEffect)(() => () => window.clearTimeout(pinTimerRef.current), []);
     const scrollRowIntoView = (0, import_react8.useCallback)((index) => {
       pinnedRef.current = false;
       setPinnedUi(false);
@@ -18210,6 +18215,13 @@ Double-click to rename`,
     }, [virtualizer]);
     (0, import_react8.useEffect)(() => {
       const total = events.length;
+      const filterKey = `${networkFilter} ${searchQuery}`;
+      if (filterKeyRef.current !== filterKey) {
+        filterKeyRef.current = filterKey;
+        lastTotalRef.current = total;
+        setNewCount(0);
+        return;
+      }
       const delta = total - lastTotalRef.current;
       lastTotalRef.current = total;
       if (!didInitRef.current) {
@@ -18220,7 +18232,7 @@ Double-click to rename`,
         if (pinnedRef.current) scrollToBottom();
         else setNewCount((count) => count + delta);
       }
-    }, [events.length, scrollToBottom]);
+    }, [events.length, networkFilter, searchQuery, scrollToBottom]);
     const handleScroll = (0, import_react8.useCallback)(() => {
       const el = parentRef.current;
       if (!el) return;
@@ -18412,6 +18424,8 @@ Double-click to rename`,
     const parentRef = (0, import_react8.useRef)(null);
     const pinnedRef = (0, import_react8.useRef)(true);
     const lastTotalRef = (0, import_react8.useRef)(0);
+    const pinTimerRef = (0, import_react8.useRef)(0);
+    const filterKeyRef = (0, import_react8.useRef)(`${levelFilter} ${query}`);
     const [pinnedUi, setPinnedUi] = (0, import_react8.useState)(true);
     const [newCount, setNewCount] = (0, import_react8.useState)(0);
     const filteredEvents = (0, import_react8.useMemo)(() => {
@@ -18441,6 +18455,7 @@ Double-click to rename`,
     const scrollToBottom = (0, import_react8.useCallback)(() => {
       if (rows.length) virtualizer.scrollToIndex(rows.length - 1, { align: "end" });
       const pin = () => {
+        if (!pinnedRef.current) return;
         const el = parentRef.current;
         if (el) el.scrollTop = el.scrollHeight;
       };
@@ -18448,17 +18463,26 @@ Double-click to rename`,
         pin();
         requestAnimationFrame(pin);
       });
-      window.setTimeout(pin, 80);
+      window.clearTimeout(pinTimerRef.current);
+      pinTimerRef.current = window.setTimeout(pin, 80);
     }, [rows.length, virtualizer]);
+    (0, import_react8.useEffect)(() => () => window.clearTimeout(pinTimerRef.current), []);
     (0, import_react8.useEffect)(() => {
       const total = filteredEvents.length;
+      const filterKey = `${levelFilter} ${query}`;
+      if (filterKeyRef.current !== filterKey) {
+        filterKeyRef.current = filterKey;
+        lastTotalRef.current = total;
+        setNewCount(0);
+        return;
+      }
       const delta = total - lastTotalRef.current;
       lastTotalRef.current = total;
       if (delta > 0) {
         if (pinnedRef.current) scrollToBottom();
         else setNewCount((count) => count + delta);
       }
-    }, [filteredEvents.length, scrollToBottom]);
+    }, [filteredEvents.length, levelFilter, query, scrollToBottom]);
     const handleScroll = (0, import_react8.useCallback)(() => {
       const el = parentRef.current;
       if (!el) return;
@@ -18470,7 +18494,11 @@ Double-click to rename`,
     const filtered = levelFilter !== "all" || query.trim().length > 0;
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "xray-console-stream-wrap", children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-console-stream", ref: parentRef, onScroll: handleScroll, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ConsoleRow, { event: rows[item.index].event, count: rows[item.index].count }) }, item.key)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => {
+          const row = rows[item.index];
+          if (!row) return null;
+          return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ConsoleRow, { event: row.event, count: row.count }) }, item.key);
+        }) }),
         !rows.length && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
           EmptyState,
           {
@@ -19548,7 +19576,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-30 09:29 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-30 10:24 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -21321,5949 +21349,5949 @@ ${bodyLine}
   var tokens_default = ":host,\n.xray-app-root {\n  --xray-bg: #1e1e2e;\n  --xray-surface: #181825;\n  --xray-surface2: #313244;\n  /* RGB triples so translucent surfaces (rgba(var(--\u2026-rgb), a)) adapt per theme */\n  --xray-bg-rgb: 30, 30, 46;\n  --xray-surface-rgb: 24, 24, 37;\n  --xray-surface2-rgb: 49, 50, 68;\n  --xray-text-rgb: 205, 214, 244;\n  /* corner-radius scale \u2014 base is set inline per-panel from settings.radius */\n  --xray-radius: 10px;\n  --xray-radius-sm: calc(var(--xray-radius) * 0.6);\n  --xray-radius-lg: calc(var(--xray-radius) * 1.4);\n  /* motion system \u2014 one easing/duration language across the UI */\n  --xray-ease: cubic-bezier(0.22, 0.8, 0.28, 1);\n  --xray-ease-out: cubic-bezier(0.16, 1, 0.3, 1);\n  --xray-dur-fast: 120ms;\n  --xray-dur: 180ms;\n  --xray-text: #cdd6f4;\n  --xray-green: #a6e3a1;\n  --xray-blue: #89b4fa;\n  --xray-yellow: #f9e2af;\n  --xray-red: #f38ba8;\n  --xray-mauve: #cba6f7;\n  --xray-teal: #94e2d5;\n  --xray-peach: #fab387;\n  --xray-hint: #6c7086;\n  --xray-subtext: #a6adc8;\n  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;\n}\n";
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles.css
-  var styles_default = `* {
-  box-sizing: border-box;
-}
-
-.xray-app-root {
-  all: initial;
-  color: var(--xray-text);
-  font-family: var(--xray-font);
-}
-
-.xray-app-root *,
-.xray-hud * {
-  scrollbar-color: rgba(108, 112, 134, .62) rgba(var(--xray-bg-rgb), .44);
-  scrollbar-width: thin;
-  /* Absorb overscroll inside the panel so scrolling a list/detail to its edge
-     never chains through to the website behind an injected side panel or HUD. */
-  overscroll-behavior: contain;
-}
-
-.xray-app-root *::-webkit-scrollbar,
-.xray-hud *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-.xray-app-root *::-webkit-scrollbar-track,
-.xray-hud *::-webkit-scrollbar-track {
-  background: rgba(var(--xray-bg-rgb), .44);
-}
-
-.xray-app-root *::-webkit-scrollbar-thumb,
-.xray-hud *::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(var(--xray-bg-rgb), .44);
-  border-radius: 999px;
-  background: rgba(108, 112, 134, .72);
-}
-
-.xray-app-root *::-webkit-scrollbar-thumb:hover,
-.xray-hud *::-webkit-scrollbar-thumb:hover {
-  background: rgba(137, 180, 250, .72);
-}
-
-.xray-panel {
-  /* The panel is a size container: everything inside responds to the PANEL's
-     width via @container rules, not the window's \u2014 a 380px docked panel on a
-     4K monitor must stack exactly like a small window. Modals are DOM siblings
-     of the panel (see App.tsx), so the layout containment this creates never
-     affects their fixed positioning. */
-  container-type: inline-size;
-  container-name: xray;
-  position: fixed;
-  top: 0;
-  right: 0;
-  z-index: 2147483647;
-  width: var(--xray-panel-width, min(960px, 94vw));
-  max-width: 96vw;
-  height: 100vh;
-  display: none;
-  flex-direction: column;
-  color: var(--xray-text);
-  background: var(--xray-bg);
-  border-left: 1px solid rgba(108, 112, 134, .42);
-  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);
-  font: 12px/1.45 var(--xray-font);
-  overflow: hidden;
-}
-
-/* Left-dock mirror of the base (right-docked) side panel. Only added in the docked
-   side panel; the floating HUD's hud.css neutralizes it, and devtools/window modes
-   never get the dock class. */
-.xray-panel.xray-dock-left {
-  right: auto;
-  left: 0;
-  border-left: 0;
-  border-right: 1px solid rgba(108, 112, 134, .42);
-  box-shadow: 20px 0 80px rgba(0, 0, 0, .38);
-}
-
-/* Slide-in on open (docked side panel). One-shot animation, not a persistent
-   transform, so it never leaves a containing block behind for fixed children.
-   The right/left keyframes match the dock edge. Neutralized by reduced-motion. */
-@keyframes xray-panel-slide-right {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes xray-panel-slide-left {
-  from { transform: translateX(-24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-.xray-panel.xray-mode-hud.xray-dock-right.xray-open {
-  animation: xray-panel-slide-right .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));
-}
-
-.xray-panel.xray-mode-hud.xray-dock-left.xray-open {
-  animation: xray-panel-slide-left .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));
-}
-
-/* Drag grabber on the panel's inner edge (toward the page). Scoped as a direct
-   child of .xray-panel so it outranks the broad \`.xray-panel > * { position:
-   relative }\` rule below \u2014 otherwise the handle collapses to 0 height (top:0 +
-   bottom:0 on a position:relative box) and can't be grabbed. */
-.xray-panel > .xray-resize-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  z-index: 6;
-  cursor: ew-resize;
-  touch-action: none;
-  background: transparent;
-  transition: background var(--xray-dur-fast, .12s) ease;
-}
-
-.xray-panel.xray-dock-right .xray-resize-handle { left: -1px; }
-.xray-panel.xray-dock-left .xray-resize-handle { right: -1px; }
-
-.xray-resize-handle::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 44px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: var(--xray-hint, rgba(120, 130, 150, .5));
-  opacity: 0;
-  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
-}
-
-.xray-resize-handle:hover,
-.xray-resize-handle:focus-visible,
-.xray-resize-handle.dragging {
-  background: color-mix(in srgb, var(--xray-accent) 22%, transparent);
-  outline: none;
-}
-
-.xray-resize-handle:hover::after,
-.xray-resize-handle:focus-visible::after,
-.xray-resize-handle.dragging::after {
-  opacity: 1;
-  background: var(--xray-accent);
-}
-
-/* Dock / close cluster, separated from the mode switcher by a hairline. */
-.xray-dock-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 2px;
-  padding-left: 6px;
-  border-left: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
-}
-
-.xray-close-btn:hover {
-  color: var(--xray-red, #ff5c7a);
-  background: color-mix(in srgb, var(--xray-red, #ff5c7a) 16%, transparent);
-}
-
-/* The theme scope carries color tokens to the panel AND its sibling modals via
-   inheritance; display:contents means it adds no layout box. */
-.xray-theme-scope {
-  display: contents;
-}
-
-/* Theme token blocks key off the theme class alone (present on both .xray-theme-scope
-   and .xray-panel), so popups rendered outside .xray-panel inherit the active theme. */
-.xray-theme-operator {
-  --xray-bg: #0b0f14;
-  --xray-surface: #101720;
-  --xray-surface2: #151f2b;
-  --xray-surface3: #1b2836;
-  --xray-bg-rgb: 11, 15, 20;
-  --xray-surface-rgb: 16, 23, 32;
-  --xray-surface2-rgb: 21, 31, 43;
-  --xray-text-rgb: 216, 226, 239;
-  --xray-text: #d8e2ef;
-  --xray-subtext: #8fa1b7;
-  --xray-hint: #536274;
-  --xray-blue: #37d5ff;
-  --xray-mauve: #8b5cf6;
-  --xray-green: #38f29b;
-  --xray-yellow: #f6c76f;
-  --xray-red: #ff5c7a;
-  --xray-border: rgba(80, 114, 148, .42);
-  --xray-operator-grid: rgba(55, 213, 255, .035);
-}
-
-.xray-theme-dev-edition {
-  --xray-bg: #11131f;
-  --xray-surface: #171a2b;
-  --xray-surface2: #20243a;
-  --xray-surface3: #282d49;
-  --xray-bg-rgb: 17, 19, 31;
-  --xray-surface-rgb: 23, 26, 43;
-  --xray-surface2-rgb: 32, 36, 58;
-  --xray-text-rgb: 225, 231, 255;
-  --xray-text: #e1e7ff;
-  --xray-subtext: #a8b0cf;
-  --xray-hint: #6f789d;
-  --xray-blue: #75ddff;
-  --xray-mauve: #b18cff;
-  --xray-green: #62e6a8;
-  --xray-yellow: #ffd37a;
-  --xray-red: #ff6f91;
-  --xray-border: rgba(124, 138, 189, .36);
-  --xray-operator-grid: rgba(177, 140, 255, .04);
-}
-
-.xray-theme-midnight {
-  --xray-bg: #05070a;
-  --xray-surface: #090d12;
-  --xray-surface2: #0f151d;
-  --xray-surface3: #151d29;
-  --xray-bg-rgb: 5, 7, 10;
-  --xray-surface-rgb: 9, 13, 18;
-  --xray-surface2-rgb: 15, 21, 29;
-  --xray-text-rgb: 215, 247, 255;
-  --xray-text: #d7f7ff;
-  --xray-subtext: #83a4ad;
-  --xray-hint: #49626b;
-  --xray-blue: #00e5ff;
-  --xray-mauve: #7c3aed;
-  --xray-green: #00ff95;
-  --xray-yellow: #ffd166;
-  --xray-red: #ff3b6b;
-  --xray-border: rgba(0, 229, 255, .28);
-  --xray-operator-grid: rgba(0, 229, 255, .045);
-}
-
-.xray-theme-light-lab {
-  --xray-bg: #edf3fb;
-  --xray-surface: #f8fbff;
-  --xray-surface2: #e6eef9;
-  --xray-surface3: #d9e5f5;
-  --xray-bg-rgb: 237, 243, 251;
-  --xray-surface-rgb: 248, 251, 255;
-  --xray-surface2-rgb: 230, 238, 249;
-  --xray-text-rgb: 23, 32, 51;
-  --xray-text: #172033;
-  --xray-subtext: #526173;
-  --xray-hint: #75869a;
-  --xray-blue: #006adc;
-  --xray-mauve: #7048e8;
-  --xray-green: #087f5b;
-  --xray-yellow: #b7791f;
-  --xray-red: #d6336c;
-  --xray-border: rgba(82, 97, 115, .28);
-  --xray-operator-grid: rgba(0, 106, 220, .035);
-}
-
-.xray-theme-claude {
-  --xray-bg: #f0eee6;
-  --xray-surface: #faf9f5;
-  --xray-surface2: #eceae0;
-  --xray-surface3: #e4e1d5;
-  --xray-bg-rgb: 240, 238, 230;
-  --xray-surface-rgb: 250, 249, 245;
-  --xray-surface2-rgb: 236, 234, 224;
-  --xray-text-rgb: 35, 34, 31;
-  --xray-text: #23221f;
-  --xray-subtext: #6b675f;
-  --xray-hint: #9a968c;
-  --xray-blue: #4a6fa5;
-  --xray-mauve: #8a5cc4;
-  --xray-green: #3f8a4f;
-  --xray-yellow: #a9791c;
-  --xray-red: #c0392b;
-  --xray-teal: #2e8b8b;
-  --xray-peach: #d97757;
-  --xray-border: rgba(60, 55, 48, .18);
-  --xray-operator-grid: rgba(217, 119, 87, .05);
-}
-
-.xray-panel.xray-density-compact {
-  --xray-density-scale: .88;
-  --xray-row-h: 42px;
-  --xray-chrome-h: 40px;
-}
-
-.xray-panel.xray-density-comfortable {
-  --xray-density-scale: 1;
-  --xray-row-h: 52px;
-  --xray-chrome-h: 46px;
-}
-
-.xray-panel.xray-density-spacious {
-  --xray-density-scale: 1.14;
-  --xray-row-h: 64px;
-  --xray-chrome-h: 52px;
-}
-
-.xray-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),
-    linear-gradient(180deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent), transparent 32%),
-    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--xray-mauve) 12%, transparent), transparent 30%);
-  background-size: 28px 28px, 28px 28px, auto, auto;
-  opacity: .8;
-}
-
-.xray-panel.xray-no-glow::before {
-  opacity: .28;
-}
-
-.xray-panel > * {
-  position: relative;
-  z-index: 1;
-}
-
-.xray-panel.xray-open,
-.xray-panel.xray-devtools {
-  display: flex;
-}
-
-.xray-panel.xray-devtools {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  border: 0;
-  box-shadow: none;
-}
-
-.xray-panel.xray-mode-window {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  border: 0;
-  box-shadow: none;
-}
-
-.xray-topbar {
-  height: var(--xray-chrome-h, 44px);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
-  flex-shrink: 0;
-}
-
-.xray-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 140px;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.xray-drag-handle {
-  cursor: grab;
-}
-
-.xray-drag-handle:active {
-  cursor: grabbing;
-}
-
-.xray-brand-mark {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  background: linear-gradient(135deg, var(--xray-accent, var(--xray-blue)), var(--xray-mauve));
-  border-radius: var(--xray-radius);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);
-}
-
-.xray-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--xray-hint);
-}
-
-.xray-live-dot.on {
-  background: var(--xray-green);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 18%, transparent), 0 0 16px color-mix(in srgb, var(--xray-green) 55%, transparent);
-}
-
-.xray-tabs,
-.xray-console-tabs,
-.xray-filter-chips {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.xray-tab,
-.xray-mini-tab,
-.xray-btn,
-.xray-chip,
-.xray-icon-btn {
-  border: 1px solid transparent;
-  color: var(--xray-subtext);
-  background: transparent;
-  font: 800 12px/1 var(--xray-font);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
-}
-
-.xray-tab {
-  height: calc(var(--xray-chrome-h, 44px) - 12px);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  border-radius: var(--xray-radius);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  font-size: calc(11px * var(--xray-density-scale, 1));
-}
-
-.xray-tab:hover,
-.xray-mini-tab:hover,
-.xray-btn:hover,
-.xray-chip:hover,
-.xray-icon-btn:hover {
-  color: var(--xray-text);
-  background: rgba(var(--xray-text-rgb), .06);
-}
-
-.xray-tab.active,
-.xray-mini-tab.active,
-.xray-chip.active {
-  color: var(--xray-text);
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 16%, transparent), 0 0 22px color-mix(in srgb, var(--xray-accent) 12%, transparent);
-}
-
-.xray-no-glow .xray-tab.active,
-.xray-no-glow .xray-mini-tab.active,
-.xray-no-glow .xray-chip.active,
-.xray-no-glow .xray-brand-mark,
-.xray-no-glow .xray-live-dot.on {
-  box-shadow: none;
-}
-
-.xray-badge {
-  min-width: 18px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: rgba(108, 112, 134, .28);
-  font-size: 9px;
-}
-
-.xray-spacer {
-  flex: 1;
-}
-
-.xray-summary {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--xray-subtext);
-  font-size: calc(10px * var(--xray-density-scale, 1));
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.xray-mode-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.xray-mode-switcher .xray-icon-btn.active {
-  color: var(--xray-accent, var(--xray-blue));
-  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
-}
-
-.xray-body {
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: color-mix(in srgb, var(--xray-bg) 96%, var(--xray-accent) 4%);
-}
-
-.xray-console-head {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-surface);
-}
-
-.xray-mini-tab {
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 16px;
-  border-right: 1px solid rgba(108, 112, 134, .28);
-  border-bottom: 2px solid transparent;
-}
-
-.xray-mini-tab.active {
-  border-bottom-color: var(--xray-blue);
-}
-
-.xray-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  padding-right: 8px;
-}
-
-.xray-btn,
-.xray-icon-btn {
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  border-color: rgba(108, 112, 134, .5);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-surface-rgb), .74);
-  color: var(--xray-text);
-}
-
-.xray-btn.primary {
-  color: var(--xray-accent, var(--xray-blue));
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);
-}
-
-.xray-btn.danger {
-  color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .42);
-  background: rgba(243, 139, 168, .08);
-}
-
-.xray-icon-btn {
-  width: 32px;
-  justify-content: center;
-  padding: 0;
-}
-
-.xray-filterbar {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
-  gap: 8px;
-  padding: 12px;
-  background: var(--xray-surface);
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-}
-
-.xray-search {
-  position: relative;
-  min-width: 0;
-}
-
-.xray-search svg {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--xray-hint);
-}
-
-.xray-input {
-  width: 100%;
-  height: 40px;
-  border: 1px solid rgba(108, 112, 134, .55);
-  border-radius: var(--xray-radius);
-  outline: none;
-  padding: 0 12px 0 38px;
-  color: var(--xray-text);
-  background: rgba(var(--xray-surface2-rgb), .5);
-  font: 800 13px/1 var(--xray-font);
-}
-
-.xray-input:focus,
-.xray-prompt input:focus,
-.xray-prompt textarea:focus {
-  border-color: var(--xray-accent, var(--xray-blue));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
-}
-
-/* Chips wrap onto multiple rows rather than overflowing/clipping \u2014 a narrow
-   panel must never hide filters behind an invisible horizontal scroll. */
-.xray-filter-chips {
-  flex-wrap: wrap;
-  row-gap: 5px;
-}
-
-.xray-filter-chips.compact {
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.xray-chip {
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 14px;
-  border-color: rgba(108, 112, 134, .5);
-  border-radius: var(--xray-radius);
-  white-space: nowrap;
-}
-
-.xray-filter-chips.compact .xray-chip {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 10px;
-}
-
-.xray-network {
-  position: relative;
-  min-height: 180px;
-  max-height: min(44vh, 380px);
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-bg);
-  overflow: hidden;
-}
-
-.xray-network-head,
-.xray-network-row {
-  display: grid;
-  /* Status \xB7 Method \xB7 Name \xB7 Type \xB7 Size \xB7 Waterfall \u2014 the waterfall takes the
-     remaining flexible width (2fr) so wide rows have no dead gap. */
-  grid-template-columns: 52px 52px minmax(120px, 1.3fr) 76px 66px minmax(140px, 2fr);
-  align-items: center;
-  gap: 10px;
-}
-
-.xray-network-head {
-  height: 28px;
-  padding: 0 12px;
-  color: var(--xray-mauve);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.xray-virtual-list {
-  position: relative;
-  overflow: auto;
-  height: calc(100% - 28px);
-}
-
-.xray-network-row {
-  min-height: 32px;
-  padding: 0 12px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.xray-network-row:hover {
-  background: rgba(var(--xray-text-rgb), .04);
-}
-
-.xray-network-row.selected {
-  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);
-  box-shadow: inset 2px 0 0 var(--xray-accent, var(--xray-blue));
-}
-
-.xray-method {
-  color: var(--xray-green);
-}
-
-.xray-method.post,
-.xray-method.put {
-  color: var(--xray-yellow);
-}
-
-.xray-method.delete,
-.xray-method.del {
-  color: var(--xray-red);
-}
-
-.xray-status.ok {
-  color: var(--xray-green);
-}
-
-.xray-status.warn {
-  color: var(--xray-yellow);
-}
-
-.xray-status.error {
-  color: var(--xray-red);
-}
-
-.xray-path {
-  min-width: 0;
-  color: #b4befe;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-muted {
-  color: var(--xray-hint);
-}
-
-.xray-timing {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 6px;
-}
-
-.xray-bar-track {
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(108, 112, 134, .34);
-  overflow: hidden;
-}
-
-.xray-bar {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--xray-blue);
-}
-
-.xray-bar.slow {
-  background: var(--xray-yellow);
-}
-
-.xray-bar.error {
-  background: var(--xray-red);
-}
-
-.xray-console-stream-wrap {
-  position: relative;
-  min-height: 0;
-  flex: 1;
-  display: flex;
-}
-
-/* overflow: hidden here made the stream wheel-unscrollable \u2014 the virtualizer
-   could move it programmatically but the user could not. */
-.xray-console-stream {
-  min-height: 0;
-  flex: 1;
-  background: var(--xray-surface);
-  overflow-y: auto;
-}
-
-.xray-newmsg-pill {
-  position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: 1px solid rgba(var(--xray-accent-rgb), .6);
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: rgba(var(--xray-surface2-rgb), .95);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
-  cursor: pointer;
-  font: 800 11px/1 var(--xray-font);
-}
-
-.xray-newmsg-pill:hover {
-  background: rgba(var(--xray-accent-rgb), .2);
-}
-
-.xray-repeat-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(var(--xray-accent-rgb), .45);
-  background: rgba(var(--xray-accent-rgb), .14);
-  color: var(--xray-text);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-truncated-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(249, 226, 175, .5);
-  background: rgba(249, 226, 175, .12);
-  color: var(--xray-yellow);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-error-stack {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--xray-red);
-  font: 600 11px/1.5 var(--xray-font);
-}
-
-.xray-chip-count {
-  margin-left: 5px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(var(--xray-surface2-rgb), .9);
-  font-size: 10px;
-}
-
-.xray-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-@keyframes xray-spin {
-  to { transform: rotate(360deg); }
-}
-
-.xray-spin {
-  animation: xray-spin 1s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-spin { animation: none; }
-}
-
-.xray-console-row {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: start;
-  /* Denser rows for a log stream where scan-density matters (research). */
-  min-height: 26px;
-  padding: 4px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .16);
-}
-
-/* Right-side cell: optional source location + timestamp. Timestamps read as
-   optional clutter (Firefox/Chrome default them off), so keep them quiet and
-   reveal on row hover; the source location stays for error provenance. */
-.xray-console-aside {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.xray-console-source {
-  color: var(--xray-subtext, var(--xray-hint));
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.xray-console-time {
-  color: var(--xray-hint, var(--xray-subtext));
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  opacity: 0;
-  transition: opacity var(--xray-dur-fast, .12s) ease;
-}
-
-.xray-console-row:hover .xray-console-time,
-.xray-console-row.command .xray-console-time,
-.xray-console-row.result .xray-console-time {
-  opacity: .65;
-}
-
-.xray-console-row.error {
-  color: var(--xray-red);
-  background: rgba(243, 139, 168, .08);
-  border-left: 2px solid var(--xray-red);
-}
-
-.xray-console-row.warn {
-  color: var(--xray-yellow);
-  background: rgba(249, 226, 175, .07);
-  border-left: 2px solid var(--xray-yellow);
-}
-
-.xray-console-row.command {
-  color: var(--xray-mauve);
-  /* Set the REPL input/output apart from page-log noise the way DevTools tints
-     its own prompt echo \u2014 the command/result pair reads as one "turn". */
-  background: color-mix(in srgb, var(--xray-mauve) 7%, transparent);
-}
-
-.xray-console-row.result {
-  border-left: 2px solid rgba(var(--xray-accent-rgb), .55);
-  background: color-mix(in srgb, var(--xray-accent) 5%, transparent);
-}
-
-/* Leading gutter marker: quiet by default, colored only where it carries
-   meaning (input, output, error, warning). Centered on the first text line. */
-.xray-console-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 18px;
-  color: var(--xray-hint);
-}
-
-.xray-console-row.error .xray-console-glyph { color: var(--xray-red); }
-.xray-console-row.warn .xray-console-glyph { color: var(--xray-yellow); }
-.xray-console-row.command .xray-console-glyph { color: var(--xray-mauve); }
-.xray-console-row.result .xray-console-glyph { color: var(--xray-accent); }
-
-/* A plain page log needs no icon \u2014 a small dot holds the gutter rhythm without
-   stamping a terminal glyph on every single line. */
-.xray-console-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--xray-hint) 70%, transparent);
-}
-
-.xray-console-message {
-  min-width: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Soften ordinary logs so errors, warnings and REPL results carry the eye. */
-.xray-console-row.log .xray-console-message {
-  color: color-mix(in srgb, var(--xray-text) 78%, var(--xray-hint));
-}
-
-.xray-detail {
-  grid-column: 2 / 4;
-  min-width: 0;
-  max-height: 360px;
-  overflow: auto;
-  padding: 10px;
-  border: 1px solid rgba(108, 112, 134, .35);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-surface-rgb), .72);
-}
-
-.xray-prompt {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 10px;
-  border-top: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-surface);
-  flex-shrink: 0;
-}
-
-.xray-prompt input,
-.xray-prompt textarea {
-  min-height: 34px;
-  border: 1px solid rgba(108, 112, 134, .55);
-  border-radius: var(--xray-radius);
-  outline: none;
-  padding: 9px 10px;
-  color: var(--xray-text);
-  background: var(--xray-surface2);
-  font: 800 12px/1.3 var(--xray-font);
-  resize: none;
-  overflow-y: auto;
-  max-height: 110px;
-}
-
-.xray-context-chip {
-  max-width: 260px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 10px;
-  border: 1px solid rgba(137, 180, 250, .5);
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: rgba(137, 180, 250, .12);
-  cursor: pointer;
-  font: inherit;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-.xray-statusbar {
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 10px;
-  color: var(--xray-subtext);
-  background: var(--xray-bg);
-  border-top: 1px solid rgba(108, 112, 134, .35);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.xray-page {
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 12px;
-  background: var(--xray-bg);
-}
-
-.xray-page-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.xray-page-head h3 {
-  margin: 0 0 3px;
-}
-
-.xray-page-head p {
-  margin: 0;
-  color: var(--xray-hint);
-  font-size: 11px;
-}
-
-.xray-split {
-  min-height: 0;
-  flex: 1;
-  display: grid;
-  /* Split is the MAX of a minmax, never a fixed track: the list caps at the
-     dragged width but yields down to its min when the panel shrinks, so a wide
-     split can't starve the detail pane. */
-  grid-template-columns: minmax(240px, var(--xray-logs-split, 42%)) minmax(300px, 1fr);
-}
-
-.xray-list-panel {
-  position: relative;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid rgba(108, 112, 134, .35);
-  overflow: hidden;
-}
-
-.xray-list-panel > .xray-virtual-list {
-  flex: 1;
-  min-height: 0;
-  height: auto;
-}
-
-.xray-list-controls {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background:
-    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),
-    var(--xray-surface);
-}
-
-.xray-api-summary {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);
-  gap: 6px;
-  padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-bg);
-}
-
-.xray-api-metric,
-.xray-api-top-endpoint {
-  min-width: 0;
-  min-height: 44px;
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  padding: 7px 9px;
-  border: 1px solid rgba(108, 112, 134, .30);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-surface-rgb), .64);
-}
-
-.xray-api-top-endpoint {
-  min-height: 36px;
-}
-
-.xray-api-metric {
-  grid-template-columns: 18px minmax(0, 1fr);
-}
-
-.xray-api-metric svg {
-  grid-row: 1 / 3;
-  align-self: center;
-  color: var(--xray-blue);
-}
-
-.xray-api-metric span,
-.xray-api-top-endpoint span {
-  min-width: 0;
-  color: var(--xray-hint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-}
-
-.xray-api-metric strong,
-.xray-api-top-endpoint strong {
-  min-width: 0;
-  color: var(--xray-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.xray-api-metric.ok strong,
-.xray-api-metric.ok svg {
-  color: var(--xray-green);
-}
-
-.xray-api-metric.warn strong,
-.xray-api-metric.warn svg {
-  color: var(--xray-yellow);
-}
-
-.xray-api-metric.error strong,
-.xray-api-metric.error svg {
-  color: var(--xray-red);
-}
-
-.xray-api-workspace {
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(var(--xray-bg-rgb), .24), transparent 180px),
-    var(--xray-bg);
-}
-
-.xray-api-body {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  display: grid;
-  /* First track = list pane. --xray-api-split (set inline when the user drags
-     the divider) replaces the auto min/max; container queries below override
-     the whole property, so the split is dropped when the panel stacks. */
-  grid-template-columns: minmax(260px, var(--xray-api-split, 440px)) minmax(260px, .64fr) minmax(400px, 1.55fr);
-  overflow: hidden;
-}
-
-.xray-api-collection-pane,
-.xray-request-context-pane,
-.xray-api-detail-drawer {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Anchors the draggable list/detail divider on the pane's trailing edge. */
-.xray-api-collection-pane {
-  position: relative;
-}
-
-.xray-pane-divider {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -4px;
-  width: 9px;
-  z-index: 4;
-  cursor: ew-resize;
-  touch-action: none;
-  background: transparent;
-}
-
-.xray-pane-divider::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 46px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: var(--xray-hint, rgba(120, 130, 150, .5));
-  opacity: 0;
-  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
-}
-
-.xray-pane-divider:hover,
-.xray-pane-divider:focus-visible,
-.xray-pane-divider.dragging {
-  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);
-  outline: none;
-}
-
-.xray-pane-divider:hover::after,
-.xray-pane-divider:focus-visible::after,
-.xray-pane-divider.dragging::after {
-  opacity: 1;
-  background: var(--xray-accent);
-}
-
-.xray-api-collection-pane {
-  border-right: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-bg-rgb), .42);
-}
-
-.xray-api-collection-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .32);
-  background:
-    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),
-    rgba(var(--xray-surface-rgb), .88);
-}
-
-.xray-api-collection-title {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.xray-api-collection-title span,
-.xray-pane-kicker,
-.xray-api-summary-pill span {
-  color: var(--xray-hint);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.xray-api-collection-title strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--xray-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.xray-api-env-pill {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid rgba(148, 226, 213, .30);
-  border-radius: var(--xray-radius);
-  color: var(--xray-teal);
-  background: rgba(148, 226, 213, .08);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.xray-api-stats-collapsible {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-
-/* The stats collapsible carries its own header, so drop the strip's padding. */
-.xray-api-stats-collapsible .xray-collapsible-header {
-  padding: 2px 0 6px;
-}
-
-.xray-api-summary-strip {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.xray-api-summary-pill {
-  min-width: 0;
-  height: 38px;
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-content: center;
-  align-items: center;
-  gap: 1px 6px;
-  padding: 5px 7px;
-  border: 1px solid rgba(108, 112, 134, .30);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-bg-rgb), .66);
-}
-
-.xray-api-summary-pill svg {
-  grid-row: 1 / 3;
-  color: var(--xray-blue);
-}
-
-.xray-api-summary-pill strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--xray-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-.xray-api-summary-pill.ok svg,
-.xray-api-summary-pill.ok strong {
-  color: var(--xray-green);
-}
-
-.xray-api-summary-pill.warn svg,
-.xray-api-summary-pill.warn strong {
-  color: var(--xray-yellow);
-}
-
-.xray-api-summary-pill.error svg,
-.xray-api-summary-pill.error strong {
-  color: var(--xray-red);
-}
-
-.xray-api-main {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* New requests insert at the top under LATEST sort \u2014 the pill floats near the
-   top of the list, unlike the console variant that anchors at the bottom. */
-.xray-newreq-pill {
-  top: 46px;
-  bottom: auto;
-}
-
-.xray-api-toolbar {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-surface-rgb), .72);
-}
-
-.xray-api-search {
-  min-width: 0;
-  height: 36px;
-  align-self: start;
-}
-
-.xray-api-search .xray-input {
-  height: 36px;
-  font-size: 11px;
-}
-
-.xray-api-primary-filters {
-  justify-content: flex-start;
-  min-width: 0;
-  flex-wrap: wrap;
-  overflow: visible;
-}
-
-.xray-api-secondary-controls {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.xray-filter-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.xray-api-table-head,
-.xray-api-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;
-  align-items: center;
-  gap: 7px;
-}
-
-.xray-api-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  height: 30px;
-  padding: 0 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  color: var(--xray-hint);
-  background: rgba(var(--xray-surface-rgb), .96);
-  font: 900 10px/1 var(--xray-font);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.xray-api-table-scroll {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-
-.xray-api-row {
-  width: 100%;
-  min-height: 68px;
-  padding: 9px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .18);
-  color: var(--xray-text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font: 800 11px/1.28 var(--xray-font);
-  outline: none;
-  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;
-}
-
-.xray-api-row:hover,
-.xray-api-row:focus-visible {
-  background: rgba(var(--xray-text-rgb), .055);
-}
-
-.xray-api-row.selected {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 27%, transparent), color-mix(in srgb, var(--xray-accent) 8%, transparent)),
-    rgba(var(--xray-surface2-rgb), .42);
-  box-shadow:
-    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),
-    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),
-    0 8px 22px rgba(0, 0, 0, .14);
-}
-
-.xray-api-row.has-error {
-  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);
-}
-
-.xray-api-row.has-slow:not(.has-error) {
-  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);
-}
-
-.xray-api-row.selected.has-error,
-.xray-api-row.selected.has-slow {
-  box-shadow:
-    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),
-    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),
-    0 8px 22px rgba(0, 0, 0, .14);
-}
-
-.xray-api-row.group {
-  background: rgba(var(--xray-surface-rgb), .55);
-}
-
-.xray-api-row.child {
-  padding-left: 24px;
-  background: rgba(var(--xray-surface-rgb), .46);
-}
-
-.xray-api-row.pinned {
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);
-}
-
-.xray-api-path-cell {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.xray-api-flags {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  overflow: hidden;
-}
-
-.xray-api-flags.muted {
-  display: none;
-}
-
-.xray-api-flag {
-  min-width: 0;
-  max-width: 78px;
-  padding: 3px 6px;
-  border: 1px solid rgba(108, 112, 134, .36);
-  border-radius: 999px;
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-surface-rgb), .72);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.xray-method.post {
-  color: var(--xray-teal);
-}
-
-.xray-method.patch {
-  color: var(--xray-peach);
-}
-
-.xray-method.put {
-  color: var(--xray-yellow);
-}
-
-.xray-api-flag.error {
-  color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .38);
-  background: rgba(243, 139, 168, .10);
-}
-
-.xray-api-flag.slow,
-.xray-api-flag.repeated,
-.xray-api-flag.large {
-  color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .34);
-  background: rgba(249, 226, 175, .10);
-}
-
-.xray-api-flag.empty {
-  color: var(--xray-peach);
-  border-color: rgba(250, 179, 135, .34);
-  background: rgba(250, 179, 135, .10);
-}
-
-.xray-api-flag.pinned {
-  color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .36);
-  background: rgba(203, 166, 247, .10);
-}
-
-.xray-api-row-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  opacity: .62;
-  transition: opacity .15s ease;
-}
-
-.xray-api-row:hover .xray-api-row-actions,
-.xray-api-row:focus-visible .xray-api-row-actions,
-.xray-api-row.selected .xray-api-row-actions {
-  opacity: 1;
-}
-
-.xray-icon-btn {
-  width: 28px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(108, 112, 134, .36);
-  border-radius: var(--xray-radius);
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-surface-rgb), .72);
-  cursor: pointer;
-}
-
-.xray-icon-btn:hover,
-.xray-icon-btn:focus-visible,
-.xray-icon-btn.active {
-  color: var(--xray-accent, var(--xray-blue));
-  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
-}
-
-.xray-request-context-pane {
-  border-right: 1px solid rgba(108, 112, 134, .35);
-  background:
-    linear-gradient(180deg, rgba(var(--xray-surface2-rgb), .30), transparent 160px),
-    rgba(var(--xray-surface-rgb), .78);
-}
-
-.xray-request-context-pane.empty {
-  justify-content: center;
-}
-
-.xray-request-context-head {
-  flex-shrink: 0;
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-}
-
-.xray-request-line {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.xray-request-line code {
-  min-width: 0;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  padding: 0 10px;
-  border: 1px solid rgba(108, 112, 134, .44);
-  border-radius: var(--xray-radius);
-  color: var(--xray-text);
-  background: rgba(var(--xray-bg-rgb), .76);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 800 11px/1 var(--xray-font);
-}
-
-.xray-request-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.xray-request-meta-grid span {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  padding: 7px 8px;
-  border: 1px solid rgba(108, 112, 134, .28);
-  border-radius: var(--xray-radius);
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-bg-rgb), .48);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-}
-
-.xray-request-meta-grid strong {
-  color: var(--xray-hint);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-}
-
-.xray-request-context-content {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 12px;
-  background: rgba(var(--xray-bg-rgb), .45);
-}
-
-.xray-request-context-content .xray-json-editor {
-  min-width: 0;
-}
-
-.xray-request-context-content .xray-json-line-text {
-  overflow-wrap: anywhere;
-}
-
-.xray-request-context-footer {
-  flex-shrink: 0;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .30);
-  color: var(--xray-hint);
-  background: rgba(var(--xray-bg-rgb), .35);
-  font-size: 10px;
-}
-
-.xray-request-context-footer span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-request-tabs {
-  flex-shrink: 0;
-  padding: 0 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .30);
-  background: rgba(var(--xray-bg-rgb), .30);
-}
-
-.xray-api-detail-drawer {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--xray-surface);
-}
-
-.xray-api-drawer-body {
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-  padding: 0;
-}
-
-.xray-entry-row {
-  width: 100%;
-  min-height: 58px;
-  display: grid;
-  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .20);
-  color: var(--xray-text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font: 800 11px/1.35 var(--xray-font);
-}
-
-.xray-entry-row:hover {
-  background: rgba(var(--xray-text-rgb), .05);
-}
-
-.xray-entry-row.selected {
-  background: rgba(137, 180, 250, .16);
-  box-shadow: inset 3px 0 0 var(--xray-blue);
-}
-
-.xray-entry-row.child {
-  padding-left: 24px;
-  background: rgba(var(--xray-surface-rgb), .45);
-}
-
-.xray-entry-row.pinned {
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);
-}
-
-.xray-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--xray-hint);
-}
-
-.xray-status-dot.ok {
-  background: var(--xray-green);
-  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);
-}
-
-.xray-status-dot.warn {
-  background: var(--xray-yellow);
-  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);
-}
-
-.xray-status-dot.error {
-  background: var(--xray-red);
-  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);
-}
-
-.xray-entry-main {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.xray-entry-meta {
-  /* subtext, not hint: this 10px line carries the row's key facts and the
-     hint gray fell below WCAG AA contrast on the dark surfaces */
-  color: var(--xray-subtext, var(--xray-hint));
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.xray-entry-duration {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(24px, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  color: var(--xray-subtext);
-  font-size: 10px;
-}
-
-.xray-count-pill,
-.xray-pin {
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 8px;
-  border: 1px solid rgba(108, 112, 134, .40);
-  border-radius: 999px;
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-surface-rgb), .74);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.xray-pin {
-  width: 26px;
-  padding: 0;
-  color: var(--xray-hint);
-}
-
-.xray-pin.active {
-  color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .34);
-  background: rgba(249, 226, 175, .10);
-}
-
-.xray-detail-panel {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-  background: var(--xray-surface);
-}
-
-.xray-mobile-detail-panel {
-  display: none;
-}
-
-.xray-request-detail {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background:
-    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),
-    var(--xray-bg);
-}
-
-.xray-detail-hero {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex-shrink: 0;
-  margin: 0;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-surface);
-}
-
-.xray-response-heading {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.xray-response-heading h3 {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--xray-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.xray-response-chips {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.xray-response-chip {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 9px;
-  border: 1px solid rgba(108, 112, 134, .32);
-  border-radius: var(--xray-radius);
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-bg-rgb), .68);
-  font-size: 10px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.xray-response-chip.ok {
-  color: var(--xray-green);
-  border-color: rgba(166, 227, 161, .30);
-  background: rgba(166, 227, 161, .10);
-}
-
-.xray-response-chip.warn {
-  color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .30);
-  background: rgba(249, 226, 175, .10);
-}
-
-.xray-response-chip.error {
-  color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .30);
-  background: rgba(243, 139, 168, .10);
-}
-
-.xray-detail-nav {
-  flex-shrink: 0;
-  display: grid;
-  gap: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-surface-rgb), .92);
-}
-
-.xray-detail-tabs,
-.xray-detail-views {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.xray-detail-tabs::-webkit-scrollbar,
-.xray-detail-views::-webkit-scrollbar {
-  display: none;
-}
-
-.xray-detail-tabs {
-  padding: 0 12px;
-}
-
-.xray-detail-tab {
-  height: 38px;
-  padding: 0 12px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--xray-hint);
-  background: transparent;
-  cursor: pointer;
-  font: 900 11px/1 var(--xray-font);
-  text-transform: capitalize;
-}
-
-.xray-detail-tab:hover,
-.xray-detail-tab.active {
-  color: var(--xray-text);
-  border-bottom-color: var(--xray-mauve);
-}
-
-.xray-detail-views {
-  padding: 7px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .20);
-}
-
-.xray-detail-content {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-  padding: 12px;
-  background:
-    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),
-    rgba(var(--xray-bg-rgb), .74);
-}
-
-.xray-detail-footer {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .35);
-  background: var(--xray-surface);
-  overflow-x: auto;
-}
-
-.xray-smart-ops {
-  min-width: 0;
-}
-
-.xray-action-btn {
-  min-width: 0;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1px solid rgba(108, 112, 134, .42);
-  border-radius: var(--xray-radius);
-  color: var(--xray-subtext);
-  background: transparent;
-  cursor: pointer;
-  font: 900 11px/1 var(--xray-font);
-}
-
-.xray-action-btn:hover,
-.xray-action-btn:focus-visible {
-  color: var(--xray-text);
-  border-color: rgba(137, 180, 250, .44);
-  background: rgba(137, 180, 250, .10);
-}
-
-.xray-action-btn.primary {
-  color: var(--xray-accent, var(--xray-blue));
-  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);
-}
-
-.xray-operation-groups {
-  flex-shrink: 0;
-  display: grid;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-bg-rgb), .45);
-}
-
-.xray-operation-group {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-}
-
-.xray-operation-group > span {
-  color: var(--xray-hint);
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.xray-operation-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  overflow: visible;
-}
-
-.xray-operation-bar .xray-chip {
-  min-width: 0;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: var(--xray-radius);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 10px;
-}
-
-.xray-operation-chip.view {
-  color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .28);
-  background: rgba(203, 166, 247, .07);
-}
-
-.xray-operation-chip.console {
-  color: var(--xray-blue);
-  border-color: rgba(137, 180, 250, .30);
-  background: rgba(137, 180, 250, .08);
-}
-
-.xray-operation-chip.snippet {
-  color: var(--xray-teal);
-  border-color: rgba(148, 226, 213, .30);
-  background: rgba(148, 226, 213, .08);
-}
-
-.xray-operation-chip.copy {
-  color: var(--xray-subtext);
-}
-
-.xray-operation-chip.export {
-  color: var(--xray-peach);
-  border-color: rgba(250, 179, 135, .32);
-  background: rgba(250, 179, 135, .08);
-}
-
-.xray-api-drawer-body .xray-filter-chips {
-  flex-wrap: wrap;
-  overflow: visible;
-}
-
-.xray-card,
-.xray-modal {
-  border: 1px solid rgba(108, 112, 134, .35);
-  border-radius: var(--xray-radius);
-  background: var(--xray-surface);
-}
-
-.xray-card {
-  padding: 12px;
-}
-
-.xray-card h3,
-.xray-detail-panel h3,
-.xray-page h3 {
-  margin: 0 0 10px;
-  color: var(--xray-text);
-  font-size: 13px;
-}
-
-.xray-json {
-  margin: 0;
-  color: var(--xray-text);
-  white-space: pre-wrap;
-  word-break: break-word;
-  font: 700 11px/1.6 var(--xray-font);
-}
-
-.xray-json-editor {
-  min-width: max-content;
-  padding: 10px 0;
-  border: 1px solid rgba(108, 112, 134, .22);
-  border-radius: var(--xray-radius);
-  background:
-    linear-gradient(90deg, rgba(var(--xray-bg-rgb), .84) 0 42px, rgba(var(--xray-surface-rgb), .52) 42px),
-    rgba(var(--xray-bg-rgb), .52);
-  box-shadow: inset 0 1px 0 rgba(var(--xray-text-rgb), .04);
-}
-
-.xray-json-line {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  min-height: 18px;
-}
-
-.xray-json-line:hover {
-  background: rgba(137, 180, 250, .06);
-}
-
-.xray-json-line-no {
-  padding: 0 10px 0 0;
-  color: var(--xray-hint);
-  text-align: right;
-  user-select: none;
-  border-right: 1px solid rgba(108, 112, 134, .20);
-}
-
-.xray-json-line-text {
-  min-width: 0;
-  padding: 0 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.xray-json-key {
-  color: var(--xray-mauve);
-}
-
-.xray-json-string {
-  color: var(--xray-green);
-}
-
-.xray-json-number {
-  color: var(--xray-teal);
-}
-
-.xray-json-bool {
-  color: var(--xray-peach);
-}
-
-.xray-json-null {
-  color: var(--xray-hint);
-}
-
-.xray-json-punct {
-  color: var(--xray-subtext);
-}
-
-.xray-table {
-  width: 100%;
-  border-collapse: collapse;
-  font: 700 11px/1.4 var(--xray-font);
-}
-
-.xray-table th,
-.xray-table td {
-  padding: 6px 8px;
-  border: 1px solid rgba(108, 112, 134, .28);
-  text-align: left;
-  vertical-align: top;
-}
-
-.xray-table th {
-  color: var(--xray-mauve);
-  background: var(--xray-bg);
-}
-
-.xray-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(var(--xray-bg-rgb), .72);
-  z-index: 2147483647;
-}
-
-.xray-modal {
-  width: min(820px, 92vw);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.xray-modal h3 {
-  margin: 0;
-  color: var(--xray-text);
-  font-size: 13px;
-}
-
-.xray-modal-title-icon {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--xray-accent, var(--xray-blue));
-  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);
-  border-radius: var(--xray-radius);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);
-}
-
-.xray-export-modal {
-  width: min(980px, 94vw);
-}
-
-.xray-modal-head,
-.xray-modal-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-}
-
-.xray-modal-foot {
-  border-top: 1px solid rgba(108, 112, 134, .35);
-  border-bottom: 0;
-}
-
-.xray-modal-body {
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-}
-
-.xray-modal-subtitle,
-.xray-export-subtitle {
-  max-width: 520px;
-  margin-top: 2px;
-  color: var(--xray-hint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-modal-version {
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-export-body {
-  min-height: 0;
-  flex: 1;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-}
-
-.xray-export-rail {
-  min-height: 0;
-  overflow: auto;
-  padding: 10px;
-  border-right: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-surface-rgb), .55);
-}
-
-.xray-export-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.xray-export-group {
-  margin-bottom: 12px;
-}
-
-.xray-export-group-label {
-  margin: 0 0 6px;
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.xray-export-format {
-  width: 100%;
-  min-height: 38px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
-  border-radius: var(--xray-radius);
-  padding: 0 10px;
-  color: var(--xray-subtext);
-  background: transparent;
-  cursor: pointer;
-  font: 800 11px/1.2 var(--xray-font);
-  text-align: left;
-}
-
-.xray-export-format:hover {
-  color: var(--xray-text);
-  background: rgba(var(--xray-text-rgb), .06);
-}
-
-.xray-export-format.active {
-  color: var(--xray-text);
-  border-color: rgba(137, 180, 250, .55);
-  background: rgba(137, 180, 250, .13);
-}
-
-.xray-export-format:disabled {
-  opacity: .42;
-  cursor: not-allowed;
-}
-
-.xray-export-format small {
-  color: var(--xray-hint);
-  font-size: 9px;
-  text-transform: uppercase;
-}
-
-.xray-export-preview {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.xray-export-preview-head {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-}
-
-.xray-export-preview-head h3 {
-  margin: 0;
-  color: var(--xray-text);
-  font-size: 13px;
-}
-
-.xray-export-preview-head p {
-  margin: 3px 0 0;
-  color: var(--xray-hint);
-  font-size: 11px;
-}
-
-.xray-export-code {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-  background: rgba(var(--xray-bg-rgb), .54);
-}
-
-.xray-textarea {
-  width: 100%;
-  min-height: 96px;
-  resize: vertical;
-  border: 1px solid rgba(108, 112, 134, .5);
-  border-radius: var(--xray-radius);
-  padding: 10px;
-  color: var(--xray-text);
-  background: var(--xray-surface);
-  font: 800 12px/1.45 var(--xray-font);
-}
-
-.xray-toast {
-  position: absolute;
-  right: 14px;
-  bottom: 38px;
-  max-width: min(420px, calc(100% - 28px));
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(148, 226, 213, .42);
-  border-radius: var(--xray-radius);
-  color: var(--xray-text);
-  background: rgba(var(--xray-surface-rgb), .94);
-  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);
-  font: 800 11px/1.35 var(--xray-font);
-  cursor: pointer;
-}
-
-.xray-insight-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.xray-insight-columns,
-.xray-settings-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.xray-insight-row {
-  width: 100%;
-  min-height: 34px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .20);
-  padding: 7px 0;
-  color: var(--xray-text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font: 800 11px/1.35 var(--xray-font);
-}
-
-.xray-insight-row:hover {
-  color: var(--xray-blue);
-}
-
-.xray-insight-row span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-status-mix-row {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 28px;
-  align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  color: var(--xray-subtext);
-  font: 800 11px/1.35 var(--xray-font);
-}
-
-.xray-settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.xray-settings-modal {
-  width: min(620px, 94vw);
-}
-
-.xray-settings-modal-body {
-  min-height: 400px;
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  overflow: hidden;
-}
-
-.xray-settings-nav {
-  padding: 8px 0;
-  border-right: 1px solid rgba(108, 112, 134, .35);
-  background: rgba(var(--xray-surface-rgb), .72);
-}
-
-.xray-settings-nav-item {
-  width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 0;
-  border-left: 2px solid transparent;
-  padding: 0 14px;
-  color: var(--xray-hint);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font: 800 11px/1 var(--xray-font);
-}
-
-.xray-settings-nav-item:hover {
-  color: var(--xray-subtext);
-  background: rgba(var(--xray-surface2-rgb), .55);
-}
-
-.xray-settings-nav-item.active {
-  color: var(--xray-text);
-  border-left-color: var(--xray-accent, var(--xray-mauve));
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);
-}
-
-.xray-settings-content {
-  min-height: 0;
-  overflow: auto;
-  padding: 16px;
-}
-
-.xray-settings-section-title {
-  margin: 0 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .10em;
-  text-transform: uppercase;
-}
-
-.xray-settings-row {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(69, 71, 90, .25);
-  color: var(--xray-text);
-  font: 800 11px/1.35 var(--xray-font);
-}
-
-.xray-settings-row.read-only {
-  align-items: flex-start;
-}
-
-.xray-settings-row strong,
-.xray-settings-row small {
-  display: block;
-}
-
-.xray-settings-row small {
-  margin-top: 2px;
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-toggle {
-  width: 36px;
-  height: 20px;
-  flex: 0 0 auto;
-  position: relative;
-  border: 0;
-  border-radius: 999px;
-  background: var(--xray-surface2);
-  cursor: pointer;
-}
-
-.xray-toggle::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--xray-hint);
-  transition: transform .15s ease, background .15s ease;
-}
-
-.xray-toggle.on {
-  background: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-toggle.on::after {
-  transform: translateX(16px);
-  background: #fff;
-}
-
-.xray-number-input {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.xray-number-input input,
-.xray-select {
-  height: 30px;
-  border: 1px solid rgba(108, 112, 134, .45);
-  border-radius: var(--xray-radius-sm);
-  color: var(--xray-text);
-  background: var(--xray-surface2);
-  font: 800 11px/1 var(--xray-font);
-}
-
-.xray-number-input input {
-  width: 76px;
-  padding: 0 8px;
-  text-align: right;
-}
-
-.xray-select {
-  min-width: 118px;
-  padding: 0 8px;
-}
-
-.xray-color-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.xray-color-swatch {
-  width: 23px;
-  height: 23px;
-  border: 2px solid transparent;
-  border-radius: var(--xray-radius-sm);
-  cursor: pointer;
-}
-
-.xray-color-swatch.active {
-  border-color: var(--xray-text);
-}
-
-.xray-settings-danger {
-  margin-top: 18px;
-  padding: 12px;
-  border: 1px solid rgba(243, 139, 168, .22);
-  border-radius: var(--xray-radius);
-  background: rgba(243, 139, 168, .04);
-}
-
-.xray-danger-title {
-  margin-bottom: 8px;
-  color: var(--xray-red);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .10em;
-  text-transform: uppercase;
-}
-
-.xray-danger-row {
-  width: 100%;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 0;
-  border-radius: var(--xray-radius-sm);
-  padding: 0 8px;
-  color: var(--xray-red);
-  background: transparent;
-  cursor: pointer;
-  font: 800 11px/1 var(--xray-font);
-}
-
-.xray-danger-row:hover {
-  background: rgba(243, 139, 168, .08);
-}
-
-.xray-confirm-modal {
-  width: min(460px, 92vw);
-}
-
-.xray-confirm-message {
-  margin: 0;
-  color: var(--xray-subtext);
-  font: 800 12px/1.55 var(--xray-font);
-}
-
-.xray-compact-rows .xray-api-row {
-  min-height: 42px;
-}
-
-.xray-compact-rows .xray-api-row .xray-entry-meta,
-.xray-compact-rows .xray-api-row .xray-api-flags {
-  display: none;
-}
-
-.xray-command-modal {
-  width: min(680px, 92vw);
-}
-
-.xray-command-search {
-  display: block;
-  padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
-}
-
-.xray-command-list {
-  display: grid;
-  gap: 4px;
-}
-
-.xray-command-row {
-  width: 100%;
-  min-height: 40px;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid transparent;
-  border-radius: var(--xray-radius);
-  padding: 0 10px;
-  color: var(--xray-text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  font: 800 12px/1.25 var(--xray-font);
-}
-
-.xray-command-row:hover {
-  border-color: rgba(137, 180, 250, .42);
-  background: rgba(137, 180, 250, .10);
-}
-
-.xray-command-row small {
-  color: var(--xray-hint);
-  font-size: 10px;
-}
-
-@container xray (max-width: 1700px) {
-  .xray-api-body {
-    grid-template-columns: minmax(260px, var(--xray-api-split, 480px)) minmax(340px, 1fr);
-  }
-
-  .xray-request-context-pane {
-    display: none;
-  }
-
-  .xray-api-summary-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* Window-coupled rules stay media-based: the panel's own width, and the modal
-   overlays that live OUTSIDE the panel and size against the viewport. */
-@media (max-width: 760px) {
-  .xray-panel {
-    width: 100vw;
-  }
-
-  .xray-export-modal {
-    width: 96vw;
-  }
-
-  .xray-settings-modal {
-    width: 96vw;
-    max-height: 88vh;
-  }
-
-  .xray-settings-modal-body {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
-  .xray-settings-nav {
-    display: flex;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-  }
-
-  .xray-settings-nav-item {
-    flex: 0 0 auto;
-    width: auto;
-    border-left: 0;
-    border-bottom: 2px solid transparent;
-  }
-
-  .xray-settings-nav-item.active {
-    border-bottom-color: var(--xray-accent, var(--xray-mauve));
-  }
-
-  .xray-export-body {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-export-rail {
-    display: flex;
-    gap: 8px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
-    overflow-x: auto;
-  }
-
-  .xray-export-group {
-    min-width: 170px;
-    margin-bottom: 0;
-  }
-
-  .xray-export-preview-head {
-    display: grid;
-  }
-
-  .xray-settings-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@container xray (max-width: 760px) {
-  /* Stacked layout: the panes are full-width, so there's nothing to split. */
-  .xray-pane-divider {
-    display: none;
-  }
-
-  .xray-topbar {
-    gap: 6px;
-    padding: 0 8px;
-    overflow: hidden;
-  }
-
-  .xray-brand {
-    min-width: 112px;
-  }
-
-  .xray-tabs {
-    min-width: 0;
-    flex: 1;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .xray-tabs::-webkit-scrollbar,
-  .xray-console-head::-webkit-scrollbar,
-  .xray-filter-chips::-webkit-scrollbar {
-    display: none;
-  }
-
-  .xray-tab {
-    flex: 0 0 auto;
-    padding: 0 10px;
-  }
-
-  .xray-console-head {
-    overflow-x: auto;
-  }
-
-  .xray-console-tabs,
-  .xray-toolbar {
-    flex: 0 0 auto;
-  }
-
-  .xray-toolbar {
-    padding-right: 8px;
-  }
-
-  .xray-summary,
-  .xray-network-row > :nth-child(5),
-  .xray-network-row > :nth-child(6),
-  .xray-network-head > :nth-child(5),
-  .xray-network-head > :nth-child(6) {
-    display: none;
-  }
-
-  .xray-filterbar {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-filter-chips {
-    padding-bottom: 2px;
-  }
-
-  .xray-network-head,
-  .xray-network-row {
-    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;
-  }
-
-  .xray-split {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-detail-panel {
-    display: none;
-  }
-
-  .xray-api-workspace {
-    overflow: hidden;
-  }
-
-  .xray-api-body {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-api-toolbar {
-    grid-template-columns: 1fr;
-    padding: 8px;
-  }
-
-  .xray-api-collection-pane {
-    border-right: 0;
-  }
-
-  .xray-api-collection-head {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .xray-api-env-pill {
-    justify-self: start;
-  }
-
-  .xray-api-summary-strip {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .xray-api-summary-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .xray-api-summary-pill {
-    flex: 0 0 112px;
-  }
-
-  .xray-api-primary-filters,
-  .xray-api-secondary-controls,
-  .xray-api-secondary-controls .xray-filter-chips {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .xray-api-secondary-controls {
-    display: grid;
-    gap: 6px;
-  }
-
-  .xray-api-table-head,
-  .xray-api-row {
-    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;
-  }
-
-  .xray-api-table-head > :nth-child(4),
-  .xray-api-row > .xray-entry-duration {
-    display: none;
-  }
-
-  .xray-api-row-actions {
-    gap: 2px;
-  }
-
-  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {
-    display: none;
-  }
-
-  .xray-api-detail-drawer {
-    position: absolute;
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    height: min(68vh, 560px);
-    border-left: 0;
-    border-top: 1px solid rgba(137, 180, 250, .34);
-    border-radius: var(--xray-radius-lg) var(--xray-radius-lg) 0 0;
-    background: var(--xray-surface);
-    box-shadow: 0 -22px 44px rgba(0, 0, 0, .28);
-    z-index: 8;
-    overflow: hidden;
-  }
-
-  .xray-api-drawer-body,
-  .xray-request-detail,
-  .xray-detail-content {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .xray-detail-content .xray-json-editor {
-    min-width: 0;
-  }
-
-  .xray-json-line {
-    grid-template-columns: 34px minmax(0, 1fr);
-  }
-
-  .xray-json-line-no {
-    padding-right: 8px;
-  }
-
-  .xray-json-line-text {
-    padding: 0 9px;
-    overflow-wrap: anywhere;
-  }
-
-  .xray-detail-tabs,
-  .xray-detail-views,
-  .xray-operation-bar {
-    max-width: 100%;
-  }
-
-  .xray-detail-views {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow-x: visible;
-  }
-
-  .xray-detail-views .xray-chip {
-    min-width: 0;
-    justify-content: center;
-  }
-
-  .xray-operation-group {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .xray-operation-bar {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .xray-operation-bar .xray-chip {
-    justify-content: center;
-  }
-
-  .xray-detail-footer {
-    display: grid;
-    grid-template-columns: 1fr;
-    overflow-x: visible;
-    align-items: stretch;
-  }
-
-  .xray-detail-footer .xray-action-btn {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .xray-api-detail-drawer.empty {
-    display: none;
-  }
-
-  .xray-entry-row {
-    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;
-  }
-
-  .xray-list-panel > .xray-virtual-list {
-    min-height: 168px;
-  }
-
-  .xray-entry-duration {
-    display: none;
-  }
-
-  .xray-mobile-detail-panel {
-    display: block;
-    flex-shrink: 0;
-    max-height: 38vh;
-    overflow: auto;
-    border-top: 1px solid rgba(108, 112, 134, .35);
-    background: var(--xray-surface);
-  }
-
-  .xray-prompt {
-    grid-template-columns: 20px minmax(120px, 1fr) auto;
-    gap: 6px;
-    padding: 8px;
-  }
-
-  .xray-context-chip {
-    display: none;
-  }
-
-  .xray-insight-grid,
-  .xray-insight-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-page-head {
-    display: grid;
-  }
-}
-
-@container xray (max-width: 420px) {
-  .xray-api-table-head,
-  .xray-api-row {
-    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
-    gap: 5px;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .xray-api-table-head > :nth-child(4),
-  .xray-api-row > .xray-entry-duration {
-    display: none;
-  }
-
-  .xray-response-chips,
-  .xray-detail-footer {
-    flex-wrap: wrap;
-  }
-
-  .xray-detail-footer {
-    overflow-x: visible;
-    align-items: stretch;
-  }
-
-  .xray-detail-footer .xray-action-btn {
-    flex: 1 1 calc(50% - 8px);
-  }
-
-  .xray-detail-views {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
-  .xray-detail-views .xray-chip {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
-  .xray-operation-group {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-api-row-actions .xray-icon-btn {
-    width: 25px;
-  }
-}
-
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   XRAY Operator UI override layer
-   Configurable developer cockpit skin applied across existing tabs.
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.xray-panel .xray-api-workspace,
-.xray-panel .xray-console-workspace,
-.xray-panel .xray-insights,
-.xray-panel .xray-settings-page,
-.xray-panel .xray-logs-workspace {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--xray-bg) 92%, var(--xray-accent) 8%), var(--xray-bg));
-}
-
-.xray-panel .xray-api-collection-pane,
-.xray-panel .xray-api-detail-pane,
-.xray-panel .xray-console-main,
-.xray-panel .xray-card,
-.xray-panel .xray-settings-card,
-.xray-panel .xray-modal-card {
-  border-color: var(--xray-border, rgba(108,112,134,.35));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);
-}
-
-.xray-panel .xray-api-row,
-.xray-panel .xray-entry-row,
-.xray-panel .xray-console-row,
-.xray-panel .xray-log-row {
-  min-height: var(--xray-row-h, 52px);
-  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));
-  transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;
-}
-
-.xray-panel .xray-api-row:hover,
-.xray-panel .xray-entry-row:hover,
-.xray-panel .xray-console-row:hover,
-.xray-panel .xray-log-row:hover {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 9%, transparent), color-mix(in srgb, var(--xray-surface2) 72%, transparent));
-  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
-}
-
-.xray-glow .xray-api-row.selected,
-.xray-glow .xray-entry-row.selected,
-.xray-glow .xray-console-row.selected,
-.xray-glow .xray-log-row.selected {
-  box-shadow: inset 3px 0 0 var(--xray-accent), 0 0 28px color-mix(in srgb, var(--xray-accent) 12%, transparent);
-}
-
-.xray-panel .xray-method,
-.xray-panel .xray-status,
-.xray-panel .xray-response-chip,
-.xray-panel .xray-chip,
-.xray-panel .xray-badge {
-  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
-  font-weight: 900;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.xray-panel .xray-method.get { color: var(--xray-green); }
-.xray-panel .xray-method.post { color: var(--xray-blue); }
-.xray-panel .xray-method.put,
-.xray-panel .xray-method.patch { color: var(--xray-yellow); }
-.xray-panel .xray-method.delete { color: var(--xray-red); }
-
-.xray-panel .xray-input,
-.xray-panel .xray-select,
-.xray-panel textarea,
-.xray-panel input,
-.xray-panel select {
-  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);
-  border-color: var(--xray-border, rgba(108,112,134,.35));
-  color: var(--xray-text);
-  font-family: var(--xray-font);
-}
-
-.xray-panel .xray-input:focus,
-.xray-panel .xray-select:focus,
-.xray-panel textarea:focus,
-.xray-panel input:focus,
-.xray-panel select:focus {
-  outline: none;
-  border-color: var(--xray-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 18%, transparent);
-}
-
-.xray-panel .xray-json,
-.xray-panel .xray-json-editor,
-.xray-panel pre,
-.xray-panel code,
-.xray-panel kbd {
-  font-family: var(--xray-font);
-}
-
-.xray-panel .xray-json,
-.xray-panel .xray-json-editor {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),
-    color-mix(in srgb, var(--xray-bg) 86%, black 14%);
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  border-radius: var(--xray-radius);
-}
-
-.xray-panel .xray-json-line-no {
-  color: color-mix(in srgb, var(--xray-hint) 82%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
-}
-
-.xray-panel .xray-json-key { color: var(--xray-blue); }
-.xray-panel .xray-json-string { color: var(--xray-green); }
-.xray-panel .xray-json-number { color: var(--xray-peach); }
-.xray-panel .xray-json-bool { color: var(--xray-mauve); }
-.xray-panel .xray-json-null { color: var(--xray-hint); }
-
-.xray-panel .xray-detail-hero,
-.xray-panel .xray-console-head,
-.xray-panel .xray-api-toolbar,
-.xray-panel .xray-api-command-bar,
-.xray-panel .xray-detail-nav {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));
-  border-color: var(--xray-border, rgba(108,112,134,.35));
-}
-
-.xray-panel .xray-detail-tabs button,
-.xray-panel .xray-view-btn,
-.xray-panel .xray-operation-btn,
-.xray-panel .xray-action-btn,
-.xray-panel .xray-btn,
-.xray-panel .xray-icon-btn {
-  border-radius: var(--xray-radius);
-}
-
-.xray-panel .xray-operation-btn,
-.xray-panel .xray-action-btn.primary,
-.xray-panel .xray-btn.primary {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));
-  border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);
-}
-
-.xray-glow .xray-operation-btn:hover,
-.xray-glow .xray-action-btn.primary:hover,
-.xray-glow .xray-btn.primary:hover {
-  box-shadow: 0 0 24px color-mix(in srgb, var(--xray-accent) 18%, transparent);
-}
-
-.xray-panel .xray-settings-section-title,
-.xray-panel .xray-danger-title,
-.xray-panel h3,
-.xray-panel h4 {
-  text-transform: uppercase;
-  letter-spacing: .12em;
-  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);
-}
-
-.xray-panel.xray-density-compact .xray-api-row,
-.xray-panel.xray-density-compact .xray-console-row,
-.xray-panel.xray-density-compact .xray-settings-row {
-  font-size: 11px;
-}
-
-.xray-panel.xray-density-spacious .xray-api-row,
-.xray-panel.xray-density-spacious .xray-console-row,
-.xray-panel.xray-density-spacious .xray-settings-row {
-  font-size: 13px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-panel,
-  .xray-panel *,
-  .xray-panel *::before,
-  .xray-panel *::after {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-   XRAY Operator UI tab-specific polish
-   Firefox DevTools density + terminal-grade inspector ergonomics.
-   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.xray-panel .xray-filterbar {
-  gap: 10px;
-  padding: 14px;
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  background: color-mix(in srgb, var(--xray-surface) 84%, transparent);
-}
-
-.xray-panel .xray-search {
-  min-height: 38px;
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  border-radius: var(--xray-radius);
-  background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);
-}
-
-.xray-panel .xray-network-head,
-.xray-panel .xray-api-table-head {
-  min-height: 32px;
-  color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-
-.xray-panel .xray-network-row,
-.xray-panel .xray-api-row {
-  font-variant-numeric: tabular-nums;
-}
-
-.xray-panel .xray-network-row.selected,
-.xray-panel .xray-api-row.selected {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));
-  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
-}
-
-.xray-panel .xray-path,
-.xray-panel .xray-api-path,
-.xray-panel .xray-response-heading h3 {
-  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent) 14%);
-  font-weight: 800;
-}
-
-.xray-panel .xray-bar-track {
-  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);
-  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);
-  overflow: hidden;
-}
-
-.xray-panel .xray-bar {
-  background: linear-gradient(90deg, var(--xray-accent), var(--xray-green));
-  box-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 28%, transparent);
-}
-
-.xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }
-.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }
-
-.xray-panel .xray-request-detail {
-  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);
-}
-
-.xray-panel .xray-detail-hero {
-  padding: calc(14px * var(--xray-density-scale, 1));
-  box-shadow: inset 3px 0 0 var(--xray-accent);
-}
-
-.xray-panel .xray-detail-tab,
-.xray-panel .xray-detail-views .xray-chip {
-  height: 30px;
-  border: 1px solid transparent;
-  color: var(--xray-subtext);
-  background: transparent;
-  font: 900 10px/1 var(--xray-font);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.xray-panel .xray-detail-tab.active,
-.xray-panel .xray-detail-views .xray-chip.active {
-  color: var(--xray-text);
-  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
-}
-
-.xray-panel .xray-operation-groups {
-  padding: 10px 12px;
-  background: color-mix(in srgb, var(--xray-surface) 75%, transparent);
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
-}
-
-.xray-panel .xray-operation-group-label {
-  color: var(--xray-hint);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-
-.xray-panel .xray-operation-btn {
-  min-height: 30px;
-  color: var(--xray-text);
-  font-size: 10px;
-}
-
-.xray-panel .xray-console-head {
-  min-height: var(--xray-chrome-h, 44px);
-}
-
-.xray-panel .xray-console-tabs .xray-mini-tab {
-  text-transform: none;
-  letter-spacing: .04em;
-}
-
-.xray-panel .xray-console-row {
-  font-variant-numeric: tabular-nums;
-  /* Message stream scans best dense \u2014 override the shared 52px operator row
-     height (that height is tuned for the API/log tables, not a log stream). */
-  min-height: 28px;
-}
-
-.xray-panel .xray-prompt {
-  gap: 10px;
-  padding: 10px 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
-}
-
-.xray-panel .xray-prompt::before {
-  content: '>';
-  color: var(--xray-accent);
-  font: 900 18px/1 var(--xray-font);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);
-}
-
-.xray-panel .xray-prompt .xray-input {
-  min-height: 40px;
-  border-radius: var(--xray-radius);
-}
-
-.xray-panel .xray-statusbar {
-  min-height: 28px;
-  padding: 0 12px;
-  color: var(--xray-subtext);
-  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  text-transform: lowercase;
-}
-
-.xray-panel .xray-page-head {
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));
-}
-
-.xray-panel .xray-page-head h3 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.xray-panel .xray-page-head p {
-  color: var(--xray-subtext);
-}
-
-.xray-panel .xray-insight-columns,
-.xray-panel .xray-insight-grid {
-  padding: 14px;
-}
-
-.xray-panel .xray-card::before,
-.xray-panel .xray-api-metric::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--xray-accent), transparent);
-  opacity: .75;
-}
-
-.xray-panel .xray-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.xray-panel .xray-insight-row {
-  border: 1px solid transparent;
-  border-radius: var(--xray-radius);
-  background: color-mix(in srgb, var(--xray-surface2) 44%, transparent);
-}
-
-.xray-panel .xray-insight-row:hover {
-  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);
-}
-
-.xray-panel .xray-api-metric {
-  position: relative;
-  overflow: hidden;
-  border-color: var(--xray-border, rgba(108,112,134,.35));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));
-}
-
-.xray-panel .xray-api-metric strong {
-  font-size: 18px;
-  color: var(--xray-text);
-  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);
-}
-
-/* XRAY Operator UI prompt layout hardening */
-.xray-panel .xray-prompt {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);
-  gap: 10px;
-  align-items: center;
-  padding: 10px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),
-    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);
-}
-
-.xray-panel .xray-prompt::before {
-  display: none;
-}
-
-.xray-panel .xray-prompt > svg {
-  color: var(--xray-accent-2);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));
-}
-
-.xray-panel .xray-prompt-command {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.xray-panel .xray-prompt input,
-.xray-panel .xray-prompt textarea {
-  min-width: 0;
-  width: 100%;
-  min-height: 38px;
-  padding: 10px 13px;
-  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));
-  border-radius: var(--xray-radius-lg);
-  color: var(--xray-text);
-  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
-  font: inherit;
-}
-
-.xray-panel .xray-prompt input:focus,
-.xray-panel .xray-prompt textarea:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);
-}
-
-.xray-panel .xray-context-chip {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  justify-self: end;
-  max-width: min(28vw, 460px);
-  padding: 8px 13px;
-  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
-}
-
-@container xray (max-width: 860px) {
-  .xray-panel .xray-prompt {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .xray-panel .xray-prompt-command {
-    grid-column: 2 / -1;
-  }
-
-  .xray-panel .xray-context-chip {
-    grid-column: 2 / -1;
-    justify-self: stretch;
-    max-width: none;
-  }
-}
-
-
-/* \u2500\u2500 God-tier feature styling: flags, drift, actions, waterfall, frames, tokens, rules, replay, AI \u2500\u2500 */
-
-.xray-api-flag.drift,
-.xray-api-flag.graphql {
-  color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .40);
-  background: rgba(203, 166, 247, .12);
-}
-
-.xray-api-flag.ws {
-  color: var(--xray-teal);
-  border-color: rgba(148, 226, 213, .38);
-  background: rgba(148, 226, 213, .12);
-}
-
-.xray-api-flag.mocked,
-.xray-api-flag.replayed {
-  color: var(--xray-blue);
-  border-color: rgba(137, 180, 250, .38);
-  background: rgba(137, 180, 250, .12);
-}
-
-.xray-drift-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 12px 0;
-  padding: 8px 12px;
-  border: 1px solid rgba(203, 166, 247, .40);
-  border-radius: var(--xray-radius);
-  color: var(--xray-mauve);
-  background: rgba(203, 166, 247, .10);
-  font-size: 11px;
-}
-
-.xray-drift-banner span {
-  flex: 1;
-}
-
-.xray-detail-actionbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 12px 0;
-}
-
-.xray-waterfall-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.xray-waterfall-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.xray-waterfall-track {
-  display: flex;
-  width: 100%;
-  height: 16px;
-  border-radius: var(--xray-radius-sm);
-  overflow: hidden;
-  background: rgba(var(--xray-bg-rgb), .55);
-}
-
-.xray-waterfall-seg {
-  height: 100%;
-  min-width: 2px;
-}
-
-.xray-waterfall-seg.dns,
-.xray-waterfall-dot.dns { background: var(--xray-mauve); }
-.xray-waterfall-seg.connect,
-.xray-waterfall-dot.connect { background: var(--xray-blue); }
-.xray-waterfall-seg.tls,
-.xray-waterfall-dot.tls { background: var(--xray-teal); }
-.xray-waterfall-seg.ttfb,
-.xray-waterfall-dot.ttfb { background: var(--xray-yellow); }
-.xray-waterfall-seg.download,
-.xray-waterfall-dot.download { background: var(--xray-green); }
-.xray-waterfall-seg.total,
-.xray-waterfall-dot.total { background: var(--xray-accent, var(--xray-blue)); }
-
-.xray-waterfall-legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.xray-waterfall-legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--xray-subtext);
-}
-
-.xray-waterfall-legend strong {
-  color: var(--xray-text);
-}
-
-.xray-waterfall-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--xray-radius-sm);
-}
-
-/* Frames (WebSocket / SSE) */
-.xray-frames {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.xray-frames-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 4px;
-}
-
-.xray-ws-state {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--xray-subtext);
-  background: rgba(108, 112, 134, .2);
-}
-
-.xray-ws-state.open { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
-.xray-ws-state.closed { color: var(--xray-subtext); }
-.xray-ws-state.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
-
-.xray-frames-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: auto;
-}
-
-.xray-frame-row {
-  display: grid;
-  grid-template-columns: 52px 64px 56px 1fr;
-  gap: 8px;
-  align-items: center;
-  padding: 5px 8px;
-  border-radius: var(--xray-radius-sm);
-  background: rgba(var(--xray-bg-rgb), .4);
-  font-size: 11px;
-}
-
-.xray-frame-row.out { background: rgba(137, 180, 250, .08); }
-
-.xray-frame-dir {
-  font-weight: 800;
-  font-size: 10px;
-}
-
-.xray-frame-dir.in { color: var(--xray-green); }
-.xray-frame-dir.out { color: var(--xray-blue); }
-
-.xray-frame-time,
-.xray-frame-size {
-  color: var(--xray-hint);
-}
-
-.xray-frame-preview {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--xray-text);
-}
-
-.xray-initiator-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.xray-initiator-list code {
-  color: var(--xray-subtext);
-  font-size: 11px;
-}
-
-/* JWT tokens */
-.xray-tokens {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.xray-token-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.xray-token-source {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  color: var(--xray-text);
-}
-
-.xray-token-exp {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.xray-token-exp.valid { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
-.xray-token-exp.expired { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
-
-.xray-token-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.xray-token-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--xray-hint);
-}
-
-/* Rules tab */
-.xray-rules-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 70%, transparent);
-}
-
-.xray-rules-toolbar-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--xray-subtext);
-  margin-right: 2px;
-}
-
-.xray-rules-import {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.xray-rules-import-field {
-  min-height: 96px;
-  resize: vertical;
-  font-family: var(--xray-font);
-  font-size: 11px;
-}
-
-.xray-rules-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.xray-rules-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-  color: var(--xray-subtext);
-  padding: 32px;
-}
-
-.xray-rule-card.disabled {
-  opacity: .6;
-}
-
-.xray-rule-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.xray-rule-label {
-  flex: 1;
-  font-weight: 700;
-}
-
-.xray-rule-summary {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--xray-accent, var(--xray-blue));
-  white-space: nowrap;
-}
-
-.xray-rule-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.xray-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 180px;
-}
-
-.xray-field > span {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--xray-hint);
-}
-
-.xray-field-narrow {
-  flex: 0 0 120px;
-  min-width: 120px;
-}
-
-.xray-rule-body,
-.xray-replay-headers,
-.xray-replay-bodyfield {
-  min-height: 96px;
-  resize: vertical;
-  font-family: var(--xray-font);
-  line-height: 1.5;
-}
-
-.xray-rule-body {
-  margin-top: 10px;
-}
-
-/* Replay modal */
-.xray-replay-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 2px;
-}
-
-.xray-replay-line {
-  display: flex;
-  gap: 8px;
-}
-
-.xray-replay-line .xray-select {
-  flex: 0 0 110px;
-}
-
-.xray-replay-line .xray-input {
-  flex: 1;
-}
-
-/* AI Explain modal */
-.xray-explain-body {
-  min-height: 160px;
-  padding: 6px 2px;
-}
-
-.xray-explain-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--xray-subtext);
-  padding: 24px 0;
-}
-
-.xray-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(137, 180, 250, .3);
-  border-top-color: var(--xray-accent, var(--xray-blue));
-  border-radius: 50%;
-  animation: xray-spin .7s linear infinite;
-}
-
-@keyframes xray-spin {
-  to { transform: rotate(360deg); }
-}
-
-.xray-explain-error {
-  display: flex;
-  gap: 10px;
-  color: var(--xray-red);
-  padding: 16px 0;
-}
-
-.xray-explain-error .xray-btn {
-  margin-top: 8px;
-}
-
-.xray-explain-result {
-  white-space: pre-wrap;
-  line-height: 1.6;
-  color: var(--xray-text);
-  font-size: 12px;
-}
-
-/* \u2500\u2500 Console snippet bar (folded-in Notebook) \u2500\u2500 */
-.xray-snippet-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-  background: color-mix(in srgb, var(--xray-surface) 82%, transparent);
-  overflow: hidden;
-}
-
-.xray-snippet-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--xray-hint);
-}
-
-.xray-snippet-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.xray-snippet-chips::-webkit-scrollbar { display: none; }
-
-.xray-snippet-chip {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  max-width: 220px;
-  border: 1px solid rgba(108, 112, 134, .36);
-  border-radius: 999px;
-  background: rgba(var(--xray-surface-rgb), .6);
-  overflow: hidden;
-}
-
-.xray-snippet-load {
-  max-width: 190px;
-  padding: 4px 4px 4px 10px;
-  border: none;
-  background: transparent;
-  color: var(--xray-subtext);
-  font: inherit;
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-
-.xray-snippet-load:hover {
-  color: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-snippet-remove {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 7px;
-  height: 100%;
-  border: none;
-  background: transparent;
-  color: var(--xray-hint);
-  cursor: pointer;
-}
-
-.xray-snippet-remove:hover { color: var(--xray-red); }
-
-.xray-snippet-save {
-  flex-shrink: 0;
-  padding: 5px 10px;
-}
-
-/* \u2500\u2500 Console live/paused stream toggle \u2500\u2500 */
-.xray-btn.xray-live {
-  color: var(--xray-green);
-  border-color: rgba(166, 227, 161, .32);
-  background: rgba(166, 227, 161, .08);
-}
-
-.xray-btn.xray-paused {
-  color: var(--xray-hint);
-}
-
-.xray-btn.xray-paused svg {
-  opacity: .6;
-}
-
-/* \u2500\u2500 Log detail (Logs tab) \u2500\u2500 */
-.xray-log-detail {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 12px;
-  gap: 10px;
-}
-
-.xray-log-detail-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.xray-log-level {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--xray-subtext);
-  background: rgba(108, 112, 134, .18);
-}
-
-.xray-log-level.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
-.xray-log-level.warn { color: var(--xray-yellow); background: rgba(249, 226, 175, .14); }
-.xray-log-level.info { color: var(--xray-blue); background: rgba(137, 180, 250, .14); }
-
-.xray-log-load {
-  margin-left: auto;
-}
-
-.xray-log-message {
-  padding: 8px 10px;
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-bg-rgb), .5);
-  color: var(--xray-text);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.xray-log-detail-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.xray-log-hint {
-  font-size: 11px;
-}
-
-/* \u2500\u2500 Visualize view: single-series horizontal bars \u2500\u2500 */
-.xray-viz {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 2px;
-}
-
-.xray-viz-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.xray-viz-head h3 {
-  margin: 0;
-  font-size: 13px;
-}
-
-.xray-viz-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.xray-viz-row {
-  display: grid;
-  grid-template-columns: minmax(60px, 160px) 1fr minmax(48px, auto);
-  align-items: center;
-  gap: 10px;
-  padding: 2px 0;
-}
-
-.xray-viz-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--xray-subtext);
-}
-
-.xray-viz-track {
-  position: relative;
-  height: 14px;
-  border-radius: var(--xray-radius-sm);
-  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
-}
-
-.xray-viz-fill {
-  display: block;
-  height: 100%;
-  min-width: 3px;
-  border-radius: var(--xray-radius-sm);
-  background: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-viz-fill.negative {
-  background: var(--xray-red);
-}
-
-.xray-viz-value {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--xray-text);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.xray-viz-foot {
-  font-size: 11px;
-}
-
-/* \u2500\u2500 Theme picker swatches (Settings \u2192 Appearance) \u2500\u2500 */
-.xray-theme-picker-row {
-  align-items: flex-start;
-}
-
-.xray-theme-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  min-width: 220px;
-}
-
-.xray-theme-swatch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid rgba(128, 128, 160, .28);
-  border-radius: var(--xray-radius);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
-}
-
-.xray-theme-swatch:hover {
-  transform: translateY(-1px);
-}
-
-.xray-theme-swatch.active {
-  border-color: var(--xray-accent, var(--xray-blue));
-  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue)), 0 6px 18px rgba(0, 0, 0, .3);
-}
-
-.xray-theme-swatch-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 8px currentColor;
-}
-
-.xray-theme-swatch-label {
-  flex: 1;
-  text-align: left;
-}
-
-/* \u2500\u2500 Toast: slide in, auto-dismiss \u2500\u2500 */
-.xray-toast {
-  animation: xray-toast-in .18s cubic-bezier(.2, .8, .3, 1);
-}
-
-@keyframes xray-toast-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* \u2500\u2500 Visualize bars: grow-in for perceived speed \u2500\u2500 */
-.xray-viz-fill {
-  transform-origin: left center;
-  animation: xray-bar-grow .32s cubic-bezier(.2, .8, .3, 1);
-}
-
-@keyframes xray-bar-grow {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-/* \u2500\u2500 Consistent focus-visible + interaction transitions \u2500\u2500 */
-.xray-app-root button:focus-visible,
-.xray-hud button:focus-visible,
-.xray-app-root [role="button"]:focus-visible,
-.xray-hud [role="button"]:focus-visible,
-.xray-app-root .xray-input:focus-visible,
-.xray-hud .xray-input:focus-visible {
-  outline: 2px solid var(--xray-accent, var(--xray-blue));
-  outline-offset: 1px;
-}
-
-.xray-chip,
-.xray-icon-btn,
-.xray-btn,
-.xray-api-row,
-.xray-network-row,
-.xray-entry-row {
-  transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease;
-}
-
-.xray-icon-btn:hover {
-  transform: translateY(-1px);
-}
-
-/* In-row action buttons live inside a scrolling virtualized list; the hover lift
-   reads as jitter there while the row itself stays put. Keep them flat. */
-.xray-api-row .xray-icon-btn:hover,
-.xray-api-row-actions .xray-icon-btn:hover,
-.xray-network-row .xray-icon-btn:hover,
-.xray-console-row .xray-icon-btn:hover,
-.xray-log-row .xray-icon-btn:hover {
-  transform: none;
-}
-
-.xray-api-table-scroll:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 45%, transparent);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-toast,
-  .xray-viz-fill {
-    animation: none;
-  }
-}
-
-/* \u2500\u2500 Custom theme builder (Settings \u2192 Appearance) \u2500\u2500 */
-.xray-custom-theme {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 8px 0 4px;
-  padding: 14px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
-  border-radius: var(--xray-radius-lg);
-  background: rgba(var(--xray-surface-rgb), .5);
-}
-
-.xray-custom-presets {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-}
-
-.xray-custom-presets-label {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  color: var(--xray-hint);
-  margin-right: 2px;
-}
-
-.xray-custom-preset-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 5px;
-}
-
-.xray-custom-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.xray-custom-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.xray-custom-meta strong {
-  font-size: 12px;
-  color: var(--xray-text);
-}
-
-.xray-custom-meta small {
-  font-size: 10px;
-  color: var(--xray-hint);
-}
-
-.xray-custom-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.xray-color-input {
-  width: 34px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
-  border-radius: var(--xray-radius);
-  background: transparent;
-  cursor: pointer;
-}
-
-.xray-color-input::-webkit-color-swatch-wrapper { padding: 3px; }
-.xray-color-input::-webkit-color-swatch { border: none; border-radius: var(--xray-radius-sm); }
-
-.xray-custom-hex {
-  width: 92px;
-  text-transform: lowercase;
-  font-variant-ligatures: none;
-}
-
-.xray-custom-hex.invalid {
-  border-color: var(--xray-red);
-}
-
-.xray-custom-note {
-  margin: 2px 0 0;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--xray-hint);
-}
-
-/* \u2500\u2500 Live theme preview (painted with the resolved theme vars) \u2500\u2500 */
-.xray-theme-preview {
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
-  border-radius: var(--xray-radius);
-  background: var(--xray-bg);
-  color: var(--xray-text);
-  overflow: hidden;
-  font-size: 11px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
-}
-
-.xray-tp-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
-}
-
-.xray-tp-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--xray-accent);
-  box-shadow: 0 0 8px var(--xray-accent);
-}
-
-.xray-tp-brand {
-  font-weight: 900;
-  letter-spacing: .12em;
-  font-size: 10px;
-}
-
-.xray-tp-tab {
-  padding: 2px 8px;
-  border-radius: 999px;
-  color: var(--xray-subtext);
-}
-
-.xray-tp-tab.active {
-  color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
-}
-
-.xray-tp-grow { flex: 1; }
-
-.xray-tp-btn {
-  padding: 2px 10px;
-  border-radius: var(--xray-radius-sm, 6px);
-  font-weight: 700;
-  color: var(--xray-bg);
-  background: var(--xray-accent);
-}
-
-.xray-tp-rows {
-  display: flex;
-  flex-direction: column;
-}
-
-.xray-tp-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 55%, transparent);
-}
-
-.xray-tp-row.selected {
-  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
-  box-shadow: inset 2px 0 0 var(--xray-accent);
-}
-
-.xray-tp-method {
-  font-weight: 800;
-  font-size: 10px;
-  min-width: 44px;
-}
-
-.xray-tp-method.get { color: var(--xray-green); }
-.xray-tp-method.post { color: var(--xray-blue); }
-.xray-tp-method.delete { color: var(--xray-red); }
-
-.xray-tp-path {
-  flex: 1;
-  color: var(--xray-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-tp-code {
-  font-weight: 800;
-  font-size: 10px;
-}
-
-.xray-tp-code.ok { color: var(--xray-green); }
-.xray-tp-code.warn { color: var(--xray-yellow); }
-.xray-tp-code.err { color: var(--xray-red); }
-
-.xray-tp-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 9px 10px;
-  background: var(--xray-surface);
-}
-
-.xray-tp-badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .3px;
-  text-transform: uppercase;
-}
-
-.xray-tp-badge.green { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 16%, transparent); }
-.xray-tp-badge.yellow { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 16%, transparent); }
-.xray-tp-badge.red { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 16%, transparent); }
-.xray-tp-badge.blue { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 16%, transparent); }
-.xray-tp-badge.mauve { color: var(--xray-mauve); background: color-mix(in srgb, var(--xray-mauve) 16%, transparent); }
-
-/* \u2500\u2500 Full-freedom token editor (grouped swatch grid) \u2500\u2500 */
-.xray-custom-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.xray-custom-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.xray-custom-group-title {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--xray-subtext);
-}
-
-.xray-custom-group-hint {
-  font-size: 10px;
-  color: var(--xray-hint);
-}
-
-.xray-custom-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.xray-token-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 60%, transparent);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-surface-rgb), .45);
-  transition: border-color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
-}
-
-.xray-token-field.pinned {
-  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 7%, rgba(var(--xray-surface-rgb), .45));
-}
-
-.xray-token-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1;
-}
-
-.xray-token-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--xray-text);
-}
-
-.xray-token-state {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-  padding: 1px 4px;
-  border-radius: 999px;
-  color: var(--xray-hint);
-  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-}
-
-.xray-token-field.pinned .xray-token-state {
-  color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
-}
-
-.xray-token-meta .xray-custom-hex {
-  width: 100%;
-  height: 24px;
-  padding: 2px 6px;
-  font-size: 11px;
-}
-
-.xray-token-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  flex-shrink: 0;
-}
-
-.xray-token-btn,
-.xray-token-reset {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  border-radius: var(--xray-radius-sm);
-  background: transparent;
-  color: var(--xray-hint);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--xray-dur-fast) var(--xray-ease), color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
-}
-
-.xray-token-field:hover .xray-token-btn,
-.xray-token-field:focus-within .xray-token-btn,
-.xray-token-field:hover .xray-token-reset,
-.xray-token-field:focus-within .xray-token-reset,
-.xray-token-field.pinned .xray-token-reset {
-  opacity: 1;
-}
-
-.xray-token-btn:hover,
-.xray-token-reset:hover:not(:disabled) {
-  color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
-}
-
-.xray-token-reset:disabled {
-  opacity: 0;
-  cursor: default;
-}
-
-.xray-custom-footnote {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-  font-size: 10px;
-  color: var(--xray-subtext);
-}
-
-@media (max-width: 560px) {
-  .xray-custom-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Themeable corner radius: every rounded-rect radius across the stylesheet is
-   driven by the --xray-radius scale (pills at 999px and 50% circles keep their
-   shape). The base --xray-radius is set inline per panel from settings.radius. */
-
-/* \u2500\u2500 Range slider (radius) \u2500\u2500 */
-.xray-range-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.xray-range {
-  width: 120px;
-  height: 4px;
-  appearance: none;
-  -webkit-appearance: none;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--xray-surface2) 80%, transparent);
-  outline: none;
-  cursor: pointer;
-}
-
-.xray-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--xray-accent, var(--xray-blue));
-  border: 2px solid var(--xray-surface);
-  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue));
-}
-
-.xray-range::-moz-range-thumb {
-  width: 15px;
-  height: 15px;
-  border: 2px solid var(--xray-surface);
-  border-radius: 50%;
-  background: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-range-value {
-  min-width: 34px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: var(--xray-subtext);
-}
-
-/* \u2500\u2500 Theme Studio toolbar + import \u2500\u2500 */
-.xray-custom-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-}
-
-.xray-custom-import {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.xray-custom-import-field {
-  width: 100%;
-  min-height: 84px;
-  resize: vertical;
-  font-family: var(--xray-font);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-/* \u2500\u2500 Hacker mode: CRT scanlines + vignette + moving scan sweep + phosphor bloom \u2500\u2500
-   Cosmetic, opt-in, pointer-events:none. Layer 1 (sweep) is the only layer the
-   keyframes move; scanlines and vignette stay put. \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.xray-panel.xray-hacker::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent) 45%, transparent 90%),
-    linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, .18) 50%),
-    radial-gradient(ellipse 130% 100% at 50% 50%, transparent 50%, rgba(0, 0, 0, .34) 100%);
-  background-size: 100% 42%, 100% 3px, 100% 100%;
-  background-repeat: no-repeat, repeat, no-repeat;
-  background-position: 0 -42%, 0 0, 0 0;
-}
-
-/* phosphor bloom on text + a faint scanned tint over the whole panel */
-.xray-panel.xray-hacker {
-  text-shadow: 0 0 4px color-mix(in srgb, var(--xray-accent) 30%, transparent);
-}
-
-.xray-panel.xray-hacker .xray-json-line-text,
-.xray-panel.xray-hacker .xray-console-message,
-.xray-panel.xray-hacker .xray-path,
-.xray-panel.xray-hacker .xray-method {
-  text-shadow: 0 0 7px color-mix(in srgb, var(--xray-green) 42%, transparent);
-}
-
-.xray-panel.xray-hacker .xray-brand-mark {
-  box-shadow: 0 0 18px color-mix(in srgb, var(--xray-accent) 55%, transparent);
-}
-
-@keyframes xray-crt-sweep {
-  0% { background-position: 0 -42%, 0 0, 0 0; }
-  100% { background-position: 0 142%, 0 0, 0 0; }
-}
-
-@keyframes xray-crt-flicker {
-  0%, 96%, 100% { opacity: 1; }
-  97% { opacity: .82; }
-  98% { opacity: 1; }
-  99% { opacity: .9; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .xray-panel.xray-hacker::after {
-    animation: xray-crt-sweep 5.5s linear infinite, xray-crt-flicker 7s steps(1) infinite;
-  }
-}
-
-/* \u2500\u2500 Contrast report (Theme Studio) \u2500\u2500 */
-.xray-contrast {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
-  border-radius: var(--xray-radius, 8px);
-  background: rgba(var(--xray-bg-rgb), .4);
-}
-
-.xray-contrast-title {
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--xray-hint);
-  margin-bottom: 2px;
-}
-
-.xray-contrast-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-}
-
-.xray-contrast-label {
-  color: var(--xray-subtext);
-}
-
-.xray-contrast-row strong {
-  color: var(--xray-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.xray-contrast-grade {
-  min-width: 58px;
-  text-align: center;
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.xray-contrast-grade.ok {
-  color: var(--xray-green);
-  background: color-mix(in srgb, var(--xray-green) 16%, transparent);
-}
-
-.xray-contrast-grade.warn {
-  color: var(--xray-yellow);
-  background: color-mix(in srgb, var(--xray-yellow) 16%, transparent);
-}
-
-.xray-contrast-grade.fail {
-  color: var(--xray-red);
-  background: color-mix(in srgb, var(--xray-red) 18%, transparent);
-}
-
-/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-   Frontend elevation \u2014 command center, empty states, motion, micro-interactions
-   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
-
-/* \u2500\u2500 Command center \u2500\u2500 */
-.xray-command-modal {
-  width: min(620px, 94vw);
-}
-
-.xray-command-search {
-  margin: 0;
-  padding: 14px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-  border-radius: 0;
-  background: transparent;
-}
-
-.xray-command-search .xray-input {
-  font-size: 14px;
-  border: none;
-  background: transparent;
-  padding: 0;
-}
-
-.xray-command-search .xray-input:focus {
-  box-shadow: none;
-  outline: none;
-}
-
-.xray-command-list {
-  max-height: min(56vh, 460px);
-  overflow-y: auto;
-  padding: 6px;
-  scroll-padding: 40px 0;
-}
-
-.xray-command-group + .xray-command-group {
-  margin-top: 2px;
-}
-
-.xray-command-group-label {
-  padding: 8px 10px 4px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .7px;
-  text-transform: uppercase;
-  color: var(--xray-hint);
-}
-
-.xray-command-row {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 9px 10px;
-  border: none;
-  border-radius: var(--xray-radius-sm);
-  background: transparent;
-  color: var(--xray-text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--xray-dur-fast) var(--xray-ease);
-}
-
-.xray-command-row.active {
-  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 40%, transparent);
-}
-
-.xray-command-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  flex-shrink: 0;
-  color: var(--xray-subtext);
-}
-
-.xray-command-row.active .xray-command-icon {
-  color: var(--xray-accent);
-}
-
-.xray-command-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-command-label mark {
-  background: transparent;
-  color: var(--xray-accent);
-  font-weight: 800;
-}
-
-.xray-cmd-method {
-  min-width: 34px;
-  padding: 2px 5px;
-  border-radius: var(--xray-radius-sm);
-  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
-  font-size: 9px;
-  font-weight: 800;
-  text-align: center;
-  color: currentColor;
-}
-
-.xray-command-hint {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--xray-hint);
-}
-
-.xray-command-enter {
-  color: var(--xray-accent);
-  flex-shrink: 0;
-}
-
-.xray-command-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 36px 16px;
-  text-align: center;
-  color: var(--xray-subtext);
-}
-
-.xray-command-empty svg { color: var(--xray-hint); }
-.xray-command-empty small { color: var(--xray-hint); font-size: 11px; }
-
-.xray-command-foot {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-  font-size: 10px;
-  color: var(--xray-hint);
-}
-
-.xray-command-foot kbd {
-  display: inline-block;
-  min-width: 16px;
-  margin-right: 2px;
-  padding: 1px 5px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
-  border-radius: var(--xray-radius-sm);
-  background: rgba(var(--xray-surface-rgb), .8);
-  font-family: var(--xray-font);
-  font-size: 10px;
-  color: var(--xray-subtext);
-}
-
-/* \u2500\u2500 Global search (Find in traffic) \u2500\u2500 */
-.xray-gsearch-modal {
-  width: min(720px, 94vw);
-}
-
-.xray-gsearch-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-}
-
-.xray-gsearch-input {
-  flex: 1;
-  margin: 0;
-}
-
-.xray-gsearch-list {
-  max-height: min(56vh, 520px);
-  overflow-y: auto;
-  padding: 6px;
-}
-
-.xray-gsearch-error {
-  padding: 14px 16px;
-  color: var(--xray-red);
-  font-size: 12px;
-}
-
-.xray-gsearch-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 10px;
-  border: none;
-  border-radius: var(--xray-radius-sm);
-  background: transparent;
-  color: var(--xray-text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.xray-gsearch-row.active {
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
-}
-
-.xray-gsearch-row .xray-cmd-method {
-  margin-top: 1px;
-  flex-shrink: 0;
-}
-
-.xray-gsearch-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1;
-}
-
-.xray-gsearch-path {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.xray-gsearch-field {
-  flex-shrink: 0;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  padding: 1px 5px;
-  border-radius: 999px;
-  color: var(--xray-subtext);
-  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-}
-
-.xray-gsearch-snippet {
-  font-family: var(--xray-font);
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--xray-subtext);
-  word-break: break-word;
-}
-
-.xray-gsearch-snippet mark {
-  background: color-mix(in srgb, var(--xray-accent) 34%, transparent);
-  color: var(--xray-text);
-  border-radius: var(--xray-radius-sm);
-  padding: 0 1px;
-}
-
-.xray-gsearch-status {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-/* \u2500\u2500 Elegant empty states \u2500\u2500 */
-.xray-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 160px;
-  padding: 28px 20px;
-  margin: auto;
-  text-align: center;
-  animation: xray-empty-in 320ms var(--xray-ease-out);
-}
-
-@keyframes xray-empty-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.xray-empty-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent) 22%, transparent), 0 0 28px color-mix(in srgb, var(--xray-accent) 16%, transparent);
-}
-
-.xray-empty-title {
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--xray-text);
-}
-
-.xray-empty-hint {
-  margin: 0;
-  max-width: 320px;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--xray-subtext);
-}
-
-.xray-empty-action {
-  margin-top: 6px;
-}
-
-/* \u2500\u2500 Animated active-tab indicator \u2500\u2500 */
-.xray-tab {
-  position: relative;
-}
-
-.xray-tab::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--xray-accent, var(--xray-blue));
-  transform: scaleX(0);
-  transform-origin: center;
-  opacity: 0;
-  transition: transform var(--xray-dur) var(--xray-ease-out), opacity var(--xray-dur) var(--xray-ease-out);
-}
-
-.xray-tab.active::after {
-  transform: scaleX(1);
-  opacity: 1;
-}
-
-/* \u2500\u2500 Refined modal entrance \u2500\u2500 */
-.xray-modal {
-  animation: xray-modal-in 200ms var(--xray-ease-out);
-}
-
-.xray-modal-backdrop {
-  animation: xray-fade-in 160ms ease-out;
-  backdrop-filter: blur(3px);
-}
-
-@keyframes xray-modal-in {
-  from { opacity: 0; transform: translateY(10px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes xray-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* \u2500\u2500 Selection & row micro-interactions \u2500\u2500 */
-.xray-api-row.selected,
-.xray-network-row.selected,
-.xray-entry-row.selected {
-  box-shadow: inset 3px 0 0 var(--xray-accent, var(--xray-blue));
-}
-
-.xray-live-dot.on {
-  animation: xray-pulse 2.4s var(--xray-ease) infinite;
-}
-
-@keyframes xray-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--xray-green) 55%, transparent); }
-  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--xray-green) 0%, transparent); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-empty,
-  .xray-modal,
-  .xray-modal-backdrop,
-  .xray-live-dot.on {
-    animation: none;
-  }
-  .xray-tab::after {
-    transition: none;
-  }
-}
-
-/* \u2500\u2500 Version tag in the header brand \u2500\u2500 */
-.xray-brand-ver {
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
-  background: rgba(var(--xray-surface2-rgb), .5);
-  color: var(--xray-hint);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: none;
-  cursor: help;
-}
-
-/* \u2500\u2500 API tab rework: headers grid, structural diff, initiator frames \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-.xray-headers-view {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.xray-headers-filter {
-  max-width: 340px;
-}
-
-.xray-headers-section h4 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: var(--xray-subtext, var(--xray-text));
-}
-
-.xray-headers-grid {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(108, 112, 134, .3);
-  border-radius: var(--xray-radius);
-  overflow: hidden;
-}
-
-.xray-header-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 26px;
-  gap: 8px;
-  align-items: center;
-  padding: 5px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .18);
-  font-size: 11px;
-}
-
-.xray-header-row:last-child {
-  border-bottom: none;
-}
-
-.xray-header-row:hover {
-  background: rgba(var(--xray-surface2-rgb), .55);
-}
-
-.xray-header-name {
-  color: var(--xray-accent, var(--xray-blue));
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-header-value {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--xray-text);
-}
-
-.xray-header-row .xray-icon-btn {
-  opacity: 0;
-}
-
-.xray-header-row:hover .xray-icon-btn,
-.xray-header-row .xray-icon-btn:focus-visible {
-  opacity: 1;
-}
-
-.xray-diff {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.xray-diff-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.xray-diff-lines {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(108, 112, 134, .3);
-  border-radius: var(--xray-radius);
-  overflow: hidden;
-  font-size: 11px;
-}
-
-.xray-diff-line {
-  display: grid;
-  grid-template-columns: 18px minmax(120px, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  padding: 4px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .16);
-}
-
-.xray-diff-line:last-child {
-  border-bottom: none;
-}
-
-.xray-diff-line.added {
-  background: rgba(166, 227, 161, .09);
-}
-
-.xray-diff-line.removed {
-  background: rgba(243, 139, 168, .09);
-}
-
-.xray-diff-line.changed {
-  background: rgba(249, 226, 175, .07);
-}
-
-.xray-diff-kind {
-  font-weight: 900;
-}
-
-.xray-diff-line.added .xray-diff-kind { color: var(--xray-green); }
-.xray-diff-line.removed .xray-diff-kind { color: var(--xray-red); }
-.xray-diff-line.changed .xray-diff-kind { color: var(--xray-yellow); }
-
-.xray-diff-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--xray-text);
-  font-weight: 700;
-}
-
-.xray-diff-before,
-.xray-diff-after {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-diff-before { color: var(--xray-red); }
-.xray-diff-after { color: var(--xray-green); }
-
-.xray-initiator-frame {
-  display: grid;
-  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) 26px;
-  gap: 8px;
-  align-items: center;
-  padding: 2px 0;
-}
-
-.xray-initiator-fn {
-  font-weight: 800;
-  color: var(--xray-text);
-}
-
-.xray-initiator-loc {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--xray-subtext, var(--xray-hint));
-}
-
-.xray-initiator-frame .xray-icon-btn {
-  opacity: 0;
-}
-
-.xray-initiator-frame:hover .xray-icon-btn,
-.xray-initiator-frame .xray-icon-btn:focus-visible {
-  opacity: 1;
-}
-
-.xray-json-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Closed drawer: give the space back to the list and context panes instead of
-   parking a 560px "Nothing selected" column (the detail-open hook previously
-   matched no CSS at all). */
-.xray-api-workspace:not(.detail-open) .xray-api-detail-drawer.empty {
-  display: none;
-}
-
-.xray-api-workspace:not(.detail-open) .xray-api-body {
-  grid-template-columns: minmax(260px, var(--xray-api-split, 1fr)) minmax(300px, 1.1fr);
-}
-
-/* Nothing selected at all: the (auto-hidden) context pane frees its column too. */
-.xray-api-workspace:not(.detail-open) .xray-api-body:has(.xray-request-context-pane.empty) {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* \u2500\u2500 Collapsible section primitive (CollapsibleSection.tsx) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-.xray-collapsible {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.xray-collapsible-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: 0;
-  background: transparent;
-  color: var(--xray-subtext, var(--xray-text));
-  cursor: pointer;
-  font: 800 10px/1 var(--xray-font);
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  text-align: left;
-}
-
-.xray-collapsible-header:hover {
-  color: var(--xray-text);
-}
-
-/* One knob for the whole collapse/expand feel. Deliberately slow + even-paced
-   so sections unfold like a drawer, not a snap. */
-.xray-collapsible {
-  --xray-collapse-dur: 420ms;
-  --xray-collapse-ease: cubic-bezier(.4, 0, .2, 1);
-}
-
-.xray-collapsible-chevron {
-  flex: 0 0 auto;
-  color: var(--xray-hint, var(--xray-subtext));
-  transition: transform var(--xray-collapse-dur) var(--xray-collapse-ease);
-}
-
-.xray-collapsible.collapsed .xray-collapsible-chevron {
-  transform: rotate(-90deg);
-}
-
-.xray-collapsible-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-collapsible-right {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.xray-collapsible-body {
-  min-height: 0;
-  /* grid trick animates height from 0 without knowing the content height */
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows var(--xray-collapse-dur) var(--xray-collapse-ease);
-}
-
-.xray-collapsible.collapsed > .xray-collapsible-body {
-  grid-template-rows: 0fr;
-}
-
-.xray-collapsible-body > .xray-collapsible-inner {
-  min-height: 0;
-  overflow: hidden;
-  /* Fade + slight rise so content eases in with the height, rather than being
-     hard-clipped \u2014 this reads far gentler than a pure height reveal. */
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity var(--xray-collapse-dur) var(--xray-collapse-ease),
-              transform var(--xray-collapse-dur) var(--xray-collapse-ease);
-}
-
-.xray-collapsible.collapsed > .xray-collapsible-body > .xray-collapsible-inner {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-collapsible-chevron,
-  .xray-collapsible-body,
-  .xray-collapsible-body > .xray-collapsible-inner {
-    transition: none;
-  }
-}
-
-/* API filters collapsible: keep the chip blocks spaced like the old toolbar. */
-.xray-api-filters-collapsible .xray-collapsible-header {
-  padding: 0 0 2px;
-}
-
-.xray-api-filters-collapsible .xray-collapsible-inner {
-  display: grid;
-  gap: 8px;
-}
-
-/* Insight cards use the collapsible header in place of the old <h3>. Keep the
-   card's inner padding but let the header title read like the old heading. */
-.xray-card.xray-collapsible {
-  padding: 12px;
-}
-
-.xray-card.xray-collapsible > .xray-collapsible-header {
-  padding: 0 0 8px;
-  font-size: 12px;
-}
-
-.xray-insight-overview .xray-collapsible-header {
-  padding: 0 0 6px;
-}
-
-/* Density toggle in the API table header (last column, right-aligned). */
-.xray-api-table-tools {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.xray-density-toggle {
-  width: 24px;
-  height: 24px;
-}
-
-/* \u2500\u2500 Interactive JSON tree (JsonView.tsx) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-.xray-json-tree {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  font: 600 11.5px/1.6 var(--xray-font);
-}
-
-.xray-json-tree-toolbar {
-  display: flex;
-  gap: 6px;
-  padding: 0 0 6px;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.xray-json-tree-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid rgba(108, 112, 134, .4);
-  border-radius: 999px;
-  background: rgba(var(--xray-surface2-rgb), .6);
-  color: var(--xray-subtext, var(--xray-text));
-  cursor: pointer;
-  font: 800 10px/1 var(--xray-font);
-  letter-spacing: .02em;
-}
-
-.xray-json-tree-btn:hover {
-  color: var(--xray-text);
-  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);
-}
-
-.xray-json-tree-body {
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.xray-json-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  width: 100%;
-  padding-right: 8px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-.xray-json-branch {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
-
-.xray-json-branch:hover {
-  background: rgba(var(--xray-surface2-rgb), .4);
-}
-
-.xray-json-gutter {
-  flex: 0 0 13px;
-}
-
-.xray-json-chevron {
-  flex: 0 0 auto;
-  margin-top: 3px;
-  color: var(--xray-hint, var(--xray-subtext));
-  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);
-}
-
-.xray-json-chevron.closed {
-  transform: rotate(-90deg);
-}
-
-.xray-json-summary {
-  margin: 0 6px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(var(--xray-surface2-rgb), .7);
-  color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.xray-json-scalar {
-  margin: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xray-json-chevron {
-    transition: none;
-  }
-}
-
-/* \u2500\u2500 Console: rendered errors (ErrorBlock) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.xray-error-name {
-  color: var(--xray-red);
-  font-weight: 900;
-}
-
-.xray-error-frames {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font: 600 11px/1.5 var(--xray-font);
-}
-
-.xray-error-frames li {
-  display: grid;
-  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  padding: 1px 0;
-}
-
-.xray-error-fn {
-  color: var(--xray-text);
-  font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.xray-error-loc {
-  min-width: 0;
-  color: var(--xray-subtext, var(--xray-hint));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* \u2500\u2500 Network sub-tab: status swatch, stream chip, type, waterfall \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-
-.xray-status-swatch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  padding: 1px 6px;
-  border-radius: var(--xray-radius-sm);
-  font-weight: 900;
-  font-size: 11px;
-  /* tinted background so unusual codes pop (Firefox Network Monitor) */
-  background: color-mix(in srgb, currentColor 16%, transparent);
-}
-
-.xray-status-swatch.ok { color: var(--xray-green); }
-.xray-status-swatch.redirect { color: var(--xray-yellow); }
-.xray-status-swatch.warn { color: var(--xray-peach); }
-.xray-status-swatch.error { color: var(--xray-red); }
-.xray-status-swatch.pending { color: var(--xray-subtext, var(--xray-hint)); }
-
-.xray-status-chip.stream {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 900;
-  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);
-  color: var(--xray-mauve);
-  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
-}
-
-.xray-stream-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.xray-status-chip.stream.open .xray-stream-dot {
-  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
-}
-
-.xray-status-chip.stream.closed {
-  color: var(--xray-subtext, var(--xray-hint));
-  border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent);
-  background: transparent;
-}
-
-.xray-net-type {
-  color: var(--xray-subtext, var(--xray-hint));
-  font-weight: 700;
-  font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.xray-net-size {
-  text-align: right;
-  font-size: 11px;
-}
-
-.xray-waterfall-cell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.xray-waterfall-track {
-  position: relative;
-  height: 12px;
-  min-width: 0;
-  border-radius: var(--xray-radius-sm);
-  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
-  overflow: hidden;
-}
-
-/* Positioned on the shared time axis; darker = downloading, the inner lighter
-   segment = waiting/TTFB (Chrome's two-tone waterfall). */
-.xray-waterfall-bar {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  /* Floor the width so a fast, near-instant request still reads as a legible
-     pill instead of a 2px dot; slow requests stay proportionally wider. */
-  min-width: 10px;
-  border-radius: var(--xray-radius-sm);
-  background: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-waterfall-bar.slow { background: var(--xray-yellow); }
-.xray-waterfall-bar.error { background: var(--xray-red); }
-
-.xray-waterfall-wait {
-  display: block;
-  height: 100%;
-  border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);
-  background: color-mix(in srgb, #fff 42%, transparent);
-}
-
-.xray-waterfall-ms {
-  color: var(--xray-subtext, var(--xray-hint));
-  font-size: 10px;
-  font-weight: 800;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.xray-network-row.expanded {
-  background: color-mix(in srgb, var(--xray-accent) 8%, transparent);
-}
+  var styles_default = `* {\r
+  box-sizing: border-box;\r
+}\r
+\r
+.xray-app-root {\r
+  all: initial;\r
+  color: var(--xray-text);\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-app-root *,\r
+.xray-hud * {\r
+  scrollbar-color: rgba(108, 112, 134, .62) rgba(var(--xray-bg-rgb), .44);\r
+  scrollbar-width: thin;\r
+  /* Absorb overscroll inside the panel so scrolling a list/detail to its edge\r
+     never chains through to the website behind an injected side panel or HUD. */\r
+  overscroll-behavior: contain;\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar,\r
+.xray-hud *::-webkit-scrollbar {\r
+  width: 10px;\r
+  height: 10px;\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-track,\r
+.xray-hud *::-webkit-scrollbar-track {\r
+  background: rgba(var(--xray-bg-rgb), .44);\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-thumb,\r
+.xray-hud *::-webkit-scrollbar-thumb {\r
+  border: 2px solid rgba(var(--xray-bg-rgb), .44);\r
+  border-radius: 999px;\r
+  background: rgba(108, 112, 134, .72);\r
+}\r
+\r
+.xray-app-root *::-webkit-scrollbar-thumb:hover,\r
+.xray-hud *::-webkit-scrollbar-thumb:hover {\r
+  background: rgba(137, 180, 250, .72);\r
+}\r
+\r
+.xray-panel {\r
+  /* The panel is a size container: everything inside responds to the PANEL's\r
+     width via @container rules, not the window's \u2014 a 380px docked panel on a\r
+     4K monitor must stack exactly like a small window. Modals are DOM siblings\r
+     of the panel (see App.tsx), so the layout containment this creates never\r
+     affects their fixed positioning. */\r
+  container-type: inline-size;\r
+  container-name: xray;\r
+  position: fixed;\r
+  top: 0;\r
+  right: 0;\r
+  z-index: 2147483647;\r
+  width: var(--xray-panel-width, min(960px, 94vw));\r
+  max-width: 96vw;\r
+  height: 100vh;\r
+  display: none;\r
+  flex-direction: column;\r
+  color: var(--xray-text);\r
+  background: var(--xray-bg);\r
+  border-left: 1px solid rgba(108, 112, 134, .42);\r
+  box-shadow: -20px 0 80px rgba(0, 0, 0, .38);\r
+  font: 12px/1.45 var(--xray-font);\r
+  overflow: hidden;\r
+}\r
+\r
+/* Left-dock mirror of the base (right-docked) side panel. Only added in the docked\r
+   side panel; the floating HUD's hud.css neutralizes it, and devtools/window modes\r
+   never get the dock class. */\r
+.xray-panel.xray-dock-left {\r
+  right: auto;\r
+  left: 0;\r
+  border-left: 0;\r
+  border-right: 1px solid rgba(108, 112, 134, .42);\r
+  box-shadow: 20px 0 80px rgba(0, 0, 0, .38);\r
+}\r
+\r
+/* Slide-in on open (docked side panel). One-shot animation, not a persistent\r
+   transform, so it never leaves a containing block behind for fixed children.\r
+   The right/left keyframes match the dock edge. Neutralized by reduced-motion. */\r
+@keyframes xray-panel-slide-right {\r
+  from { transform: translateX(24px); opacity: 0; }\r
+  to { transform: translateX(0); opacity: 1; }\r
+}\r
+\r
+@keyframes xray-panel-slide-left {\r
+  from { transform: translateX(-24px); opacity: 0; }\r
+  to { transform: translateX(0); opacity: 1; }\r
+}\r
+\r
+.xray-panel.xray-mode-hud.xray-dock-right.xray-open {\r
+  animation: xray-panel-slide-right .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));\r
+}\r
+\r
+.xray-panel.xray-mode-hud.xray-dock-left.xray-open {\r
+  animation: xray-panel-slide-left .22s var(--xray-ease-out, cubic-bezier(.2, .7, .3, 1));\r
+}\r
+\r
+/* Drag grabber on the panel's inner edge (toward the page). Scoped as a direct\r
+   child of .xray-panel so it outranks the broad \`.xray-panel > * { position:\r
+   relative }\` rule below \u2014 otherwise the handle collapses to 0 height (top:0 +\r
+   bottom:0 on a position:relative box) and can't be grabbed. */\r
+.xray-panel > .xray-resize-handle {\r
+  position: absolute;\r
+  top: 0;\r
+  bottom: 0;\r
+  width: 8px;\r
+  z-index: 6;\r
+  cursor: ew-resize;\r
+  touch-action: none;\r
+  background: transparent;\r
+  transition: background var(--xray-dur-fast, .12s) ease;\r
+}\r
+\r
+.xray-panel.xray-dock-right .xray-resize-handle { left: -1px; }\r
+.xray-panel.xray-dock-left .xray-resize-handle { right: -1px; }\r
+\r
+.xray-resize-handle::after {\r
+  content: '';\r
+  position: absolute;\r
+  top: 50%;\r
+  left: 50%;\r
+  width: 3px;\r
+  height: 44px;\r
+  transform: translate(-50%, -50%);\r
+  border-radius: 999px;\r
+  background: var(--xray-hint, rgba(120, 130, 150, .5));\r
+  opacity: 0;\r
+  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;\r
+}\r
+\r
+.xray-resize-handle:hover,\r
+.xray-resize-handle:focus-visible,\r
+.xray-resize-handle.dragging {\r
+  background: color-mix(in srgb, var(--xray-accent) 22%, transparent);\r
+  outline: none;\r
+}\r
+\r
+.xray-resize-handle:hover::after,\r
+.xray-resize-handle:focus-visible::after,\r
+.xray-resize-handle.dragging::after {\r
+  opacity: 1;\r
+  background: var(--xray-accent);\r
+}\r
+\r
+/* Dock / close cluster, separated from the mode switcher by a hairline. */\r
+.xray-dock-controls {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 2px;\r
+  margin-left: 2px;\r
+  padding-left: 6px;\r
+  border-left: 1px solid var(--xray-border, rgba(108, 112, 134, .3));\r
+}\r
+\r
+.xray-close-btn:hover {\r
+  color: var(--xray-red, #ff5c7a);\r
+  background: color-mix(in srgb, var(--xray-red, #ff5c7a) 16%, transparent);\r
+}\r
+\r
+/* The theme scope carries color tokens to the panel AND its sibling modals via\r
+   inheritance; display:contents means it adds no layout box. */\r
+.xray-theme-scope {\r
+  display: contents;\r
+}\r
+\r
+/* Theme token blocks key off the theme class alone (present on both .xray-theme-scope\r
+   and .xray-panel), so popups rendered outside .xray-panel inherit the active theme. */\r
+.xray-theme-operator {\r
+  --xray-bg: #0b0f14;\r
+  --xray-surface: #101720;\r
+  --xray-surface2: #151f2b;\r
+  --xray-surface3: #1b2836;\r
+  --xray-bg-rgb: 11, 15, 20;\r
+  --xray-surface-rgb: 16, 23, 32;\r
+  --xray-surface2-rgb: 21, 31, 43;\r
+  --xray-text-rgb: 216, 226, 239;\r
+  --xray-text: #d8e2ef;\r
+  --xray-subtext: #8fa1b7;\r
+  --xray-hint: #536274;\r
+  --xray-blue: #37d5ff;\r
+  --xray-mauve: #8b5cf6;\r
+  --xray-green: #38f29b;\r
+  --xray-yellow: #f6c76f;\r
+  --xray-red: #ff5c7a;\r
+  --xray-border: rgba(80, 114, 148, .42);\r
+  --xray-operator-grid: rgba(55, 213, 255, .035);\r
+}\r
+\r
+.xray-theme-dev-edition {\r
+  --xray-bg: #11131f;\r
+  --xray-surface: #171a2b;\r
+  --xray-surface2: #20243a;\r
+  --xray-surface3: #282d49;\r
+  --xray-bg-rgb: 17, 19, 31;\r
+  --xray-surface-rgb: 23, 26, 43;\r
+  --xray-surface2-rgb: 32, 36, 58;\r
+  --xray-text-rgb: 225, 231, 255;\r
+  --xray-text: #e1e7ff;\r
+  --xray-subtext: #a8b0cf;\r
+  --xray-hint: #6f789d;\r
+  --xray-blue: #75ddff;\r
+  --xray-mauve: #b18cff;\r
+  --xray-green: #62e6a8;\r
+  --xray-yellow: #ffd37a;\r
+  --xray-red: #ff6f91;\r
+  --xray-border: rgba(124, 138, 189, .36);\r
+  --xray-operator-grid: rgba(177, 140, 255, .04);\r
+}\r
+\r
+.xray-theme-midnight {\r
+  --xray-bg: #05070a;\r
+  --xray-surface: #090d12;\r
+  --xray-surface2: #0f151d;\r
+  --xray-surface3: #151d29;\r
+  --xray-bg-rgb: 5, 7, 10;\r
+  --xray-surface-rgb: 9, 13, 18;\r
+  --xray-surface2-rgb: 15, 21, 29;\r
+  --xray-text-rgb: 215, 247, 255;\r
+  --xray-text: #d7f7ff;\r
+  --xray-subtext: #83a4ad;\r
+  --xray-hint: #49626b;\r
+  --xray-blue: #00e5ff;\r
+  --xray-mauve: #7c3aed;\r
+  --xray-green: #00ff95;\r
+  --xray-yellow: #ffd166;\r
+  --xray-red: #ff3b6b;\r
+  --xray-border: rgba(0, 229, 255, .28);\r
+  --xray-operator-grid: rgba(0, 229, 255, .045);\r
+}\r
+\r
+.xray-theme-light-lab {\r
+  --xray-bg: #edf3fb;\r
+  --xray-surface: #f8fbff;\r
+  --xray-surface2: #e6eef9;\r
+  --xray-surface3: #d9e5f5;\r
+  --xray-bg-rgb: 237, 243, 251;\r
+  --xray-surface-rgb: 248, 251, 255;\r
+  --xray-surface2-rgb: 230, 238, 249;\r
+  --xray-text-rgb: 23, 32, 51;\r
+  --xray-text: #172033;\r
+  --xray-subtext: #526173;\r
+  --xray-hint: #75869a;\r
+  --xray-blue: #006adc;\r
+  --xray-mauve: #7048e8;\r
+  --xray-green: #087f5b;\r
+  --xray-yellow: #b7791f;\r
+  --xray-red: #d6336c;\r
+  --xray-border: rgba(82, 97, 115, .28);\r
+  --xray-operator-grid: rgba(0, 106, 220, .035);\r
+}\r
+\r
+.xray-theme-claude {\r
+  --xray-bg: #f0eee6;\r
+  --xray-surface: #faf9f5;\r
+  --xray-surface2: #eceae0;\r
+  --xray-surface3: #e4e1d5;\r
+  --xray-bg-rgb: 240, 238, 230;\r
+  --xray-surface-rgb: 250, 249, 245;\r
+  --xray-surface2-rgb: 236, 234, 224;\r
+  --xray-text-rgb: 35, 34, 31;\r
+  --xray-text: #23221f;\r
+  --xray-subtext: #6b675f;\r
+  --xray-hint: #9a968c;\r
+  --xray-blue: #4a6fa5;\r
+  --xray-mauve: #8a5cc4;\r
+  --xray-green: #3f8a4f;\r
+  --xray-yellow: #a9791c;\r
+  --xray-red: #c0392b;\r
+  --xray-teal: #2e8b8b;\r
+  --xray-peach: #d97757;\r
+  --xray-border: rgba(60, 55, 48, .18);\r
+  --xray-operator-grid: rgba(217, 119, 87, .05);\r
+}\r
+\r
+.xray-panel.xray-density-compact {\r
+  --xray-density-scale: .88;\r
+  --xray-row-h: 42px;\r
+  --xray-chrome-h: 40px;\r
+}\r
+\r
+.xray-panel.xray-density-comfortable {\r
+  --xray-density-scale: 1;\r
+  --xray-row-h: 52px;\r
+  --xray-chrome-h: 46px;\r
+}\r
+\r
+.xray-panel.xray-density-spacious {\r
+  --xray-density-scale: 1.14;\r
+  --xray-row-h: 64px;\r
+  --xray-chrome-h: 52px;\r
+}\r
+\r
+.xray-panel::before {\r
+  content: '';\r
+  position: absolute;\r
+  inset: 0;\r
+  pointer-events: none;\r
+  background:\r
+    linear-gradient(90deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
+    linear-gradient(180deg, var(--xray-operator-grid, transparent) 1px, transparent 1px),\r
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent), transparent 32%),\r
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--xray-mauve) 12%, transparent), transparent 30%);\r
+  background-size: 28px 28px, 28px 28px, auto, auto;\r
+  opacity: .8;\r
+}\r
+\r
+.xray-panel.xray-no-glow::before {\r
+  opacity: .28;\r
+}\r
+\r
+.xray-panel > * {\r
+  position: relative;\r
+  z-index: 1;\r
+}\r
+\r
+.xray-panel.xray-open,\r
+.xray-panel.xray-devtools {\r
+  display: flex;\r
+}\r
+\r
+.xray-panel.xray-devtools {\r
+  position: fixed;\r
+  inset: 0;\r
+  width: 100vw;\r
+  height: 100vh;\r
+  border: 0;\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-panel.xray-mode-window {\r
+  position: fixed;\r
+  inset: 0;\r
+  width: 100vw;\r
+  height: 100vh;\r
+  border: 0;\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-topbar {\r
+  height: var(--xray-chrome-h, 44px);\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 0 10px;\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
+  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));\r
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-brand {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-width: 140px;\r
+  font-weight: 900;\r
+  letter-spacing: .12em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-drag-handle {\r
+  cursor: grab;\r
+}\r
+\r
+.xray-drag-handle:active {\r
+  cursor: grabbing;\r
+}\r
+\r
+.xray-brand-mark {\r
+  width: 28px;\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  color: white;\r
+  background: linear-gradient(135deg, var(--xray-accent, var(--xray-blue)), var(--xray-mauve));\r
+  border-radius: var(--xray-radius);\r
+  box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);\r
+}\r
+\r
+.xray-live-dot {\r
+  width: 7px;\r
+  height: 7px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+}\r
+\r
+.xray-live-dot.on {\r
+  background: var(--xray-green);\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 18%, transparent), 0 0 16px color-mix(in srgb, var(--xray-green) 55%, transparent);\r
+}\r
+\r
+.xray-tabs,\r
+.xray-console-tabs,\r
+.xray-filter-chips {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-tab,\r
+.xray-mini-tab,\r
+.xray-btn,\r
+.xray-chip,\r
+.xray-icon-btn {\r
+  border: 1px solid transparent;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  font: 800 12px/1 var(--xray-font);\r
+  cursor: pointer;\r
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;\r
+}\r
+\r
+.xray-tab {\r
+  height: calc(var(--xray-chrome-h, 44px) - 12px);\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 0 12px;\r
+  border-radius: var(--xray-radius);\r
+  text-transform: uppercase;\r
+  letter-spacing: .04em;\r
+  font-size: calc(11px * var(--xray-density-scale, 1));\r
+}\r
+\r
+.xray-tab:hover,\r
+.xray-mini-tab:hover,\r
+.xray-btn:hover,\r
+.xray-chip:hover,\r
+.xray-icon-btn:hover {\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-text-rgb), .06);\r
+}\r
+\r
+.xray-tab.active,\r
+.xray-mini-tab.active,\r
+.xray-chip.active {\r
+  color: var(--xray-text);\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 15%, transparent);\r
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 16%, transparent), 0 0 22px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-no-glow .xray-tab.active,\r
+.xray-no-glow .xray-mini-tab.active,\r
+.xray-no-glow .xray-chip.active,\r
+.xray-no-glow .xray-brand-mark,\r
+.xray-no-glow .xray-live-dot.on {\r
+  box-shadow: none;\r
+}\r
+\r
+.xray-badge {\r
+  min-width: 18px;\r
+  height: 16px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 0 5px;\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: rgba(108, 112, 134, .28);\r
+  font-size: 9px;\r
+}\r
+\r
+.xray-spacer {\r
+  flex: 1;\r
+}\r
+\r
+.xray-summary {\r
+  max-width: 220px;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-subtext);\r
+  font-size: calc(10px * var(--xray-density-scale, 1));\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-mode-switcher {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+}\r
+\r
+.xray-mode-switcher .xray-icon-btn.active {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);\r
+}\r
+\r
+.xray-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background: color-mix(in srgb, var(--xray-bg) 96%, var(--xray-accent) 4%);\r
+}\r
+\r
+.xray-console-head {\r
+  display: flex;\r
+  align-items: center;\r
+  min-height: 44px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-mini-tab {\r
+  height: 44px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 16px;\r
+  border-right: 1px solid rgba(108, 112, 134, .28);\r
+  border-bottom: 2px solid transparent;\r
+}\r
+\r
+.xray-mini-tab.active {\r
+  border-bottom-color: var(--xray-blue);\r
+}\r
+\r
+.xray-toolbar {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  margin-left: auto;\r
+  padding-right: 8px;\r
+}\r
+\r
+.xray-btn,\r
+.xray-icon-btn {\r
+  height: 32px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 12px;\r
+  border-color: rgba(108, 112, 134, .5);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-surface-rgb), .74);\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-btn.primary {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);\r
+}\r
+\r
+.xray-btn.danger {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .42);\r
+  background: rgba(243, 139, 168, .08);\r
+}\r
+\r
+.xray-icon-btn {\r
+  width: 32px;\r
+  justify-content: center;\r
+  padding: 0;\r
+}\r
+\r
+.xray-filterbar {\r
+  display: grid;\r
+  grid-template-columns: minmax(180px, 1fr) auto;\r
+  gap: 8px;\r
+  padding: 12px;\r
+  background: var(--xray-surface);\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-search {\r
+  position: relative;\r
+  min-width: 0;\r
+}\r
+\r
+.xray-search svg {\r
+  position: absolute;\r
+  left: 12px;\r
+  top: 50%;\r
+  transform: translateY(-50%);\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-input {\r
+  width: 100%;\r
+  height: 40px;\r
+  border: 1px solid rgba(108, 112, 134, .55);\r
+  border-radius: var(--xray-radius);\r
+  outline: none;\r
+  padding: 0 12px 0 38px;\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-surface2-rgb), .5);\r
+  font: 800 13px/1 var(--xray-font);\r
+}\r
+\r
+.xray-input:focus,\r
+.xray-prompt input:focus,\r
+.xray-prompt textarea:focus {\r
+  border-color: var(--xray-accent, var(--xray-blue));\r
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);\r
+}\r
+\r
+/* Chips wrap onto multiple rows rather than overflowing/clipping \u2014 a narrow\r
+   panel must never hide filters behind an invisible horizontal scroll. */\r
+.xray-filter-chips {\r
+  flex-wrap: wrap;\r
+  row-gap: 5px;\r
+}\r
+\r
+.xray-filter-chips.compact {\r
+  gap: 6px;\r
+  flex-wrap: wrap;\r
+}\r
+\r
+.xray-chip {\r
+  height: 40px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 0 14px;\r
+  border-color: rgba(108, 112, 134, .5);\r
+  border-radius: var(--xray-radius);\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-filter-chips.compact .xray-chip {\r
+  height: 28px;\r
+  padding: 0 10px;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-network {\r
+  position: relative;\r
+  min-height: 180px;\r
+  max-height: min(44vh, 380px);\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-bg);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-network-head,\r
+.xray-network-row {\r
+  display: grid;\r
+  /* Status \xB7 Method \xB7 Name \xB7 Type \xB7 Size \xB7 Waterfall \u2014 the waterfall takes the\r
+     remaining flexible width (2fr) so wide rows have no dead gap. */\r
+  grid-template-columns: 52px 52px minmax(120px, 1.3fr) 76px 66px minmax(140px, 2fr);\r
+  align-items: center;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-network-head {\r
+  height: 28px;\r
+  padding: 0 12px;\r
+  color: var(--xray-mauve);\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-virtual-list {\r
+  position: relative;\r
+  overflow: auto;\r
+  height: calc(100% - 28px);\r
+}\r
+\r
+.xray-network-row {\r
+  min-height: 32px;\r
+  padding: 0 12px;\r
+  cursor: pointer;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-network-row:hover {\r
+  background: rgba(var(--xray-text-rgb), .04);\r
+}\r
+\r
+.xray-network-row.selected {\r
+  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);\r
+  box-shadow: inset 2px 0 0 var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-method {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-method.post,\r
+.xray-method.put {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-method.delete,\r
+.xray-method.del {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-status.ok {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-status.warn {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-status.error {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-path {\r
+  min-width: 0;\r
+  color: #b4befe;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-muted {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-timing {\r
+  display: grid;\r
+  grid-template-columns: 1fr auto;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-bar-track {\r
+  height: 4px;\r
+  border-radius: 999px;\r
+  background: rgba(108, 112, 134, .34);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-bar {\r
+  height: 100%;\r
+  border-radius: 999px;\r
+  background: var(--xray-blue);\r
+}\r
+\r
+.xray-bar.slow {\r
+  background: var(--xray-yellow);\r
+}\r
+\r
+.xray-bar.error {\r
+  background: var(--xray-red);\r
+}\r
+\r
+.xray-console-stream-wrap {\r
+  position: relative;\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: flex;\r
+}\r
+\r
+/* overflow: hidden here made the stream wheel-unscrollable \u2014 the virtualizer\r
+   could move it programmatically but the user could not. */\r
+.xray-console-stream {\r
+  min-height: 0;\r
+  flex: 1;\r
+  background: var(--xray-surface);\r
+  overflow-y: auto;\r
+}\r
+\r
+.xray-newmsg-pill {\r
+  position: absolute;\r
+  bottom: 12px;\r
+  left: 50%;\r
+  transform: translateX(-50%);\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+  padding: 5px 12px;\r
+  border: 1px solid rgba(var(--xray-accent-rgb), .6);\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-surface2-rgb), .95);\r
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);\r
+  cursor: pointer;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-newmsg-pill:hover {\r
+  background: rgba(var(--xray-accent-rgb), .2);\r
+}\r
+\r
+.xray-repeat-badge {\r
+  display: inline-block;\r
+  margin-left: 8px;\r
+  padding: 1px 7px;\r
+  border-radius: 999px;\r
+  border: 1px solid rgba(var(--xray-accent-rgb), .45);\r
+  background: rgba(var(--xray-accent-rgb), .14);\r
+  color: var(--xray-text);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-truncated-badge {\r
+  display: inline-block;\r
+  margin-left: 8px;\r
+  padding: 1px 7px;\r
+  border-radius: 999px;\r
+  border: 1px solid rgba(249, 226, 175, .5);\r
+  background: rgba(249, 226, 175, .12);\r
+  color: var(--xray-yellow);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-error-stack {\r
+  margin: 0;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+  color: var(--xray-red);\r
+  font: 600 11px/1.5 var(--xray-font);\r
+}\r
+\r
+.xray-chip-count {\r
+  margin-left: 5px;\r
+  padding: 0 6px;\r
+  border-radius: 999px;\r
+  background: rgba(var(--xray-surface2-rgb), .9);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-visually-hidden {\r
+  position: absolute;\r
+  width: 1px;\r
+  height: 1px;\r
+  overflow: hidden;\r
+  clip: rect(0 0 0 0);\r
+  white-space: nowrap;\r
+}\r
+\r
+@keyframes xray-spin {\r
+  to { transform: rotate(360deg); }\r
+}\r
+\r
+.xray-spin {\r
+  animation: xray-spin 1s linear infinite;\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-spin { animation: none; }\r
+}\r
+\r
+.xray-console-row {\r
+  display: grid;\r
+  grid-template-columns: 22px minmax(0, 1fr) auto;\r
+  gap: 8px;\r
+  align-items: start;\r
+  /* Denser rows for a log stream where scan-density matters (research). */\r
+  min-height: 26px;\r
+  padding: 4px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .16);\r
+}\r
+\r
+/* Right-side cell: optional source location + timestamp. Timestamps read as\r
+   optional clutter (Firefox/Chrome default them off), so keep them quiet and\r
+   reveal on row hover; the source location stays for error provenance. */\r
+.xray-console-aside {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+  justify-content: flex-end;\r
+}\r
+\r
+.xray-console-source {\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  font-size: 10px;\r
+  font-weight: 700;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-console-time {\r
+  color: var(--xray-hint, var(--xray-subtext));\r
+  font-size: 10px;\r
+  font-variant-numeric: tabular-nums;\r
+  opacity: 0;\r
+  transition: opacity var(--xray-dur-fast, .12s) ease;\r
+}\r
+\r
+.xray-console-row:hover .xray-console-time,\r
+.xray-console-row.command .xray-console-time,\r
+.xray-console-row.result .xray-console-time {\r
+  opacity: .65;\r
+}\r
+\r
+.xray-console-row.error {\r
+  color: var(--xray-red);\r
+  background: rgba(243, 139, 168, .08);\r
+  border-left: 2px solid var(--xray-red);\r
+}\r
+\r
+.xray-console-row.warn {\r
+  color: var(--xray-yellow);\r
+  background: rgba(249, 226, 175, .07);\r
+  border-left: 2px solid var(--xray-yellow);\r
+}\r
+\r
+.xray-console-row.command {\r
+  color: var(--xray-mauve);\r
+  /* Set the REPL input/output apart from page-log noise the way DevTools tints\r
+     its own prompt echo \u2014 the command/result pair reads as one "turn". */\r
+  background: color-mix(in srgb, var(--xray-mauve) 7%, transparent);\r
+}\r
+\r
+.xray-console-row.result {\r
+  border-left: 2px solid rgba(var(--xray-accent-rgb), .55);\r
+  background: color-mix(in srgb, var(--xray-accent) 5%, transparent);\r
+}\r
+\r
+/* Leading gutter marker: quiet by default, colored only where it carries\r
+   meaning (input, output, error, warning). Centered on the first text line. */\r
+.xray-console-glyph {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  height: 18px;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-console-row.error .xray-console-glyph { color: var(--xray-red); }\r
+.xray-console-row.warn .xray-console-glyph { color: var(--xray-yellow); }\r
+.xray-console-row.command .xray-console-glyph { color: var(--xray-mauve); }\r
+.xray-console-row.result .xray-console-glyph { color: var(--xray-accent); }\r
+\r
+/* A plain page log needs no icon \u2014 a small dot holds the gutter rhythm without\r
+   stamping a terminal glyph on every single line. */\r
+.xray-console-dot {\r
+  width: 4px;\r
+  height: 4px;\r
+  border-radius: 50%;\r
+  background: color-mix(in srgb, var(--xray-hint) 70%, transparent);\r
+}\r
+\r
+.xray-console-message {\r
+  min-width: 0;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+/* Soften ordinary logs so errors, warnings and REPL results carry the eye. */\r
+.xray-console-row.log .xray-console-message {\r
+  color: color-mix(in srgb, var(--xray-text) 78%, var(--xray-hint));\r
+}\r
+\r
+.xray-detail {\r
+  grid-column: 2 / 4;\r
+  min-width: 0;\r
+  max-height: 360px;\r
+  overflow: auto;\r
+  padding: 10px;\r
+  border: 1px solid rgba(108, 112, 134, .35);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-surface-rgb), .72);\r
+}\r
+\r
+.xray-prompt {\r
+  display: grid;\r
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 8px 10px;\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-prompt input,\r
+.xray-prompt textarea {\r
+  min-height: 34px;\r
+  border: 1px solid rgba(108, 112, 134, .55);\r
+  border-radius: var(--xray-radius);\r
+  outline: none;\r
+  padding: 9px 10px;\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface2);\r
+  font: 800 12px/1.3 var(--xray-font);\r
+  resize: none;\r
+  overflow-y: auto;\r
+  max-height: 110px;\r
+}\r
+\r
+.xray-context-chip {\r
+  max-width: 260px;\r
+  height: 30px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  padding: 0 10px;\r
+  border: 1px solid rgba(137, 180, 250, .5);\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: rgba(137, 180, 250, .12);\r
+  cursor: pointer;\r
+  font: inherit;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-statusbar {\r
+  min-height: 24px;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 14px;\r
+  padding: 0 10px;\r
+  color: var(--xray-subtext);\r
+  background: var(--xray-bg);\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-page {\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-page-head {\r
+  display: flex;\r
+  align-items: flex-start;\r
+  gap: 12px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-page-head h3 {\r
+  margin: 0 0 3px;\r
+}\r
+\r
+.xray-page-head p {\r
+  margin: 0;\r
+  color: var(--xray-hint);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-split {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  /* Split is the MAX of a minmax, never a fixed track: the list caps at the\r
+     dragged width but yields down to its min when the panel shrinks, so a wide\r
+     split can't starve the detail pane. */\r
+  grid-template-columns: minmax(240px, var(--xray-logs-split, 42%)) minmax(300px, 1fr);\r
+}\r
+\r
+.xray-list-panel {\r
+  position: relative;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-list-panel > .xray-virtual-list {\r
+  flex: 1;\r
+  min-height: 0;\r
+  height: auto;\r
+}\r
+\r
+.xray-list-controls {\r
+  display: grid;\r
+  gap: 8px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background:\r
+    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),\r
+    var(--xray-surface);\r
+}\r
+\r
+.xray-api-summary {\r
+  display: grid;\r
+  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);\r
+  gap: 6px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-api-metric,\r
+.xray-api-top-endpoint {\r
+  min-width: 0;\r
+  min-height: 44px;\r
+  display: grid;\r
+  align-content: center;\r
+  gap: 2px;\r
+  padding: 7px 9px;\r
+  border: 1px solid rgba(108, 112, 134, .30);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-surface-rgb), .64);\r
+}\r
+\r
+.xray-api-top-endpoint {\r
+  min-height: 36px;\r
+}\r
+\r
+.xray-api-metric {\r
+  grid-template-columns: 18px minmax(0, 1fr);\r
+}\r
+\r
+.xray-api-metric svg {\r
+  grid-row: 1 / 3;\r
+  align-self: center;\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-api-metric span,\r
+.xray-api-top-endpoint span {\r
+  min-width: 0;\r
+  color: var(--xray-hint);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+  letter-spacing: .07em;\r
+}\r
+\r
+.xray-api-metric strong,\r
+.xray-api-top-endpoint strong {\r
+  min-width: 0;\r
+  color: var(--xray-text);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-api-metric.ok strong,\r
+.xray-api-metric.ok svg {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-api-metric.warn strong,\r
+.xray-api-metric.warn svg {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-metric.error strong,\r
+.xray-api-metric.error svg {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-api-workspace {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+  background:\r
+    linear-gradient(180deg, rgba(var(--xray-bg-rgb), .24), transparent 180px),\r
+    var(--xray-bg);\r
+}\r
+\r
+.xray-api-body {\r
+  position: relative;\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  /* First track = list pane. --xray-api-split (set inline when the user drags\r
+     the divider) replaces the auto min/max; container queries below override\r
+     the whole property, so the split is dropped when the panel stacks. */\r
+  grid-template-columns: minmax(260px, var(--xray-api-split, 440px)) minmax(260px, .64fr) minmax(400px, 1.55fr);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-collection-pane,\r
+.xray-request-context-pane,\r
+.xray-api-detail-drawer {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+/* Anchors the draggable list/detail divider on the pane's trailing edge. */\r
+.xray-api-collection-pane {\r
+  position: relative;\r
+}\r
+\r
+.xray-pane-divider {\r
+  position: absolute;\r
+  top: 0;\r
+  bottom: 0;\r
+  right: -4px;\r
+  width: 9px;\r
+  z-index: 4;\r
+  cursor: ew-resize;\r
+  touch-action: none;\r
+  background: transparent;\r
+}\r
+\r
+.xray-pane-divider::after {\r
+  content: '';\r
+  position: absolute;\r
+  top: 50%;\r
+  left: 50%;\r
+  width: 3px;\r
+  height: 46px;\r
+  transform: translate(-50%, -50%);\r
+  border-radius: 999px;\r
+  background: var(--xray-hint, rgba(120, 130, 150, .5));\r
+  opacity: 0;\r
+  transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;\r
+}\r
+\r
+.xray-pane-divider:hover,\r
+.xray-pane-divider:focus-visible,\r
+.xray-pane-divider.dragging {\r
+  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);\r
+  outline: none;\r
+}\r
+\r
+.xray-pane-divider:hover::after,\r
+.xray-pane-divider:focus-visible::after,\r
+.xray-pane-divider.dragging::after {\r
+  opacity: 1;\r
+  background: var(--xray-accent);\r
+}\r
+\r
+.xray-api-collection-pane {\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-bg-rgb), .42);\r
+}\r
+\r
+.xray-api-collection-head {\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  gap: 8px;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .32);\r
+  background:\r
+    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),\r
+    rgba(var(--xray-surface-rgb), .88);\r
+}\r
+\r
+.xray-api-collection-title {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+}\r
+\r
+.xray-api-collection-title span,\r
+.xray-pane-kicker,\r
+.xray-api-summary-pill span {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-api-collection-title strong {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 14px;\r
+}\r
+\r
+.xray-api-env-pill {\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 0 9px;\r
+  border: 1px solid rgba(148, 226, 213, .30);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-teal);\r
+  background: rgba(148, 226, 213, .08);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-api-stats-collapsible {\r
+  grid-column: 1 / -1;\r
+  min-width: 0;\r
+}\r
+\r
+/* The stats collapsible carries its own header, so drop the strip's padding. */\r
+.xray-api-stats-collapsible .xray-collapsible-header {\r
+  padding: 2px 0 6px;\r
+}\r
+\r
+.xray-api-summary-strip {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: repeat(4, minmax(0, 1fr));\r
+  gap: 6px;\r
+}\r
+\r
+.xray-api-summary-pill {\r
+  min-width: 0;\r
+  height: 38px;\r
+  display: grid;\r
+  grid-template-columns: 16px minmax(0, 1fr);\r
+  align-content: center;\r
+  align-items: center;\r
+  gap: 1px 6px;\r
+  padding: 5px 7px;\r
+  border: 1px solid rgba(108, 112, 134, .30);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-bg-rgb), .66);\r
+}\r
+\r
+.xray-api-summary-pill svg {\r
+  grid-row: 1 / 3;\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-api-summary-pill strong {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-api-summary-pill.ok svg,\r
+.xray-api-summary-pill.ok strong {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-api-summary-pill.warn svg,\r
+.xray-api-summary-pill.warn strong {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-summary-pill.error svg,\r
+.xray-api-summary-pill.error strong {\r
+  color: var(--xray-red);\r
+}\r
+\r
+.xray-api-main {\r
+  position: relative;\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1 1 auto;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+/* New requests insert at the top under LATEST sort \u2014 the pill floats near the\r
+   top of the list, unlike the console variant that anchors at the bottom. */\r
+.xray-newreq-pill {\r
+  top: 46px;\r
+  bottom: auto;\r
+}\r
+\r
+.xray-api-toolbar {\r
+  display: grid;\r
+  grid-template-columns: 1fr;\r
+  gap: 8px;\r
+  padding: 8px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-surface-rgb), .72);\r
+}\r
+\r
+.xray-api-search {\r
+  min-width: 0;\r
+  height: 36px;\r
+  align-self: start;\r
+}\r
+\r
+.xray-api-search .xray-input {\r
+  height: 36px;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-api-primary-filters {\r
+  justify-content: flex-start;\r
+  min-width: 0;\r
+  flex-wrap: wrap;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-api-secondary-controls {\r
+  display: grid;\r
+  gap: 8px;\r
+  min-width: 0;\r
+}\r
+\r
+.xray-filter-label {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-api-table-head,\r
+.xray-api-row {\r
+  display: grid;\r
+  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;\r
+  align-items: center;\r
+  gap: 7px;\r
+}\r
+\r
+.xray-api-table-head {\r
+  position: sticky;\r
+  top: 0;\r
+  z-index: 2;\r
+  height: 30px;\r
+  padding: 0 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  color: var(--xray-hint);\r
+  background: rgba(var(--xray-surface-rgb), .96);\r
+  font: 900 10px/1 var(--xray-font);\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-api-table-scroll {\r
+  position: relative;\r
+  flex: 1;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  scrollbar-width: thin;\r
+}\r
+\r
+.xray-api-row {\r
+  width: 100%;\r
+  min-height: 68px;\r
+  padding: 9px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .18);\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.28 var(--xray-font);\r
+  outline: none;\r
+  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;\r
+}\r
+\r
+.xray-api-row:hover,\r
+.xray-api-row:focus-visible {\r
+  background: rgba(var(--xray-text-rgb), .055);\r
+}\r
+\r
+.xray-api-row.selected {\r
+  background:\r
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 27%, transparent), color-mix(in srgb, var(--xray-accent) 8%, transparent)),\r
+    rgba(var(--xray-surface2-rgb), .42);\r
+  box-shadow:\r
+    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),\r
+    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),\r
+    0 8px 22px rgba(0, 0, 0, .14);\r
+}\r
+\r
+.xray-api-row.has-error {\r
+  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);\r
+}\r
+\r
+.xray-api-row.has-slow:not(.has-error) {\r
+  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);\r
+}\r
+\r
+.xray-api-row.selected.has-error,\r
+.xray-api-row.selected.has-slow {\r
+  box-shadow:\r
+    inset 4px 0 0 var(--xray-accent, var(--xray-blue)),\r
+    inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 30%, transparent),\r
+    0 8px 22px rgba(0, 0, 0, .14);\r
+}\r
+\r
+.xray-api-row.group {\r
+  background: rgba(var(--xray-surface-rgb), .55);\r
+}\r
+\r
+.xray-api-row.child {\r
+  padding-left: 24px;\r
+  background: rgba(var(--xray-surface-rgb), .46);\r
+}\r
+\r
+.xray-api-row.pinned {\r
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);\r
+}\r
+\r
+.xray-api-path-cell {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-api-flags {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 4px;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-api-flags.muted {\r
+  display: none;\r
+}\r
+\r
+.xray-api-flag {\r
+  min-width: 0;\r
+  max-width: 78px;\r
+  padding: 3px 6px;\r
+  border: 1px solid rgba(108, 112, 134, .36);\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-surface-rgb), .72);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-method.post {\r
+  color: var(--xray-teal);\r
+}\r
+\r
+.xray-method.patch {\r
+  color: var(--xray-peach);\r
+}\r
+\r
+.xray-method.put {\r
+  color: var(--xray-yellow);\r
+}\r
+\r
+.xray-api-flag.error {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .38);\r
+  background: rgba(243, 139, 168, .10);\r
+}\r
+\r
+.xray-api-flag.slow,\r
+.xray-api-flag.repeated,\r
+.xray-api-flag.large {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .34);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-api-flag.empty {\r
+  color: var(--xray-peach);\r
+  border-color: rgba(250, 179, 135, .34);\r
+  background: rgba(250, 179, 135, .10);\r
+}\r
+\r
+.xray-api-flag.pinned {\r
+  color: var(--xray-mauve);\r
+  border-color: rgba(203, 166, 247, .36);\r
+  background: rgba(203, 166, 247, .10);\r
+}\r
+\r
+.xray-api-row-actions {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: flex-end;\r
+  gap: 4px;\r
+  opacity: .62;\r
+  transition: opacity .15s ease;\r
+}\r
+\r
+.xray-api-row:hover .xray-api-row-actions,\r
+.xray-api-row:focus-visible .xray-api-row-actions,\r
+.xray-api-row.selected .xray-api-row-actions {\r
+  opacity: 1;\r
+}\r
+\r
+.xray-icon-btn {\r
+  width: 28px;\r
+  height: 26px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  border: 1px solid rgba(108, 112, 134, .36);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-surface-rgb), .72);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-icon-btn:hover,\r
+.xray-icon-btn:focus-visible,\r
+.xray-icon-btn.active {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-request-context-pane {\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background:\r
+    linear-gradient(180deg, rgba(var(--xray-surface2-rgb), .30), transparent 160px),\r
+    rgba(var(--xray-surface-rgb), .78);\r
+}\r
+\r
+.xray-request-context-pane.empty {\r
+  justify-content: center;\r
+}\r
+\r
+.xray-request-context-head {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 10px;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-request-line {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-request-line code {\r
+  min-width: 0;\r
+  height: 32px;\r
+  display: flex;\r
+  align-items: center;\r
+  overflow: hidden;\r
+  padding: 0 10px;\r
+  border: 1px solid rgba(108, 112, 134, .44);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-bg-rgb), .76);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-request-meta-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(2, minmax(0, 1fr));\r
+  gap: 6px;\r
+}\r
+\r
+.xray-request-meta-grid span {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+  padding: 7px 8px;\r
+  border: 1px solid rgba(108, 112, 134, .28);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-bg-rgb), .48);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-request-meta-grid strong {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  text-transform: uppercase;\r
+  letter-spacing: .07em;\r
+}\r
+\r
+.xray-request-context-content {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: rgba(var(--xray-bg-rgb), .45);\r
+}\r
+\r
+.xray-request-context-content .xray-json-editor {\r
+  min-width: 0;\r
+}\r
+\r
+.xray-request-context-content .xray-json-line-text {\r
+  overflow-wrap: anywhere;\r
+}\r
+\r
+.xray-request-context-footer {\r
+  flex-shrink: 0;\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 8px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .30);\r
+  color: var(--xray-hint);\r
+  background: rgba(var(--xray-bg-rgb), .35);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-request-context-footer span {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-request-tabs {\r
+  flex-shrink: 0;\r
+  padding: 0 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .30);\r
+  background: rgba(var(--xray-bg-rgb), .30);\r
+}\r
+\r
+.xray-api-detail-drawer {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-api-drawer-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: hidden;\r
+  padding: 0;\r
+}\r
+\r
+.xray-entry-row {\r
+  width: 100%;\r
+  min-height: 58px;\r
+  display: grid;\r
+  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;\r
+  align-items: center;\r
+  gap: 7px;\r
+  padding: 8px 10px;\r
+  border: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-entry-row:hover {\r
+  background: rgba(var(--xray-text-rgb), .05);\r
+}\r
+\r
+.xray-entry-row.selected {\r
+  background: rgba(137, 180, 250, .16);\r
+  box-shadow: inset 3px 0 0 var(--xray-blue);\r
+}\r
+\r
+.xray-entry-row.child {\r
+  padding-left: 24px;\r
+  background: rgba(var(--xray-surface-rgb), .45);\r
+}\r
+\r
+.xray-entry-row.pinned {\r
+  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);\r
+}\r
+\r
+.xray-status-dot {\r
+  width: 7px;\r
+  height: 7px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+}\r
+\r
+.xray-status-dot.ok {\r
+  background: var(--xray-green);\r
+  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);\r
+}\r
+\r
+.xray-status-dot.warn {\r
+  background: var(--xray-yellow);\r
+  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);\r
+}\r
+\r
+.xray-status-dot.error {\r
+  background: var(--xray-red);\r
+  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);\r
+}\r
+\r
+.xray-entry-main {\r
+  min-width: 0;\r
+  display: grid;\r
+  gap: 2px;\r
+}\r
+\r
+.xray-entry-meta {\r
+  /* subtext, not hint: this 10px line carries the row's key facts and the\r
+     hint gray fell below WCAG AA contrast on the dark surfaces */\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  font-size: 10px;\r
+  font-weight: 700;\r
+}\r
+\r
+.xray-entry-duration {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: minmax(24px, 1fr) auto;\r
+  align-items: center;\r
+  gap: 6px;\r
+  color: var(--xray-subtext);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-count-pill,\r
+.xray-pin {\r
+  height: 24px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 0 8px;\r
+  border: 1px solid rgba(108, 112, 134, .40);\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-surface-rgb), .74);\r
+  font-size: 10px;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-pin {\r
+  width: 26px;\r
+  padding: 0;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-pin.active {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .34);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-detail-panel {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-mobile-detail-panel {\r
+  display: none;\r
+}\r
+\r
+.xray-request-detail {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  height: 100%;\r
+  display: flex;\r
+  flex-direction: column;\r
+  background:\r
+    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),\r
+    var(--xray-bg);\r
+}\r
+\r
+.xray-detail-hero {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-width: 0;\r
+  flex-shrink: 0;\r
+  margin: 0;\r
+  padding: 10px 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-response-heading {\r
+  flex: 1;\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-response-heading h3 {\r
+  min-width: 0;\r
+  margin: 0;\r
+  overflow: hidden;\r
+  color: var(--xray-text);\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-response-chips {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-response-chip {\r
+  height: 28px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  padding: 0 9px;\r
+  border: 1px solid rgba(108, 112, 134, .32);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-bg-rgb), .68);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-response-chip.ok {\r
+  color: var(--xray-green);\r
+  border-color: rgba(166, 227, 161, .30);\r
+  background: rgba(166, 227, 161, .10);\r
+}\r
+\r
+.xray-response-chip.warn {\r
+  color: var(--xray-yellow);\r
+  border-color: rgba(249, 226, 175, .30);\r
+  background: rgba(249, 226, 175, .10);\r
+}\r
+\r
+.xray-response-chip.error {\r
+  color: var(--xray-red);\r
+  border-color: rgba(243, 139, 168, .30);\r
+  background: rgba(243, 139, 168, .10);\r
+}\r
+\r
+.xray-detail-nav {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-surface-rgb), .92);\r
+}\r
+\r
+.xray-detail-tabs,\r
+.xray-detail-views {\r
+  min-width: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+  overflow-x: auto;\r
+  scrollbar-width: none;\r
+}\r
+\r
+.xray-detail-tabs::-webkit-scrollbar,\r
+.xray-detail-views::-webkit-scrollbar {\r
+  display: none;\r
+}\r
+\r
+.xray-detail-tabs {\r
+  padding: 0 12px;\r
+}\r
+\r
+.xray-detail-tab {\r
+  height: 38px;\r
+  padding: 0 12px;\r
+  border: 0;\r
+  border-bottom: 2px solid transparent;\r
+  color: var(--xray-hint);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 900 11px/1 var(--xray-font);\r
+  text-transform: capitalize;\r
+}\r
+\r
+.xray-detail-tab:hover,\r
+.xray-detail-tab.active {\r
+  color: var(--xray-text);\r
+  border-bottom-color: var(--xray-mauve);\r
+}\r
+\r
+.xray-detail-views {\r
+  padding: 7px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .20);\r
+}\r
+\r
+.xray-detail-content {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  flex: 1;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background:\r
+    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),\r
+    rgba(var(--xray-bg-rgb), .74);\r
+}\r
+\r
+.xray-detail-footer {\r
+  flex-shrink: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 9px 12px;\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  background: var(--xray-surface);\r
+  overflow-x: auto;\r
+}\r
+\r
+.xray-smart-ops {\r
+  min-width: 0;\r
+}\r
+\r
+.xray-action-btn {\r
+  min-width: 0;\r
+  height: 34px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  gap: 6px;\r
+  padding: 0 12px;\r
+  border: 1px solid rgba(108, 112, 134, .42);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 900 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-action-btn:hover,\r
+.xray-action-btn:focus-visible {\r
+  color: var(--xray-text);\r
+  border-color: rgba(137, 180, 250, .44);\r
+  background: rgba(137, 180, 250, .10);\r
+}\r
+\r
+.xray-action-btn.primary {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);\r
+}\r
+\r
+.xray-operation-groups {\r
+  flex-shrink: 0;\r
+  display: grid;\r
+  gap: 6px;\r
+  padding: 8px 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-bg-rgb), .45);\r
+}\r
+\r
+.xray-operation-group {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: 72px minmax(0, 1fr);\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-operation-group > span {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  text-transform: uppercase;\r
+  letter-spacing: .08em;\r
+}\r
+\r
+.xray-operation-bar {\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-operation-bar .xray-chip {\r
+  min-width: 0;\r
+  height: 30px;\r
+  padding: 0 10px;\r
+  border-radius: var(--xray-radius);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-operation-chip.view {\r
+  color: var(--xray-mauve);\r
+  border-color: rgba(203, 166, 247, .28);\r
+  background: rgba(203, 166, 247, .07);\r
+}\r
+\r
+.xray-operation-chip.console {\r
+  color: var(--xray-blue);\r
+  border-color: rgba(137, 180, 250, .30);\r
+  background: rgba(137, 180, 250, .08);\r
+}\r
+\r
+.xray-operation-chip.snippet {\r
+  color: var(--xray-teal);\r
+  border-color: rgba(148, 226, 213, .30);\r
+  background: rgba(148, 226, 213, .08);\r
+}\r
+\r
+.xray-operation-chip.copy {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-operation-chip.export {\r
+  color: var(--xray-peach);\r
+  border-color: rgba(250, 179, 135, .32);\r
+  background: rgba(250, 179, 135, .08);\r
+}\r
+\r
+.xray-api-drawer-body .xray-filter-chips {\r
+  flex-wrap: wrap;\r
+  overflow: visible;\r
+}\r
+\r
+.xray-card,\r
+.xray-modal {\r
+  border: 1px solid rgba(108, 112, 134, .35);\r
+  border-radius: var(--xray-radius);\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-card {\r
+  padding: 12px;\r
+}\r
+\r
+.xray-card h3,\r
+.xray-detail-panel h3,\r
+.xray-page h3 {\r
+  margin: 0 0 10px;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-json {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+  font: 700 11px/1.6 var(--xray-font);\r
+}\r
+\r
+.xray-json-editor {\r
+  min-width: max-content;\r
+  padding: 10px 0;\r
+  border: 1px solid rgba(108, 112, 134, .22);\r
+  border-radius: var(--xray-radius);\r
+  background:\r
+    linear-gradient(90deg, rgba(var(--xray-bg-rgb), .84) 0 42px, rgba(var(--xray-surface-rgb), .52) 42px),\r
+    rgba(var(--xray-bg-rgb), .52);\r
+  box-shadow: inset 0 1px 0 rgba(var(--xray-text-rgb), .04);\r
+}\r
+\r
+.xray-json-line {\r
+  display: grid;\r
+  grid-template-columns: 42px minmax(0, 1fr);\r
+  min-height: 18px;\r
+}\r
+\r
+.xray-json-line:hover {\r
+  background: rgba(137, 180, 250, .06);\r
+}\r
+\r
+.xray-json-line-no {\r
+  padding: 0 10px 0 0;\r
+  color: var(--xray-hint);\r
+  text-align: right;\r
+  user-select: none;\r
+  border-right: 1px solid rgba(108, 112, 134, .20);\r
+}\r
+\r
+.xray-json-line-text {\r
+  min-width: 0;\r
+  padding: 0 12px;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+.xray-json-key {\r
+  color: var(--xray-mauve);\r
+}\r
+\r
+.xray-json-string {\r
+  color: var(--xray-green);\r
+}\r
+\r
+.xray-json-number {\r
+  color: var(--xray-teal);\r
+}\r
+\r
+.xray-json-bool {\r
+  color: var(--xray-peach);\r
+}\r
+\r
+.xray-json-null {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-json-punct {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-table {\r
+  width: 100%;\r
+  border-collapse: collapse;\r
+  font: 700 11px/1.4 var(--xray-font);\r
+}\r
+\r
+.xray-table th,\r
+.xray-table td {\r
+  padding: 6px 8px;\r
+  border: 1px solid rgba(108, 112, 134, .28);\r
+  text-align: left;\r
+  vertical-align: top;\r
+}\r
+\r
+.xray-table th {\r
+  color: var(--xray-mauve);\r
+  background: var(--xray-bg);\r
+}\r
+\r
+.xray-modal-backdrop {\r
+  position: fixed;\r
+  inset: 0;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  padding: 20px;\r
+  background: rgba(var(--xray-bg-rgb), .72);\r
+  z-index: 2147483647;\r
+}\r
+\r
+.xray-modal {\r
+  width: min(820px, 92vw);\r
+  max-height: 82vh;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-modal h3 {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-modal-title-icon {\r
+  width: 30px;\r
+  height: 30px;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);\r
+  border-radius: var(--xray-radius);\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);\r
+}\r
+\r
+.xray-export-modal {\r
+  width: min(980px, 94vw);\r
+}\r
+\r
+.xray-modal-head,\r
+.xray-modal-foot {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-modal-foot {\r
+  border-top: 1px solid rgba(108, 112, 134, .35);\r
+  border-bottom: 0;\r
+}\r
+\r
+.xray-modal-body {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+}\r
+\r
+.xray-modal-subtitle,\r
+.xray-export-subtitle {\r
+  max-width: 520px;\r
+  margin-top: 2px;\r
+  color: var(--xray-hint);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-modal-version {\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-export-body {\r
+  min-height: 0;\r
+  flex: 1;\r
+  display: grid;\r
+  grid-template-columns: 220px minmax(0, 1fr);\r
+}\r
+\r
+.xray-export-rail {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 10px;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-surface-rgb), .55);\r
+}\r
+\r
+.xray-export-mode {\r
+  display: grid;\r
+  grid-template-columns: 1fr 1fr;\r
+  gap: 6px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-export-group {\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-export-group-label {\r
+  margin: 0 0 6px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-export-format {\r
+  width: 100%;\r
+  min-height: 38px;\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  margin-bottom: 4px;\r
+  border: 1px solid transparent;\r
+  border-radius: var(--xray-radius);\r
+  padding: 0 10px;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 800 11px/1.2 var(--xray-font);\r
+  text-align: left;\r
+}\r
+\r
+.xray-export-format:hover {\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-text-rgb), .06);\r
+}\r
+\r
+.xray-export-format.active {\r
+  color: var(--xray-text);\r
+  border-color: rgba(137, 180, 250, .55);\r
+  background: rgba(137, 180, 250, .13);\r
+}\r
+\r
+.xray-export-format:disabled {\r
+  opacity: .42;\r
+  cursor: not-allowed;\r
+}\r
+\r
+.xray-export-format small {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-export-preview {\r
+  min-width: 0;\r
+  min-height: 0;\r
+  display: flex;\r
+  flex-direction: column;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-export-preview-head {\r
+  display: flex;\r
+  gap: 10px;\r
+  align-items: flex-start;\r
+  padding: 12px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-export-preview-head h3 {\r
+  margin: 0;\r
+  color: var(--xray-text);\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-export-preview-head p {\r
+  margin: 3px 0 0;\r
+  color: var(--xray-hint);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-export-code {\r
+  flex: 1;\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 12px;\r
+  background: rgba(var(--xray-bg-rgb), .54);\r
+}\r
+\r
+.xray-textarea {\r
+  width: 100%;\r
+  min-height: 96px;\r
+  resize: vertical;\r
+  border: 1px solid rgba(108, 112, 134, .5);\r
+  border-radius: var(--xray-radius);\r
+  padding: 10px;\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface);\r
+  font: 800 12px/1.45 var(--xray-font);\r
+}\r
+\r
+.xray-toast {\r
+  position: absolute;\r
+  right: 14px;\r
+  bottom: 38px;\r
+  max-width: min(420px, calc(100% - 28px));\r
+  min-height: 34px;\r
+  padding: 0 12px;\r
+  border: 1px solid rgba(148, 226, 213, .42);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-text);\r
+  background: rgba(var(--xray-surface-rgb), .94);\r
+  box-shadow: 0 12px 38px rgba(0, 0, 0, .32);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-insight-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(5, minmax(0, 1fr));\r
+  gap: 8px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-insight-columns,\r
+.xray-settings-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(3, minmax(0, 1fr));\r
+  gap: 12px;\r
+}\r
+\r
+.xray-insight-row {\r
+  width: 100%;\r
+  min-height: 34px;\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  border: 0;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .20);\r
+  padding: 7px 0;\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-insight-row:hover {\r
+  color: var(--xray-blue);\r
+}\r
+\r
+.xray-insight-row span {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-status-mix-row {\r
+  display: grid;\r
+  grid-template-columns: 42px minmax(0, 1fr) 28px;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-height: 30px;\r
+  color: var(--xray-subtext);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-settings-actions {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-settings-modal {\r
+  width: min(620px, 94vw);\r
+}\r
+\r
+.xray-settings-modal-body {\r
+  min-height: 400px;\r
+  display: grid;\r
+  grid-template-columns: 160px minmax(0, 1fr);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-settings-nav {\r
+  padding: 8px 0;\r
+  border-right: 1px solid rgba(108, 112, 134, .35);\r
+  background: rgba(var(--xray-surface-rgb), .72);\r
+}\r
+\r
+.xray-settings-nav-item {\r
+  width: 100%;\r
+  min-height: 34px;\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 9px;\r
+  border: 0;\r
+  border-left: 2px solid transparent;\r
+  padding: 0 14px;\r
+  color: var(--xray-hint);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-settings-nav-item:hover {\r
+  color: var(--xray-subtext);\r
+  background: rgba(var(--xray-surface2-rgb), .55);\r
+}\r
+\r
+.xray-settings-nav-item.active {\r
+  color: var(--xray-text);\r
+  border-left-color: var(--xray-accent, var(--xray-mauve));\r
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-mauve)) 8%, transparent);\r
+}\r
+\r
+.xray-settings-content {\r
+  min-height: 0;\r
+  overflow: auto;\r
+  padding: 16px;\r
+}\r
+\r
+.xray-settings-section-title {\r
+  margin: 0 0 10px;\r
+  padding-bottom: 6px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .10em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-settings-row {\r
+  min-height: 44px;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  gap: 14px;\r
+  padding: 8px 0;\r
+  border-bottom: 1px solid rgba(69, 71, 90, .25);\r
+  color: var(--xray-text);\r
+  font: 800 11px/1.35 var(--xray-font);\r
+}\r
+\r
+.xray-settings-row.read-only {\r
+  align-items: flex-start;\r
+}\r
+\r
+.xray-settings-row strong,\r
+.xray-settings-row small {\r
+  display: block;\r
+}\r
+\r
+.xray-settings-row small {\r
+  margin-top: 2px;\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-toggle {\r
+  width: 36px;\r
+  height: 20px;\r
+  flex: 0 0 auto;\r
+  position: relative;\r
+  border: 0;\r
+  border-radius: 999px;\r
+  background: var(--xray-surface2);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-toggle::after {\r
+  content: "";\r
+  position: absolute;\r
+  top: 3px;\r
+  left: 3px;\r
+  width: 14px;\r
+  height: 14px;\r
+  border-radius: 999px;\r
+  background: var(--xray-hint);\r
+  transition: transform .15s ease, background .15s ease;\r
+}\r
+\r
+.xray-toggle.on {\r
+  background: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-toggle.on::after {\r
+  transform: translateX(16px);\r
+  background: #fff;\r
+}\r
+\r
+.xray-number-input {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-number-input input,\r
+.xray-select {\r
+  height: 30px;\r
+  border: 1px solid rgba(108, 112, 134, .45);\r
+  border-radius: var(--xray-radius-sm);\r
+  color: var(--xray-text);\r
+  background: var(--xray-surface2);\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-number-input input {\r
+  width: 76px;\r
+  padding: 0 8px;\r
+  text-align: right;\r
+}\r
+\r
+.xray-select {\r
+  min-width: 118px;\r
+  padding: 0 8px;\r
+}\r
+\r
+.xray-color-row {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  justify-content: flex-end;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-color-swatch {\r
+  width: 23px;\r
+  height: 23px;\r
+  border: 2px solid transparent;\r
+  border-radius: var(--xray-radius-sm);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-color-swatch.active {\r
+  border-color: var(--xray-text);\r
+}\r
+\r
+.xray-settings-danger {\r
+  margin-top: 18px;\r
+  padding: 12px;\r
+  border: 1px solid rgba(243, 139, 168, .22);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(243, 139, 168, .04);\r
+}\r
+\r
+.xray-danger-title {\r
+  margin-bottom: 8px;\r
+  color: var(--xray-red);\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .10em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-danger-row {\r
+  width: 100%;\r
+  min-height: 32px;\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  border: 0;\r
+  border-radius: var(--xray-radius-sm);\r
+  padding: 0 8px;\r
+  color: var(--xray-red);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  font: 800 11px/1 var(--xray-font);\r
+}\r
+\r
+.xray-danger-row:hover {\r
+  background: rgba(243, 139, 168, .08);\r
+}\r
+\r
+.xray-confirm-modal {\r
+  width: min(460px, 92vw);\r
+}\r
+\r
+.xray-confirm-message {\r
+  margin: 0;\r
+  color: var(--xray-subtext);\r
+  font: 800 12px/1.55 var(--xray-font);\r
+}\r
+\r
+.xray-compact-rows .xray-api-row {\r
+  min-height: 42px;\r
+}\r
+\r
+.xray-compact-rows .xray-api-row .xray-entry-meta,\r
+.xray-compact-rows .xray-api-row .xray-api-flags {\r
+  display: none;\r
+}\r
+\r
+.xray-command-modal {\r
+  width: min(680px, 92vw);\r
+}\r
+\r
+.xray-command-search {\r
+  display: block;\r
+  padding: 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+}\r
+\r
+.xray-command-list {\r
+  display: grid;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-command-row {\r
+  width: 100%;\r
+  min-height: 40px;\r
+  display: grid;\r
+  grid-template-columns: 22px minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  border: 1px solid transparent;\r
+  border-radius: var(--xray-radius);\r
+  padding: 0 10px;\r
+  color: var(--xray-text);\r
+  background: transparent;\r
+  cursor: pointer;\r
+  text-align: left;\r
+  font: 800 12px/1.25 var(--xray-font);\r
+}\r
+\r
+.xray-command-row:hover {\r
+  border-color: rgba(137, 180, 250, .42);\r
+  background: rgba(137, 180, 250, .10);\r
+}\r
+\r
+.xray-command-row small {\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+}\r
+\r
+@container xray (max-width: 1700px) {\r
+  .xray-api-body {\r
+    grid-template-columns: minmax(260px, var(--xray-api-split, 480px)) minmax(340px, 1fr);\r
+  }\r
+\r
+  .xray-request-context-pane {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-summary-strip {\r
+    grid-template-columns: repeat(2, minmax(0, 1fr));\r
+  }\r
+}\r
+\r
+/* Window-coupled rules stay media-based: the panel's own width, and the modal\r
+   overlays that live OUTSIDE the panel and size against the viewport. */\r
+@media (max-width: 760px) {\r
+  .xray-panel {\r
+    width: 100vw;\r
+  }\r
+\r
+  .xray-export-modal {\r
+    width: 96vw;\r
+  }\r
+\r
+  .xray-settings-modal {\r
+    width: 96vw;\r
+    max-height: 88vh;\r
+  }\r
+\r
+  .xray-settings-modal-body {\r
+    grid-template-columns: 1fr;\r
+    min-height: 0;\r
+  }\r
+\r
+  .xray-settings-nav {\r
+    display: flex;\r
+    overflow-x: auto;\r
+    border-right: 0;\r
+    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+  }\r
+\r
+  .xray-settings-nav-item {\r
+    flex: 0 0 auto;\r
+    width: auto;\r
+    border-left: 0;\r
+    border-bottom: 2px solid transparent;\r
+  }\r
+\r
+  .xray-settings-nav-item.active {\r
+    border-bottom-color: var(--xray-accent, var(--xray-mauve));\r
+  }\r
+\r
+  .xray-export-body {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-export-rail {\r
+    display: flex;\r
+    gap: 8px;\r
+    border-right: 0;\r
+    border-bottom: 1px solid rgba(108, 112, 134, .35);\r
+    overflow-x: auto;\r
+  }\r
+\r
+  .xray-export-group {\r
+    min-width: 170px;\r
+    margin-bottom: 0;\r
+  }\r
+\r
+  .xray-export-preview-head {\r
+    display: grid;\r
+  }\r
+\r
+  .xray-settings-grid {\r
+    grid-template-columns: 1fr;\r
+  }\r
+}\r
+\r
+@container xray (max-width: 760px) {\r
+  /* Stacked layout: the panes are full-width, so there's nothing to split. */\r
+  .xray-pane-divider {\r
+    display: none;\r
+  }\r
+\r
+  .xray-topbar {\r
+    gap: 6px;\r
+    padding: 0 8px;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-brand {\r
+    min-width: 112px;\r
+  }\r
+\r
+  .xray-tabs {\r
+    min-width: 0;\r
+    flex: 1;\r
+    overflow-x: auto;\r
+    scrollbar-width: none;\r
+  }\r
+\r
+  .xray-tabs::-webkit-scrollbar,\r
+  .xray-console-head::-webkit-scrollbar,\r
+  .xray-filter-chips::-webkit-scrollbar {\r
+    display: none;\r
+  }\r
+\r
+  .xray-tab {\r
+    flex: 0 0 auto;\r
+    padding: 0 10px;\r
+  }\r
+\r
+  .xray-console-head {\r
+    overflow-x: auto;\r
+  }\r
+\r
+  .xray-console-tabs,\r
+  .xray-toolbar {\r
+    flex: 0 0 auto;\r
+  }\r
+\r
+  .xray-toolbar {\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-summary,\r
+  .xray-network-row > :nth-child(5),\r
+  .xray-network-row > :nth-child(6),\r
+  .xray-network-head > :nth-child(5),\r
+  .xray-network-head > :nth-child(6) {\r
+    display: none;\r
+  }\r
+\r
+  .xray-filterbar {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-filter-chips {\r
+    padding-bottom: 2px;\r
+  }\r
+\r
+  .xray-network-head,\r
+  .xray-network-row {\r
+    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;\r
+  }\r
+\r
+  .xray-split {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-detail-panel {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-workspace {\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-body {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-api-toolbar {\r
+    grid-template-columns: 1fr;\r
+    padding: 8px;\r
+  }\r
+\r
+  .xray-api-collection-pane {\r
+    border-right: 0;\r
+  }\r
+\r
+  .xray-api-collection-head {\r
+    grid-template-columns: minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-api-env-pill {\r
+    justify-self: start;\r
+  }\r
+\r
+  .xray-api-summary-strip {\r
+    display: flex;\r
+    overflow-x: auto;\r
+    scrollbar-width: none;\r
+  }\r
+\r
+  .xray-api-summary-strip::-webkit-scrollbar {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-summary-pill {\r
+    flex: 0 0 112px;\r
+  }\r
+\r
+  .xray-api-primary-filters,\r
+  .xray-api-secondary-controls,\r
+  .xray-api-secondary-controls .xray-filter-chips {\r
+    justify-content: flex-start;\r
+    flex-wrap: wrap;\r
+  }\r
+\r
+  .xray-api-secondary-controls {\r
+    display: grid;\r
+    gap: 6px;\r
+  }\r
+\r
+  .xray-api-table-head,\r
+  .xray-api-row {\r
+    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;\r
+  }\r
+\r
+  .xray-api-table-head > :nth-child(4),\r
+  .xray-api-row > .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-row-actions {\r
+    gap: 2px;\r
+  }\r
+\r
+  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {\r
+    display: none;\r
+  }\r
+\r
+  .xray-api-detail-drawer {\r
+    position: absolute;\r
+    top: auto;\r
+    left: 0;\r
+    right: 0;\r
+    bottom: 0;\r
+    width: 100%;\r
+    max-width: 100%;\r
+    min-width: 0;\r
+    height: min(68vh, 560px);\r
+    border-left: 0;\r
+    border-top: 1px solid rgba(137, 180, 250, .34);\r
+    border-radius: var(--xray-radius-lg) var(--xray-radius-lg) 0 0;\r
+    background: var(--xray-surface);\r
+    box-shadow: 0 -22px 44px rgba(0, 0, 0, .28);\r
+    z-index: 8;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-drawer-body,\r
+  .xray-request-detail,\r
+  .xray-detail-content {\r
+    max-width: 100%;\r
+    overflow-x: hidden;\r
+  }\r
+\r
+  .xray-detail-content .xray-json-editor {\r
+    min-width: 0;\r
+  }\r
+\r
+  .xray-json-line {\r
+    grid-template-columns: 34px minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-json-line-no {\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-json-line-text {\r
+    padding: 0 9px;\r
+    overflow-wrap: anywhere;\r
+  }\r
+\r
+  .xray-detail-tabs,\r
+  .xray-detail-views,\r
+  .xray-operation-bar {\r
+    max-width: 100%;\r
+  }\r
+\r
+  .xray-detail-views {\r
+    display: grid;\r
+    grid-template-columns: repeat(2, minmax(0, 1fr));\r
+    overflow-x: visible;\r
+  }\r
+\r
+  .xray-detail-views .xray-chip {\r
+    min-width: 0;\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-operation-group {\r
+    grid-template-columns: 1fr;\r
+    align-items: start;\r
+  }\r
+\r
+  .xray-operation-bar {\r
+    display: grid;\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-operation-bar .xray-chip {\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-detail-footer {\r
+    display: grid;\r
+    grid-template-columns: 1fr;\r
+    overflow-x: visible;\r
+    align-items: stretch;\r
+  }\r
+\r
+  .xray-detail-footer .xray-action-btn {\r
+    min-width: 0;\r
+    overflow: hidden;\r
+  }\r
+\r
+  .xray-api-detail-drawer.empty {\r
+    display: none;\r
+  }\r
+\r
+  .xray-entry-row {\r
+    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;\r
+  }\r
+\r
+  .xray-list-panel > .xray-virtual-list {\r
+    min-height: 168px;\r
+  }\r
+\r
+  .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-mobile-detail-panel {\r
+    display: block;\r
+    flex-shrink: 0;\r
+    max-height: 38vh;\r
+    overflow: auto;\r
+    border-top: 1px solid rgba(108, 112, 134, .35);\r
+    background: var(--xray-surface);\r
+  }\r
+\r
+  .xray-prompt {\r
+    grid-template-columns: 20px minmax(120px, 1fr) auto;\r
+    gap: 6px;\r
+    padding: 8px;\r
+  }\r
+\r
+  .xray-context-chip {\r
+    display: none;\r
+  }\r
+\r
+  .xray-insight-grid,\r
+  .xray-insight-columns {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-page-head {\r
+    display: grid;\r
+  }\r
+}\r
+\r
+@container xray (max-width: 420px) {\r
+  .xray-api-table-head,\r
+  .xray-api-row {\r
+    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;\r
+    gap: 5px;\r
+    padding-left: 8px;\r
+    padding-right: 8px;\r
+  }\r
+\r
+  .xray-api-table-head > :nth-child(4),\r
+  .xray-api-row > .xray-entry-duration {\r
+    display: none;\r
+  }\r
+\r
+  .xray-response-chips,\r
+  .xray-detail-footer {\r
+    flex-wrap: wrap;\r
+  }\r
+\r
+  .xray-detail-footer {\r
+    overflow-x: visible;\r
+    align-items: stretch;\r
+  }\r
+\r
+  .xray-detail-footer .xray-action-btn {\r
+    flex: 1 1 calc(50% - 8px);\r
+  }\r
+\r
+  .xray-detail-views {\r
+    flex-wrap: wrap;\r
+    overflow-x: visible;\r
+  }\r
+\r
+  .xray-detail-views .xray-chip {\r
+    flex: 1 1 auto;\r
+    justify-content: center;\r
+  }\r
+\r
+  .xray-operation-group {\r
+    grid-template-columns: 1fr;\r
+  }\r
+\r
+  .xray-api-row-actions .xray-icon-btn {\r
+    width: 25px;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
+   XRAY Operator UI override layer\r
+   Configurable developer cockpit skin applied across existing tabs.\r
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-panel .xray-api-workspace,\r
+.xray-panel .xray-console-workspace,\r
+.xray-panel .xray-insights,\r
+.xray-panel .xray-settings-page,\r
+.xray-panel .xray-logs-workspace {\r
+  background:\r
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-bg) 92%, var(--xray-accent) 8%), var(--xray-bg));\r
+}\r
+\r
+.xray-panel .xray-api-collection-pane,\r
+.xray-panel .xray-api-detail-pane,\r
+.xray-panel .xray-console-main,\r
+.xray-panel .xray-card,\r
+.xray-panel .xray-settings-card,\r
+.xray-panel .xray-modal-card {\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);\r
+}\r
+\r
+.xray-panel .xray-api-row,\r
+.xray-panel .xray-entry-row,\r
+.xray-panel .xray-console-row,\r
+.xray-panel .xray-log-row {\r
+  min-height: var(--xray-row-h, 52px);\r
+  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));\r
+  transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;\r
+}\r
+\r
+.xray-panel .xray-api-row:hover,\r
+.xray-panel .xray-entry-row:hover,\r
+.xray-panel .xray-console-row:hover,\r
+.xray-panel .xray-log-row:hover {\r
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 9%, transparent), color-mix(in srgb, var(--xray-surface2) 72%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);\r
+}\r
+\r
+.xray-glow .xray-api-row.selected,\r
+.xray-glow .xray-entry-row.selected,\r
+.xray-glow .xray-console-row.selected,\r
+.xray-glow .xray-log-row.selected {\r
+  box-shadow: inset 3px 0 0 var(--xray-accent), 0 0 28px color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-panel .xray-method,\r
+.xray-panel .xray-status,\r
+.xray-panel .xray-response-chip,\r
+.xray-panel .xray-chip,\r
+.xray-panel .xray-badge {\r
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);\r
+  font-weight: 900;\r
+  letter-spacing: .06em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-method.get { color: var(--xray-green); }\r
+.xray-panel .xray-method.post { color: var(--xray-blue); }\r
+.xray-panel .xray-method.put,\r
+.xray-panel .xray-method.patch { color: var(--xray-yellow); }\r
+.xray-panel .xray-method.delete { color: var(--xray-red); }\r
+\r
+.xray-panel .xray-input,\r
+.xray-panel .xray-select,\r
+.xray-panel textarea,\r
+.xray-panel input,\r
+.xray-panel select {\r
+  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  color: var(--xray-text);\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-panel .xray-input:focus,\r
+.xray-panel .xray-select:focus,\r
+.xray-panel textarea:focus,\r
+.xray-panel input:focus,\r
+.xray-panel select:focus {\r
+  outline: none;\r
+  border-color: var(--xray-accent);\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+}\r
+\r
+.xray-panel .xray-json,\r
+.xray-panel .xray-json-editor,\r
+.xray-panel pre,\r
+.xray-panel code,\r
+.xray-panel kbd {\r
+  font-family: var(--xray-font);\r
+}\r
+\r
+.xray-panel .xray-json,\r
+.xray-panel .xray-json-editor {\r
+  background:\r
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),\r
+    color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  border-radius: var(--xray-radius);\r
+}\r
+\r
+.xray-panel .xray-json-line-no {\r
+  color: color-mix(in srgb, var(--xray-hint) 82%, transparent);\r
+  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);\r
+}\r
+\r
+.xray-panel .xray-json-key { color: var(--xray-blue); }\r
+.xray-panel .xray-json-string { color: var(--xray-green); }\r
+.xray-panel .xray-json-number { color: var(--xray-peach); }\r
+.xray-panel .xray-json-bool { color: var(--xray-mauve); }\r
+.xray-panel .xray-json-null { color: var(--xray-hint); }\r
+\r
+.xray-panel .xray-detail-hero,\r
+.xray-panel .xray-console-head,\r
+.xray-panel .xray-api-toolbar,\r
+.xray-panel .xray-api-command-bar,\r
+.xray-panel .xray-detail-nav {\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-detail-tabs button,\r
+.xray-panel .xray-view-btn,\r
+.xray-panel .xray-operation-btn,\r
+.xray-panel .xray-action-btn,\r
+.xray-panel .xray-btn,\r
+.xray-panel .xray-icon-btn {\r
+  border-radius: var(--xray-radius);\r
+}\r
+\r
+.xray-panel .xray-operation-btn,\r
+.xray-panel .xray-action-btn.primary,\r
+.xray-panel .xray-btn.primary {\r
+  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);\r
+}\r
+\r
+.xray-glow .xray-operation-btn:hover,\r
+.xray-glow .xray-action-btn.primary:hover,\r
+.xray-glow .xray-btn.primary:hover {\r
+  box-shadow: 0 0 24px color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+}\r
+\r
+.xray-panel .xray-settings-section-title,\r
+.xray-panel .xray-danger-title,\r
+.xray-panel h3,\r
+.xray-panel h4 {\r
+  text-transform: uppercase;\r
+  letter-spacing: .12em;\r
+  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);\r
+}\r
+\r
+.xray-panel.xray-density-compact .xray-api-row,\r
+.xray-panel.xray-density-compact .xray-console-row,\r
+.xray-panel.xray-density-compact .xray-settings-row {\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-panel.xray-density-spacious .xray-api-row,\r
+.xray-panel.xray-density-spacious .xray-console-row,\r
+.xray-panel.xray-density-spacious .xray-settings-row {\r
+  font-size: 13px;\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-panel,\r
+  .xray-panel *,\r
+  .xray-panel *::before,\r
+  .xray-panel *::after {\r
+    transition: none !important;\r
+    animation: none !important;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r
+   XRAY Operator UI tab-specific polish\r
+   Firefox DevTools density + terminal-grade inspector ergonomics.\r
+   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-panel .xray-filterbar {\r
+  gap: 10px;\r
+  padding: 14px;\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  background: color-mix(in srgb, var(--xray-surface) 84%, transparent);\r
+}\r
+\r
+.xray-panel .xray-search {\r
+  min-height: 38px;\r
+  border: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  border-radius: var(--xray-radius);\r
+  background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);\r
+}\r
+\r
+.xray-panel .xray-network-head,\r
+.xray-panel .xray-api-table-head {\r
+  min-height: 32px;\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .14em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-network-row,\r
+.xray-panel .xray-api-row {\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-panel .xray-network-row.selected,\r
+.xray-panel .xray-api-row.selected {\r
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));\r
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+}\r
+\r
+.xray-panel .xray-path,\r
+.xray-panel .xray-api-path,\r
+.xray-panel .xray-response-heading h3 {\r
+  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent) 14%);\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-panel .xray-bar-track {\r
+  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);\r
+  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-panel .xray-bar {\r
+  background: linear-gradient(90deg, var(--xray-accent), var(--xray-green));\r
+  box-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 28%, transparent);\r
+}\r
+\r
+.xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }\r
+.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }\r
+\r
+.xray-panel .xray-request-detail {\r
+  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);\r
+}\r
+\r
+.xray-panel .xray-detail-hero {\r
+  padding: calc(14px * var(--xray-density-scale, 1));\r
+  box-shadow: inset 3px 0 0 var(--xray-accent);\r
+}\r
+\r
+.xray-panel .xray-detail-tab,\r
+.xray-panel .xray-detail-views .xray-chip {\r
+  height: 30px;\r
+  border: 1px solid transparent;\r
+  color: var(--xray-subtext);\r
+  background: transparent;\r
+  font: 900 10px/1 var(--xray-font);\r
+  letter-spacing: .1em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-detail-tab.active,\r
+.xray-panel .xray-detail-views .xray-chip.active {\r
+  color: var(--xray-text);\r
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+}\r
+\r
+.xray-panel .xray-operation-groups {\r
+  padding: 10px 12px;\r
+  background: color-mix(in srgb, var(--xray-surface) 75%, transparent);\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-operation-group-label {\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 900;\r
+  letter-spacing: .14em;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-panel .xray-operation-btn {\r
+  min-height: 30px;\r
+  color: var(--xray-text);\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-panel .xray-console-head {\r
+  min-height: var(--xray-chrome-h, 44px);\r
+}\r
+\r
+.xray-panel .xray-console-tabs .xray-mini-tab {\r
+  text-transform: none;\r
+  letter-spacing: .04em;\r
+}\r
+\r
+.xray-panel .xray-console-row {\r
+  font-variant-numeric: tabular-nums;\r
+  /* Message stream scans best dense \u2014 override the shared 52px operator row\r
+     height (that height is tuned for the API/log tables, not a log stream). */\r
+  min-height: 28px;\r
+}\r
+\r
+.xray-panel .xray-prompt {\r
+  gap: 10px;\r
+  padding: 10px 12px;\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));\r
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+}\r
+\r
+.xray-panel .xray-prompt::before {\r
+  content: '>';\r
+  color: var(--xray-accent);\r
+  font: 900 18px/1 var(--xray-font);\r
+  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+}\r
+\r
+.xray-panel .xray-prompt .xray-input {\r
+  min-height: 40px;\r
+  border-radius: var(--xray-radius);\r
+}\r
+\r
+.xray-panel .xray-statusbar {\r
+  min-height: 28px;\r
+  padding: 0 12px;\r
+  color: var(--xray-subtext);\r
+  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);\r
+  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  letter-spacing: .08em;\r
+  text-transform: lowercase;\r
+}\r
+\r
+.xray-panel .xray-page-head {\r
+  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));\r
+}\r
+\r
+.xray-panel .xray-page-head h3 {\r
+  margin: 0;\r
+  font-size: 14px;\r
+}\r
+\r
+.xray-panel .xray-page-head p {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-panel .xray-insight-columns,\r
+.xray-panel .xray-insight-grid {\r
+  padding: 14px;\r
+}\r
+\r
+.xray-panel .xray-card::before,\r
+.xray-panel .xray-api-metric::before {\r
+  content: '';\r
+  position: absolute;\r
+  inset: 0 auto 0 0;\r
+  width: 3px;\r
+  background: linear-gradient(180deg, var(--xray-accent), transparent);\r
+  opacity: .75;\r
+}\r
+\r
+.xray-panel .xray-card {\r
+  position: relative;\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-panel .xray-insight-row {\r
+  border: 1px solid transparent;\r
+  border-radius: var(--xray-radius);\r
+  background: color-mix(in srgb, var(--xray-surface2) 44%, transparent);\r
+}\r
+\r
+.xray-panel .xray-insight-row:hover {\r
+  border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);\r
+}\r
+\r
+.xray-panel .xray-api-metric {\r
+  position: relative;\r
+  overflow: hidden;\r
+  border-color: var(--xray-border, rgba(108,112,134,.35));\r
+  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));\r
+}\r
+\r
+.xray-panel .xray-api-metric strong {\r
+  font-size: 18px;\r
+  color: var(--xray-text);\r
+  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);\r
+}\r
+\r
+/* XRAY Operator UI prompt layout hardening */\r
+.xray-panel .xray-prompt {\r
+  display: grid;\r
+  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);\r
+  gap: 10px;\r
+  align-items: center;\r
+  padding: 10px 14px;\r
+  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);\r
+  background:\r
+    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),\r
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);\r
+}\r
+\r
+.xray-panel .xray-prompt::before {\r
+  display: none;\r
+}\r
+\r
+.xray-panel .xray-prompt > svg {\r
+  color: var(--xray-accent-2);\r
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));\r
+}\r
+\r
+.xray-panel .xray-prompt-command {\r
+  min-width: 0;\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto auto;\r
+  gap: 10px;\r
+  align-items: center;\r
+}\r
+\r
+.xray-panel .xray-prompt input,\r
+.xray-panel .xray-prompt textarea {\r
+  min-width: 0;\r
+  width: 100%;\r
+  min-height: 38px;\r
+  padding: 10px 13px;\r
+  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));\r
+  border-radius: var(--xray-radius-lg);\r
+  color: var(--xray-text);\r
+  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);\r
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);\r
+  font: inherit;\r
+}\r
+\r
+.xray-panel .xray-prompt input:focus,\r
+.xray-panel .xray-prompt textarea:focus {\r
+  outline: none;\r
+  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));\r
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
+}\r
+\r
+.xray-panel .xray-context-chip {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  justify-self: end;\r
+  max-width: min(28vw, 460px);\r
+  padding: 8px 13px;\r
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));\r
+  border-radius: 999px;\r
+  color: var(--xray-text);\r
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);\r
+}\r
+\r
+@container xray (max-width: 860px) {\r
+  .xray-panel .xray-prompt {\r
+    grid-template-columns: auto minmax(0, 1fr);\r
+  }\r
+\r
+  .xray-panel .xray-prompt-command {\r
+    grid-column: 2 / -1;\r
+  }\r
+\r
+  .xray-panel .xray-context-chip {\r
+    grid-column: 2 / -1;\r
+    justify-self: stretch;\r
+    max-width: none;\r
+  }\r
+}\r
+\r
+\r
+/* \u2500\u2500 God-tier feature styling: flags, drift, actions, waterfall, frames, tokens, rules, replay, AI \u2500\u2500 */\r
+\r
+.xray-api-flag.drift,\r
+.xray-api-flag.graphql {\r
+  color: var(--xray-mauve);\r
+  border-color: rgba(203, 166, 247, .40);\r
+  background: rgba(203, 166, 247, .12);\r
+}\r
+\r
+.xray-api-flag.ws {\r
+  color: var(--xray-teal);\r
+  border-color: rgba(148, 226, 213, .38);\r
+  background: rgba(148, 226, 213, .12);\r
+}\r
+\r
+.xray-api-flag.mocked,\r
+.xray-api-flag.replayed {\r
+  color: var(--xray-blue);\r
+  border-color: rgba(137, 180, 250, .38);\r
+  background: rgba(137, 180, 250, .12);\r
+}\r
+\r
+.xray-drift-banner {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+  margin: 8px 12px 0;\r
+  padding: 8px 12px;\r
+  border: 1px solid rgba(203, 166, 247, .40);\r
+  border-radius: var(--xray-radius);\r
+  color: var(--xray-mauve);\r
+  background: rgba(203, 166, 247, .10);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-drift-banner span {\r
+  flex: 1;\r
+}\r
+\r
+.xray-detail-actionbar {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  padding: 10px 12px 0;\r
+}\r
+\r
+.xray-waterfall-card {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-waterfall-head {\r
+  display: flex;\r
+  align-items: baseline;\r
+  justify-content: space-between;\r
+}\r
+\r
+.xray-waterfall-track {\r
+  display: flex;\r
+  width: 100%;\r
+  height: 16px;\r
+  border-radius: var(--xray-radius-sm);\r
+  overflow: hidden;\r
+  background: rgba(var(--xray-bg-rgb), .55);\r
+}\r
+\r
+.xray-waterfall-seg {\r
+  height: 100%;\r
+  min-width: 2px;\r
+}\r
+\r
+.xray-waterfall-seg.dns,\r
+.xray-waterfall-dot.dns { background: var(--xray-mauve); }\r
+.xray-waterfall-seg.connect,\r
+.xray-waterfall-dot.connect { background: var(--xray-blue); }\r
+.xray-waterfall-seg.tls,\r
+.xray-waterfall-dot.tls { background: var(--xray-teal); }\r
+.xray-waterfall-seg.ttfb,\r
+.xray-waterfall-dot.ttfb { background: var(--xray-yellow); }\r
+.xray-waterfall-seg.download,\r
+.xray-waterfall-dot.download { background: var(--xray-green); }\r
+.xray-waterfall-seg.total,\r
+.xray-waterfall-dot.total { background: var(--xray-accent, var(--xray-blue)); }\r
+\r
+.xray-waterfall-legend {\r
+  list-style: none;\r
+  margin: 0;\r
+  padding: 0;\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-waterfall-legend li {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  font-size: 11px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-waterfall-legend strong {\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-waterfall-dot {\r
+  width: 10px;\r
+  height: 10px;\r
+  border-radius: var(--xray-radius-sm);\r
+}\r
+\r
+/* Frames (WebSocket / SSE) */\r
+.xray-frames {\r
+  display: flex;\r
+  flex-direction: column;\r
+  height: 100%;\r
+}\r
+\r
+.xray-frames-head {\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  padding: 8px 4px;\r
+}\r
+\r
+.xray-ws-state {\r
+  padding: 2px 8px;\r
+  border-radius: 999px;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  color: var(--xray-subtext);\r
+  background: rgba(108, 112, 134, .2);\r
+}\r
+\r
+.xray-ws-state.open { color: var(--xray-green); background: rgba(166, 227, 161, .14); }\r
+.xray-ws-state.closed { color: var(--xray-subtext); }\r
+.xray-ws-state.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }\r
+\r
+.xray-frames-list {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 2px;\r
+  overflow: auto;\r
+}\r
+\r
+.xray-frame-row {\r
+  display: grid;\r
+  grid-template-columns: 52px 64px 56px 1fr;\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 5px 8px;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: rgba(var(--xray-bg-rgb), .4);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-frame-row.out { background: rgba(137, 180, 250, .08); }\r
+\r
+.xray-frame-dir {\r
+  font-weight: 800;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-frame-dir.in { color: var(--xray-green); }\r
+.xray-frame-dir.out { color: var(--xray-blue); }\r
+\r
+.xray-frame-time,\r
+.xray-frame-size {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-frame-preview {\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-initiator-list {\r
+  margin: 8px 0 0;\r
+  padding-left: 18px;\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 6px;\r
+}\r
+\r
+.xray-initiator-list code {\r
+  color: var(--xray-subtext);\r
+  font-size: 11px;\r
+}\r
+\r
+/* JWT tokens */\r
+.xray-tokens {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-token-head {\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  margin-bottom: 8px;\r
+}\r
+\r
+.xray-token-source {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  font-weight: 700;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-token-exp {\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  padding: 2px 8px;\r
+  border-radius: 999px;\r
+}\r
+\r
+.xray-token-exp.valid { color: var(--xray-green); background: rgba(166, 227, 161, .14); }\r
+.xray-token-exp.expired { color: var(--xray-red); background: rgba(243, 139, 168, .14); }\r
+\r
+.xray-token-body {\r
+  display: grid;\r
+  grid-template-columns: 1fr 1fr;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-token-label {\r
+  display: block;\r
+  margin-bottom: 4px;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+/* Rules tab */\r
+.xray-rules-toolbar {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  flex-wrap: wrap;\r
+  margin-bottom: 12px;\r
+  padding-bottom: 12px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 70%, transparent);\r
+}\r
+\r
+.xray-rules-toolbar-label {\r
+  font-size: 10px;\r
+  font-weight: 700;\r
+  letter-spacing: .06em;\r
+  text-transform: uppercase;\r
+  color: var(--xray-subtext);\r
+  margin-right: 2px;\r
+}\r
+\r
+.xray-rules-import {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 8px;\r
+  margin-bottom: 12px;\r
+}\r
+\r
+.xray-rules-import-field {\r
+  min-height: 96px;\r
+  resize: vertical;\r
+  font-family: var(--xray-font);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-rules-list {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-rules-empty {\r
+  display: flex;\r
+  flex-direction: column;\r
+  align-items: center;\r
+  gap: 10px;\r
+  text-align: center;\r
+  color: var(--xray-subtext);\r
+  padding: 32px;\r
+}\r
+\r
+.xray-rule-card.disabled {\r
+  opacity: .6;\r
+}\r
+\r
+.xray-rule-head {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+  margin-bottom: 10px;\r
+}\r
+\r
+.xray-rule-label {\r
+  flex: 1;\r
+  font-weight: 700;\r
+}\r
+\r
+.xray-rule-summary {\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-rule-grid {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-field {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 4px;\r
+  flex: 1;\r
+  min-width: 180px;\r
+}\r
+\r
+.xray-field > span {\r
+  font-size: 10px;\r
+  font-weight: 700;\r
+  text-transform: uppercase;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-field-narrow {\r
+  flex: 0 0 120px;\r
+  min-width: 120px;\r
+}\r
+\r
+.xray-rule-body,\r
+.xray-replay-headers,\r
+.xray-replay-bodyfield {\r
+  min-height: 96px;\r
+  resize: vertical;\r
+  font-family: var(--xray-font);\r
+  line-height: 1.5;\r
+}\r
+\r
+.xray-rule-body {\r
+  margin-top: 10px;\r
+}\r
+\r
+/* Replay modal */\r
+.xray-replay-body {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+  padding: 4px 2px;\r
+}\r
+\r
+.xray-replay-line {\r
+  display: flex;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-replay-line .xray-select {\r
+  flex: 0 0 110px;\r
+}\r
+\r
+.xray-replay-line .xray-input {\r
+  flex: 1;\r
+}\r
+\r
+/* AI Explain modal */\r
+.xray-explain-body {\r
+  min-height: 160px;\r
+  padding: 6px 2px;\r
+}\r
+\r
+.xray-explain-loading {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+  color: var(--xray-subtext);\r
+  padding: 24px 0;\r
+}\r
+\r
+.xray-spinner {\r
+  width: 16px;\r
+  height: 16px;\r
+  border: 2px solid rgba(137, 180, 250, .3);\r
+  border-top-color: var(--xray-accent, var(--xray-blue));\r
+  border-radius: 50%;\r
+  animation: xray-spin .7s linear infinite;\r
+}\r
+\r
+@keyframes xray-spin {\r
+  to { transform: rotate(360deg); }\r
+}\r
+\r
+.xray-explain-error {\r
+  display: flex;\r
+  gap: 10px;\r
+  color: var(--xray-red);\r
+  padding: 16px 0;\r
+}\r
+\r
+.xray-explain-error .xray-btn {\r
+  margin-top: 8px;\r
+}\r
+\r
+.xray-explain-result {\r
+  white-space: pre-wrap;\r
+  line-height: 1.6;\r
+  color: var(--xray-text);\r
+  font-size: 12px;\r
+}\r
+\r
+/* \u2500\u2500 Console snippet bar (folded-in Notebook) \u2500\u2500 */\r
+.xray-snippet-bar {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 6px 10px;\r
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+  background: color-mix(in srgb, var(--xray-surface) 82%, transparent);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-snippet-label {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+  flex-shrink: 0;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  letter-spacing: .4px;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-snippet-chips {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  flex: 1;\r
+  min-width: 0;\r
+  overflow-x: auto;\r
+  scrollbar-width: none;\r
+}\r
+\r
+.xray-snippet-chips::-webkit-scrollbar { display: none; }\r
+\r
+.xray-snippet-chip {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  flex-shrink: 0;\r
+  max-width: 220px;\r
+  border: 1px solid rgba(108, 112, 134, .36);\r
+  border-radius: 999px;\r
+  background: rgba(var(--xray-surface-rgb), .6);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-snippet-load {\r
+  max-width: 190px;\r
+  padding: 4px 4px 4px 10px;\r
+  border: none;\r
+  background: transparent;\r
+  color: var(--xray-subtext);\r
+  font: inherit;\r
+  font-size: 11px;\r
+  white-space: nowrap;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-snippet-load:hover {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-snippet-remove {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  padding: 0 7px;\r
+  height: 100%;\r
+  border: none;\r
+  background: transparent;\r
+  color: var(--xray-hint);\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-snippet-remove:hover { color: var(--xray-red); }\r
+\r
+.xray-snippet-save {\r
+  flex-shrink: 0;\r
+  padding: 5px 10px;\r
+}\r
+\r
+/* \u2500\u2500 Console live/paused stream toggle \u2500\u2500 */\r
+.xray-btn.xray-live {\r
+  color: var(--xray-green);\r
+  border-color: rgba(166, 227, 161, .32);\r
+  background: rgba(166, 227, 161, .08);\r
+}\r
+\r
+.xray-btn.xray-paused {\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-btn.xray-paused svg {\r
+  opacity: .6;\r
+}\r
+\r
+/* \u2500\u2500 Log detail (Logs tab) \u2500\u2500 */\r
+.xray-log-detail {\r
+  display: flex;\r
+  flex-direction: column;\r
+  height: 100%;\r
+  padding: 12px;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-log-detail-head {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-log-level {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 5px;\r
+  padding: 3px 9px;\r
+  border-radius: 999px;\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  color: var(--xray-subtext);\r
+  background: rgba(108, 112, 134, .18);\r
+}\r
+\r
+.xray-log-level.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }\r
+.xray-log-level.warn { color: var(--xray-yellow); background: rgba(249, 226, 175, .14); }\r
+.xray-log-level.info { color: var(--xray-blue); background: rgba(137, 180, 250, .14); }\r
+\r
+.xray-log-load {\r
+  margin-left: auto;\r
+}\r
+\r
+.xray-log-message {\r
+  padding: 8px 10px;\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-bg-rgb), .5);\r
+  color: var(--xray-text);\r
+  font-size: 12px;\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+.xray-log-detail-body {\r
+  flex: 1;\r
+  min-height: 0;\r
+  overflow: auto;\r
+}\r
+\r
+.xray-log-hint {\r
+  font-size: 11px;\r
+}\r
+\r
+/* \u2500\u2500 Visualize view: single-series horizontal bars \u2500\u2500 */\r
+.xray-viz {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+  padding: 4px 2px;\r
+}\r
+\r
+.xray-viz-head {\r
+  display: flex;\r
+  align-items: baseline;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-viz-head h3 {\r
+  margin: 0;\r
+  font-size: 13px;\r
+}\r
+\r
+.xray-viz-bars {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 4px;\r
+}\r
+\r
+.xray-viz-row {\r
+  display: grid;\r
+  grid-template-columns: minmax(60px, 160px) 1fr minmax(48px, auto);\r
+  align-items: center;\r
+  gap: 10px;\r
+  padding: 2px 0;\r
+}\r
+\r
+.xray-viz-label {\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  font-size: 11px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-viz-track {\r
+  position: relative;\r
+  height: 14px;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);\r
+}\r
+\r
+.xray-viz-fill {\r
+  display: block;\r
+  height: 100%;\r
+  min-width: 3px;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-viz-fill.negative {\r
+  background: var(--xray-red);\r
+}\r
+\r
+.xray-viz-value {\r
+  font-size: 11px;\r
+  font-weight: 700;\r
+  color: var(--xray-text);\r
+  text-align: right;\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-viz-foot {\r
+  font-size: 11px;\r
+}\r
+\r
+/* \u2500\u2500 Theme picker swatches (Settings \u2192 Appearance) \u2500\u2500 */\r
+.xray-theme-picker-row {\r
+  align-items: flex-start;\r
+}\r
+\r
+.xray-theme-grid {\r
+  display: grid;\r
+  grid-template-columns: 1fr 1fr;\r
+  gap: 6px;\r
+  min-width: 220px;\r
+}\r
+\r
+.xray-theme-swatch {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 8px 10px;\r
+  border: 1px solid rgba(128, 128, 160, .28);\r
+  border-radius: var(--xray-radius);\r
+  font: inherit;\r
+  font-size: 11px;\r
+  font-weight: 700;\r
+  cursor: pointer;\r
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;\r
+}\r
+\r
+.xray-theme-swatch:hover {\r
+  transform: translateY(-1px);\r
+}\r
+\r
+.xray-theme-swatch.active {\r
+  border-color: var(--xray-accent, var(--xray-blue));\r
+  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue)), 0 6px 18px rgba(0, 0, 0, .3);\r
+}\r
+\r
+.xray-theme-swatch-dot {\r
+  width: 12px;\r
+  height: 12px;\r
+  border-radius: 50%;\r
+  flex-shrink: 0;\r
+  box-shadow: 0 0 8px currentColor;\r
+}\r
+\r
+.xray-theme-swatch-label {\r
+  flex: 1;\r
+  text-align: left;\r
+}\r
+\r
+/* \u2500\u2500 Toast: slide in, auto-dismiss \u2500\u2500 */\r
+.xray-toast {\r
+  animation: xray-toast-in .18s cubic-bezier(.2, .8, .3, 1);\r
+}\r
+\r
+@keyframes xray-toast-in {\r
+  from { opacity: 0; transform: translateY(8px); }\r
+  to { opacity: 1; transform: translateY(0); }\r
+}\r
+\r
+/* \u2500\u2500 Visualize bars: grow-in for perceived speed \u2500\u2500 */\r
+.xray-viz-fill {\r
+  transform-origin: left center;\r
+  animation: xray-bar-grow .32s cubic-bezier(.2, .8, .3, 1);\r
+}\r
+\r
+@keyframes xray-bar-grow {\r
+  from { transform: scaleX(0); }\r
+  to { transform: scaleX(1); }\r
+}\r
+\r
+/* \u2500\u2500 Consistent focus-visible + interaction transitions \u2500\u2500 */\r
+.xray-app-root button:focus-visible,\r
+.xray-hud button:focus-visible,\r
+.xray-app-root [role="button"]:focus-visible,\r
+.xray-hud [role="button"]:focus-visible,\r
+.xray-app-root .xray-input:focus-visible,\r
+.xray-hud .xray-input:focus-visible {\r
+  outline: 2px solid var(--xray-accent, var(--xray-blue));\r
+  outline-offset: 1px;\r
+}\r
+\r
+.xray-chip,\r
+.xray-icon-btn,\r
+.xray-btn,\r
+.xray-api-row,\r
+.xray-network-row,\r
+.xray-entry-row {\r
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease;\r
+}\r
+\r
+.xray-icon-btn:hover {\r
+  transform: translateY(-1px);\r
+}\r
+\r
+/* In-row action buttons live inside a scrolling virtualized list; the hover lift\r
+   reads as jitter there while the row itself stays put. Keep them flat. */\r
+.xray-api-row .xray-icon-btn:hover,\r
+.xray-api-row-actions .xray-icon-btn:hover,\r
+.xray-network-row .xray-icon-btn:hover,\r
+.xray-console-row .xray-icon-btn:hover,\r
+.xray-log-row .xray-icon-btn:hover {\r
+  transform: none;\r
+}\r
+\r
+.xray-api-table-scroll:focus-visible {\r
+  outline: none;\r
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 45%, transparent);\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-toast,\r
+  .xray-viz-fill {\r
+    animation: none;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500 Custom theme builder (Settings \u2192 Appearance) \u2500\u2500 */\r
+.xray-custom-theme {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 10px;\r
+  margin: 8px 0 4px;\r
+  padding: 14px;\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));\r
+  border-radius: var(--xray-radius-lg);\r
+  background: rgba(var(--xray-surface-rgb), .5);\r
+}\r
+\r
+.xray-custom-presets {\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  padding-bottom: 10px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+}\r
+\r
+.xray-custom-presets-label {\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  letter-spacing: .5px;\r
+  color: var(--xray-hint);\r
+  margin-right: 2px;\r
+}\r
+\r
+.xray-custom-preset-dot {\r
+  width: 10px;\r
+  height: 10px;\r
+  border-radius: 50%;\r
+  margin-right: 5px;\r
+}\r
+\r
+.xray-custom-row {\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-custom-meta {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 1px;\r
+}\r
+\r
+.xray-custom-meta strong {\r
+  font-size: 12px;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-custom-meta small {\r
+  font-size: 10px;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-custom-control {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-color-input {\r
+  width: 34px;\r
+  height: 30px;\r
+  padding: 0;\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));\r
+  border-radius: var(--xray-radius);\r
+  background: transparent;\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-color-input::-webkit-color-swatch-wrapper { padding: 3px; }\r
+.xray-color-input::-webkit-color-swatch { border: none; border-radius: var(--xray-radius-sm); }\r
+\r
+.xray-custom-hex {\r
+  width: 92px;\r
+  text-transform: lowercase;\r
+  font-variant-ligatures: none;\r
+}\r
+\r
+.xray-custom-hex.invalid {\r
+  border-color: var(--xray-red);\r
+}\r
+\r
+.xray-custom-note {\r
+  margin: 2px 0 0;\r
+  font-size: 10px;\r
+  line-height: 1.5;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+/* \u2500\u2500 Live theme preview (painted with the resolved theme vars) \u2500\u2500 */\r
+.xray-theme-preview {\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));\r
+  border-radius: var(--xray-radius);\r
+  background: var(--xray-bg);\r
+  color: var(--xray-text);\r
+  overflow: hidden;\r
+  font-size: 11px;\r
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .18);\r
+}\r
+\r
+.xray-tp-bar {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 7px 10px;\r
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));\r
+  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .3));\r
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);\r
+}\r
+\r
+.xray-tp-dot {\r
+  width: 8px;\r
+  height: 8px;\r
+  border-radius: 50%;\r
+  background: var(--xray-accent);\r
+  box-shadow: 0 0 8px var(--xray-accent);\r
+}\r
+\r
+.xray-tp-brand {\r
+  font-weight: 900;\r
+  letter-spacing: .12em;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-tp-tab {\r
+  padding: 2px 8px;\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-tp-tab.active {\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);\r
+}\r
+\r
+.xray-tp-grow { flex: 1; }\r
+\r
+.xray-tp-btn {\r
+  padding: 2px 10px;\r
+  border-radius: var(--xray-radius-sm, 6px);\r
+  font-weight: 700;\r
+  color: var(--xray-bg);\r
+  background: var(--xray-accent);\r
+}\r
+\r
+.xray-tp-rows {\r
+  display: flex;\r
+  flex-direction: column;\r
+}\r
+\r
+.xray-tp-row {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+  padding: 7px 10px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 55%, transparent);\r
+}\r
+\r
+.xray-tp-row.selected {\r
+  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
+  box-shadow: inset 2px 0 0 var(--xray-accent);\r
+}\r
+\r
+.xray-tp-method {\r
+  font-weight: 800;\r
+  font-size: 10px;\r
+  min-width: 44px;\r
+}\r
+\r
+.xray-tp-method.get { color: var(--xray-green); }\r
+.xray-tp-method.post { color: var(--xray-blue); }\r
+.xray-tp-method.delete { color: var(--xray-red); }\r
+\r
+.xray-tp-path {\r
+  flex: 1;\r
+  color: var(--xray-text);\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-tp-code {\r
+  font-weight: 800;\r
+  font-size: 10px;\r
+}\r
+\r
+.xray-tp-code.ok { color: var(--xray-green); }\r
+.xray-tp-code.warn { color: var(--xray-yellow); }\r
+.xray-tp-code.err { color: var(--xray-red); }\r
+\r
+.xray-tp-badges {\r
+  display: flex;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  padding: 9px 10px;\r
+  background: var(--xray-surface);\r
+}\r
+\r
+.xray-tp-badge {\r
+  padding: 2px 8px;\r
+  border-radius: 999px;\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  letter-spacing: .3px;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-tp-badge.green { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 16%, transparent); }\r
+.xray-tp-badge.yellow { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 16%, transparent); }\r
+.xray-tp-badge.red { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 16%, transparent); }\r
+.xray-tp-badge.blue { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 16%, transparent); }\r
+.xray-tp-badge.mauve { color: var(--xray-mauve); background: color-mix(in srgb, var(--xray-mauve) 16%, transparent); }\r
+\r
+/* \u2500\u2500 Full-freedom token editor (grouped swatch grid) \u2500\u2500 */\r
+.xray-custom-group {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-custom-group-head {\r
+  display: flex;\r
+  align-items: baseline;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-custom-group-title {\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  letter-spacing: .6px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-custom-group-hint {\r
+  font-size: 10px;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-custom-grid {\r
+  display: grid;\r
+  grid-template-columns: repeat(2, minmax(0, 1fr));\r
+  gap: 8px;\r
+}\r
+\r
+.xray-token-field {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 6px 8px;\r
+  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 60%, transparent);\r
+  border-radius: var(--xray-radius);\r
+  background: rgba(var(--xray-surface-rgb), .45);\r
+  transition: border-color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);\r
+}\r
+\r
+.xray-token-field.pinned {\r
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);\r
+  background: color-mix(in srgb, var(--xray-accent) 7%, rgba(var(--xray-surface-rgb), .45));\r
+}\r
+\r
+.xray-token-meta {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 3px;\r
+  min-width: 0;\r
+  flex: 1;\r
+}\r
+\r
+.xray-token-label {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  font-size: 11px;\r
+  font-weight: 600;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-token-state {\r
+  font-size: 8px;\r
+  font-weight: 800;\r
+  letter-spacing: .5px;\r
+  text-transform: uppercase;\r
+  padding: 1px 4px;\r
+  border-radius: 999px;\r
+  color: var(--xray-hint);\r
+  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+}\r
+\r
+.xray-token-field.pinned .xray-token-state {\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
+}\r
+\r
+.xray-token-meta .xray-custom-hex {\r
+  width: 100%;\r
+  height: 24px;\r
+  padding: 2px 6px;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-token-actions {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 1px;\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-token-btn,\r
+.xray-token-reset {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  width: 24px;\r
+  height: 24px;\r
+  flex-shrink: 0;\r
+  padding: 0;\r
+  border: none;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: transparent;\r
+  color: var(--xray-hint);\r
+  cursor: pointer;\r
+  opacity: 0;\r
+  transition: opacity var(--xray-dur-fast) var(--xray-ease), color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);\r
+}\r
+\r
+.xray-token-field:hover .xray-token-btn,\r
+.xray-token-field:focus-within .xray-token-btn,\r
+.xray-token-field:hover .xray-token-reset,\r
+.xray-token-field:focus-within .xray-token-reset,\r
+.xray-token-field.pinned .xray-token-reset {\r
+  opacity: 1;\r
+}\r
+\r
+.xray-token-btn:hover,\r
+.xray-token-reset:hover:not(:disabled) {\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);\r
+}\r
+\r
+.xray-token-reset:disabled {\r
+  opacity: 0;\r
+  cursor: default;\r
+}\r
+\r
+.xray-custom-footnote {\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  gap: 10px;\r
+  flex-wrap: wrap;\r
+  padding-top: 8px;\r
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+  font-size: 10px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+@media (max-width: 560px) {\r
+  .xray-custom-grid {\r
+    grid-template-columns: minmax(0, 1fr);\r
+  }\r
+}\r
+\r
+/* Themeable corner radius: every rounded-rect radius across the stylesheet is\r
+   driven by the --xray-radius scale (pills at 999px and 50% circles keep their\r
+   shape). The base --xray-radius is set inline per panel from settings.radius. */\r
+\r
+/* \u2500\u2500 Range slider (radius) \u2500\u2500 */\r
+.xray-range-control {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 10px;\r
+}\r
+\r
+.xray-range {\r
+  width: 120px;\r
+  height: 4px;\r
+  appearance: none;\r
+  -webkit-appearance: none;\r
+  border-radius: 999px;\r
+  background: color-mix(in srgb, var(--xray-surface2) 80%, transparent);\r
+  outline: none;\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-range::-webkit-slider-thumb {\r
+  -webkit-appearance: none;\r
+  width: 15px;\r
+  height: 15px;\r
+  border-radius: 50%;\r
+  background: var(--xray-accent, var(--xray-blue));\r
+  border: 2px solid var(--xray-surface);\r
+  box-shadow: 0 0 0 1px var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-range::-moz-range-thumb {\r
+  width: 15px;\r
+  height: 15px;\r
+  border: 2px solid var(--xray-surface);\r
+  border-radius: 50%;\r
+  background: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-range-value {\r
+  min-width: 34px;\r
+  text-align: right;\r
+  font-variant-numeric: tabular-nums;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+/* \u2500\u2500 Theme Studio toolbar + import \u2500\u2500 */\r
+.xray-custom-toolbar {\r
+  display: flex;\r
+  align-items: center;\r
+  flex-wrap: wrap;\r
+  gap: 6px;\r
+  padding-bottom: 10px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+}\r
+\r
+.xray-custom-import {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-custom-import-field {\r
+  width: 100%;\r
+  min-height: 84px;\r
+  resize: vertical;\r
+  font-family: var(--xray-font);\r
+  font-size: 11px;\r
+  line-height: 1.5;\r
+}\r
+\r
+/* \u2500\u2500 Hacker mode: CRT scanlines + vignette + moving scan sweep + phosphor bloom \u2500\u2500\r
+   Cosmetic, opt-in, pointer-events:none. Layer 1 (sweep) is the only layer the\r
+   keyframes move; scanlines and vignette stay put. \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-panel.xray-hacker::after {\r
+  content: '';\r
+  position: absolute;\r
+  inset: 0;\r
+  z-index: 6;\r
+  pointer-events: none;\r
+  background:\r
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--xray-accent) 16%, transparent) 45%, transparent 90%),\r
+    linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, .18) 50%),\r
+    radial-gradient(ellipse 130% 100% at 50% 50%, transparent 50%, rgba(0, 0, 0, .34) 100%);\r
+  background-size: 100% 42%, 100% 3px, 100% 100%;\r
+  background-repeat: no-repeat, repeat, no-repeat;\r
+  background-position: 0 -42%, 0 0, 0 0;\r
+}\r
+\r
+/* phosphor bloom on text + a faint scanned tint over the whole panel */\r
+.xray-panel.xray-hacker {\r
+  text-shadow: 0 0 4px color-mix(in srgb, var(--xray-accent) 30%, transparent);\r
+}\r
+\r
+.xray-panel.xray-hacker .xray-json-line-text,\r
+.xray-panel.xray-hacker .xray-console-message,\r
+.xray-panel.xray-hacker .xray-path,\r
+.xray-panel.xray-hacker .xray-method {\r
+  text-shadow: 0 0 7px color-mix(in srgb, var(--xray-green) 42%, transparent);\r
+}\r
+\r
+.xray-panel.xray-hacker .xray-brand-mark {\r
+  box-shadow: 0 0 18px color-mix(in srgb, var(--xray-accent) 55%, transparent);\r
+}\r
+\r
+@keyframes xray-crt-sweep {\r
+  0% { background-position: 0 -42%, 0 0, 0 0; }\r
+  100% { background-position: 0 142%, 0 0, 0 0; }\r
+}\r
+\r
+@keyframes xray-crt-flicker {\r
+  0%, 96%, 100% { opacity: 1; }\r
+  97% { opacity: .82; }\r
+  98% { opacity: 1; }\r
+  99% { opacity: .9; }\r
+}\r
+\r
+@media (prefers-reduced-motion: no-preference) {\r
+  .xray-panel.xray-hacker::after {\r
+    animation: xray-crt-sweep 5.5s linear infinite, xray-crt-flicker 7s steps(1) infinite;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500 Contrast report (Theme Studio) \u2500\u2500 */\r
+.xray-contrast {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 4px;\r
+  margin-top: 4px;\r
+  padding: 10px 12px;\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));\r
+  border-radius: var(--xray-radius, 8px);\r
+  background: rgba(var(--xray-bg-rgb), .4);\r
+}\r
+\r
+.xray-contrast-title {\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+  letter-spacing: .6px;\r
+  color: var(--xray-hint);\r
+  margin-bottom: 2px;\r
+}\r
+\r
+.xray-contrast-row {\r
+  display: grid;\r
+  grid-template-columns: 1fr auto auto;\r
+  align-items: center;\r
+  gap: 10px;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-contrast-label {\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-contrast-row strong {\r
+  color: var(--xray-text);\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-contrast-grade {\r
+  min-width: 58px;\r
+  text-align: center;\r
+  padding: 2px 6px;\r
+  border-radius: 999px;\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  text-transform: uppercase;\r
+}\r
+\r
+.xray-contrast-grade.ok {\r
+  color: var(--xray-green);\r
+  background: color-mix(in srgb, var(--xray-green) 16%, transparent);\r
+}\r
+\r
+.xray-contrast-grade.warn {\r
+  color: var(--xray-yellow);\r
+  background: color-mix(in srgb, var(--xray-yellow) 16%, transparent);\r
+}\r
+\r
+.xray-contrast-grade.fail {\r
+  color: var(--xray-red);\r
+  background: color-mix(in srgb, var(--xray-red) 18%, transparent);\r
+}\r
+\r
+/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\r
+   Frontend elevation \u2014 command center, empty states, motion, micro-interactions\r
+   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\r
+\r
+/* \u2500\u2500 Command center \u2500\u2500 */\r
+.xray-command-modal {\r
+  width: min(620px, 94vw);\r
+}\r
+\r
+.xray-command-search {\r
+  margin: 0;\r
+  padding: 14px 16px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+  border-radius: 0;\r
+  background: transparent;\r
+}\r
+\r
+.xray-command-search .xray-input {\r
+  font-size: 14px;\r
+  border: none;\r
+  background: transparent;\r
+  padding: 0;\r
+}\r
+\r
+.xray-command-search .xray-input:focus {\r
+  box-shadow: none;\r
+  outline: none;\r
+}\r
+\r
+.xray-command-list {\r
+  max-height: min(56vh, 460px);\r
+  overflow-y: auto;\r
+  padding: 6px;\r
+  scroll-padding: 40px 0;\r
+}\r
+\r
+.xray-command-group + .xray-command-group {\r
+  margin-top: 2px;\r
+}\r
+\r
+.xray-command-group-label {\r
+  padding: 8px 10px 4px;\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  letter-spacing: .7px;\r
+  text-transform: uppercase;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-command-row {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 11px;\r
+  width: 100%;\r
+  padding: 9px 10px;\r
+  border: none;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: transparent;\r
+  color: var(--xray-text);\r
+  font: inherit;\r
+  font-size: 13px;\r
+  text-align: left;\r
+  cursor: pointer;\r
+  transition: background-color var(--xray-dur-fast) var(--xray-ease);\r
+}\r
+\r
+.xray-command-row.active {\r
+  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);\r
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-accent) 40%, transparent);\r
+}\r
+\r
+.xray-command-icon {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  width: 24px;\r
+  flex-shrink: 0;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-command-row.active .xray-command-icon {\r
+  color: var(--xray-accent);\r
+}\r
+\r
+.xray-command-label {\r
+  flex: 1;\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-command-label mark {\r
+  background: transparent;\r
+  color: var(--xray-accent);\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-cmd-method {\r
+  min-width: 34px;\r
+  padding: 2px 5px;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  text-align: center;\r
+  color: currentColor;\r
+}\r
+\r
+.xray-command-hint {\r
+  font-size: 11px;\r
+  font-weight: 700;\r
+  font-variant-numeric: tabular-nums;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-command-enter {\r
+  color: var(--xray-accent);\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-command-empty {\r
+  display: flex;\r
+  flex-direction: column;\r
+  align-items: center;\r
+  gap: 6px;\r
+  padding: 36px 16px;\r
+  text-align: center;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-command-empty svg { color: var(--xray-hint); }\r
+.xray-command-empty small { color: var(--xray-hint); font-size: 11px; }\r
+\r
+.xray-command-foot {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 14px;\r
+  padding: 9px 14px;\r
+  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+  font-size: 10px;\r
+  color: var(--xray-hint);\r
+}\r
+\r
+.xray-command-foot kbd {\r
+  display: inline-block;\r
+  min-width: 16px;\r
+  margin-right: 2px;\r
+  padding: 1px 5px;\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));\r
+  border-radius: var(--xray-radius-sm);\r
+  background: rgba(var(--xray-surface-rgb), .8);\r
+  font-family: var(--xray-font);\r
+  font-size: 10px;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+/* \u2500\u2500 Global search (Find in traffic) \u2500\u2500 */\r
+.xray-gsearch-modal {\r
+  width: min(720px, 94vw);\r
+}\r
+\r
+.xray-gsearch-controls {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  padding: 12px 14px;\r
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+}\r
+\r
+.xray-gsearch-input {\r
+  flex: 1;\r
+  margin: 0;\r
+}\r
+\r
+.xray-gsearch-list {\r
+  max-height: min(56vh, 520px);\r
+  overflow-y: auto;\r
+  padding: 6px;\r
+}\r
+\r
+.xray-gsearch-error {\r
+  padding: 14px 16px;\r
+  color: var(--xray-red);\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-gsearch-row {\r
+  display: flex;\r
+  align-items: flex-start;\r
+  gap: 10px;\r
+  width: 100%;\r
+  padding: 9px 10px;\r
+  border: none;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: transparent;\r
+  color: var(--xray-text);\r
+  text-align: left;\r
+  cursor: pointer;\r
+}\r
+\r
+.xray-gsearch-row.active {\r
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);\r
+}\r
+\r
+.xray-gsearch-row .xray-cmd-method {\r
+  margin-top: 1px;\r
+  flex-shrink: 0;\r
+}\r
+\r
+.xray-gsearch-main {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 3px;\r
+  min-width: 0;\r
+  flex: 1;\r
+}\r
+\r
+.xray-gsearch-path {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  font-size: 12px;\r
+  font-weight: 600;\r
+  white-space: nowrap;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+}\r
+\r
+.xray-gsearch-field {\r
+  flex-shrink: 0;\r
+  font-size: 8px;\r
+  font-weight: 800;\r
+  letter-spacing: .4px;\r
+  text-transform: uppercase;\r
+  padding: 1px 5px;\r
+  border-radius: 999px;\r
+  color: var(--xray-subtext);\r
+  background: color-mix(in srgb, var(--xray-surface2) 70%, transparent);\r
+}\r
+\r
+.xray-gsearch-snippet {\r
+  font-family: var(--xray-font);\r
+  font-size: 11px;\r
+  line-height: 1.4;\r
+  color: var(--xray-subtext);\r
+  word-break: break-word;\r
+}\r
+\r
+.xray-gsearch-snippet mark {\r
+  background: color-mix(in srgb, var(--xray-accent) 34%, transparent);\r
+  color: var(--xray-text);\r
+  border-radius: var(--xray-radius-sm);\r
+  padding: 0 1px;\r
+}\r
+\r
+.xray-gsearch-status {\r
+  flex-shrink: 0;\r
+  font-size: 11px;\r
+  font-weight: 700;\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+/* \u2500\u2500 Elegant empty states \u2500\u2500 */\r
+.xray-empty {\r
+  display: flex;\r
+  flex-direction: column;\r
+  align-items: center;\r
+  justify-content: center;\r
+  gap: 8px;\r
+  min-height: 160px;\r
+  padding: 28px 20px;\r
+  margin: auto;\r
+  text-align: center;\r
+  animation: xray-empty-in 320ms var(--xray-ease-out);\r
+}\r
+\r
+@keyframes xray-empty-in {\r
+  from { opacity: 0; transform: translateY(6px); }\r
+  to { opacity: 1; transform: translateY(0); }\r
+}\r
+\r
+.xray-empty-glyph {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  width: 52px;\r
+  height: 52px;\r
+  border-radius: 50%;\r
+  color: var(--xray-accent);\r
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);\r
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent) 22%, transparent), 0 0 28px color-mix(in srgb, var(--xray-accent) 16%, transparent);\r
+}\r
+\r
+.xray-empty-title {\r
+  margin: 4px 0 0;\r
+  font-size: 13px;\r
+  font-weight: 700;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-empty-hint {\r
+  margin: 0;\r
+  max-width: 320px;\r
+  font-size: 11px;\r
+  line-height: 1.55;\r
+  color: var(--xray-subtext);\r
+}\r
+\r
+.xray-empty-action {\r
+  margin-top: 6px;\r
+}\r
+\r
+/* \u2500\u2500 Animated active-tab indicator \u2500\u2500 */\r
+.xray-tab {\r
+  position: relative;\r
+}\r
+\r
+.xray-tab::after {\r
+  content: '';\r
+  position: absolute;\r
+  left: 10px;\r
+  right: 10px;\r
+  bottom: -1px;\r
+  height: 2px;\r
+  border-radius: 999px;\r
+  background: var(--xray-accent, var(--xray-blue));\r
+  transform: scaleX(0);\r
+  transform-origin: center;\r
+  opacity: 0;\r
+  transition: transform var(--xray-dur) var(--xray-ease-out), opacity var(--xray-dur) var(--xray-ease-out);\r
+}\r
+\r
+.xray-tab.active::after {\r
+  transform: scaleX(1);\r
+  opacity: 1;\r
+}\r
+\r
+/* \u2500\u2500 Refined modal entrance \u2500\u2500 */\r
+.xray-modal {\r
+  animation: xray-modal-in 200ms var(--xray-ease-out);\r
+}\r
+\r
+.xray-modal-backdrop {\r
+  animation: xray-fade-in 160ms ease-out;\r
+  backdrop-filter: blur(3px);\r
+}\r
+\r
+@keyframes xray-modal-in {\r
+  from { opacity: 0; transform: translateY(10px) scale(.985); }\r
+  to { opacity: 1; transform: translateY(0) scale(1); }\r
+}\r
+\r
+@keyframes xray-fade-in {\r
+  from { opacity: 0; }\r
+  to { opacity: 1; }\r
+}\r
+\r
+/* \u2500\u2500 Selection & row micro-interactions \u2500\u2500 */\r
+.xray-api-row.selected,\r
+.xray-network-row.selected,\r
+.xray-entry-row.selected {\r
+  box-shadow: inset 3px 0 0 var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-live-dot.on {\r
+  animation: xray-pulse 2.4s var(--xray-ease) infinite;\r
+}\r
+\r
+@keyframes xray-pulse {\r
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--xray-green) 55%, transparent); }\r
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--xray-green) 0%, transparent); }\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-empty,\r
+  .xray-modal,\r
+  .xray-modal-backdrop,\r
+  .xray-live-dot.on {\r
+    animation: none;\r
+  }\r
+  .xray-tab::after {\r
+    transition: none;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500 Version tag in the header brand \u2500\u2500 */\r
+.xray-brand-ver {\r
+  padding: 1px 6px;\r
+  border-radius: 999px;\r
+  border: 1px solid var(--xray-border, rgba(108, 112, 134, .35));\r
+  background: rgba(var(--xray-surface2-rgb), .5);\r
+  color: var(--xray-hint);\r
+  font-size: 9px;\r
+  font-weight: 800;\r
+  letter-spacing: 0;\r
+  text-transform: none;\r
+  cursor: help;\r
+}\r
+\r
+/* \u2500\u2500 API tab rework: headers grid, structural diff, initiator frames \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+\r
+.xray-headers-view {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 12px;\r
+}\r
+\r
+.xray-headers-filter {\r
+  max-width: 340px;\r
+}\r
+\r
+.xray-headers-section h4 {\r
+  margin: 0 0 6px;\r
+  font-size: 11px;\r
+  letter-spacing: .4px;\r
+  text-transform: uppercase;\r
+  color: var(--xray-subtext, var(--xray-text));\r
+}\r
+\r
+.xray-headers-grid {\r
+  display: flex;\r
+  flex-direction: column;\r
+  border: 1px solid rgba(108, 112, 134, .3);\r
+  border-radius: var(--xray-radius);\r
+  overflow: hidden;\r
+}\r
+\r
+.xray-header-row {\r
+  display: grid;\r
+  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 26px;\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 5px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .18);\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-header-row:last-child {\r
+  border-bottom: none;\r
+}\r
+\r
+.xray-header-row:hover {\r
+  background: rgba(var(--xray-surface2-rgb), .55);\r
+}\r
+\r
+.xray-header-name {\r
+  color: var(--xray-accent, var(--xray-blue));\r
+  font-weight: 800;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-header-value {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-header-row .xray-icon-btn {\r
+  opacity: 0;\r
+}\r
+\r
+.xray-header-row:hover .xray-icon-btn,\r
+.xray-header-row .xray-icon-btn:focus-visible {\r
+  opacity: 1;\r
+}\r
+\r
+.xray-diff {\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-diff-head {\r
+  display: flex;\r
+  align-items: center;\r
+  justify-content: space-between;\r
+  gap: 8px;\r
+}\r
+\r
+.xray-diff-lines {\r
+  display: flex;\r
+  flex-direction: column;\r
+  border: 1px solid rgba(108, 112, 134, .3);\r
+  border-radius: var(--xray-radius);\r
+  overflow: hidden;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-diff-line {\r
+  display: grid;\r
+  grid-template-columns: 18px minmax(120px, 1fr) minmax(0, 1fr) minmax(0, 1fr);\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 4px 10px;\r
+  border-bottom: 1px solid rgba(108, 112, 134, .16);\r
+}\r
+\r
+.xray-diff-line:last-child {\r
+  border-bottom: none;\r
+}\r
+\r
+.xray-diff-line.added {\r
+  background: rgba(166, 227, 161, .09);\r
+}\r
+\r
+.xray-diff-line.removed {\r
+  background: rgba(243, 139, 168, .09);\r
+}\r
+\r
+.xray-diff-line.changed {\r
+  background: rgba(249, 226, 175, .07);\r
+}\r
+\r
+.xray-diff-kind {\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-diff-line.added .xray-diff-kind { color: var(--xray-green); }\r
+.xray-diff-line.removed .xray-diff-kind { color: var(--xray-red); }\r
+.xray-diff-line.changed .xray-diff-kind { color: var(--xray-yellow); }\r
+\r
+.xray-diff-path {\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-text);\r
+  font-weight: 700;\r
+}\r
+\r
+.xray-diff-before,\r
+.xray-diff-after {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-diff-before { color: var(--xray-red); }\r
+.xray-diff-after { color: var(--xray-green); }\r
+\r
+.xray-initiator-frame {\r
+  display: grid;\r
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) 26px;\r
+  gap: 8px;\r
+  align-items: center;\r
+  padding: 2px 0;\r
+}\r
+\r
+.xray-initiator-fn {\r
+  font-weight: 800;\r
+  color: var(--xray-text);\r
+}\r
+\r
+.xray-initiator-loc {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+}\r
+\r
+.xray-initiator-frame .xray-icon-btn {\r
+  opacity: 0;\r
+}\r
+\r
+.xray-initiator-frame:hover .xray-icon-btn,\r
+.xray-initiator-frame .xray-icon-btn:focus-visible {\r
+  opacity: 1;\r
+}\r
+\r
+.xray-json-text {\r
+  white-space: pre-wrap;\r
+  word-break: break-word;\r
+}\r
+\r
+/* Closed drawer: give the space back to the list and context panes instead of\r
+   parking a 560px "Nothing selected" column (the detail-open hook previously\r
+   matched no CSS at all). */\r
+.xray-api-workspace:not(.detail-open) .xray-api-detail-drawer.empty {\r
+  display: none;\r
+}\r
+\r
+.xray-api-workspace:not(.detail-open) .xray-api-body {\r
+  grid-template-columns: minmax(260px, var(--xray-api-split, 1fr)) minmax(300px, 1.1fr);\r
+}\r
+\r
+/* Nothing selected at all: the (auto-hidden) context pane frees its column too. */\r
+.xray-api-workspace:not(.detail-open) .xray-api-body:has(.xray-request-context-pane.empty) {\r
+  grid-template-columns: minmax(0, 1fr);\r
+}\r
+\r
+/* \u2500\u2500 Collapsible section primitive (CollapsibleSection.tsx) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+\r
+.xray-collapsible {\r
+  display: flex;\r
+  flex-direction: column;\r
+  min-height: 0;\r
+}\r
+\r
+.xray-collapsible-header {\r
+  display: flex;\r
+  align-items: center;\r
+  gap: 8px;\r
+  width: 100%;\r
+  padding: 7px 10px;\r
+  border: 0;\r
+  background: transparent;\r
+  color: var(--xray-subtext, var(--xray-text));\r
+  cursor: pointer;\r
+  font: 800 10px/1 var(--xray-font);\r
+  letter-spacing: .07em;\r
+  text-transform: uppercase;\r
+  text-align: left;\r
+}\r
+\r
+.xray-collapsible-header:hover {\r
+  color: var(--xray-text);\r
+}\r
+\r
+/* One knob for the whole collapse/expand feel. Deliberately slow + even-paced\r
+   so sections unfold like a drawer, not a snap. */\r
+.xray-collapsible {\r
+  --xray-collapse-dur: 420ms;\r
+  --xray-collapse-ease: cubic-bezier(.4, 0, .2, 1);\r
+}\r
+\r
+.xray-collapsible-chevron {\r
+  flex: 0 0 auto;\r
+  color: var(--xray-hint, var(--xray-subtext));\r
+  transition: transform var(--xray-collapse-dur) var(--xray-collapse-ease);\r
+}\r
+\r
+.xray-collapsible.collapsed .xray-collapsible-chevron {\r
+  transform: rotate(-90deg);\r
+}\r
+\r
+.xray-collapsible-title {\r
+  min-width: 0;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-collapsible-right {\r
+  margin-left: auto;\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 6px;\r
+  text-transform: none;\r
+  letter-spacing: 0;\r
+}\r
+\r
+.xray-collapsible-body {\r
+  min-height: 0;\r
+  /* grid trick animates height from 0 without knowing the content height */\r
+  display: grid;\r
+  grid-template-rows: 1fr;\r
+  transition: grid-template-rows var(--xray-collapse-dur) var(--xray-collapse-ease);\r
+}\r
+\r
+.xray-collapsible.collapsed > .xray-collapsible-body {\r
+  grid-template-rows: 0fr;\r
+}\r
+\r
+.xray-collapsible-body > .xray-collapsible-inner {\r
+  min-height: 0;\r
+  overflow: hidden;\r
+  /* Fade + slight rise so content eases in with the height, rather than being\r
+     hard-clipped \u2014 this reads far gentler than a pure height reveal. */\r
+  opacity: 1;\r
+  transform: translateY(0);\r
+  transition: opacity var(--xray-collapse-dur) var(--xray-collapse-ease),\r
+              transform var(--xray-collapse-dur) var(--xray-collapse-ease);\r
+}\r
+\r
+.xray-collapsible.collapsed > .xray-collapsible-body > .xray-collapsible-inner {\r
+  opacity: 0;\r
+  transform: translateY(-6px);\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-collapsible-chevron,\r
+  .xray-collapsible-body,\r
+  .xray-collapsible-body > .xray-collapsible-inner {\r
+    transition: none;\r
+  }\r
+}\r
+\r
+/* API filters collapsible: keep the chip blocks spaced like the old toolbar. */\r
+.xray-api-filters-collapsible .xray-collapsible-header {\r
+  padding: 0 0 2px;\r
+}\r
+\r
+.xray-api-filters-collapsible .xray-collapsible-inner {\r
+  display: grid;\r
+  gap: 8px;\r
+}\r
+\r
+/* Insight cards use the collapsible header in place of the old <h3>. Keep the\r
+   card's inner padding but let the header title read like the old heading. */\r
+.xray-card.xray-collapsible {\r
+  padding: 12px;\r
+}\r
+\r
+.xray-card.xray-collapsible > .xray-collapsible-header {\r
+  padding: 0 0 8px;\r
+  font-size: 12px;\r
+}\r
+\r
+.xray-insight-overview .xray-collapsible-header {\r
+  padding: 0 0 6px;\r
+}\r
+\r
+/* Density toggle in the API table header (last column, right-aligned). */\r
+.xray-api-table-tools {\r
+  display: flex;\r
+  justify-content: flex-end;\r
+}\r
+\r
+.xray-density-toggle {\r
+  width: 24px;\r
+  height: 24px;\r
+}\r
+\r
+/* \u2500\u2500 Interactive JSON tree (JsonView.tsx) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+\r
+.xray-json-tree {\r
+  display: flex;\r
+  flex-direction: column;\r
+  min-height: 0;\r
+  font: 600 11.5px/1.6 var(--xray-font);\r
+}\r
+\r
+.xray-json-tree-toolbar {\r
+  display: flex;\r
+  gap: 6px;\r
+  padding: 0 0 6px;\r
+  position: sticky;\r
+  top: 0;\r
+  z-index: 1;\r
+}\r
+\r
+.xray-json-tree-btn {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+  padding: 3px 8px;\r
+  border: 1px solid rgba(108, 112, 134, .4);\r
+  border-radius: 999px;\r
+  background: rgba(var(--xray-surface2-rgb), .6);\r
+  color: var(--xray-subtext, var(--xray-text));\r
+  cursor: pointer;\r
+  font: 800 10px/1 var(--xray-font);\r
+  letter-spacing: .02em;\r
+}\r
+\r
+.xray-json-tree-btn:hover {\r
+  color: var(--xray-text);\r
+  border-color: color-mix(in srgb, var(--xray-accent) 45%, transparent);\r
+}\r
+\r
+.xray-json-tree-body {\r
+  min-width: 0;\r
+  overflow-x: auto;\r
+}\r
+\r
+.xray-json-row {\r
+  display: flex;\r
+  align-items: flex-start;\r
+  gap: 4px;\r
+  width: 100%;\r
+  padding-right: 8px;\r
+  white-space: pre-wrap;\r
+  overflow-wrap: anywhere;\r
+  text-align: left;\r
+}\r
+\r
+.xray-json-branch {\r
+  border: 0;\r
+  background: transparent;\r
+  color: inherit;\r
+  cursor: pointer;\r
+  font: inherit;\r
+}\r
+\r
+.xray-json-branch:hover {\r
+  background: rgba(var(--xray-surface2-rgb), .4);\r
+}\r
+\r
+.xray-json-gutter {\r
+  flex: 0 0 13px;\r
+}\r
+\r
+.xray-json-chevron {\r
+  flex: 0 0 auto;\r
+  margin-top: 3px;\r
+  color: var(--xray-hint, var(--xray-subtext));\r
+  transition: transform var(--xray-dur-fast, .12s) var(--xray-ease, ease);\r
+}\r
+\r
+.xray-json-chevron.closed {\r
+  transform: rotate(-90deg);\r
+}\r
+\r
+.xray-json-summary {\r
+  margin: 0 6px;\r
+  padding: 0 6px;\r
+  border-radius: 999px;\r
+  background: rgba(var(--xray-surface2-rgb), .7);\r
+  color: var(--xray-hint);\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+}\r
+\r
+.xray-json-scalar {\r
+  margin: 0;\r
+}\r
+\r
+@media (prefers-reduced-motion: reduce) {\r
+  .xray-json-chevron {\r
+    transition: none;\r
+  }\r
+}\r
+\r
+/* \u2500\u2500 Console: rendered errors (ErrorBlock) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+.xray-error-name {\r
+  color: var(--xray-red);\r
+  font-weight: 900;\r
+}\r
+\r
+.xray-error-frames {\r
+  margin: 0;\r
+  padding: 0;\r
+  list-style: none;\r
+  display: flex;\r
+  flex-direction: column;\r
+  gap: 2px;\r
+  font: 600 11px/1.5 var(--xray-font);\r
+}\r
+\r
+.xray-error-frames li {\r
+  display: grid;\r
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);\r
+  gap: 10px;\r
+  align-items: baseline;\r
+  padding: 1px 0;\r
+}\r
+\r
+.xray-error-fn {\r
+  color: var(--xray-text);\r
+  font-weight: 800;\r
+  white-space: nowrap;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+}\r
+\r
+.xray-error-loc {\r
+  min-width: 0;\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+/* \u2500\u2500 Network sub-tab: status swatch, stream chip, type, waterfall \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\r
+\r
+.xray-status-swatch {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  justify-content: center;\r
+  min-width: 34px;\r
+  padding: 1px 6px;\r
+  border-radius: var(--xray-radius-sm);\r
+  font-weight: 900;\r
+  font-size: 11px;\r
+  /* tinted background so unusual codes pop (Firefox Network Monitor) */\r
+  background: color-mix(in srgb, currentColor 16%, transparent);\r
+}\r
+\r
+.xray-status-swatch.ok { color: var(--xray-green); }\r
+.xray-status-swatch.redirect { color: var(--xray-yellow); }\r
+.xray-status-swatch.warn { color: var(--xray-peach); }\r
+.xray-status-swatch.error { color: var(--xray-red); }\r
+.xray-status-swatch.pending { color: var(--xray-subtext, var(--xray-hint)); }\r
+\r
+.xray-status-chip.stream {\r
+  display: inline-flex;\r
+  align-items: center;\r
+  gap: 4px;\r
+  padding: 1px 7px;\r
+  border-radius: 999px;\r
+  font-size: 10px;\r
+  font-weight: 900;\r
+  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);\r
+  color: var(--xray-mauve);\r
+  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);\r
+}\r
+\r
+.xray-stream-dot {\r
+  width: 6px;\r
+  height: 6px;\r
+  border-radius: 50%;\r
+  background: currentColor;\r
+}\r
+\r
+.xray-status-chip.stream.open .xray-stream-dot {\r
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);\r
+}\r
+\r
+.xray-status-chip.stream.closed {\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent);\r
+  background: transparent;\r
+}\r
+\r
+.xray-net-type {\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  font-weight: 700;\r
+  font-size: 10px;\r
+  overflow: hidden;\r
+  text-overflow: ellipsis;\r
+  white-space: nowrap;\r
+}\r
+\r
+.xray-net-size {\r
+  text-align: right;\r
+  font-size: 11px;\r
+}\r
+\r
+.xray-waterfall-cell {\r
+  display: grid;\r
+  grid-template-columns: minmax(0, 1fr) auto;\r
+  align-items: center;\r
+  gap: 8px;\r
+  min-width: 0;\r
+}\r
+\r
+.xray-waterfall-track {\r
+  position: relative;\r
+  height: 12px;\r
+  min-width: 0;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);\r
+  overflow: hidden;\r
+}\r
+\r
+/* Positioned on the shared time axis; darker = downloading, the inner lighter\r
+   segment = waiting/TTFB (Chrome's two-tone waterfall). */\r
+.xray-waterfall-bar {\r
+  position: absolute;\r
+  top: 2px;\r
+  bottom: 2px;\r
+  /* Floor the width so a fast, near-instant request still reads as a legible\r
+     pill instead of a 2px dot; slow requests stay proportionally wider. */\r
+  min-width: 10px;\r
+  border-radius: var(--xray-radius-sm);\r
+  background: var(--xray-accent, var(--xray-blue));\r
+}\r
+\r
+.xray-waterfall-bar.slow { background: var(--xray-yellow); }\r
+.xray-waterfall-bar.error { background: var(--xray-red); }\r
+\r
+.xray-waterfall-wait {\r
+  display: block;\r
+  height: 100%;\r
+  border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);\r
+  background: color-mix(in srgb, #fff 42%, transparent);\r
+}\r
+\r
+.xray-waterfall-ms {\r
+  color: var(--xray-subtext, var(--xray-hint));\r
+  font-size: 10px;\r
+  font-weight: 800;\r
+  white-space: nowrap;\r
+  font-variant-numeric: tabular-nums;\r
+}\r
+\r
+.xray-network-row.expanded {\r
+  background: color-mix(in srgb, var(--xray-accent) 8%, transparent);\r
+}\r
 `;
 
   // inline-css:C:\Users\vicky\Desktop\Projects\xray-extension\src\panel\styles\hud.css
-  var hud_default = ":host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  border: 1px solid var(--xray-surface2);\n  border-radius: var(--xray-radius, 10px);\n  background: var(--xray-bg);\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\n}\n\n#xray-hud-root,\n.xray-app-root {\n  width: 100%;\n  height: 100%;\n}\n\n.xray-panel.xray-mode-hud {\n  position: relative;\n  inset: auto;\n  top: auto;\n  right: auto;\n  z-index: 1;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  border: 0;\n  border-left: 0;\n  border-radius: var(--xray-radius);\n  box-shadow: none;\n}\n\n.xray-panel.xray-mode-hud .xray-topbar {\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle {\n  cursor: grab;\n}\n\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\n  cursor: grabbing;\n}\n\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\n   These rules only exist in the HUD because hud.css is loaded only there. */\n.xray-panel.xray-mode-hud .xray-resize-handle,\n.xray-panel.xray-mode-hud .xray-dock-controls {\n  display: none;\n}\n\n/* Container-based: the HUD's width is user-dragged and independent of the window. */\n@container xray (max-width: 520px) {\n  .xray-panel.xray-mode-hud .xray-summary,\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\n    display: none;\n  }\n}\n";
+  var hud_default = ":host {\r\n  display: block;\r\n  width: 100%;\r\n  height: 100%;\r\n  overflow: hidden;\r\n  border: 1px solid var(--xray-surface2);\r\n  border-radius: var(--xray-radius, 10px);\r\n  background: var(--xray-bg);\r\n  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);\r\n}\r\n\r\n#xray-hud-root,\r\n.xray-app-root {\r\n  width: 100%;\r\n  height: 100%;\r\n}\r\n\r\n.xray-panel.xray-mode-hud {\r\n  position: relative;\r\n  inset: auto;\r\n  top: auto;\r\n  right: auto;\r\n  z-index: 1;\r\n  width: 100%;\r\n  height: 100%;\r\n  display: flex;\r\n  border: 0;\r\n  border-left: 0;\r\n  border-radius: var(--xray-radius);\r\n  box-shadow: none;\r\n}\r\n\r\n.xray-panel.xray-mode-hud .xray-topbar {\r\n  border-radius: var(--xray-radius) var(--xray-radius) 0 0;\r\n}\r\n\r\n.xray-panel.xray-mode-hud .xray-drag-handle {\r\n  cursor: grab;\r\n}\r\n\r\n.xray-panel.xray-mode-hud .xray-drag-handle:active {\r\n  cursor: grabbing;\r\n}\r\n\r\n/* The floating HUD carries its own drag/resize/collapse chrome (hud-mount.js), so\r\n   the docked side panel's resize grabber and dock/close cluster don't belong here.\r\n   These rules only exist in the HUD because hud.css is loaded only there. */\r\n.xray-panel.xray-mode-hud .xray-resize-handle,\r\n.xray-panel.xray-mode-hud .xray-dock-controls {\r\n  display: none;\r\n}\r\n\r\n/* Container-based: the HUD's width is user-dragged and independent of the window. */\r\n@container xray (max-width: 520px) {\r\n  .xray-panel.xray-mode-hud .xray-summary,\r\n  .xray-panel.xray-mode-hud .xray-tab span:not(.xray-badge) {\r\n    display: none;\r\n  }\r\n}\r\n";
 
   // src/panel/hud-main.tsx
   var import_jsx_runtime23 = __toESM(require_jsx_runtime());

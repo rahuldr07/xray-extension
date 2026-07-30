@@ -305,6 +305,8 @@ function NetworkTable(): React.ReactElement {
   const pinnedRef = useRef(false);
   const lastTotalRef = useRef(0);
   const didInitRef = useRef(false);
+  const pinTimerRef = useRef(0);
+  const filterKeyRef = useRef(`${networkFilter} ${searchQuery}`);
   const [pinnedUi, setPinnedUi] = useState(false);
   const [newCount, setNewCount] = useState(0);
   // Shared time axis for the waterfall: every bar is positioned against the same
@@ -337,7 +339,10 @@ function NetworkTable(): React.ReactElement {
     if (events.length) virtualizer.scrollToIndex(events.length - 1, { align: 'end' });
     // Dynamic row measurement keeps growing the scroll area for a couple of
     // frames after the jump, so settle the pin over a few beats (see ConsoleStream).
+    // Every beat re-checks pinnedRef: during a burst these queue up, and one that
+    // fires after the user has grabbed the scrollbar must not yank them back.
     const pin = (): void => {
+      if (!pinnedRef.current) return;
       const el = parentRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     };
@@ -345,8 +350,11 @@ function NetworkTable(): React.ReactElement {
       pin();
       requestAnimationFrame(pin);
     });
-    window.setTimeout(pin, 80);
+    window.clearTimeout(pinTimerRef.current);
+    pinTimerRef.current = window.setTimeout(pin, 80);
   }, [events.length, virtualizer]);
+
+  useEffect(() => () => window.clearTimeout(pinTimerRef.current), []);
 
   // Reveal an expanded row's detail: pin its header to the top so the detail
   // (which can be several hundred px) flows into view below it. Rows above it
@@ -364,6 +372,16 @@ function NetworkTable(): React.ReactElement {
   // count unseen requests into a jump pill.
   useEffect(() => {
     const total = events.length;
+    // A filter or search change re-slices the same history — that is not new
+    // traffic, so rebaseline against it. Counting the difference would pop a
+    // "397 new" pill just for widening the filter.
+    const filterKey = `${networkFilter} ${searchQuery}`;
+    if (filterKeyRef.current !== filterKey) {
+      filterKeyRef.current = filterKey;
+      lastTotalRef.current = total;
+      setNewCount(0);
+      return;
+    }
     const delta = total - lastTotalRef.current;
     lastTotalRef.current = total;
     if (!didInitRef.current) { didInitRef.current = true; return; }
@@ -371,7 +389,7 @@ function NetworkTable(): React.ReactElement {
       if (pinnedRef.current) scrollToBottom();
       else setNewCount((count) => count + delta);
     }
-  }, [events.length, scrollToBottom]);
+  }, [events.length, networkFilter, searchQuery, scrollToBottom]);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -609,6 +627,8 @@ function ConsoleStream({ levelFilter, query, onClearFilter }: {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const pinnedRef = useRef(true);
   const lastTotalRef = useRef(0);
+  const pinTimerRef = useRef(0);
+  const filterKeyRef = useRef(`${levelFilter} ${query}`);
   const [pinnedUi, setPinnedUi] = useState(true);
   const [newCount, setNewCount] = useState(0);
 
@@ -647,7 +667,10 @@ function ConsoleStream({ levelFilter, query, onClearFilter }: {
     if (rows.length) virtualizer.scrollToIndex(rows.length - 1, { align: 'end' });
     // Dynamic row measurement grows the scroll area for a couple of frames
     // after the jump, so a single pin lands short — settle it over a few beats.
+    // Every beat re-checks pinnedRef: in a log storm these queue up several deep,
+    // and one firing after the user scrolled up must not drag them back down.
     const pin = (): void => {
+      if (!pinnedRef.current) return;
       const el = parentRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     };
@@ -655,13 +678,26 @@ function ConsoleStream({ levelFilter, query, onClearFilter }: {
       pin();
       requestAnimationFrame(pin);
     });
-    window.setTimeout(pin, 80);
+    window.clearTimeout(pinTimerRef.current);
+    pinTimerRef.current = window.setTimeout(pin, 80);
   }, [rows.length, virtualizer]);
+
+  useEffect(() => () => window.clearTimeout(pinTimerRef.current), []);
 
   // Follow the tail while the user is at the bottom; otherwise count what they
   // haven't seen and offer a jump pill.
   useEffect(() => {
     const total = filteredEvents.length;
+    // A level/search change re-slices the same history — that is not new traffic,
+    // so rebaseline against it. Counting the difference would pop a "397 new" pill
+    // just for switching the filter back to All.
+    const filterKey = `${levelFilter} ${query}`;
+    if (filterKeyRef.current !== filterKey) {
+      filterKeyRef.current = filterKey;
+      lastTotalRef.current = total;
+      setNewCount(0);
+      return;
+    }
     // Capture the delta by value: the updater callback runs after this effect
     // has already advanced lastTotalRef, so reading the ref inside it would
     // always yield zero.
@@ -671,7 +707,7 @@ function ConsoleStream({ levelFilter, query, onClearFilter }: {
       if (pinnedRef.current) scrollToBottom();
       else setNewCount((count) => count + delta);
     }
-  }, [filteredEvents.length, scrollToBottom]);
+  }, [filteredEvents.length, levelFilter, query, scrollToBottom]);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -688,11 +724,18 @@ function ConsoleStream({ levelFilter, query, onClearFilter }: {
     <section className="xray-console-stream-wrap">
       <div className="xray-console-stream" ref={parentRef} onScroll={handleScroll}>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((item) => (
-            <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
-              <ConsoleRow event={rows[item.index].event} count={rows[item.index].count} />
-            </div>
-          ))}
+          {virtualizer.getVirtualItems().map((item) => {
+            // rows can shrink between the virtualizer's last measurement and this
+            // render (a filter keystroke, or clearConsole mid-stream), leaving an
+            // index past the end — matching the guard getItemKey already uses.
+            const row = rows[item.index];
+            if (!row) return null;
+            return (
+              <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+                <ConsoleRow event={row.event} count={row.count} />
+              </div>
+            );
+          })}
         </div>
         {!rows.length && (
           <EmptyState
