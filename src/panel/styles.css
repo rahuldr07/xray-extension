@@ -631,6 +631,7 @@
 }
 
 .xray-network {
+  position: relative;
   min-height: 180px;
   max-height: min(44vh, 380px);
   border-bottom: 1px solid rgba(108, 112, 134, .35);
@@ -901,16 +902,49 @@
 
 .xray-console-row.command {
   color: var(--xray-mauve);
+  /* Set the REPL input/output apart from page-log noise the way DevTools tints
+     its own prompt echo — the command/result pair reads as one "turn". */
+  background: color-mix(in srgb, var(--xray-mauve) 7%, transparent);
 }
 
 .xray-console-row.result {
   border-left: 2px solid rgba(var(--xray-accent-rgb), .55);
+  background: color-mix(in srgb, var(--xray-accent) 5%, transparent);
+}
+
+/* Leading gutter marker: quiet by default, colored only where it carries
+   meaning (input, output, error, warning). Centered on the first text line. */
+.xray-console-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  color: var(--xray-hint);
+}
+
+.xray-console-row.error .xray-console-glyph { color: var(--xray-red); }
+.xray-console-row.warn .xray-console-glyph { color: var(--xray-yellow); }
+.xray-console-row.command .xray-console-glyph { color: var(--xray-mauve); }
+.xray-console-row.result .xray-console-glyph { color: var(--xray-accent); }
+
+/* A plain page log needs no icon — a small dot holds the gutter rhythm without
+   stamping a terminal glyph on every single line. */
+.xray-console-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--xray-hint) 70%, transparent);
 }
 
 .xray-console-message {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Soften ordinary logs so errors, warnings and REPL results carry the eye. */
+.xray-console-row.log .xray-console-message {
+  color: color-mix(in srgb, var(--xray-text) 78%, var(--xray-hint));
 }
 
 .xray-detail {
@@ -5875,7 +5909,9 @@
   position: absolute;
   top: 2px;
   bottom: 2px;
-  min-width: 2px;
+  /* Floor the width so a fast, near-instant request still reads as a legible
+     pill instead of a 2px dot; slow requests stay proportionally wider. */
+  min-width: 10px;
   border-radius: var(--xray-radius-sm);
   background: var(--xray-accent, var(--xray-blue));
 }

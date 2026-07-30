@@ -302,6 +302,11 @@ function NetworkTable(): React.ReactElement {
   const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
   const filtered = networkFilter !== 'all' || searchQuery.trim().length > 0;
   const parentRef = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef(false);
+  const lastTotalRef = useRef(0);
+  const didInitRef = useRef(false);
+  const [pinnedUi, setPinnedUi] = useState(false);
+  const [newCount, setNewCount] = useState(0);
   // Shared time axis for the waterfall: every bar is positioned against the same
   // window so requests can be compared at a glance (Firefox/Chrome model).
   const waterfall = useMemo<WaterfallWindow>(() => {
@@ -320,22 +325,78 @@ function NetworkTable(): React.ReactElement {
   const virtualizer = useVirtualizer({
     count: events.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => usePanelStore.getState().expandedId === events[index]?.id ? 240 : 34,
+    // Expanded rows carry a full RequestDetail (usually 400–800px); estimate near
+    // that so the measure-correction reflow is small. measureElement fixes the rest.
+    estimateSize: (index) => usePanelStore.getState().expandedId === events[index]?.id ? 420 : 34,
     getItemKey: (index) => events[index]?.id || index,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
   });
+
+  const scrollToBottom = useCallback(() => {
+    if (events.length) virtualizer.scrollToIndex(events.length - 1, { align: 'end' });
+    // Dynamic row measurement keeps growing the scroll area for a couple of
+    // frames after the jump, so settle the pin over a few beats (see ConsoleStream).
+    const pin = (): void => {
+      const el = parentRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      pin();
+      requestAnimationFrame(pin);
+    });
+    window.setTimeout(pin, 80);
+  }, [events.length, virtualizer]);
+
+  // Reveal an expanded row's detail: pin its header to the top so the detail
+  // (which can be several hundred px) flows into view below it. Rows above it
+  // don't change height, so align:'start' lands precisely even mid-measurement.
+  // Expanding a row also opts out of tail-follow — you're inspecting, not tailing.
+  const scrollRowIntoView = useCallback((index: number) => {
+    pinnedRef.current = false;
+    setPinnedUi(false);
+    requestAnimationFrame(() => virtualizer.scrollToIndex(index, { align: 'start' }));
+  }, [virtualizer]);
+
+  // The network list is a chronological ledger — opening it (or returning to it)
+  // must NOT yank to the bottom. Record the batch present at mount as already
+  // seen, then follow the tail only while the user is parked at the bottom, else
+  // count unseen requests into a jump pill.
+  useEffect(() => {
+    const total = events.length;
+    const delta = total - lastTotalRef.current;
+    lastTotalRef.current = total;
+    if (!didInitRef.current) { didInitRef.current = true; return; }
+    if (delta > 0) {
+      if (pinnedRef.current) scrollToBottom();
+      else setNewCount((count) => count + delta);
+    }
+  }, [events.length, scrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    pinnedRef.current = atBottom;
+    setPinnedUi(atBottom);
+    if (atBottom) setNewCount(0);
+  }, []);
+
+  // Seed the pinned state from real geometry once rows are laid out: a short
+  // list that fully fits reads as "at bottom" (so new rows follow); an
+  // overflowing one starts at the top and surfaces a pill for new arrivals.
+  useEffect(() => { handleScroll(); }, [handleScroll]);
 
   return (
     <section className="xray-network">
       <div className="xray-network-head">
         <span>Status</span><span>Method</span><span>Name</span><span>Type</span><span>Size</span><span>Waterfall</span>
       </div>
-      <div className="xray-virtual-list" ref={parentRef}>
+      <div className="xray-virtual-list" ref={parentRef} onScroll={handleScroll}>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => (
             <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
-              <NetworkRow event={events[item.index]} waterfall={waterfall} />
+              <NetworkRow event={events[item.index]} waterfall={waterfall} index={item.index} onExpand={scrollRowIntoView} />
             </div>
           ))}
         </div>
@@ -349,6 +410,11 @@ function NetworkTable(): React.ReactElement {
           />
         )}
       </div>
+      {!pinnedUi && newCount > 0 && (
+        <button className="xray-newmsg-pill" onClick={() => { setNewCount(0); pinnedRef.current = true; setPinnedUi(true); scrollToBottom(); }}>
+          <IconArrowDown size={14} stroke={2} />{newCount} new
+        </button>
+      )}
     </section>
   );
 }
@@ -385,7 +451,7 @@ function StatusCell({ entry }: { entry: XrayEntry }): React.ReactElement {
   return <span className={`xray-status-swatch ${statusClass(status)}`}>{status || '—'}</span>;
 }
 
-const NetworkRow = React.memo(function NetworkRow({ event, waterfall }: { event: ConsoleEvent; waterfall: WaterfallWindow }): React.ReactElement {
+const NetworkRow = React.memo(function NetworkRow({ event, waterfall, index, onExpand }: { event: ConsoleEvent; waterfall: WaterfallWindow; index: number; onExpand: (index: number) => void }): React.ReactElement {
   const entry = eventEntry(event);
   const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
   const selectedId = usePanelStore((state) => state.selectedId);
@@ -410,10 +476,15 @@ const NetworkRow = React.memo(function NetworkRow({ event, waterfall }: { event:
 
   // selectEntry sets expandedId to 'evt_'+id (== event.id) as it selects, so
   // calling it AND toggleExpanded cancelled out (nothing ever expanded). First
-  // click selects + expands; clicking the open row collapses it (keeps selection).
+  // click selects + expands (and scrolls the detail into view); clicking the
+  // open row collapses it (keeps selection).
   const activate = (): void => {
-    if (expandedId === event.id) toggleExpanded(event.id);
-    else selectEntry(entry.id, { openDetail: false });
+    if (expandedId === event.id) {
+      toggleExpanded(event.id);
+      return;
+    }
+    selectEntry(entry.id, { openDetail: false });
+    onExpand(index);
   };
 
   return (
@@ -647,6 +718,9 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
   const consoleError = useMemo(() => extractConsoleError(event), [event]);
   const canExpand = event.type === 'result' || (consoleError ? !!consoleError.stack : false) ||
     event.data !== undefined || !!event.args?.some((arg) => arg && typeof arg === 'object');
+  // Only carry a glyph where it means something — input (>), output (<), errors
+  // and warnings. Plain page logs get a quiet dot, so the stream reads as text,
+  // not a column of repeated terminal icons (Chrome/Firefox console model).
   const icon = event.type === 'command'
     ? <IconChevronRight {...iconProps} />
     : event.type === 'result'
@@ -655,7 +729,7 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
         ? <IconCircleX {...iconProps} />
         : event.level === 'warn'
           ? <IconAlertTriangle {...iconProps} />
-          : <IconTerminal2 {...iconProps} />;
+          : <span className="xray-console-dot" aria-hidden="true" />;
 
   // Page logs go through LogDetail (lazy "Load full object" support); everything
   // else renders a JSON tree with internal lazy-ref markers stripped out.
@@ -676,7 +750,7 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
       onClick={() => canExpand && toggleExpanded(event.id)}
       onKeyDown={canExpand ? (keyEvent) => { if (keyEvent.key === 'Enter' || keyEvent.key === ' ') { keyEvent.preventDefault(); toggleExpanded(event.id); } } : undefined}
     >
-      <span>{isExpanded ? <IconChevronDown {...iconProps} /> : icon}</span>
+      <span className="xray-console-glyph">{isExpanded ? <IconChevronDown {...iconProps} /> : icon}</span>
       <span className="xray-console-message">
         {consoleError
           ? <><span className="xray-error-name">{consoleError.name}</span>{consoleError.message ? `: ${consoleError.message}` : ''}</>
@@ -731,6 +805,10 @@ function ConsolePrompt(): React.ReactElement {
     setRunning(true);
     const commandId = 'cmd_' + Date.now().toString(36);
     addConsoleEvent({ id: commandId, type: 'command', level: 'info', timestamp: Date.now(), message: code, args: [code], commandId });
+    // The command echo and its result are console events, so they only render in
+    // the Console sub-tab. Reveal it — running from the Network waterfall would
+    // otherwise send the output to a tab the user can't see.
+    setMini('console');
     try {
       const result = await executeConsoleCommand(code);
       if (!result || result.type === 'empty') return;

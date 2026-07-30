@@ -18049,7 +18049,7 @@ ${lines}
         ] }, filter.id)) })
       ] }),
       mini === "network" && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NetworkTable, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ConsoleStream, { levelFilter, query: consoleQuery, onClearFilter: () => {
+      mini === "console" && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ConsoleStream, { levelFilter, query: consoleQuery, onClearFilter: () => {
         setLevelFilter("all");
         setConsoleQuery("");
       } }),
@@ -18163,6 +18163,11 @@ Double-click to rename`,
     const setSearchQuery = usePanelStore((state) => state.setSearchQuery);
     const filtered = networkFilter !== "all" || searchQuery.trim().length > 0;
     const parentRef = (0, import_react8.useRef)(null);
+    const pinnedRef = (0, import_react8.useRef)(false);
+    const lastTotalRef = (0, import_react8.useRef)(0);
+    const didInitRef = (0, import_react8.useRef)(false);
+    const [pinnedUi, setPinnedUi] = (0, import_react8.useState)(false);
+    const [newCount, setNewCount] = (0, import_react8.useState)(0);
     const waterfall = (0, import_react8.useMemo)(() => {
       let minStart = Infinity;
       let maxEnd = -Infinity;
@@ -18179,11 +18184,54 @@ Double-click to rename`,
     const virtualizer = useVirtualizer({
       count: events.length,
       getScrollElement: () => parentRef.current,
-      estimateSize: (index) => usePanelStore.getState().expandedId === events[index]?.id ? 240 : 34,
+      // Expanded rows carry a full RequestDetail (usually 400–800px); estimate near
+      // that so the measure-correction reflow is small. measureElement fixes the rest.
+      estimateSize: (index) => usePanelStore.getState().expandedId === events[index]?.id ? 420 : 34,
       getItemKey: (index) => events[index]?.id || index,
       measureElement: (element) => element.getBoundingClientRect().height,
       overscan: 8
     });
+    const scrollToBottom = (0, import_react8.useCallback)(() => {
+      if (events.length) virtualizer.scrollToIndex(events.length - 1, { align: "end" });
+      const pin = () => {
+        const el = parentRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      };
+      requestAnimationFrame(() => {
+        pin();
+        requestAnimationFrame(pin);
+      });
+      window.setTimeout(pin, 80);
+    }, [events.length, virtualizer]);
+    const scrollRowIntoView = (0, import_react8.useCallback)((index) => {
+      pinnedRef.current = false;
+      setPinnedUi(false);
+      requestAnimationFrame(() => virtualizer.scrollToIndex(index, { align: "start" }));
+    }, [virtualizer]);
+    (0, import_react8.useEffect)(() => {
+      const total = events.length;
+      const delta = total - lastTotalRef.current;
+      lastTotalRef.current = total;
+      if (!didInitRef.current) {
+        didInitRef.current = true;
+        return;
+      }
+      if (delta > 0) {
+        if (pinnedRef.current) scrollToBottom();
+        else setNewCount((count) => count + delta);
+      }
+    }, [events.length, scrollToBottom]);
+    const handleScroll = (0, import_react8.useCallback)(() => {
+      const el = parentRef.current;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+      pinnedRef.current = atBottom;
+      setPinnedUi(atBottom);
+      if (atBottom) setNewCount(0);
+    }, []);
+    (0, import_react8.useEffect)(() => {
+      handleScroll();
+    }, [handleScroll]);
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "xray-network", children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-network-head", children: [
         /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Status" }),
@@ -18193,8 +18241,8 @@ Double-click to rename`,
         /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Size" }),
         /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "Waterfall" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NetworkRow, { event: events[item.index], waterfall }) }, item.key)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "xray-virtual-list", ref: parentRef, onScroll: handleScroll, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { height: virtualizer.getTotalSize(), position: "relative" }, children: virtualizer.getVirtualItems().map((item) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-index": item.index, ref: virtualizer.measureElement, style: { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${item.start}px)` }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NetworkRow, { event: events[item.index], waterfall, index: item.index, onExpand: scrollRowIntoView }) }, item.key)) }),
         !events.length && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
           EmptyState,
           {
@@ -18206,6 +18254,16 @@ Double-click to rename`,
             }, children: "Clear filter" }) : void 0
           }
         )
+      ] }),
+      !pinnedUi && newCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { className: "xray-newmsg-pill", onClick: () => {
+        setNewCount(0);
+        pinnedRef.current = true;
+        setPinnedUi(true);
+        scrollToBottom();
+      }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconArrowDown, { size: 14, stroke: 2 }),
+        newCount,
+        " new"
       ] })
     ] });
   }
@@ -18235,7 +18293,7 @@ Double-click to rename`,
     }
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: `xray-status-swatch ${statusClass(status)}`, children: status || "\u2014" });
   }
-  var NetworkRow = import_react8.default.memo(function NetworkRow2({ event, waterfall }) {
+  var NetworkRow = import_react8.default.memo(function NetworkRow2({ event, waterfall, index, onExpand }) {
     const entry = eventEntry(event);
     const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
     const selectedId = usePanelStore((state) => state.selectedId);
@@ -18254,8 +18312,12 @@ Double-click to rename`,
     const download = Number(entry.timing?.downloadMs) || 0;
     const waitFrac = ttfb && ttfb + download > 0 ? ttfb / Math.max(dur, ttfb + download) : 0.6;
     const activate = () => {
-      if (expandedId === event.id) toggleExpanded(event.id);
-      else selectEntry(entry.id, { openDetail: false });
+      if (expandedId === event.id) {
+        toggleExpanded(event.id);
+        return;
+      }
+      selectEntry(entry.id, { openDetail: false });
+      onExpand(index);
     };
     return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
@@ -18313,6 +18375,20 @@ Double-click to rename`,
       return { name: "Error", message: String(record.message || event.message || "Execution failed"), stack: String(record.stack || "") };
     }
     return null;
+  }
+  function errorOrigin(error) {
+    for (const line of error.stack.split("\n")) {
+      const match = line.match(/((?:https?|chrome-extension|webpack|file|blob):[^)\s]+:\d+:\d+)/);
+      if (match) return match[1];
+    }
+    return "";
+  }
+  function shortLocation(location) {
+    const noQuery = location.split("?")[0];
+    const file = noQuery.split("/").pop() || noQuery;
+    const parts = file.split(":");
+    const name = parts[0] || "(index)";
+    return parts.length >= 2 ? `${name}:${parts[1]}` : file;
   }
   function ErrorBlock({ error }) {
     const frames = import_react8.default.useMemo(() => {
@@ -18422,7 +18498,7 @@ Double-click to rename`,
     const isExpanded = expandedId === event.id;
     const consoleError = (0, import_react8.useMemo)(() => extractConsoleError(event), [event]);
     const canExpand = event.type === "result" || (consoleError ? !!consoleError.stack : false) || event.data !== void 0 || !!event.args?.some((arg) => arg && typeof arg === "object");
-    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconTerminal2, { ...iconProps4 });
+    const icon = event.type === "command" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronRight, { ...iconProps4 }) : event.type === "result" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronLeft, { ...iconProps4 }) : event.level === "error" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconCircleX, { ...iconProps4 }) : event.level === "warn" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconAlertTriangle, { ...iconProps4 }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-console-dot", "aria-hidden": "true" });
     const logEntry = isExpanded && event.type === "log" && event.entryId && !consoleError ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null : null;
     const expandedData = (0, import_react8.useMemo)(
       () => isExpanded && !logEntry && !consoleError ? stripXrayRefs(event.data ?? event.args ?? event.message) : null,
@@ -18443,7 +18519,7 @@ Double-click to rename`,
           }
         } : void 0,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-console-glyph", children: isExpanded ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(IconChevronDown, { ...iconProps4 }) : icon }),
           /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-console-message", children: [
             consoleError ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-error-name", children: consoleError.name }),
@@ -18455,7 +18531,10 @@ Double-click to rename`,
             ] }),
             event.truncated && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-truncated-badge", title: "The result was truncated to fit the transfer limit", children: "truncated" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-muted", children: formatTime(event.timestamp) }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "xray-console-aside", children: [
+            consoleError && errorOrigin(consoleError) && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-console-source", title: errorOrigin(consoleError), children: shortLocation(errorOrigin(consoleError)) }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "xray-console-time", children: formatTime(event.timestamp) })
+          ] }),
           isExpanded && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "xray-detail", children: consoleError ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ErrorBlock, { error: consoleError }) : logEntry ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(LogDetail, { entry: logEntry }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(JsonView, { value: expandedData }) })
         ]
       }
@@ -18485,6 +18564,7 @@ Double-click to rename`,
       setRunning(true);
       const commandId = "cmd_" + Date.now().toString(36);
       addConsoleEvent({ id: commandId, type: "command", level: "info", timestamp: Date.now(), message: code, args: [code], commandId });
+      setMini("console");
       try {
         const result = await executeConsoleCommand(code);
         if (!result || result.type === "empty") return;
@@ -19468,7 +19548,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-14 13:19 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-30 09:29 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -21827,6 +21907,7 @@ ${bodyLine}
 }
 
 .xray-network {
+  position: relative;
   min-height: 180px;
   max-height: min(44vh, 380px);
   border-bottom: 1px solid rgba(108, 112, 134, .35);
@@ -22043,12 +22124,44 @@ ${bodyLine}
 
 .xray-console-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 86px;
-  gap: 6px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: start;
-  min-height: 34px;
-  padding: 7px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .22);
+  /* Denser rows for a log stream where scan-density matters (research). */
+  min-height: 26px;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(108, 112, 134, .16);
+}
+
+/* Right-side cell: optional source location + timestamp. Timestamps read as
+   optional clutter (Firefox/Chrome default them off), so keep them quiet and
+   reveal on row hover; the source location stays for error provenance. */
+.xray-console-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.xray-console-source {
+  color: var(--xray-subtext, var(--xray-hint));
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.xray-console-time {
+  color: var(--xray-hint, var(--xray-subtext));
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--xray-dur-fast, .12s) ease;
+}
+
+.xray-console-row:hover .xray-console-time,
+.xray-console-row.command .xray-console-time,
+.xray-console-row.result .xray-console-time {
+  opacity: .65;
 }
 
 .xray-console-row.error {
@@ -22065,16 +22178,49 @@ ${bodyLine}
 
 .xray-console-row.command {
   color: var(--xray-mauve);
+  /* Set the REPL input/output apart from page-log noise the way DevTools tints
+     its own prompt echo \u2014 the command/result pair reads as one "turn". */
+  background: color-mix(in srgb, var(--xray-mauve) 7%, transparent);
 }
 
 .xray-console-row.result {
   border-left: 2px solid rgba(var(--xray-accent-rgb), .55);
+  background: color-mix(in srgb, var(--xray-accent) 5%, transparent);
+}
+
+/* Leading gutter marker: quiet by default, colored only where it carries
+   meaning (input, output, error, warning). Centered on the first text line. */
+.xray-console-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  color: var(--xray-hint);
+}
+
+.xray-console-row.error .xray-console-glyph { color: var(--xray-red); }
+.xray-console-row.warn .xray-console-glyph { color: var(--xray-yellow); }
+.xray-console-row.command .xray-console-glyph { color: var(--xray-mauve); }
+.xray-console-row.result .xray-console-glyph { color: var(--xray-accent); }
+
+/* A plain page log needs no icon \u2014 a small dot holds the gutter rhythm without
+   stamping a terminal glyph on every single line. */
+.xray-console-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--xray-hint) 70%, transparent);
 }
 
 .xray-console-message {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Soften ordinary logs so errors, warnings and REPL results carry the eye. */
+.xray-console-row.log .xray-console-message {
+  color: color-mix(in srgb, var(--xray-text) 78%, var(--xray-hint));
 }
 
 .xray-detail {
@@ -24588,6 +24734,9 @@ ${bodyLine}
 
 .xray-panel .xray-console-row {
   font-variant-numeric: tabular-nums;
+  /* Message stream scans best dense \u2014 override the shared 52px operator row
+     height (that height is tuned for the API/log tables, not a log stream). */
+  min-height: 28px;
 }
 
 .xray-panel .xray-prompt {
@@ -27036,7 +27185,9 @@ ${bodyLine}
   position: absolute;
   top: 2px;
   bottom: 2px;
-  min-width: 2px;
+  /* Floor the width so a fast, near-instant request still reads as a legible
+     pill instead of a 2px dot; slow requests stay proportionally wider. */
+  min-width: 10px;
   border-radius: var(--xray-radius-sm);
   background: var(--xray-accent, var(--xray-blue));
 }
