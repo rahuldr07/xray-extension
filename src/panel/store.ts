@@ -9,7 +9,7 @@ import {
 } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS, normalizePanelSettings } from './models/panelSettings';
 import { postToPageBridge, publishCaptureSettings, publishTrafficRules } from './runtime/captureConfig';
-import { detectDrift } from './models/drift';
+import { buildDriftIndex, detectDrift, noteDriftEntry } from './models/drift';
 import { TRAFFIC_RULES_KEY, defaultRule, normalizeRule, normalizeRules } from './models/rules';
 import { AI_SETTINGS_KEY, SESSION_ENTRIES_KEY, deserializeSessionEntries, serializeSessionEntries } from './models/sessionStore';
 import type { ActiveTab, AiSettings, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConfirmationRequest, ConsoleEvent, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, PanelSettings, Snippet, SortField, SortOrder, TrafficRule, XrayEntry } from './types';
@@ -55,7 +55,6 @@ interface PanelState {
   snippets: Snippet[];
   rules: TrafficRule[];
   aiSettings: AiSettings;
-  driftCount: number;
   selectedId: string | null;
   expandedId: string | null;
   pinnedIds: Set<string>;
@@ -207,7 +206,6 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   snippets: [{ id: 'snip_default', title: 'Response schema', code: 'schema(res)' }],
   rules: [],
   aiSettings: DEFAULT_AI_SETTINGS,
-  driftCount: 0,
   selectedId: null,
   expandedId: null,
   pinnedIds: new Set<string>(),
@@ -339,21 +337,23 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     const state = get();
     const maxEntries = Math.max(50, Math.min(5000, Number(state.settings.maxEntries) || MAX_ENTRIES));
     const entries = state.entries.slice();
-    let driftCount = state.driftCount;
+    // One pass to index the buffer, then an O(1) baseline lookup per entry —
+    // the previous backwards scan per entry ran to completion on every unique
+    // URL, which is the common case for cache-busted or id-bearing paths.
+    const driftIndex = buildDriftIndex(entries);
     const added: ConsoleEvent[] = [];
     for (const raw of batch) {
       if (!raw) continue;
       const id = raw.id || 'entry_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-      const drift = detectDrift({ ...raw, id }, entries);
+      const drift = detectDrift({ ...raw, id }, entries, driftIndex);
       const normalized: XrayEntry = { ...raw, id, ...(drift.driftFromId ? { driftFromId: drift.driftFromId } : {}) };
       entries.push(normalized);
-      if (drift.driftFromId) driftCount += 1;
+      noteDriftEntry(driftIndex, normalized);
       added.push(entryToConsoleEvent(normalized));
     }
     const next: Partial<PanelState> = {
       entries: entries.length > maxEntries ? entries.slice(-maxEntries) : entries,
     };
-    if (driftCount !== state.driftCount) next.driftCount = driftCount;
     if (state.recording) {
       next.consoleEvents = [...state.consoleEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
     } else {
@@ -404,7 +404,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   updateRule: (id, patch) => {
     const rules = get().rules.map((rule) => rule.id === id ? normalizeRule({ ...rule, ...patch, match: { ...rule.match, ...(patch.match || {}) }, action: { ...rule.action, ...(patch.action || {}) } }) : rule);
     set({ rules });
-    persistRules(rules);
+    persistRulesDebounced(rules);
   },
   removeRule: (id) => {
     const rules = get().rules.filter((rule) => rule.id !== id);
@@ -455,7 +455,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   clearEntries: () => {
     _pausedEvents = [];
     setConsoleContext(null);
-    set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: new Set<string>(), driftCount: 0, pausedCount: 0 });
+    set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: new Set<string>(), pausedCount: 0 });
     persistPanelPreferences(get());
     void setStoredValue(SESSION_ENTRIES_KEY, []);
   },
@@ -582,9 +582,26 @@ function scheduleSessionPersist(get: () => PanelState): void {
   }, 4000);
 }
 
+let _rulesPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
 function persistRules(rules: TrafficRule[]): void {
+  // Supersede any coalesced edit write so a stale snapshot can't land after this.
+  if (_rulesPersistTimer) { clearTimeout(_rulesPersistTimer); _rulesPersistTimer = null; }
   void setStoredValue(TRAFFIC_RULES_KEY, rules);
   publishTrafficRules(rules);
+}
+
+// Editing a rule fires on every keystroke, and each one wrote all rules to
+// chrome.storage and structured-cloned the whole set into the page — with a
+// 100KB mock body that is 100KB per character. Coalesce the edit path; discrete
+// actions (add, remove, toggle, import) still persist immediately.
+function persistRulesDebounced(rules: TrafficRule[]): void {
+  if (_rulesPersistTimer) clearTimeout(_rulesPersistTimer);
+  _rulesPersistTimer = setTimeout(() => {
+    _rulesPersistTimer = null;
+    void setStoredValue(TRAFFIC_RULES_KEY, rules);
+    publishTrafficRules(rules);
+  }, 300);
 }
 
 function persistPanelPreferences(state: PanelState): void {

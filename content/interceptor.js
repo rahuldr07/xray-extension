@@ -291,10 +291,18 @@
   }
 
   // ── resource timing ────────────────────────────────────────────────────────
-  function _resourceTiming(url) {
+  // performance.getEntriesByName scans the whole resource buffer, which grows for
+  // the lifetime of the page — one call per request makes that O(requests²).
+  // Index entries as the observer reports them so the common case is a Map hit,
+  // and resolve requests whose timing lands late from the same observer instead
+  // of a 300ms timer per request (a burst used to queue one timer each, and every
+  // one of them re-ran the full scan).
+  const MAX_TIMING_INDEX = 500;
+  const _timingIndex = new Map();
+  const _pendingTiming = new Map();
+
+  function _readTiming(timing) {
     try {
-      const entries = performance.getEntriesByName(url, 'resource');
-      const timing = entries[entries.length - 1];
       if (!timing || !(timing.responseEnd > 0)) return null;
       return {
         startTime: Math.round(timing.startTime),
@@ -311,11 +319,51 @@
     }
   }
 
+  function _rememberTiming(entry) {
+    if (!entry || !entry.name) return;
+    _timingIndex.set(entry.name, entry);
+    if (_timingIndex.size > MAX_TIMING_INDEX) _timingIndex.delete(_timingIndex.keys().next().value);
+    const waiting = _pendingTiming.get(entry.name);
+    if (!waiting) return;
+    _pendingTiming.delete(entry.name);
+    const timing = _readTiming(entry);
+    if (timing) waiting.forEach((id) => _emitUpdate({ id, timing }));
+  }
+
+  let _timingObserver = null;
+  try {
+    _timingObserver = new PerformanceObserver((list) => { list.getEntries().forEach(_rememberTiming); });
+    _timingObserver.observe({ type: 'resource', buffered: true });
+  } catch { _timingObserver = null; }
+
+  function _resourceTiming(url) {
+    const indexed = _timingIndex.get(url);
+    if (indexed) return _readTiming(indexed);
+    // The observer callback can lag the response by a task, so fall back to the
+    // buffer scan on a miss rather than reporting no timing at all.
+    try {
+      const entries = performance.getEntriesByName(url, 'resource');
+      return _readTiming(entries[entries.length - 1]);
+    } catch {
+      return null;
+    }
+  }
+
   function _attachTimingLater(id, url) {
-    setTimeout(() => {
-      const timing = _resourceTiming(url);
-      if (timing) _emitUpdate({ id, timing });
-    }, 300);
+    if (!_timingObserver) {
+      setTimeout(() => {
+        const timing = _resourceTiming(url);
+        if (timing) _emitUpdate({ id, timing });
+      }, 300);
+      return;
+    }
+    let waiting = _pendingTiming.get(url);
+    if (!waiting) {
+      waiting = new Set();
+      _pendingTiming.set(url, waiting);
+      if (_pendingTiming.size > MAX_TIMING_INDEX) _pendingTiming.delete(_pendingTiming.keys().next().value);
+    }
+    waiting.add(id);
   }
 
   // ── mock response construction ─────────────────────────────────────────────
@@ -454,7 +502,24 @@
   };
 
   // ── XHR wrapper ───────────────────────────────────────────────────────────
+  // A simulated response installs own properties that shadow the prototype's
+  // readyState/status/response getters. They must be removed when the object is
+  // reused (polling with a single XHR is common), or the instance reports the
+  // old mocked result forever — and a later `delay` rule would see readyState 4
+  // instead of 1 and drop the request entirely.
+  const MOCK_SHADOWED = ['readyState', 'status', 'statusText', 'responseText', 'responseURL', 'response',
+    'getAllResponseHeaders', 'getResponseHeader'];
+
+  function _clearMockShadow(xhr) {
+    if (!xhr || !xhr.__xrMockShadow) return;
+    for (const name of MOCK_SHADOWED) {
+      try { delete xhr[name]; } catch {}
+    }
+    try { delete xhr.__xrMockShadow; } catch {}
+  }
+
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    _clearMockShadow(this);
     if (!_config.captureXhr) return _origXHROpen.apply(this, [method, url, ...rest]);
     this.__xr = {
       id: _uid(), method: (method || 'GET').toUpperCase(), url: _resolveUrl(String(url)),
@@ -480,6 +545,11 @@
     const status = fail ? 0 : rule.action.status;
     const headers = fail ? {} : Object.assign({ 'content-type': 'application/json' }, rule.action.headers);
     const headerText = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n');
+    // Header names are case-insensitive, but the rule author's casing is what
+    // lands in `headers` — look up through a lowercased copy so a page asking for
+    // 'X-Request-Id' finds a header the rule spelled the same way.
+    const headerLookup = {};
+    Object.entries(headers).forEach(([key, value]) => { headerLookup[String(key).toLowerCase()] = value; });
 
     setTimeout(() => {
       try {
@@ -494,7 +564,9 @@
         }
         Object.defineProperty(xhr, 'response', { value: responseValue, configurable: true });
         xhr.getAllResponseHeaders = () => headerText;
-        xhr.getResponseHeader = (name) => headers[String(name).toLowerCase()] ?? null;
+        xhr.getResponseHeader = (name) => headerLookup[String(name).toLowerCase()] ?? null;
+        // Marks the instance so a later open() can strip these shadows again.
+        xhr.__xrMockShadow = true;
       } catch {}
 
       _emit(_mockEntry(Object.assign(baseEntry, {

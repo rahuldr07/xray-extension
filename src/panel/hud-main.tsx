@@ -90,6 +90,8 @@ async function mountHud(): Promise<void> {
 // match the active theme and radius (works for presets and custom themes alike).
 const HOST_MIRROR_VARS = ['--xray-radius', '--xray-bg', '--xray-surface', '--xray-surface2', '--xray-text', '--xray-accent'];
 
+let unsubscribeHostTheme: (() => void) | null = null;
+
 function syncHostTheme(shadowRoot: ShadowRoot): void {
   const host = shadowRoot.host;
   if (!(host instanceof HTMLElement)) return;
@@ -102,8 +104,19 @@ function syncHostTheme(shadowRoot: ShadowRoot): void {
       if (value) host.style.setProperty(name, value);
     }
   };
+  // Coalesce to one mirror per frame: every capture commits to the store, and a
+  // getComputedStyle per commit forces a style recalc per captured request.
+  let frame = 0;
+  const schedule = (): void => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => { frame = 0; apply(); });
+  };
   requestAnimationFrame(() => requestAnimationFrame(apply));
-  usePanelStore.subscribe(() => requestAnimationFrame(apply));
+  // Toggling the HUD destroys the host and mounts a fresh shadow root, so drop
+  // the previous subscription first — otherwise every re-open leaves another
+  // live subscriber mirroring vars onto a detached host forever.
+  unsubscribeHostTheme?.();
+  unsubscribeHostTheme = usePanelStore.subscribe(schedule);
 }
 
 (window as unknown as { __xrayHudRemount?: () => void }).__xrayHudRemount = () => {

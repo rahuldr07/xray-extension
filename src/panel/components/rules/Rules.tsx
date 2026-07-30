@@ -118,7 +118,7 @@ function RuleCard({ rule }: { rule: TrafficRule }): React.ReactElement {
         {(rule.action.type === 'mock') && (
           <label className="xray-field xray-field-narrow">
             <span>Status</span>
-            <input className="xray-input" type="number" min={100} max={599} value={rule.action.status} onChange={(event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } })} />
+            <input className="xray-input" type="number" min={200} max={599} value={rule.action.status} onChange={(event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } })} />
           </label>
         )}
         {(rule.action.type === 'mock' || rule.action.type === 'delay') && (

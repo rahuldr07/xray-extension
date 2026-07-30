@@ -31,7 +31,11 @@ export function normalizeRule(input: Partial<TrafficRule> | undefined): TrafficR
   }
   return {
     id: typeof base.id === 'string' && base.id ? base.id : createRuleId(),
-    label: typeof base.label === 'string' && base.label ? base.label.slice(0, 120) : 'Rule',
+    // An empty label is kept as-is: normalization runs on every keystroke, so
+    // substituting 'Rule' here made the name field impossible to clear and retype
+    // (the input has a placeholder for the empty state). Only a non-string —
+    // i.e. an import with no label at all — gets the fallback.
+    label: typeof base.label === 'string' ? base.label.slice(0, 120) : 'Rule',
     enabled: base.enabled !== false,
     match: {
       url: typeof match.url === 'string' ? match.url.slice(0, 2000) : '',
@@ -39,7 +43,11 @@ export function normalizeRule(input: Partial<TrafficRule> | undefined): TrafficR
     },
     action: {
       type,
-      status: clampNumber(action.status, 200, 100, 599),
+      // Matches the runtime's own clamp in _sanitizeRule: a mock is realized via
+      // new Response()/XHR simulation, which cannot represent 1xx (Response()
+      // throws RangeError). Accepting 100 here only to have it silently rewritten
+      // to 200 at runtime made the UI lie about what would happen.
+      status: clampNumber(action.status, 200, 200, 599),
       body: typeof action.body === 'string' ? action.body.slice(0, 100_000) : '',
       headers,
       delayMs: clampNumber(action.delayMs, 0, 0, 60_000),

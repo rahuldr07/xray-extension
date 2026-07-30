@@ -22,6 +22,10 @@
 </head>
 <body>
   <div id="xray-window-root"></div>
+  <!-- Must load before the bundle: storageBridge falls back to localStorage when
+       window.XRAY_Store is missing, which silently cut the pop-out off from the
+       rules, AI key, preferences and session every other surface shares. -->
+  <script src="shared/store.js"></script>
   <script src="dist/window-ui.js"></script>
 </body>
 </html>

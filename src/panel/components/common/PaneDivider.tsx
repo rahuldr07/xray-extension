@@ -68,7 +68,7 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
   onCommit(next: number): void;
   onReset(): void;
 }): React.ReactElement {
-  const drag = React.useRef<{ startX: number; width: number } | null>(null);
+  const drag = React.useRef<{ startX: number; width: number; latest: number } | null>(null);
   const raf = React.useRef(0);
   const [dragging, setDragging] = React.useState(false);
   const clamp = (width: number): number => Math.max(min, Math.min(max, Math.round(width)));
@@ -79,7 +79,7 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { startX: event.clientX, width: value };
+    drag.current = { startX: event.clientX, width: value, latest: event.clientX };
     setDragging(true);
     onLiveChange(value);
   }
@@ -90,11 +90,15 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>): void {
     const state = drag.current;
     if (!state) return;
-    const clientX = event.clientX;
+    // Record the newest position BEFORE the frame guard, so the queued frame
+    // applies where the cursor is now rather than where it was on the first
+    // move of the frame (matching PanelShell's edge-resize handler).
+    state.latest = event.clientX;
     if (raf.current) return;
     raf.current = requestAnimationFrame(() => {
       raf.current = 0;
-      if (drag.current) onLiveChange(clamp(state.width + (clientX - state.startX)));
+      const current = drag.current;
+      if (current) onLiveChange(clamp(current.width + (current.latest - current.startX)));
     });
   }
 

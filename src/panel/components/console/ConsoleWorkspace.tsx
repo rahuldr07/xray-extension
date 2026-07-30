@@ -553,11 +553,17 @@ interface ConsoleError {
 // gives ugly raw JSON. Detect the error shape (page logs OR REPL error results)
 // so we can render a clean "Name: message" line + an expandable stack instead.
 function extractConsoleError(event: ConsoleEvent): ConsoleError | null {
+  // A captured Error is tagged __type__:'Error'. Untagged objects are only
+  // treated as errors when the stack itself looks like one — a plain API payload
+  // shaped { name, message, stack } (a validation DTO, say) must keep its JSON
+  // tree, or every other property on it becomes unreachable in the UI.
+  const looksLikeStack = (stack: string): boolean => /\n\s*at\s/.test(stack) || /^\w*Error\b/.test(stack);
   const isErrorObject = (value: unknown): ConsoleError | null => {
     if (!value || typeof value !== 'object') return null;
     const record = value as Record<string, unknown>;
     const looksLikeError = record.__type__ === 'Error' ||
-      (typeof record.stack === 'string' && typeof record.message === 'string' && 'name' in record);
+      (typeof record.stack === 'string' && typeof record.message === 'string' && 'name' in record &&
+        looksLikeStack(record.stack));
     if (!looksLikeError) return null;
     return { name: String(record.name || 'Error'), message: String(record.message || ''), stack: String(record.stack || '') };
   };

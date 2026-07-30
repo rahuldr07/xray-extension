@@ -217,6 +217,9 @@ test('React app has dedicated DevTools, HUD, and window entrypoints', () => {
   assert.match(windowMain, /tokensCss\.replace\(\s*\/:host\/g,\s*'#xray-window-root'\s*\)/);
   assert.match(windowHtml, /id="xray-window-root"/);
   assert.match(windowHtml, /dist\/window-ui\.js/);
+  // the pop-out shares chrome.storage with every other surface: store.js must be
+  // defined before the bundle boots, or storageBridge silently uses localStorage
+  assert.match(windowHtml, /<script src="shared\/store\.js"><\/script>\s*\n\s*<script src="dist\/window-ui\.js"><\/script>/);
   assert.match(vite, /hud-main\.tsx/);
   assert.match(vite, /window-main\.tsx/);
   assert.match(vite, /dist\/hud-ui\.js/);
@@ -1138,7 +1141,15 @@ test('interceptor captures GraphQL operations, initiator stacks, and resource ti
   assert.match(interceptor, /operationName/);
   assert.match(interceptor, /function _initiatorStack/);
   assert.match(interceptor, /function _resourceTiming/);
+  // timing comes from an observer-fed index; getEntriesByName stays only as the
+  // miss path, and late timings resolve through the observer instead of one
+  // 300ms rescan timer per request
+  assert.match(interceptor, /new PerformanceObserver\(/);
+  assert.match(interceptor, /_timingObserver\.observe\(\{ type: 'resource', buffered: true \}\)/);
+  assert.match(interceptor, /const indexed = _timingIndex\.get\(url\);/);
   assert.match(interceptor, /getEntriesByName/);
+  assert.match(interceptor, /_pendingTiming\.delete\(entry\.name\);/);
+  assert.match(interceptor, /if \(!_timingObserver\) \{/);
 });
 
 test('interceptor applies mock, delay, and fail rules before the real network call', () => {
@@ -1152,6 +1163,13 @@ test('interceptor applies mock, delay, and fail rules before the real network ca
   assert.match(interceptor, /new Response\(status === 204 \|\| status === 205 \|\| status === 304 \? null : body/);
   assert.match(interceptor, /function _simulateXhrResponse/);
   assert.match(interceptor, /mocked:\s*true/);
+  // the simulated response shadows prototype getters with own properties: a
+  // reused XHR must be scrubbed on open(), or it reports the old mock forever
+  assert.match(interceptor, /function _clearMockShadow/);
+  assert.match(interceptor, /XMLHttpRequest\.prototype\.open = function \(method, url, \.\.\.rest\) \{\s*\n\s*_clearMockShadow\(this\);/);
+  assert.match(interceptor, /xhr\.__xrMockShadow = true;/);
+  // header lookups are case-insensitive even though rules keep the author's casing
+  assert.match(interceptor, /xhr\.getResponseHeader = \(name\) => headerLookup\[String\(name\)\.toLowerCase\(\)\] \?\? null;/);
 });
 
 test('interceptor serves panel replay requests from the page world', () => {
@@ -1166,13 +1184,53 @@ test('rules model bounds runtime payloads and only ships enabled matchers', () =
   assert.match(rules, /export function serializeRulesForRuntime/);
   // only enabled rules with a non-empty URL matcher reach the interceptor
   assert.match(rules, /rule\.enabled && rule\.match\.url\.trim\(\)/);
-  // status is clamped to a valid HTTP range
-  assert.match(rules, /clampNumber\(action\.status, 200, 100, 599\)/);
+  // status is clamped to the same range the runtime accepts — _sanitizeRule
+  // rewrites anything below 200, so the UI must not pretend 1xx is allowed
+  assert.match(rules, /clampNumber\(action\.status, 200, 200, 599\)/);
+  assert.match(read('content/interceptor.js'), /Math\.min\(599, Math\.max\(200, Number\(action\.status\) \|\| 200\)\)/);
+  assert.match(read('src/panel/components/rules/Rules.tsx'), /type="number" min=\{200\} max=\{599\}/);
+  // an empty label survives normalization, so the name field can be cleared and
+  // retyped (only a non-string falls back to 'Rule')
+  assert.match(rules, /label: typeof base\.label === 'string' \? base\.label\.slice\(0, 120\) : 'Rule'/);
   // rule bodies are length-bounded
   assert.match(rules, /slice\(0, 100_000\)/);
   const interceptor = read('content/interceptor.js');
   assert.match(interceptor, /const MAX_RULES = 50/);
   assert.match(interceptor, /_config\.rules = config\.rules\.slice\(0, MAX_RULES\)\.map\(_sanitizeRule\)\.filter\(Boolean\)/);
+});
+
+test('long-running surfaces stay bounded: session size, rule writes, HUD subscribers', () => {
+  const sessionStore = read('src/panel/models/sessionStore.ts');
+  const store = read('src/panel/store.ts');
+  const hudMain = read('src/panel/hud-main.tsx');
+  const paneDivider = read('src/panel/components/common/PaneDivider.tsx');
+  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+
+  // every heavy field is trimmed, not just responseRaw — a decrypted-body
+  // session used to serialize past the chrome.storage quota and fail silently
+  for (const field of ['responseRaw', 'responseDecrypted', 'requestBody', 'logData']) {
+    assert.match(sessionStore, new RegExp(`copy\\.${field} = trimValue\\(entry\\.${field}\\)`));
+  }
+  assert.match(sessionStore, /entry\.args\.slice\(0, MAX_PERSISTED_ARGS\)\.map\(trimValue\)/);
+  assert.match(sessionStore, /const text = JSON\.stringify\(value\);/);
+
+  // typing in a rule field coalesces the storage write and the page republish
+  assert.match(store, /function persistRulesDebounced/);
+  assert.match(store, /persistRulesDebounced\(rules\);/);
+  assert.match(store, /if \(_rulesPersistTimer\) \{ clearTimeout\(_rulesPersistTimer\); _rulesPersistTimer = null; \}/);
+
+  // the HUD remounts on every toggle: the previous theme subscriber is dropped
+  // first, and mirroring is coalesced to one style read per frame
+  assert.match(hudMain, /unsubscribeHostTheme\?\.\(\);/);
+  assert.match(hudMain, /unsubscribeHostTheme = usePanelStore\.subscribe\(schedule\);/);
+
+  // the divider applies the newest pointer position, not the frame's first one
+  assert.match(paneDivider, /state\.latest = event\.clientX;\s*\n\s*if \(raf\.current\) return;/);
+  assert.match(paneDivider, /onLiveChange\(clamp\(current\.width \+ \(current\.latest - current\.startX\)\)\)/);
+
+  // a plain payload shaped { name, message, stack } keeps its JSON tree
+  assert.match(consoleWorkspace, /const looksLikeStack = \(stack: string\): boolean =>/);
+  assert.match(consoleWorkspace, /'name' in record &&\s*\n\s*looksLikeStack\(record\.stack\)/);
 });
 
 test('rules have a starter preset library and portable export/import', () => {
@@ -1227,10 +1285,19 @@ test('drift detection is a pure module wired into the store', () => {
   assert.match(drift, /export function detectDrift/);
   assert.match(drift, /driftFromId/);
   const store = read('src/panel/store.ts');
-  // drift runs inside the batched ingest so a capture batch is one store commit
+  const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
+  // drift runs inside the batched ingest so a capture batch is one store commit,
+  // against a per-batch index instead of a backwards scan per entry
+  assert.match(drift, /export function buildDriftIndex/);
+  assert.match(drift, /export function noteDriftEntry/);
   assert.match(store, /addEntries: \(batch\)/);
-  assert.match(store, /detectDrift\(\{ \.\.\.raw, id \}, entries\)/);
-  assert.match(store, /driftCount/);
+  assert.match(store, /const driftIndex = buildDriftIndex\(entries\);/);
+  assert.match(store, /detectDrift\(\{ \.\.\.raw, id \}, entries, driftIndex\)/);
+  assert.match(store, /noteDriftEntry\(driftIndex, normalized\);/);
+  // the Drift chip counts from the entries themselves; the store keeps no
+  // second copy that trimming would silently desync
+  assert.match(entriesWorkspace, /entries\.reduce\(\(count, entry\) => count \+ \(entry\.driftFromId \? 1 : 0\), 0\)/);
+  assert.doesNotMatch(store, /driftCount/);
 });
 
 test('JWT lens decodes base64url tokens found in headers and bodies', () => {

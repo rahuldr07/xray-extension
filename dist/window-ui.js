@@ -13471,7 +13471,11 @@ ${lines}
     }
     return {
       id: typeof base.id === "string" && base.id ? base.id : createRuleId(),
-      label: typeof base.label === "string" && base.label ? base.label.slice(0, 120) : "Rule",
+      // An empty label is kept as-is: normalization runs on every keystroke, so
+      // substituting 'Rule' here made the name field impossible to clear and retype
+      // (the input has a placeholder for the empty state). Only a non-string —
+      // i.e. an import with no label at all — gets the fallback.
+      label: typeof base.label === "string" ? base.label.slice(0, 120) : "Rule",
       enabled: base.enabled !== false,
       match: {
         url: typeof match.url === "string" ? match.url.slice(0, 2e3) : "",
@@ -13479,7 +13483,11 @@ ${lines}
       },
       action: {
         type,
-        status: clampNumber(action.status, 200, 100, 599),
+        // Matches the runtime's own clamp in _sanitizeRule: a mock is realized via
+        // new Response()/XHR simulation, which cannot represent 1xx (Response()
+        // throws RangeError). Accepting 100 here only to have it silently rewritten
+        // to 200 at runtime made the UI lie about what would happen.
+        status: clampNumber(action.status, 200, 200, 599),
         body: typeof action.body === "string" ? action.body.slice(0, 1e5) : "",
         headers,
         delayMs: clampNumber(action.delayMs, 0, 0, 6e4)
@@ -13878,14 +13886,38 @@ ${lines}
     signatureCache.set(entry.id, signature);
     return signature;
   }
-  function detectDrift(entry, previousEntries) {
+  var pathCache = /* @__PURE__ */ new Map();
+  function groupPath(entry) {
+    const cached = pathCache.get(entry.id);
+    if (cached !== void 0) return cached;
+    const path = entryGroupPath(entry);
+    if (pathCache.size > 4096) pathCache.clear();
+    pathCache.set(entry.id, path);
+    return path;
+  }
+  function buildDriftIndex(entries) {
+    const index = /* @__PURE__ */ new Map();
+    for (const entry of entries) noteDriftEntry(index, entry);
+    return index;
+  }
+  function noteDriftEntry(index, entry) {
+    if (!isApi(entry) || !schemaSignature(entry)) return;
+    index.set(groupPath(entry), entry);
+  }
+  function detectDrift(entry, previousEntries, index) {
     const signature = schemaSignature(entry);
     if (!signature) return { driftFromId: null };
-    const path = entryGroupPath(entry);
+    const path = groupPath(entry);
+    if (index) {
+      const candidate = index.get(path);
+      if (!candidate || candidate.id === entry.id) return { driftFromId: null };
+      const baseline = schemaSignature(candidate);
+      return { driftFromId: !baseline || baseline === signature ? null : candidate.id };
+    }
     for (let i = previousEntries.length - 1; i >= 0; i -= 1) {
       const candidate = previousEntries[i];
       if (!isApi(candidate) || candidate.id === entry.id) continue;
-      if (entryGroupPath(candidate) !== path) continue;
+      if (groupPath(candidate) !== path) continue;
       const baseline = schemaSignature(candidate);
       if (!baseline) continue;
       return { driftFromId: baseline === signature ? null : candidate.id };
@@ -13898,16 +13930,31 @@ ${lines}
   var AI_SETTINGS_KEY = "ai_settings";
   var MAX_PERSISTED_ENTRIES = 500;
   var MAX_PERSISTED_BODY_CHARS = 2e4;
+  var MAX_PERSISTED_ARGS = 20;
   function trimValue(value) {
     if (typeof value === "string") {
       return value.length > MAX_PERSISTED_BODY_CHARS ? value.slice(0, MAX_PERSISTED_BODY_CHARS) + "\u2026" : value;
     }
-    return value;
+    if (!value || typeof value !== "object") return value;
+    try {
+      const text = JSON.stringify(value);
+      if (!text || text.length <= MAX_PERSISTED_BODY_CHARS) return value;
+      return text.slice(0, MAX_PERSISTED_BODY_CHARS) + "\u2026";
+    } catch {
+      return void 0;
+    }
   }
   function serializeSessionEntries(entries) {
     return entries.slice(-MAX_PERSISTED_ENTRIES).map((entry) => {
       const copy = { ...entry };
       copy.responseRaw = trimValue(entry.responseRaw);
+      copy.responseDecrypted = trimValue(entry.responseDecrypted);
+      copy.requestBody = trimValue(entry.requestBody);
+      copy.logData = trimValue(entry.logData);
+      copy.message = typeof entry.message === "string" ? trimValue(entry.message) : entry.message;
+      if (Array.isArray(entry.args)) {
+        copy.args = entry.args.slice(0, MAX_PERSISTED_ARGS).map(trimValue);
+      }
       if (Array.isArray(entry.wsFrames) && entry.wsFrames.length > 50) {
         copy.wsFrames = entry.wsFrames.slice(-50);
       }
@@ -13990,7 +14037,6 @@ ${lines}
     snippets: [{ id: "snip_default", title: "Response schema", code: "schema(res)" }],
     rules: [],
     aiSettings: DEFAULT_AI_SETTINGS,
-    driftCount: 0,
     selectedId: null,
     expandedId: null,
     pinnedIds: /* @__PURE__ */ new Set(),
@@ -14153,21 +14199,20 @@ ${lines}
       const state = get();
       const maxEntries = Math.max(50, Math.min(5e3, Number(state.settings.maxEntries) || MAX_ENTRIES));
       const entries = state.entries.slice();
-      let driftCount = state.driftCount;
+      const driftIndex = buildDriftIndex(entries);
       const added = [];
       for (const raw of batch) {
         if (!raw) continue;
         const id = raw.id || "entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
-        const drift = detectDrift({ ...raw, id }, entries);
+        const drift = detectDrift({ ...raw, id }, entries, driftIndex);
         const normalized = { ...raw, id, ...drift.driftFromId ? { driftFromId: drift.driftFromId } : {} };
         entries.push(normalized);
-        if (drift.driftFromId) driftCount += 1;
+        noteDriftEntry(driftIndex, normalized);
         added.push(entryToConsoleEvent(normalized));
       }
       const next = {
         entries: entries.length > maxEntries ? entries.slice(-maxEntries) : entries
       };
-      if (driftCount !== state.driftCount) next.driftCount = driftCount;
       if (state.recording) {
         next.consoleEvents = [...state.consoleEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
       } else {
@@ -14218,7 +14263,7 @@ ${lines}
     updateRule: (id, patch) => {
       const rules = get().rules.map((rule) => rule.id === id ? normalizeRule({ ...rule, ...patch, match: { ...rule.match, ...patch.match || {} }, action: { ...rule.action, ...patch.action || {} } }) : rule);
       set({ rules });
-      persistRules(rules);
+      persistRulesDebounced(rules);
     },
     removeRule: (id) => {
       const rules = get().rules.filter((rule) => rule.id !== id);
@@ -14269,7 +14314,7 @@ ${lines}
     clearEntries: () => {
       _pausedEvents = [];
       setConsoleContext(null);
-      set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: /* @__PURE__ */ new Set(), driftCount: 0, pausedCount: 0 });
+      set({ entries: [], consoleEvents: [], selectedId: null, expandedId: null, pinnedIds: /* @__PURE__ */ new Set(), pausedCount: 0 });
       persistPanelPreferences(get());
       void setStoredValue(SESSION_ENTRIES_KEY, []);
     },
@@ -14392,9 +14437,22 @@ ${lines}
       }
     }, 4e3);
   }
+  var _rulesPersistTimer = null;
   function persistRules(rules) {
+    if (_rulesPersistTimer) {
+      clearTimeout(_rulesPersistTimer);
+      _rulesPersistTimer = null;
+    }
     void setStoredValue(TRAFFIC_RULES_KEY, rules);
     publishTrafficRules(rules);
+  }
+  function persistRulesDebounced(rules) {
+    if (_rulesPersistTimer) clearTimeout(_rulesPersistTimer);
+    _rulesPersistTimer = setTimeout(() => {
+      _rulesPersistTimer = null;
+      void setStoredValue(TRAFFIC_RULES_KEY, rules);
+      publishTrafficRules(rules);
+    }, 300);
   }
   function persistPanelPreferences(state) {
     void setStoredValue(REACT_PANEL_PREFERENCES_KEY, serializePanelPreferences(state));
@@ -16143,18 +16201,19 @@ ${lines}
       if (event.button !== 0) return;
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      drag.current = { startX: event.clientX, width: value };
+      drag.current = { startX: event.clientX, width: value, latest: event.clientX };
       setDragging(true);
       onLiveChange(value);
     }
     function onPointerMove(event) {
       const state = drag.current;
       if (!state) return;
-      const clientX = event.clientX;
+      state.latest = event.clientX;
       if (raf.current) return;
       raf.current = requestAnimationFrame(() => {
         raf.current = 0;
-        if (drag.current) onLiveChange(clamp(state.width + (clientX - state.startX)));
+        const current = drag.current;
+        if (current) onLiveChange(clamp(current.width + (current.latest - current.startX)));
       });
     }
     function commit(event) {
@@ -17013,8 +17072,8 @@ ${lines}
     return match ? String(match[1] ?? "") : "";
   }
   function previousSameEndpoint2(entry, entries) {
-    const groupPath = entryGroupPath(entry);
-    return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryGroupPath(candidate) === groupPath).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
+    const groupPath2 = entryGroupPath(entry);
+    return entries.filter((candidate) => candidate.id !== entry.id && candidate.type === "api" && entryGroupPath(candidate) === groupPath2).filter((candidate) => Number(candidate.timestamp) <= Number(entry.timestamp || Date.now())).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
   }
   function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasFrames }) {
     if (compact) return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(JsonView, { value: detailValue(entry, detailTab) });
@@ -18373,10 +18432,11 @@ Double-click to rename`,
     ] });
   });
   function extractConsoleError(event) {
+    const looksLikeStack = (stack) => /\n\s*at\s/.test(stack) || /^\w*Error\b/.test(stack);
     const isErrorObject = (value) => {
       if (!value || typeof value !== "object") return null;
       const record = value;
-      const looksLikeError = record.__type__ === "Error" || typeof record.stack === "string" && typeof record.message === "string" && "name" in record;
+      const looksLikeError = record.__type__ === "Error" || typeof record.stack === "string" && typeof record.message === "string" && "name" in record && looksLikeStack(record.stack);
       if (!looksLikeError) return null;
       return { name: String(record.name || "Error"), message: String(record.message || ""), stack: String(record.stack || "") };
     };
@@ -19548,7 +19608,7 @@ ${bodyLine}
         ] }),
         rule.action.type === "mock" && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Status" }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", type: "number", min: 100, max: 599, value: rule.action.status, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } }) })
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("input", { className: "xray-input", type: "number", min: 200, max: 599, value: rule.action.status, onChange: (event) => updateRule(rule.id, { action: { ...rule.action, status: Number(event.currentTarget.value) } }) })
         ] }),
         (rule.action.type === "mock" || rule.action.type === "delay") && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("label", { className: "xray-field xray-field-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: "Delay (ms)" }),
@@ -19576,7 +19636,7 @@ ${bodyLine}
 
   // src/panel/version.ts
   var XRAY_VERSION = "0.3.0";
-  var XRAY_BUILD = true ? "2026-07-30 10:24 UTC" : "dev";
+  var XRAY_BUILD = true ? "2026-07-30 10:43 UTC" : "dev";
 
   // src/panel/components/settings/SettingsModal.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime());
@@ -19734,7 +19794,7 @@ ${bodyLine}
             section === "general" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
               /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SettingsSectionTitle, { label: "General" }),
               /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ToggleRow, { label: "Stream to console live", desc: "Append newly captured events to the console stream as they arrive. Pausing this does not stop capture \u2014 that's under Capture.", checked: recording, onChange: setRecording }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SelectRow, { label: "Default detail view", desc: "View opened when selecting a request.", value: settings.defaultDetailView, options: detailViews2, onChange: (value) => updateSettings({ defaultDetailView: value }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SelectRow, { label: "Default detail view", desc: "Switches the detail pane to this view now, and whenever settings are reset.", value: settings.defaultDetailView, options: detailViews2, onChange: (value) => updateSettings({ defaultDetailView: value }) }),
               /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(ToggleRow, { label: "Confirm destructive actions", desc: "Ask before clearing data, pins, or settings.", checked: settings.confirmDestructiveActions, onChange: (value) => updateSettings({ confirmDestructiveActions: value }) })
             ] }),
             section === "capture" && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [

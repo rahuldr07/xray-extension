@@ -215,7 +215,7 @@ export function SettingsModal(): React.ReactElement | null {
             <>
               <SettingsSectionTitle label="General" />
               <ToggleRow label="Stream to console live" desc="Append newly captured events to the console stream as they arrive. Pausing this does not stop capture — that's under Capture." checked={recording} onChange={setRecording} />
-              <SelectRow label="Default detail view" desc="View opened when selecting a request." value={settings.defaultDetailView} options={detailViews} onChange={(value) => updateSettings({ defaultDetailView: value as DetailView })} />
+              <SelectRow label="Default detail view" desc="Switches the detail pane to this view now, and whenever settings are reset." value={settings.defaultDetailView} options={detailViews} onChange={(value) => updateSettings({ defaultDetailView: value as DetailView })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing data, pins, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
             </>
           )}
