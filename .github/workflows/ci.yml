@@ -46,6 +46,13 @@ jobs:
       - name: Test
         run: npm test
 
+      # Thresholds sit just under the current numbers so coverage cannot quietly
+      # regress. Note this measures src/panel only: the vanilla capture runtime is
+      # loaded through vm.runInContext, which Node's coverage does not instrument.
+      - name: Coverage thresholds
+        if: matrix.node == '22'
+        run: npm run test:coverage
+
   dist-sync:
     name: Committed bundles match source
     runs-on: ubuntu-latest

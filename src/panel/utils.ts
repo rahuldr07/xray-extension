@@ -139,10 +139,18 @@ export function eventEntry(event: ConsoleEvent): XrayEntry | null {
     : null;
 }
 
+// POSIX single-quote quoting, matching generateCurl in shared/console-helpers.js.
+// JSON.stringify was used here, which produces DOUBLE quotes — and a double-quoted
+// shell word still evaluates $(...) and backticks, so a captured URL could run
+// commands when the operator pasted the result.
+function shellQuote(value: unknown): string {
+  return `'${String(value ?? '').replace(/'/g, "'\\''")}'`;
+}
+
 export function buildCurl(entry: XrayEntry | null): string {
   if (window.XRAY_ConsoleHelpers?.generateCurl) return window.XRAY_ConsoleHelpers.generateCurl(entry);
   if (!entry) return '// Select an API request first';
-  return `curl ${JSON.stringify(entry.url || '')} -X ${(entry.method || 'GET').toUpperCase()}`;
+  return `curl ${shellQuote(entry.url || '')} -X ${shellQuote((entry.method || 'GET').toUpperCase())}`;
 }
 
 export function buildFetch(entry: XrayEntry | null): string {

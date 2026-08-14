@@ -18,7 +18,7 @@
     "format:check": "prettier --check .",
     "test": "node --test \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "test:e2e": "node --test \"test/e2e/*.e2e.mjs\"",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"dist/**\" --test-coverage-exclude=\"scripts/**\" \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"dist/**\" --test-coverage-exclude=\"scripts/**\" --test-coverage-lines=95 --test-coverage-branches=88 --test-coverage-functions=95 \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "package:extension": "npm run check && node scripts/package-extension.mjs",
     "bench:worker": "node scripts/benchmark-worker-core.mjs"

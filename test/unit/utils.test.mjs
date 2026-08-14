@@ -170,7 +170,9 @@ test('eventEntry unwraps a network console event and rejects anything else', () 
 test('buildCurl / buildFetch / buildMockPayload use their local fallbacks', () => {
   assertSchemaFallback(assert);
   const entry = apiEntry({ url: 'https://api.example.com/x?a=1', method: 'delete', responseRaw: '{"a":1}' });
-  assert.equal(buildCurl(entry), 'curl "https://api.example.com/x?a=1" -X DELETE');
+  // Single-quoted, not JSON.stringify'd. A double-quoted shell word still evaluates
+  // $(...) and backticks, and entry.url is attacker-controlled.
+  assert.equal(buildCurl(entry), "curl 'https://api.example.com/x?a=1' -X 'DELETE'");
   assert.equal(buildFetch(entry), 'fetch("https://api.example.com/x?a=1")');
   assert.deepEqual(JSON.parse(buildMockPayload(entry)), { a: 1 });
   assert.equal(buildCurl(null), '// Select an API request first');

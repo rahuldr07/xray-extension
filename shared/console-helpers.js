@@ -115,16 +115,29 @@
     return out;
   }
 
+  // POSIX single-quote quoting: everything inside '...' is literal except a single
+  // quote itself, which is emitted by closing the quote, escaping one, and reopening.
+  //
+  // Every field interpolated into a curl command must go through this. Entry fields are
+  // attacker-controlled — the URL is whatever the intercepted request used, and the
+  // WHATWG URL parser does not percent-encode an apostrophe in the path or query, so
+  // a page calling fetch("https://x.test/a';id;echo'") could otherwise produce a
+  // command that runs `id` when the operator pastes it into a shell. Imported HAR
+  // files are a second, entirely unfiltered source.
+  function _shellQuote(value) {
+    return `'${String(value === undefined || value === null ? '' : value).replace(/'/g, "'\\''")}'`;
+  }
+
   function generateCurl(entry) {
     if (!entry) return '// No request selected';
     const method = entry.method || 'GET';
-    let command = `curl '${entry.url || ''}' \\\n  -X ${method}`;
+    let command = `curl ${_shellQuote(entry.url || '')} \\\n  -X ${_shellQuote(method)}`;
     for (const [key, value] of Object.entries(entry.requestHeaders || {})) {
-      command += ` \\\n  -H '${String(key).replace(/'/g, "'\\''")}: ${String(value).replace(/'/g, "'\\''")}'`;
+      command += ` \\\n  -H ${_shellQuote(`${String(key)}: ${String(value)}`)}`;
     }
     if (entry.requestBody && method !== 'GET' && method !== 'HEAD') {
       const body = typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody);
-      command += ` \\\n  --data-raw '${body.replace(/'/g, "'\\''")}'`;
+      command += ` \\\n  --data-raw ${_shellQuote(body)}`;
     }
     return command;
   }

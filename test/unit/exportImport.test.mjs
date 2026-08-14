@@ -93,7 +93,8 @@ test('exportText: entry-scoped formats refuse a log entry or a null selection, s
 
 test('exportText curl/fetch use the local fallback when XRAY_ConsoleHelpers is absent', () => {
   const entry = richEntry();
-  assert.equal(exportText(entry, [entry], 'curl'), 'curl "https://api.example.com/v1/orders?page=2" -X POST');
+  // Single-quoted: a double-quoted shell word still evaluates $(...) and backticks.
+  assert.equal(exportText(entry, [entry], 'curl'), "curl 'https://api.example.com/v1/orders?page=2' -X 'POST'");
   assert.equal(exportText(entry, [entry], 'fetch'), 'fetch("https://api.example.com/v1/orders?page=2")');
 });
 
