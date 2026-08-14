@@ -232,7 +232,7 @@
   function _emit(level, args) {
     const id = _uid();
     let data;
-    let objectRefs = [];
+    const objectRefs = [];
     
     if (args.length === 0) {
       data = null;

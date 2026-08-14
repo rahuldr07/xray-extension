@@ -5,7 +5,7 @@ window.XRAY_Worker = (() => {
   
   let _worker = null;
   let _ready = false;
-  let _pending = new Map(); // id -> { resolve, reject }
+  const _pending = new Map(); // id -> { resolve, reject }
   let _idCounter = 0;
   let _readyPromise = null;
   let _readyResolve = null;

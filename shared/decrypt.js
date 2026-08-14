@@ -18,6 +18,9 @@ window.XRAY_Decrypt = (() => {
    * @returns {*}             — decrypted plain value
    * @throws on failure
    */
+  // Parameter names are the documented contract for anyone replacing this stub, so
+  // they stay spelled out even though the placeholder implementation ignores them.
+  // eslint-disable-next-line no-unused-vars
   function decrypt(token, data) {
     // The actual decrypt function lives in content/decrypt-bridge.js (MAIN world).
     // This ISOLATED world version is not called directly by the interceptor.

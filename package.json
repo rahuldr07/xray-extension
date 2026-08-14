@@ -1,14 +1,23 @@
 {
   "name": "xray-extension",
   "version": "0.3.0",
-  "description": "> A production-grade browser extension that auto-intercepts API calls, auto-decrypts encrypted responses, and displays clean JSON in a world-class visualizer panel. Built for **Chrome & Edge** (Manifest V3).",
+  "description": "A response operations console for API debugging. Captures fetch/XHR/WebSocket/GraphQL traffic, decrypts encrypted responses, and turns live traffic into exports, schemas, mocks, and replays. Chrome and Edge, Manifest V3.",
+  "private": true,
   "main": "background.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "dev": "vite --mode development",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "node --test",
-    "check": "npm run typecheck && npm run build && npm test",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "package:extension": "npm run check && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension.ps1",
     "bench:worker": "node scripts/benchmark-worker-core.mjs"
   },
@@ -16,19 +25,35 @@
     "type": "git",
     "url": "git+https://github.com/rahuldr07/xray-extension.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "api-debugging",
+    "devtools",
+    "http-interception",
+    "graphql",
+    "websocket"
+  ],
+  "author": "rahuldr07",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/rahuldr07/xray-extension/issues"
   },
   "homepage": "https://github.com/rahuldr07/xray-extension#readme",
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "esbuild": "^0.27.4",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
     "vite": "^8.0.14"
   },
   "dependencies": {

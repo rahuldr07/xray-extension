@@ -128,7 +128,6 @@ const CUSTOM_PRESETS: Array<{ label: string; theme: CustomTheme }> = [
 ];
 
 const detailViews: DetailView[] = ['tree', 'raw', 'grid', 'schema', 'diff', 'waterfall', 'viz', 'headers'];
-const themes: PanelTheme[] = ['operator', 'dev-edition', 'midnight', 'light-lab', 'claude'];
 const fonts: PanelFont[] = ['jetbrains', 'cascadia', 'iosevka', 'system'];
 const densities: PanelDensity[] = ['compact', 'comfortable', 'spacious'];
 
@@ -479,7 +478,7 @@ function CustomThemeEditor(): React.ReactElement {
           </button>
         )}
       </div>
-      <p className="xray-custom-note">Themes are applied as inline CSS variables on this panel only — they never touch the page or the extension's capture runtime.</p>
+      <p className="xray-custom-note">Themes are applied as inline CSS variables on this panel only — they never touch the page or the extension&apos;s capture runtime.</p>
     </div>
   );
 }

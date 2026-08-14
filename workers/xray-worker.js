@@ -353,7 +353,7 @@ function escapeCSV(value) {
   return `"${raw.replace(/"/g, '""')}"`;
 }
 
-function exportToCSV(entries, options = {}) {
+function exportToCSV(entries) {
   if (!entries.length) return '';
   
   const apiEntries = entries.filter(e => e.type === 'api');

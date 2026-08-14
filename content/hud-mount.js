@@ -246,7 +246,7 @@
     }
 
     const dir = interaction.dir || '';
-    let next = { ...base };
+    const next = { ...base };
     if (dir.includes('e')) next.width = base.width + dx;
     if (dir.includes('s')) next.height = base.height + dy;
     if (dir.includes('w')) {

@@ -150,8 +150,12 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
       style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
     >
       {dockable && (
+        // `resize` is a ref, so mutating it never re-renders — reading it here meant the
+        // dragging class only appeared when some unrelated state change happened to
+        // re-render. `dragWidth` is the state counterpart, set on pointer-down and
+        // cleared on commit, so it tracks the drag exactly.
         <div
-          className={`xray-resize-handle ${resize.current ? 'dragging' : ''}`}
+          className={`xray-resize-handle ${dragWidth !== null ? 'dragging' : ''}`}
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize panel — drag, or use arrow keys"

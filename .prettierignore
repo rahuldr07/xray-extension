@@ -1,0 +1,13 @@
+# Build and packaging output
+dist/
+release/
+node_modules/
+package-lock.json
+
+# Binary and generated assets
+docs/assets/
+
+# The regression suite pins exact source strings, including newline positions
+# (patterns of the form `\s*\n\s*`). Reformatting these files would break those
+# assertions for purely cosmetic reasons — see CONTRIBUTING.md.
+test/
