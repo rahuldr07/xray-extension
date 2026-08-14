@@ -104,10 +104,13 @@ export default tseslint.config(
 
   // ------------------------------------------------------------------- Node
   {
-    files: ['test/**/*.js', 'scripts/**/*.{js,mjs}', '*.config.{js,mjs}'],
+    files: ['test/**/*.{js,mjs}', 'scripts/**/*.{js,mjs}', '*.config.{js,mjs}'],
     languageOptions: {
       ecmaVersion: 2022,
-      globals: { ...globals.node },
+      // Unit tests exercise browser-shaped code under Node, so they need both sets:
+      // `URL`, `atob` and friends are Node globals too, but the browser set keeps
+      // DOM shims and fixtures lint-clean.
+      globals: { ...globals.node, ...globals.browser },
     },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
@@ -128,7 +131,7 @@ export default tseslint.config(
     languageOptions: { sourceType: 'commonjs' },
   },
   {
-    files: ['scripts/**/*.mjs', '*.config.mjs'],
+    files: ['scripts/**/*.mjs', 'test/**/*.mjs', '*.config.mjs'],
     languageOptions: { sourceType: 'module' },
   },
 
