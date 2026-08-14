@@ -68,6 +68,34 @@ as it did, but it is now testable, buildable, and reviewable.
 - `LICENSE` (ISC, matching the existing declaration), `CONTRIBUTING.md`,
   [`docs/architecture.md`](docs/architecture.md), and Dependabot.
 
+### Fixed (UI)
+
+Found by driving the real extension in Chromium and measuring, not by reading source.
+
+- **The Console tab — the default tab — was empty after every session restore.**
+  `restoreEntries` set `entries` alone while `ConsoleWorkspace` reads `consoleEvents`,
+  so the first thing shown on every reopen was "No network activity yet" above an
+  `API 34` badge. HAR imports had the same gap.
+- **Ctrl+K and Ctrl+Shift+F were dead in the pop-out window.** The handler lived inside
+  `main.tsx` and `window-main.tsx` never called it. It now lives in
+  `runtime/panelKeyboard.ts`, gated so Escape cannot dismiss the pop-out — which would
+  leave nothing on screen and no way back.
+- **Light themes were substantially unreadable.** 178 literal `rgba()` declarations could
+  not respond to a theme; the accent was a fixed pastel applied inline, measuring
+  1.33–2.80 contrast on light backgrounds and putting the focus ring below the 3:1 floor.
+  Both are fixed, and every audited selector now clears 3:1 with most clearing 4.5:1.
+- **The pop-out and the options page ignored the theme entirely** — a hardcoded dark slab
+  and a separate indigo design on the stale `--xr-*` convention. Both follow the theme now.
+- **The primary nav was not a tablist**, so the active tab was conveyed by a CSS class
+  alone and every tab was its own tab stop. Now a real tablist with roving tabindex and
+  arrow/Home/End traversal.
+- **The toast live region was mounted together with its message**, which is unreliably
+  announced. It is always present now.
+- **The request list ignored Home, End, PageUp, PageDown and Space.** Space fell through
+  to the native scroller, moving the viewport while the selection stayed put.
+- `ConsoleWorkspace.tsx` contained a literal NUL byte that made the file register as
+  binary to `file(1)` and `grep`.
+
 ### Changed
 
 - Builds are reproducible. The build stamp came from `new Date()`, so every build

@@ -27,10 +27,35 @@ All colour, radius and motion values come from CSS custom properties defined in
 **Never hardcode a colour.** A literal hex in a rule is a bug: it will not change with the
 theme, so it looks correct in the default theme and wrong in the other five.
 
-**Use the RGB triples for anything translucent.** `rgba(var(--xray-surface-rgb), 0.6)`
-adapts per theme; `rgba(24, 24, 37, 0.6)` does not. This is why the triples exist, and
-it is the specific mechanism that makes the light themes (Light Lab, Claude) render
-correctly — a regression test pins it.
+**Never write a literal `rgba(...)` either.** This was the single largest source of broken
+theming — 178 declarations painted Catppuccin pastels that could not respond to a theme at
+all and simply vanished on light backgrounds. Two correct forms:
+
+- `rgba(var(--xray-surface-rgb), 0.6)` for the four surface/text colours that ship RGB
+  triples. `rgba(24, 24, 37, 0.6)` does not adapt; this is why the triples exist.
+- `color-mix(in srgb, var(--xray-yellow) 34%, transparent)` for everything else. The
+  accent colours deliberately have no RGB triples, and `color-mix` is the idiom used
+  throughout the file.
+
+**If you use an accent token, confirm every theme defines it.** Light Lab and the three
+dark themes were missing `--xray-teal` and `--xray-peach`, so routing colours through
+those tokens silently resolved straight back to the default pastels. Every
+`.xray-theme-*` block must define every token it is asked for.
+
+**Tinting with the same hue as the text moves background toward foreground.** A chip
+tinted with `--xray-yellow` behind yellow text loses contrast on a light theme even
+though both values are correct tokens. Check the resulting pair, not just the tokens.
+
+## 1a. The accent is resolved, never looked up directly
+
+`--xray-accent` is applied as an **inline** custom property, so it outranks every
+`.xray-theme-*` block. The dark-theme pastels therefore followed the user onto the light
+themes and measured 1.33–2.80 contrast there — the primary button read as blank, and the
+focus ring fell under the 3:1 WCAG 1.4.11 floor, so keyboard focus was untrackable.
+
+Always apply it via `resolveAccentValue(settings)` in `models/panelSettings.ts`, which
+substitutes a darkened variant on light backgrounds. The choice is made by **measured
+luminance rather than theme name**, so a custom theme with a light background gets it too.
 
 ## 2. Class naming and scoping
 
