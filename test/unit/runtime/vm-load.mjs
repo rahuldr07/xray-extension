@@ -36,6 +36,20 @@ export function readSource(relPath) {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
+/**
+ * Re-create a value produced inside the vm realm using host intrinsics.
+ *
+ * A vm context is a separate realm, so an object literal built by the code under
+ * test has the *vm's* Object.prototype. assert/strict's deepEqual compares
+ * prototypes, so it rejects an otherwise-identical shape. structuredClone walks
+ * the value with the structured-serialize algorithm and rebuilds it here, which
+ * is exactly the normalisation postMessage would apply on the way out of a real
+ * worker anyway. JSON-hostile values (functions, cycles) must not be passed.
+ */
+export function hostify(value) {
+  return value === undefined ? value : structuredClone(value);
+}
+
 /** Globals every one of these files can assume exist in a browser. */
 function baseGlobals() {
   return { URL, Date, Set, Map, console, setTimeout, clearTimeout, queueMicrotask };
