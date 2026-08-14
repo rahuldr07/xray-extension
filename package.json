@@ -17,6 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
+    "test:e2e": "node --test \"test/e2e/*.e2e.mjs\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"dist/**\" --test-coverage-exclude=\"scripts/**\" \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "package:extension": "npm run check && node scripts/package-extension.mjs",
     "bench:worker": "node scripts/benchmark-worker-core.mjs"
@@ -51,6 +53,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",
+    "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.67.0",

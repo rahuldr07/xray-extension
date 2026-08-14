@@ -85,6 +85,24 @@ jobs:
           fi
           echo "Build is reproducible."
 
+  e2e:
+    name: End-to-end capture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Must be the full Chromium build, not the headless shell — the shell cannot
+      # load extensions, and the MV3 service worker simply never registers.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Load the unpacked extension and capture real traffic
+        run: npm run test:e2e
+
   package:
     name: Package extension
     runs-on: ubuntu-latest

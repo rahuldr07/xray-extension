@@ -52,11 +52,22 @@ test('every numeric setting clamps at both bounds', () => {
 });
 
 test('every numeric setting falls back (not clamps) for a non-finite value', () => {
-  for (const [key, , , fallback] of NUMERIC_BOUNDS) {
-    for (const bad of [NaN, Infinity, -Infinity, 'text', {}, [1, 2], null, undefined]) {
+  for (const [key, min, max, fallback] of NUMERIC_BOUNDS) {
+    for (const bad of [NaN, Infinity, -Infinity, 'text', {}, [1, 2], undefined]) {
       assert.equal(at(key, bad), fallback, `${key} = ${String(bad)} should fall back to ${fallback}`);
     }
-    assert.equal(at(key, '250'), Math.min(NUMERIC_BOUNDS.find(([k]) => k === key)[2], Math.max(NUMERIC_BOUNDS.find(([k]) => k === key)[1], 250)), `${key} coerces numeric strings`);
+    assert.equal(at(key, '250'), Math.min(max, Math.max(min, 250)), `${key} coerces numeric strings`);
+  }
+});
+
+test('null and [] coerce to 0 for numeric settings, so they clamp to the minimum rather than falling back', () => {
+  // Number(null) === 0 and Number([]) === 0 are finite, so clampNumber never
+  // reaches its fallback. A persisted `maxEntries: null` therefore becomes 50,
+  // not the 1000 default.
+  for (const [key, min, , fallback] of NUMERIC_BOUNDS) {
+    assert.equal(at(key, null), min, `${key} = null`);
+    assert.equal(at(key, []), min, `${key} = []`);
+    if (min !== fallback) assert.notEqual(at(key, null), fallback, `${key} does not fall back for null`);
   }
 });
 
@@ -92,10 +103,23 @@ test('the other booleans are plain Boolean() coercions', () => {
     assert.equal(at(key, true), true, `${key} true`);
     assert.equal(at(key, 0), false, `${key} 0`);
     assert.equal(at(key, 'x'), true, `${key} truthy string`);
-    // undefined spreads over the default, so it reverts to the default value.
-    assert.equal(at(key, undefined), DEFAULT_PANEL_SETTINGS[key], `${key} undefined`);
-    assert.equal(at(key, null), false, `${key} null coerces to false, unlike captureWs`);
+    assert.equal(at(key, null), false, `${key} null`);
+    assert.equal(at(key, []), true, `${key} [] is truthy in JS`);
   }
+});
+
+test('an explicit undefined turns every boolean except captureWs OFF, even ones that default to true', () => {
+  // `{ ...DEFAULTS, ...input }` lets an explicit `key: undefined` shadow the
+  // default, and Boolean(undefined) is false. Only captureWs has the
+  // `=== undefined ? true` guard. A stored preferences blob that round-trips
+  // through JSON never hits this (JSON drops undefined), but an in-memory
+  // partial update does.
+  const trueByDefault = ['captureFetch', 'captureXhr', 'showHostInPath', 'glow', 'confirmDestructiveActions'];
+  for (const key of trueByDefault) {
+    assert.equal(DEFAULT_PANEL_SETTINGS[key], true, `${key} default`);
+    assert.equal(at(key, undefined), false, `${key} = undefined silently turns off`);
+  }
+  assert.equal(at('captureWs', undefined), true, 'captureWs is the documented exception');
 });
 
 // --------------------------------------------------------------- enum fields
@@ -165,11 +189,12 @@ test('a fully hostile settings blob normalizes into something the panel can rend
     maxEntries: 50,
     slowThresholdMs: 5000,
     verySlowThresholdMs: 1000,
-    compactRows: false,
+    compactRows: true,
     showHostInPath: false,
     radius: 20,
     glow: false,
     hacker: true,
+    confirmDestructiveActions: false,
     apiSplit: 0,
     logsSplit: 2000,
   });
