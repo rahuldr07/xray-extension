@@ -4,7 +4,7 @@
 // Deliberately NOT named *.test.mjs, so `npm test` does not pick it up — this needs a
 // browser. Run it with `npm run test:e2e`.
 //
-// Two environment caveats, both from CLAUDE.md and both handled here:
+// Two environment caveats, both documented in CONTRIBUTING.md and both handled here:
 //   * background.js and content scripts are cached per profile, so a stale profile
 //     silently tests old code. Every run gets a fresh mkdtemp profile.
 //   * --no-sandbox is required where the ms-playwright executable's ACLs stop the
