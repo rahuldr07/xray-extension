@@ -17,7 +17,16 @@ import type { ActiveTab, AiSettings, ApiDrawerPlacement, ApiGroupingMode, ApiQui
 const MAX_ENTRIES = 1000;
 const MAX_CONSOLE_EVENTS = 2000;
 
-const DEFAULT_AI_SETTINGS: AiSettings = { provider: 'anthropic', model: 'claude-fable-5', apiKey: '' };
+// restorePreferences spreads these under whatever was persisted, so settings saved
+// before the custom provider existed pick up the new fields rather than being undefined.
+const DEFAULT_AI_SETTINGS: AiSettings = {
+  provider: 'anthropic',
+  model: 'claude-fable-5',
+  apiKey: '',
+  baseUrl: '',
+  authHeader: 'authorization',
+  authPrefix: 'Bearer ',
+};
 
 let _sessionPersistTimer: ReturnType<typeof setTimeout> | null = null;
 // The page element that held focus when the injected side panel opened, so we can

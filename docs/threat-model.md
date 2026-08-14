@@ -228,6 +228,12 @@ with `indexedDB.databases()` in a page console before relying on either answer.
 `buildExplainPrompt` sends the full URL, denylist-redacted headers, full bodies up to
 40 000 chars, and GraphQL variables. Provider endpoints are hardcoded, so there is no SSRF.
 
+Since the custom provider landed, the AI endpoint is **user-supplied** rather than
+hardcoded. It is validated in the service worker — https required, plain http only for
+loopback — so a downgraded or typo'd URL cannot ship captured bodies in the clear. This is
+user-directed configuration, not attacker-controlled input, but note that it widens the
+egress surface from two known hosts to whatever the user enters.
+
 Separately, `aiBridge.ts:54` passes `settings` — **including `apiKey`** — from the content
 script to the background on every call. The key is therefore resident in isolated-world
 memory on every page purely to be relayed, which is what made C-5 a key-disclosure bug.

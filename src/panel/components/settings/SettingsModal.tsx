@@ -54,9 +54,13 @@ const navItems: Array<{ id: SettingsSection; label: string; icon: React.ReactNod
   { id: 'about', label: 'About', icon: <IconInfoCircle {...iconProps} /> },
 ];
 
+// The two built-in providers offer a model list. `custom` deliberately does not — the
+// whole point is that the model name is whatever the user's endpoint serves, so it is a
+// free-text field there.
 const AI_MODELS: Record<AiSettings['provider'], string[]> = {
   anthropic: ['claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-haiku-4-5-20251001'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
+  custom: [],
 };
 
 // Preview swatches mirror each theme's real background + accent so the picker
@@ -253,8 +257,54 @@ export function SettingsModal(): React.ReactElement | null {
             <>
               <SettingsSectionTitle label="AI (bring your own key)" />
               <InfoRow label="Local & private" desc="Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background — nothing is sent anywhere else." />
-              <SelectRow label="Provider" desc="Which model provider to use for Explain." value={aiSettings.provider} options={['anthropic', 'openai']} onChange={(value) => setAiSettings({ provider: value as AiSettings['provider'], model: AI_MODELS[value as AiSettings['provider']][0] })} />
-              <SelectRow label="Model" desc="Model used for request explanations." value={aiSettings.model} options={AI_MODELS[aiSettings.provider]} onChange={(value) => setAiSettings({ model: value })} />
+              <SelectRow
+                label="Provider"
+                desc="Anthropic and OpenAI are built in. Custom works with any OpenAI-compatible endpoint — OpenRouter, Groq, Together, DeepSeek, Mistral, Azure, or a local Ollama or LM Studio server."
+                value={aiSettings.provider}
+                options={['anthropic', 'openai', 'custom']}
+                onChange={(value) => {
+                  const provider = value as AiSettings['provider'];
+                  // Carry the model across only when the new provider actually offers
+                  // one; a stale gpt-4o would fail at request time on Anthropic.
+                  setAiSettings({ provider, model: AI_MODELS[provider][0] ?? '' });
+                }}
+              />
+              {aiSettings.provider === 'custom' ? (
+                <TextRow
+                  label="Model"
+                  desc="Model name exactly as your endpoint expects it."
+                  value={aiSettings.model}
+                  placeholder="llama3.1:8b"
+                  onChange={(value) => setAiSettings({ model: value })}
+                />
+              ) : (
+                <SelectRow label="Model" desc="Model used for request explanations." value={aiSettings.model} options={AI_MODELS[aiSettings.provider]} onChange={(value) => setAiSettings({ model: value })} />
+              )}
+              {aiSettings.provider === 'custom' && (
+                <>
+                  <TextRow
+                    label="Endpoint"
+                    desc="Base URL or full chat-completions URL. Must be https, except localhost for a local model server."
+                    value={aiSettings.baseUrl}
+                    placeholder="https://openrouter.ai/api/v1"
+                    onChange={(value) => setAiSettings({ baseUrl: value })}
+                  />
+                  <TextRow
+                    label="Auth header"
+                    desc="Header carrying the key. Almost every provider uses authorization."
+                    value={aiSettings.authHeader}
+                    placeholder="authorization"
+                    onChange={(value) => setAiSettings({ authHeader: value })}
+                  />
+                  <TextRow
+                    label="Auth prefix"
+                    desc="Text before the key. Usually 'Bearer ' — leave blank to send the key on its own."
+                    value={aiSettings.authPrefix}
+                    placeholder="Bearer "
+                    onChange={(value) => setAiSettings({ authPrefix: value })}
+                  />
+                </>
+              )}
               <div className="xray-settings-row">
                 <span><strong>API key</strong><small>Stored locally. Used only for Explain requests.</small></span>
                 <input className="xray-input" type="password" value={aiSettings.apiKey} placeholder="sk-..." onChange={(event) => setAiSettings({ apiKey: event.currentTarget.value })} autoComplete="off" />
@@ -680,6 +730,24 @@ function SelectRow({ label, desc, value, options, onChange }: { label: string; d
       <select className="xray-select" value={value} onChange={(event) => onChange(event.currentTarget.value)}>
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
+    </label>
+  );
+}
+
+function TextRow({ label, desc, value, placeholder, onChange }: { label: string; desc: string; value: string; placeholder?: string; onChange(value: string): void }): React.ReactElement {
+  return (
+    <label className="xray-settings-row">
+      <span><strong>{label}</strong><small>{desc}</small></span>
+      <input
+        className="xray-input"
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        autoCapitalize="off"
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
     </label>
   );
 }

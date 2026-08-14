@@ -129,10 +129,22 @@ export interface TrafficRule {
   action: TrafficRuleAction;
 }
 
+export type AiProvider = 'anthropic' | 'openai' | 'custom';
+
 export interface AiSettings {
-  provider: 'anthropic' | 'openai';
+  provider: AiProvider;
   model: string;
   apiKey: string;
+  /**
+   * Custom provider only. Either a complete chat-completions endpoint or a base URL —
+   * `/chat/completions` is appended when the path does not already name one. Must be
+   * https, except for localhost, so a local model server still works.
+   */
+  baseUrl: string;
+  /** Custom provider only. Header carrying the key. Defaults to `authorization`. */
+  authHeader: string;
+  /** Custom provider only. Prefix before the key. Defaults to `Bearer `; blank sends it raw. */
+  authPrefix: string;
 }
 
 export interface ConsoleEvent {

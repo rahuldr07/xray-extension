@@ -42,6 +42,18 @@ as it did, but it is now testable, buildable, and reviewable.
 
 ### Added
 
+- **AI Explain works with any provider, not just the two built in.** A `custom` provider
+  takes an endpoint URL, model name, and key, and speaks the OpenAI-compatible
+  `/chat/completions` shape — the de facto standard across OpenRouter, Groq, Together,
+  DeepSeek, Mistral, Azure, and local servers like Ollama and LM Studio. The auth header
+  name and prefix are configurable for the few providers that differ. Responses are
+  parsed in both OpenAI and Anthropic shapes, so an Anthropic-compatible endpoint works
+  without declaring which shape it speaks.
+
+  Because the endpoint is user-supplied rather than hardcoded, it is validated in the
+  service worker: **https is required, with plain http allowed only for loopback** so a
+  local model server still works. Captured request and response bodies are what travel
+  to this endpoint, so a typo'd public URL must not ship them in the clear.
 - GitHub Actions CI: typecheck, lint, build and test on Node 20.11 and 22, plus
   jobs verifying build reproducibility, that committed `dist/` matches source, that
   the release archive is well-formed and carries no source, and an end-to-end run.
