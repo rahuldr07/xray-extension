@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { DEFAULT_PANEL_SETTINGS, PANEL_ACCENT_VALUES, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN } from '../../models/panelSettings';
+import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue } from '../../models/panelSettings';
 import { buildSessionSummary } from '../../models/sessionSummary';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { formatBytes } from '../../utils';
@@ -169,7 +169,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   return (
     <div
       className={`xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ''} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${settings.hacker ? 'xray-hacker' : ''} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
-      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
+      style={{ '--xray-accent': resolveAccentValue(settings), '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
     >
       {dockable && (
         // `resize` is a ref, so mutating it never re-renders — reading it here meant the

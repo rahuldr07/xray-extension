@@ -25,7 +25,7 @@ import {
   IconWand,
 } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { PANEL_ACCENT_VALUES } from '../../models/panelSettings';
+import { PANEL_ACCENT_VALUES, resolveAccentValue } from '../../models/panelSettings';
 import { buildCustomThemeVars, clampHex, contrastGrade, contrastRatio, decodeTheme, encodeTheme, exportThemeCss, generateFromAccent, isHex, isTokenOverridden, OVERRIDE_KEYS, parseThemeInput, randomTheme, resolveThemeColors, themePackageToSettings } from '../../models/customTheme';
 import type { CustomTokenKey } from '../../models/customTheme';
 import { copyText } from '../../utils';
@@ -762,7 +762,11 @@ function AccentRow({ settings, onChange }: { settings: PanelSettings; onChange(a
             key={accent}
             className={`xray-color-swatch ${settings.accent === accent ? 'active' : ''}`}
             aria-label={`Use ${accent} accent`}
-            style={{ background: PANEL_ACCENT_VALUES[accent] }}
+            aria-pressed={settings.accent === accent}
+            // Preview the accent this theme will actually apply. Showing the dark-theme
+            // pastel while a light theme renders the darkened variant made the swatch a
+            // misleading preview of its own effect.
+            style={{ background: resolveAccentValue({ ...settings, accent }) }}
             onClick={() => onChange(accent)}
           />
         ))}
