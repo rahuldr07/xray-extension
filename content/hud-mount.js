@@ -84,7 +84,9 @@
     host.style.width = (state.collapsed ? 180 : state.width) + 'px';
     host.style.height = (state.collapsed ? 40 : state.height) + 'px';
     host.style.zIndex = '2147483646';
-    host.style.borderRadius = '10px';
+    // hud-main.tsx mirrors the panel's resolved --xray-radius onto this host, so
+    // the frame follows the user's radius setting instead of a frozen 10px.
+    host.style.borderRadius = 'var(--xray-radius, 10px)';
     host.style.overflow = 'visible';
     host.classList.toggle('xray-collapsed', state.collapsed);
     syncHandles();
@@ -108,19 +110,24 @@
          for position:fixed descendants (e.g. the theme popover), anchoring them to
          the HUD box instead of the viewport. */
       :host { contain: style; }
+      /* hud-main.tsx's syncHostTheme mirrors the panel's resolved --xray-radius,
+         --xray-surface/-2, --xray-text and --xray-bg onto this host element, so
+         the collapsed pill inherits them here. The literals are pre-mount
+         fallbacks only — hardcoding them left a dark Catppuccin box floating on
+         the page in Light Lab and Claude. */
       .xray-hud-pill {
         width: 100%;
         height: 100%;
         display: none;
         align-items: center;
         justify-content: center;
-        border: 1px solid #313244;
-        border-radius: 10px;
-        color: #cdd6f4;
-        background: #181825;
+        border: 1px solid var(--xray-surface2, #313244);
+        border-radius: var(--xray-radius, 10px);
+        color: var(--xray-text, #cdd6f4);
+        background: var(--xray-surface, #181825);
         box-shadow: 0 14px 40px rgba(0,0,0,.36);
         cursor: pointer;
-        font: 800 12px/1 'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+        font: 800 12px/1 var(--xray-font, 'JetBrains Mono','Fira Code','Cascadia Code',monospace);
       }
       :host(.xray-collapsed) .xray-hud-pill { display: flex; }
       :host(.xray-collapsed) #xray-hud-root { display: none; }

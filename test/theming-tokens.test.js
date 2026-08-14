@@ -117,7 +117,12 @@ test('theme tokens reach popups too, not just the panel', () => {
   // A display:contents wrapper carries theme tokens to the panel AND the sibling
   // modals (Settings, Export, Command palette, Global search, …) via inheritance.
   assert.match(app, /xray-theme-scope xray-theme-\$\{settings\.theme\}/);
-  assert.match(app, /'--xray-accent': PANEL_ACCENT_VALUES\[settings\.accent\]/);
+  // The accent is resolved rather than looked up directly: it is applied as an inline
+  // custom property, so it outranks every .xray-theme-* block and used to follow the
+  // dark-theme pastels onto the light themes at 1.33-2.80 contrast, which put the focus
+  // ring below the 3:1 floor. resolveAccentValue picks a darkened variant by measured
+  // background luminance.
+  assert.match(app, /'--xray-accent': resolveAccentValue\(settings\)/);
   assert.match(app, /settings\.theme === 'custom' \? buildCustomThemeVars/);
   // the wrapper contains the modals (they're inside the same element, not siblings of it)
   assert.match(app, /<div className={`xray-theme-scope[\s\S]*<SettingsModal \/>[\s\S]*<GlobalSearch \/>[\s\S]*<\/div>/);
