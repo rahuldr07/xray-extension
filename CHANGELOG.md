@@ -12,6 +12,14 @@ as it did, but it is now testable, buildable, and reviewable.
 
 ### Security
 
+- **Command injection in "Copy as cURL".** `generateCurl` interpolated the captured URL
+  raw into a single-quoted shell word, while the header and body sites two lines below
+  escaped correctly. Since the URL is whatever the intercepted request used — and the
+  WHATWG parser leaves an apostrophe in a path or query intact — a page issuing
+  `fetch("https://x.test/a';id;echo'")` produced a command that ran `id` when the
+  operator pasted it. Imported HAR files were a second unfiltered source, and the
+  method was interpolated bare as a second injection point. The panel's fallback had
+  the same class of bug via `JSON.stringify`, whose double quotes still permit `$(...)`.
 - `content/console-capture.js` accepted `postMessage` events from any source. Every
   other bridge listener rejects events whose `source` is not this window; this one
   was missed, leaving its lazy-object handler addressable by a cross-origin frame
