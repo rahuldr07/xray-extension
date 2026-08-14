@@ -460,6 +460,14 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // Keep service worker alive for message relaying (Phase 4: DevTools bridge)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Only accept messages from this extension's own surfaces. There is no
+  // externally_connectable, so a web page cannot reach here directly, but this makes
+  // the assumption explicit rather than inherited from a manifest omission.
+  if (sender?.id !== chrome.runtime.id) return false;
+  // sendMessage(null) or sendMessage(undefined) from any surface would otherwise throw
+  // inside the listener on the first property access.
+  if (!msg || typeof msg !== 'object') return false;
+
   if (msg.type === 'XRAY_HUD_TOGGLE_ACTIVE') {
     _toggleHudOnBestTab(sender?.tab)
       .then((ok) => sendResponse({ ok }))
@@ -483,7 +491,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // forward to the inspected tab's content script, which posts into the MAIN
   // world with its own bridge token.
   if (msg.type === 'xray:page-bridge') {
-    const tabId = Number(msg.tabId);
+    // A content script may only drive its own tab. Without this, any content script —
+    // and XRAY runs one on every frame of every URL — could push config or a replay
+    // request into any other tab by naming its id. Extension pages (the DevTools
+    // panel, which has no sender.tab) legitimately target the inspected tab, so they
+    // keep supplying it.
+    const senderTabId = sender?.tab?.id;
+    const tabId = Number.isInteger(senderTabId) ? senderTabId : Number(msg.tabId);
     const kind = msg.kind;
     if (!Number.isInteger(tabId) || tabId < 0 || (kind !== 'config' && kind !== 'replay')) {
       sendResponse({ ok: false });

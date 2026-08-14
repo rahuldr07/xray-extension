@@ -15,6 +15,14 @@ test('console executor ignores postMessage events from non-window sources', () =
   assert.match(executor, /event\.source\s*!==\s*window/);
 });
 
+test('console capture ignores postMessage events from non-window sources', () => {
+  // Every bridge listener must reject messages that did not originate in this window.
+  // console-capture.js was the one that did not, so a cross-origin frame or opener
+  // could address its lazy-object handler directly.
+  const consoleCapture = read('content/console-capture.js');
+  assert.match(consoleCapture, /e\.source\s*!==\s*window/);
+});
+
 test('console execution bridge requires a session nonce and bounds result size', () => {
   const executor = read('content/console-executor.js');
   const consoleEngine = read('panel/console.js');
@@ -22,6 +30,15 @@ test('console execution bridge requires a session nonce and bounds result size',
   assert.match(executor, /sessionId\s*!==\s*window\.__XRAY_CONSOLE_SESSION/);
   assert.match(executor, /MAX_RESULT_CHARS/);
   assert.match(consoleEngine, /sessionId:\s*_sessionId/);
+});
+
+test('console session nonce is first-write-wins so a page cannot wedge the console', () => {
+  // The nonce lives on the page's own window, so it is readable. It must at least be
+  // unwritable-after-set: assigning unconditionally let any page script replace the
+  // live session id, after which every real exec request failed the nonce check and
+  // was silently dropped. Mirrors the bridge-token handshake in content.js.
+  const executor = read('content/console-executor.js');
+  assert.match(executor, /!window\.__XRAY_CONSOLE_SESSION\s*&&/);
 });
 
 test('content bridge requires a MAIN-world bridge token for capture and lazy object messages', () => {

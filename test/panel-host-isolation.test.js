@@ -86,10 +86,16 @@ test('React panel persists UI preferences through XRAY_Store without storing cap
 
   assert.match(storageBridge, /export async function getStoredValue/);
   assert.match(storageBridge, /window\.XRAY_Store\?\.get/);
-  assert.match(storageBridge, /localStorage\.getItem/);
   assert.match(storageBridge, /export async function setStoredValue/);
   assert.match(storageBridge, /window\.XRAY_Store\?\.set/);
-  assert.match(storageBridge, /localStorage\.setItem/);
+  // These two previously pinned a localStorage fallback. In a content script
+  // localStorage belongs to the PAGE, so that path could write panel state — including
+  // the BYOK API key, which setStoredValue is called with — into the visited site's own
+  // storage in plaintext. The fallback is gone; the assertions now pin its absence.
+  // Matches call sites specifically, not the word — the file explains in prose why the
+  // fallback was removed, and a blanket /localStorage/ would match that explanation.
+  assert.doesNotMatch(storageBridge, /localStorage\s*\./);
+  assert.doesNotMatch(storageBridge, /localStorage\s*\[/);
   assert.match(persistence, /REACT_PANEL_PREFERENCES_KEY/);
   assert.match(persistence, /export function serializePanelPreferences/);
   assert.match(persistence, /export function applyPanelPreferences/);

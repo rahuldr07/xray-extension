@@ -119,7 +119,8 @@ test('React app has dedicated DevTools, HUD, and window entrypoints', () => {
   assert.match(windowHtml, /id="xray-window-root"/);
   assert.match(windowHtml, /dist\/window-ui\.js/);
   // the pop-out shares chrome.storage with every other surface: store.js must be
-  // defined before the bundle boots, or storageBridge silently uses localStorage
+  // defined before the bundle boots, or storageBridge fails closed and every
+  // preference read falls back to its default while writes are dropped
   assert.match(windowHtml, /<script src="shared\/store\.js"><\/script>\s*\n\s*<script src="dist\/window-ui\.js"><\/script>/);
   assert.match(vite, /hud-main\.tsx/);
   assert.match(vite, /window-main\.tsx/);
