@@ -278,12 +278,23 @@ Load it in Chrome or Edge:
 ## Development
 
 ```bash
-npm run dev        # Vite dev server for preview pages
-npm run build      # Build dist/panel-ui.js, dist/hud-ui.js, dist/window-ui.js
-npm run typecheck  # TypeScript check
-npm test           # Regression tests
-npm run check      # typecheck + build + tests
+npm run dev               # Vite dev server for preview pages
+npm run build             # Build dist/panel-ui.js, dist/hud-ui.js, dist/window-ui.js
+npm run typecheck         # TypeScript check
+npm run lint              # ESLint across TS/React, the vanilla runtime, and Node
+npm test                  # Regression + unit suites
+npm run test:e2e          # Load the unpacked extension in real Chromium
+npm run test:coverage     # Test run with coverage reporting
+npm run check             # typecheck + lint + build + tests
+npm run package:extension # check, then write release/xray-extension-<version>.zip
 ```
+
+`dist/` is committed and loaded directly by an unpacked install, so rebuild and commit
+it alongside any change under `src/`. Builds are reproducible: pin `SOURCE_DATE_EPOCH`
+and identical source gives byte-identical bundles.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before your first change — the test suite pins
+exact source strings, and that convention is easy to break unknowingly.
 
 Preview routes:
 
@@ -349,12 +360,36 @@ foreach ($file in $files) {
 
 ## Security Notes
 
-- Message consumers validate page message source where needed.
+XRAY injects into every frame of every URL, retains request and response bodies, keeps
+authorization headers so requests can be replayed, and decodes JWTs. It concentrates
+secrets from every site you visit into one place. Read
+[docs/threat-model.md](docs/threat-model.md) before using it anywhere the captured
+traffic matters.
+
+What holds:
+
+- Captured strings render as text, not HTML. A sweep for every raw-HTML sink across the
+  codebase found no injection path for response bodies.
+- The extension CSP has no `unsafe-eval`, and there is no `externally_connectable`.
 - Command execution is session-scoped and result-bounded.
-- Captured strings render as text, not HTML.
-- Large and circular values serialize safely.
+- Large and circular values serialize safely in the panel.
 - No Google Fonts, CDN scripts, or remote UI assets.
 - Shadow DOM tokens are defined with `:host`, not `:root`.
+- Sensitive request headers are redacted in the page realm before entries leave it —
+  verified end-to-end, not just asserted against the source.
+
+What does not, and is **open**:
+
+- **The MAIN world is not a security boundary.** The bridge token, console session
+  nonce and decrypt hook all live on the page's own `window`, so a hostile page can
+  read or replace them — disabling capture silently, injecting fabricated entries, or
+  reading the captured context when you run a console command.
+- **Header redaction is a denylist**, so it cannot cover every auth scheme, and it does
+  not touch URLs or request bodies.
+- **The `debugger` permission is the primary console path**, not a fallback.
+
+These are documented rather than hidden. See the threat model for the full set and the
+intended direction on each.
 
 ## Design Tokens
 
@@ -379,4 +414,4 @@ foreach ($file in $files) {
 
 ## License
 
-This repository currently uses the `ISC` license field in `package.json`.
+ISC — see [LICENSE](LICENSE).
