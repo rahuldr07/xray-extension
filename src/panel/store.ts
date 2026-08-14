@@ -401,8 +401,18 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     if (!restored.length) return;
     const maxEntries = Math.max(50, Math.min(5000, Number(get().settings.maxEntries) || MAX_ENTRIES));
     const existing = new Set(get().entries.map((entry) => entry.id));
-    const merged = [...restored.filter((entry) => !existing.has(entry.id)), ...get().entries].slice(-maxEntries);
-    set({ entries: merged });
+    const fresh = restored.filter((entry) => !existing.has(entry.id));
+    const merged = [...fresh, ...get().entries].slice(-maxEntries);
+    // Console events have to be rebuilt here too. addEntries derives them from every
+    // entry it accepts, but this path used to set `entries` alone — so after a session
+    // restore or a HAR import the API and Logs tabs were populated while the Console
+    // tab, which reads consoleEvents and nothing else, rendered "No network activity
+    // yet". Console is the default tab, so that was the first thing shown on reopen.
+    const restoredEvents = fresh.map(entryToConsoleEvent);
+    set({
+      entries: merged,
+      consoleEvents: [...restoredEvents, ...get().consoleEvents].slice(-MAX_CONSOLE_EVENTS),
+    });
   },
   addRule: (rule) => {
     const created = normalizeRule({ ...defaultRule(), ...(rule || {}) });

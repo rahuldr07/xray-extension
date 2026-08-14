@@ -111,10 +111,19 @@ test('global search finds text across every captured URL, header, and body', () 
   assert.match(app, /<GlobalSearch \/>/);
   assert.match(component, /searchEntries\(entries, query, \{ regex, caseSensitive \}\)/);
 
-  // Ctrl/Cmd+Shift+F shortcut + Escape layering + command-palette entry
-  assert.match(main, /event\.shiftKey && key === 'f'/);
-  assert.match(main, /store\.globalSearchOpen\) store\.setGlobalSearchOpen\(false\)/);
+  // Ctrl/Cmd+Shift+F shortcut + Escape layering + command-palette entry.
+  // These moved out of main.tsx into runtime/panelKeyboard.ts: the pop-out mounts
+  // through window-main.tsx, which never called main.tsx's copy, so Ctrl+K and
+  // Ctrl+Shift+F were dead there. Both entrypoints now install the shared handler.
+  const keyboard = read('src/panel/runtime/panelKeyboard.ts');
+  assert.match(keyboard, /event\.shiftKey && key === 'f'/);
+  assert.match(keyboard, /store\.globalSearchOpen\) store\.setGlobalSearchOpen\(false\)/);
   assert.match(palette, /setGlobalSearchOpen\(true\)/);
+  assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
+  // The pop-out is a standalone surface: Escape must not dismiss the panel itself,
+  // because nothing would be left and there is no way to reopen it.
+  assert.match(read('src/panel/window-main.tsx'), /installPanelKeyboard\(\{ dismissible: false \}\)/);
+  assert.match(keyboard, /dismissible && store\.open && !store\.devtoolsMode/);
 });
 
 test('new panel surfaces are wired into the app shell and tabs', () => {

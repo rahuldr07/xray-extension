@@ -167,8 +167,15 @@ test('injected side panel is resizable, dockable, persisted, and dismissible', (
   assert.match(shell, /const dockable = mode === 'hud'/);
   assert.match(hud, /xray-mode-hud \.xray-resize-handle/);
 
-  // Escape dismisses the docked panel (but not devtools/window), with focus returned to the page
-  assert.match(main, /store\.open && !store\.devtoolsMode\) store\.setOpen\(false\)/);
+  // Escape dismisses the docked panel (but not devtools/window), with focus returned to
+  // the page. The handler moved to runtime/panelKeyboard.ts so the pop-out could share
+  // it — the dismissal is now additionally gated on a `dismissible` flag, which only the
+  // injected side panel passes as true.
+  assert.match(
+    read('src/panel/runtime/panelKeyboard.ts'),
+    /dismissible && store\.open && !store\.devtoolsMode\) store\.setOpen\(false\)/,
+  );
+  assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
   assert.match(read('src/panel/store.ts'), /_lastPageFocus/);
 
   // the host is hardened against page CSS that would break fixed positioning
