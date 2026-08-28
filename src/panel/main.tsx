@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { App } from './App';
 import { createPanelApi } from './bridge/panelApi';
 import { isolatePanelEvents } from './runtime/eventIsolation';
+import { installPanelKeyboard } from './runtime/panelKeyboard';
 import { usePanelStore } from './store';
 import type { XrayAppMode, XrayPanelInitOptions } from './types';
 import tokensCss from './styles/tokens.css?inline';
@@ -91,39 +92,10 @@ function createPlainMount(options: XrayPanelInitOptions): HTMLElement {
   return node;
 }
 
-function installKeyboard(): void {
-  document.addEventListener('keydown', (event) => {
-    const key = event.key?.toLowerCase();
-    if ((event.ctrlKey || event.metaKey) && key === 'k') {
-      event.preventDefault();
-      usePanelStore.getState().setCommandOpen(true);
-    }
-    if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'f') {
-      event.preventDefault();
-      usePanelStore.getState().setGlobalSearchOpen(true);
-    }
-    if (key === 'escape') {
-      const store = usePanelStore.getState();
-      if (store.pendingConfirmation) store.closeConfirmation();
-      else if (store.exportOpen) store.setExportOpen(false);
-      else if (store.commandOpen) store.setCommandOpen(false);
-      else if (store.globalSearchOpen) store.setGlobalSearchOpen(false);
-      else if (store.settingsOpen) store.setSettingsOpen(false);
-      else if (store.replayEditorEntry) store.closeReplayEditor();
-      // The detail drawer closes before the panel itself does (and this is the
-      // only Escape layer that also works in devtools/window mode).
-      else if (store.apiDetailOpen && store.activeTab === 'api') store.setApiDetailOpen(false);
-      // Nothing layered on top: Escape dismisses the docked side panel itself.
-      // Devtools/window views persist (they aren't dismissible this way).
-      else if (store.open && !store.devtoolsMode) store.setOpen(false);
-    }
-  }, true);
-}
-
 async function init(options: XrayPanelInitOptions = {}): Promise<void> {
   const alreadyInitialized = initialized;
   if (!initialized) {
-    installKeyboard();
+    installPanelKeyboard({ dismissible: true });
   }
   initialized = true;
 

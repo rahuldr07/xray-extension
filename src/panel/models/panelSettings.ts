@@ -23,6 +23,52 @@ export const PANEL_ACCENT_VALUES: Record<PanelAccent, string> = {
   coral: '#d97757',
 };
 
+/**
+ * Accents for light backgrounds.
+ *
+ * The values above are pastels chosen for the dark themes, and the accent is applied as
+ * an INLINE custom property, so it outranks every `.xray-theme-*` block and followed the
+ * user onto Light Lab and Claude unchanged. Measured there, the pastels land at 1.33–2.80
+ * contrast: the primary button reads as blank, and the focus ring — which needs 3:1 under
+ * WCAG 1.4.11 — becomes untrackable, so keyboard focus is effectively invisible.
+ *
+ * These darker equivalents measure 3.79–4.85 against both light theme backgrounds.
+ */
+export const PANEL_ACCENT_VALUES_LIGHT: Record<PanelAccent, string> = {
+  blue: '#1e66f5',
+  mauve: '#8839ef',
+  teal: '#0f7a80',
+  green: '#2f8a1f',
+  peach: '#c4560a',
+  coral: '#b84a24',
+};
+
+const LIGHT_PRESETS: ReadonlySet<PanelTheme> = new Set<PanelTheme>(['light-lab', 'claude']);
+
+// Relative luminance, so a custom theme is classified by its actual background rather
+// than by name. Kept local to avoid importing the colour module for four lines.
+function isLightHex(hex: string): boolean {
+  const value = hex.replace('#', '');
+  if (value.length !== 6) return false;
+  const channels = [0, 2, 4].map((i) => {
+    const c = parseInt(value.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const [r, g, b] = channels as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35;
+}
+
+export function isLightTheme(settings: PanelSettings): boolean {
+  if (settings.theme === 'custom') return isLightHex(settings.customTheme?.bg ?? '');
+  return LIGHT_PRESETS.has(settings.theme);
+}
+
+/** The accent actually applied as `--xray-accent`, darkened for light backgrounds. */
+export function resolveAccentValue(settings: PanelSettings): string {
+  const palette = isLightTheme(settings) ? PANEL_ACCENT_VALUES_LIGHT : PANEL_ACCENT_VALUES;
+  return palette[settings.accent] ?? palette.blue;
+}
+
 export const PANEL_FONT_VALUES: Record<PanelFont, string> = {
   jetbrains: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
   cascadia: "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', monospace",

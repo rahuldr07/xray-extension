@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePanelStore } from './store';
-import { PANEL_ACCENT_VALUES, PANEL_FONT_VALUES } from './models/panelSettings';
+import { PANEL_FONT_VALUES, resolveAccentValue } from './models/panelSettings';
 import { buildCustomThemeVars } from './models/customTheme';
 import { EntriesWorkspace } from './components/api/EntriesWorkspace';
 import { ConsoleWorkspace } from './components/console/ConsoleWorkspace';
@@ -27,7 +27,7 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   // from the `.xray-theme-*` CSS block (which now keys off this class); the custom
   // theme supplies them inline.
   const themeVars = {
-    '--xray-accent': PANEL_ACCENT_VALUES[settings.accent],
+    '--xray-accent': resolveAccentValue(settings),
     '--xray-font': PANEL_FONT_VALUES[settings.font],
     '--xray-radius': `${settings.radius}px`,
     ...(settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {}),

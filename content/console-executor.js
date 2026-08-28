@@ -105,7 +105,15 @@
 
     if (event.data.type === 'XRAY_CONSOLE_SESSION') {
       const { sessionId } = event.data;
-      if (typeof sessionId === 'string' && sessionId.startsWith('xray_console_')) {
+      // First write wins, matching the bridge-token handshake in content.js. Assigning
+      // unconditionally let any page script overwrite the live session id, after which
+      // every real XRAY_EXEC_REQUEST failed _sessionOk and was silently dropped —
+      // a one-line permanent denial of service against the console.
+      if (
+        !window.__XRAY_CONSOLE_SESSION &&
+        typeof sessionId === 'string' &&
+        sessionId.startsWith('xray_console_')
+      ) {
         window.__XRAY_CONSOLE_SESSION = sessionId;
       }
       return;

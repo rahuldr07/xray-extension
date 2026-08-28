@@ -372,25 +372,89 @@ async function _callAnthropic(settings, prompt) {
   return text || 'No explanation returned.';
 }
 
-async function _callOpenAI(settings, prompt) {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+// Only these may be reached over plaintext http, so a local model server works while a
+// typo'd public endpoint cannot silently send captured traffic in the clear.
+const AI_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+// A custom endpoint is user-supplied, unlike the two hardcoded providers, so it is
+// validated here in the service worker rather than trusted from the settings page.
+function _resolveCustomEndpoint(rawUrl) {
+  let url;
+  try {
+    url = new URL(String(rawUrl || '').trim());
+  } catch {
+    throw new Error('Custom AI endpoint is not a valid URL.');
+  }
+  const isLocal = AI_LOCAL_HOSTS.has(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocal)) {
+    throw new Error('Custom AI endpoint must use https. Plain http is allowed only for localhost.');
+  }
+  // Accept either a complete endpoint or a base URL, so both
+  // "https://host/v1" and "https://host/v1/chat/completions" work.
+  if (/\/(chat\/completions|completions|messages|responses)\/?$/.test(url.pathname)) return url.toString();
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
+  return url.toString();
+}
+
+// Reads both common response shapes so one code path covers OpenAI-compatible servers
+// and Anthropic-shaped ones without the user having to say which they are.
+function _extractCompletionText(data) {
+  const openAiStyle = data?.choices?.[0]?.message?.content;
+  if (typeof openAiStyle === 'string') return openAiStyle.trim();
+  // Some servers return the older completion shape.
+  const legacy = data?.choices?.[0]?.text;
+  if (typeof legacy === 'string') return legacy.trim();
+  if (Array.isArray(data?.content)) {
+    return data.content.map((part) => part?.text || '').join('').trim();
+  }
+  return '';
+}
+
+// One OpenAI-compatible caller serves both the built-in OpenAI provider and any custom
+// endpoint. That shape is the de facto standard — OpenRouter, Groq, Together, DeepSeek,
+// Mistral, Ollama, LM Studio and vLLM all speak it — which is what makes "bring any
+// API key" work without a per-provider adapter.
+async function _callOpenAiCompatible(settings, prompt, { endpoint, defaultModel }) {
+  const headerName = String(settings.authHeader || 'authorization').trim().toLowerCase() || 'authorization';
+  const prefix = settings.authPrefix === undefined || settings.authPrefix === null ? 'Bearer ' : String(settings.authPrefix);
+  const headers = {
+    'content-type': 'application/json',
+    [headerName]: `${prefix}${settings.apiKey}`,
+  };
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${settings.apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
-      model: settings.model || 'gpt-4o-mini',
+      model: settings.model || defaultModel,
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `OpenAI error ${response.status}`);
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    // A non-JSON body is common from proxies and misconfigured local servers; fall
+    // through to the status-based error below rather than throwing a parse error.
   }
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  return text || 'No explanation returned.';
+  if (!response.ok) {
+    throw new Error(data?.error?.message || data?.message || `AI provider error ${response.status}`);
+  }
+  return _extractCompletionText(data) || 'No explanation returned.';
+}
+
+function _callOpenAI(settings, prompt) {
+  return _callOpenAiCompatible(settings, prompt, {
+    endpoint: 'https://api.openai.com/v1/chat/completions',
+    defaultModel: 'gpt-4o-mini',
+  });
+}
+
+function _callCustomProvider(settings, prompt) {
+  return _callOpenAiCompatible(settings, prompt, {
+    endpoint: _resolveCustomEndpoint(settings.baseUrl),
+    defaultModel: settings.model || '',
+  });
 }
 
 async function _runAiExplain(settings, prompt) {
@@ -398,9 +462,17 @@ async function _runAiExplain(settings, prompt) {
     return { ok: false, error: 'Missing API key.' };
   }
   const safePrompt = String(prompt || '').slice(0, MAX_AI_PROMPT_CHARS);
-  const provider = settings.provider === 'openai' ? 'openai' : 'anthropic';
+  const provider = settings.provider === 'openai' || settings.provider === 'custom' ? settings.provider : 'anthropic';
+  if (provider === 'custom' && !settings.baseUrl) {
+    return { ok: false, error: 'Custom provider needs an endpoint URL.' };
+  }
   try {
-    const call = provider === 'openai' ? _callOpenAI(settings, safePrompt) : _callAnthropic(settings, safePrompt);
+    const call =
+      provider === 'custom'
+        ? _callCustomProvider(settings, safePrompt)
+        : provider === 'openai'
+          ? _callOpenAI(settings, safePrompt)
+          : _callAnthropic(settings, safePrompt);
     const text = await Promise.race([
       call,
       new Promise((_, reject) => setTimeout(() => reject(new Error(`AI request timed out after ${AI_TIMEOUT_MS / 1000}s`)), AI_TIMEOUT_MS)),
@@ -460,6 +532,14 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // Keep service worker alive for message relaying (Phase 4: DevTools bridge)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Only accept messages from this extension's own surfaces. There is no
+  // externally_connectable, so a web page cannot reach here directly, but this makes
+  // the assumption explicit rather than inherited from a manifest omission.
+  if (sender?.id !== chrome.runtime.id) return false;
+  // sendMessage(null) or sendMessage(undefined) from any surface would otherwise throw
+  // inside the listener on the first property access.
+  if (!msg || typeof msg !== 'object') return false;
+
   if (msg.type === 'XRAY_HUD_TOGGLE_ACTIVE') {
     _toggleHudOnBestTab(sender?.tab)
       .then((ok) => sendResponse({ ok }))
@@ -483,7 +563,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // forward to the inspected tab's content script, which posts into the MAIN
   // world with its own bridge token.
   if (msg.type === 'xray:page-bridge') {
-    const tabId = Number(msg.tabId);
+    // A content script may only drive its own tab. Without this, any content script —
+    // and XRAY runs one on every frame of every URL — could push config or a replay
+    // request into any other tab by naming its id. Extension pages (the DevTools
+    // panel, which has no sender.tab) legitimately target the inspected tab, so they
+    // keep supplying it.
+    const senderTabId = sender?.tab?.id;
+    const tabId = Number.isInteger(senderTabId) ? senderTabId : Number(msg.tabId);
     const kind = msg.kind;
     if (!Number.isInteger(tabId) || tabId < 0 || (kind !== 'config' && kind !== 'replay')) {
       sendResponse({ ok: false });

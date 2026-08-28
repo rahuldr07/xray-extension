@@ -1,14 +1,14 @@
 import React from 'react';
 import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { DEFAULT_PANEL_SETTINGS, PANEL_ACCENT_VALUES, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN } from '../../models/panelSettings';
+import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue } from '../../models/panelSettings';
 import { buildSessionSummary } from '../../models/sessionSummary';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { formatBytes } from '../../utils';
 import { XRAY_BUILD, XRAY_VERSION } from '../../version';
 import { panelTabs } from './panelTabs';
 import { ThemeSwitcher } from './ThemeSwitcher';
-import type { XrayAppMode } from '../../types';
+import type { ActiveTab, XrayAppMode } from '../../types';
 
 const modeIconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -140,6 +140,28 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     sendRuntimeMessage({ type: 'XRAY_OPEN_WINDOW' }, 'Pop-out window is available when the extension runtime is loaded.');
   }
 
+  // Arrow keys move between tabs, Home/End jump to the ends — the standard tablist
+  // interaction. Focus follows selection, so activating is a single keypress.
+  function onTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, tabId: ActiveTab): void {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const index = panelTabs.findIndex((tab) => tab.id === tabId);
+    if (index < 0) return;
+    const last = panelTabs.length - 1;
+    const nextIndex =
+      event.key === 'Home' ? 0
+        : event.key === 'End' ? last
+          : event.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+            : (index === last ? 0 : index + 1);
+    const next = panelTabs[nextIndex];
+    if (!next) return;
+    setActiveTab(next.id);
+    // The newly selected tab is the only one with tabIndex 0, so move focus onto it.
+    const root = event.currentTarget.getRootNode() as Document | ShadowRoot;
+    (root.getElementById?.(`xray-tab-${next.id}`) as HTMLElement | null)?.focus();
+  }
+
   // A custom theme is applied purely as inline CSS variables on this element, so
   // it stays scoped to the panel and never affects the host page or the runtime.
   const customVars = settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {};
@@ -147,11 +169,15 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   return (
     <div
       className={`xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ''} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${settings.hacker ? 'xray-hacker' : ''} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
-      style={{ '--xray-accent': PANEL_ACCENT_VALUES[settings.accent], '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
+      style={{ '--xray-accent': resolveAccentValue(settings), '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
     >
       {dockable && (
+        // `resize` is a ref, so mutating it never re-renders — reading it here meant the
+        // dragging class only appeared when some unrelated state change happened to
+        // re-render. `dragWidth` is the state counterpart, set on pointer-down and
+        // cleared on commit, so it tracks the drag exactly.
         <div
-          className={`xray-resize-handle ${resize.current ? 'dragging' : ''}`}
+          className={`xray-resize-handle ${dragWidth !== null ? 'dragging' : ''}`}
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize panel — drag, or use arrow keys"
@@ -175,9 +201,25 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           <span className="xray-brand-ver" title={`XRAY ${XRAY_VERSION} · built ${XRAY_BUILD}`}>v{XRAY_VERSION}</span>
           <span className={`xray-live-dot ${open ? 'on' : ''}`} />
         </div>
-        <nav className="xray-tabs" aria-label="XRAY panel tabs">
+        {/*
+          A real tablist. These were plain buttons, so the active tab was conveyed by a
+          CSS class alone and a screen reader announced neither which tab was selected
+          nor how many there were. Roving tabindex plus arrow keys is the expected
+          pattern: the group is one tab stop, and arrows move within it.
+        */}
+        <nav className="xray-tabs" role="tablist" aria-label="XRAY panel tabs">
           {panelTabs.map((tab) => (
-            <button key={tab.id} className={`xray-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+            <button
+              key={tab.id}
+              id={`xray-tab-${tab.id}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls="xray-tabpanel"
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              className={`xray-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(event) => onTabKeyDown(event, tab.id)}
+            >
               {tab.icon}
               <span>{tab.label}</span>
               {tab.id === 'api' && apiCount > 0 && <span className="xray-badge">{apiCount}</span>}
@@ -217,22 +259,29 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           </div>
         )}
       </header>
-      <main className="xray-body">{children}</main>
-      {toastMessage && (
-        <button
-          className="xray-toast"
-          onClick={clearToast}
-          onMouseEnter={() => setToastPaused(true)}
-          onMouseLeave={() => setToastPaused(false)}
-          onFocus={() => setToastPaused(true)}
-          onBlur={() => setToastPaused(false)}
-          role="status"
-          aria-live="polite"
-          aria-label="Dismiss notification"
-        >
-          {toastMessage}
-        </button>
-      )}
+      <main className="xray-body" id="xray-tabpanel" role="tabpanel" aria-labelledby={`xray-tab-${activeTab}`}>
+        {children}
+      </main>
+      {/*
+        The live region is always mounted, and only its contents change. Injecting a
+        region together with its first message is unreliably announced — assistive tech
+        has to be observing the region before the text lands in it.
+      */}
+      <div className="xray-toast-region" role="status" aria-live="polite" aria-atomic="true">
+        {toastMessage && (
+          <button
+            className="xray-toast"
+            onClick={clearToast}
+            onMouseEnter={() => setToastPaused(true)}
+            onMouseLeave={() => setToastPaused(false)}
+            onFocus={() => setToastPaused(true)}
+            onBlur={() => setToastPaused(false)}
+            aria-label="Dismiss notification"
+          >
+            {toastMessage}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

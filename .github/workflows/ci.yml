@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes an in-flight run redundant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20.11 is the floor declared in package.json engines; 22 is what the repo
+        # is developed against. Both are tested so the floor stays honest.
+        node: ['20.11', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      # Thresholds sit just under the current numbers so coverage cannot quietly
+      # regress. Note this measures src/panel only: the vanilla capture runtime is
+      # loaded through vm.runInContext, which Node's coverage does not instrument.
+      - name: Coverage thresholds
+        if: matrix.node == '22'
+        run: npm run test:coverage
+
+  dist-sync:
+    name: Committed bundles match source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # dist/ is committed and loaded directly by the unpacked extension, so a
+      # stale bundle ships broken behaviour even when the source is correct.
+      - name: Verify dist/ is not stale
+        run: node scripts/check-dist-sync.mjs
+
+  reproducible-build:
+    name: Build is reproducible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build twice with a pinned timestamp and compare
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH=1700000000
+          npm run build
+          find dist -type f -name '*.js' -exec sha256sum {} + | sort > /tmp/build-a.txt
+          npm run build
+          find dist -type f -name '*.js' -exec sha256sum {} + | sort > /tmp/build-b.txt
+          if ! diff -u /tmp/build-a.txt /tmp/build-b.txt; then
+            echo "Build is not reproducible: identical inputs produced different bundles."
+            exit 1
+          fi
+          echo "Build is reproducible."
+
+  e2e:
+    name: End-to-end capture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Must be the full Chromium build, not the headless shell — the shell cannot
+      # load extensions, and the MV3 service worker simply never registers.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Load the unpacked extension and capture real traffic
+        run: npm run test:e2e
+
+  package:
+    name: Package extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build the release archive
+        run: node scripts/package-extension.mjs
+      - name: Verify the archive is loadable and carries no source
+        run: |
+          set -euo pipefail
+          zip=$(ls release/*.zip)
+          python3 - "$zip" <<'PY'
+          import sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          bad = z.testzip()
+          assert bad is None, f"corrupt entry: {bad}"
+          names = z.namelist()
+          assert 'manifest.json' in names, "manifest.json missing from archive"
+          forbidden = {'node_modules', '.git', 'src', 'test', 'docs', 'output', 'preview', 'release'}
+          leaked = forbidden & {n.split('/')[0] for n in names}
+          assert not leaked, f"forbidden paths in archive: {leaked}"
+          print(f"archive OK — {len(names)} files")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xray-extension
+          path: release/*.zip
+          if-no-files-found: error

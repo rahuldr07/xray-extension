@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # React and its types move together; separate PRs for them just create
+      # transient type mismatches that fail CI for no useful reason.
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
+      # Likewise for the lint toolchain, which is peer-dependency sensitive.
+      lint:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier*']
+      build:
+        patterns: ['vite', '@vitejs/*', 'esbuild', 'typescript']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

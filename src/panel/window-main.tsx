@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { usePanelStore } from './store';
 import { decodeTheme, themePackageToSettings } from './models/customTheme';
+import { installPanelKeyboard } from './runtime/panelKeyboard';
 import tokensCss from './styles/tokens.css?inline';
 import appCss from './styles.css?inline';
 
@@ -33,6 +34,9 @@ if (root) {
     usePanelStore.getState().setOpen(true);
     usePanelStore.getState().setDevtoolsMode(false);
     usePanelStore.getState().setInitialized(true);
+    // The pop-out is a standalone surface, so Escape must not dismiss the panel —
+    // there would be nothing left and no way to bring it back.
+    installPanelKeyboard({ dismissible: false });
     createRoot(root).render(<App mode="window" />);
   })();
 }

@@ -232,7 +232,7 @@
   function _emit(level, args) {
     const id = _uid();
     let data;
-    let objectRefs = [];
+    const objectRefs = [];
     
     if (args.length === 0) {
       data = null;
@@ -323,6 +323,10 @@
   // ═══════════════════════════════════════════════════════════════════════════
 
   window.addEventListener('message', (e) => {
+    // Every other bridge listener rejects messages that did not come from this window
+    // (interceptor.js, content.js, console-executor.js all do). This one was missed;
+    // without it a cross-origin frame or opener can address the handler directly.
+    if (e.source !== window) return;
     if (!e.data?.__xray_fetch_object__) return;
     if (e.data.token !== _bridgeToken) return;
     

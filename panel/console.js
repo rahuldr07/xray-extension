@@ -12,8 +12,8 @@ window.XRAY_Console = (() => {
   let _pins = {};
   let _scope = {};
   let _evalId = 0;
-  let _pendingEvals = new Map();
-  let _sessionId = 'xray_console_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
+  const _pendingEvals = new Map();
+  const _sessionId = 'xray_console_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
   let _initialized = false;
 
   function init() {

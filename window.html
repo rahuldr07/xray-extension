@@ -5,13 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>XRAY</title>
   <style>
+    /* The panel declares its tokens on #xray-window-root and the theme class on a
+       display:contents child of it, so custom properties never reach html/body —
+       they inherit downward only. A frozen Catppuccin #1e1e2e therefore showed a
+       dark slab (on load, on overscroll, behind translucent chrome) next to a
+       light panel in Light Lab / Claude.
+
+       :has() lets the document read the theme back off the mounted subtree. The
+       values below mirror the --xray-bg of each .xray-theme-* block in
+       src/panel/styles.css — keep them in step. */
+    :root { --xray-window-bg: #1e1e2e; }
+    :root:has(.xray-theme-operator) { --xray-window-bg: #0b0f14; }
+    :root:has(.xray-theme-dev-edition) { --xray-window-bg: #11131f; }
+    :root:has(.xray-theme-midnight) { --xray-window-bg: #05070a; }
+    :root:has(.xray-theme-light-lab) { --xray-window-bg: #edf3fb; }
+    :root:has(.xray-theme-claude) { --xray-window-bg: #f0eee6; }
+
     html,
     body {
       width: 100%;
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #1e1e2e;
+      background: var(--xray-window-bg);
     }
 
     #xray-window-root {

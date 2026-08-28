@@ -306,7 +306,7 @@ function NetworkTable(): React.ReactElement {
   const lastTotalRef = useRef(0);
   const didInitRef = useRef(false);
   const pinTimerRef = useRef(0);
-  const filterKeyRef = useRef(`${networkFilter} ${searchQuery}`);
+  const filterKeyRef = useRef(`${networkFilter}\u0000${searchQuery}`);
   const [pinnedUi, setPinnedUi] = useState(false);
   const [newCount, setNewCount] = useState(0);
   // Shared time axis for the waterfall: every bar is positioned against the same

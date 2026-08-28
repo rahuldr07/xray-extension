@@ -10,7 +10,7 @@
 
 .xray-app-root *,
 .xray-hud * {
-  scrollbar-color: rgba(108, 112, 134, .62) rgba(var(--xray-bg-rgb), .44);
+  scrollbar-color: color-mix(in srgb, var(--xray-hint) 62%, transparent) rgba(var(--xray-bg-rgb), .44);
   scrollbar-width: thin;
   /* Absorb overscroll inside the panel so scrolling a list/detail to its edge
      never chains through to the website behind an injected side panel or HUD. */
@@ -32,12 +32,12 @@
 .xray-hud *::-webkit-scrollbar-thumb {
   border: 2px solid rgba(var(--xray-bg-rgb), .44);
   border-radius: 999px;
-  background: rgba(108, 112, 134, .72);
+  background: color-mix(in srgb, var(--xray-hint) 72%, transparent);
 }
 
 .xray-app-root *::-webkit-scrollbar-thumb:hover,
 .xray-hud *::-webkit-scrollbar-thumb:hover {
-  background: rgba(137, 180, 250, .72);
+  background: color-mix(in srgb, var(--xray-blue) 72%, transparent);
 }
 
 .xray-panel {
@@ -59,7 +59,7 @@
   flex-direction: column;
   color: var(--xray-text);
   background: var(--xray-bg);
-  border-left: 1px solid rgba(108, 112, 134, .42);
+  border-left: 1px solid color-mix(in srgb, var(--xray-hint) 42%, transparent);
   box-shadow: -20px 0 80px rgba(0, 0, 0, .38);
   font: 12px/1.45 var(--xray-font);
   overflow: hidden;
@@ -72,7 +72,7 @@
   right: auto;
   left: 0;
   border-left: 0;
-  border-right: 1px solid rgba(108, 112, 134, .42);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 42%, transparent);
   box-shadow: 20px 0 80px rgba(0, 0, 0, .38);
 }
 
@@ -125,7 +125,7 @@
   height: 44px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
-  background: var(--xray-hint, rgba(120, 130, 150, .5));
+  background: var(--xray-hint);
   opacity: 0;
   transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
 }
@@ -151,7 +151,7 @@
   gap: 2px;
   margin-left: 2px;
   padding-left: 6px;
-  border-left: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border-left: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent));
 }
 
 .xray-close-btn:hover {
@@ -184,6 +184,8 @@
   --xray-green: #38f29b;
   --xray-yellow: #f6c76f;
   --xray-red: #ff5c7a;
+  --xray-teal: #2ee6c5;
+  --xray-peach: #ff9e64;
   --xray-border: rgba(80, 114, 148, .42);
   --xray-operator-grid: rgba(55, 213, 255, .035);
 }
@@ -205,6 +207,8 @@
   --xray-green: #62e6a8;
   --xray-yellow: #ffd37a;
   --xray-red: #ff6f91;
+  --xray-teal: #5fe3d0;
+  --xray-peach: #ffab70;
   --xray-border: rgba(124, 138, 189, .36);
   --xray-operator-grid: rgba(177, 140, 255, .04);
 }
@@ -226,6 +230,8 @@
   --xray-green: #00ff95;
   --xray-yellow: #ffd166;
   --xray-red: #ff3b6b;
+  --xray-teal: #00e5c7;
+  --xray-peach: #ff9e5e;
   --xray-border: rgba(0, 229, 255, .28);
   --xray-operator-grid: rgba(0, 229, 255, .045);
 }
@@ -245,8 +251,10 @@
   --xray-blue: #006adc;
   --xray-mauve: #7048e8;
   --xray-green: #087f5b;
-  --xray-yellow: #b7791f;
-  --xray-red: #d6336c;
+  --xray-yellow: #8f6212;
+  --xray-red: #b5195a;
+  --xray-teal: #0b7285;
+  --xray-peach: #c2410c;
   --xray-border: rgba(82, 97, 115, .28);
   --xray-operator-grid: rgba(0, 106, 220, .035);
 }
@@ -266,9 +274,9 @@
   --xray-blue: #4a6fa5;
   --xray-mauve: #8a5cc4;
   --xray-green: #3f8a4f;
-  --xray-yellow: #a9791c;
+  --xray-yellow: #8a6215;
   --xray-red: #c0392b;
-  --xray-teal: #2e8b8b;
+  --xray-teal: #1c6b6b;
   --xray-peach: #d97757;
   --xray-border: rgba(60, 55, 48, .18);
   --xray-operator-grid: rgba(217, 119, 87, .05);
@@ -345,7 +353,7 @@
   gap: 8px;
   padding: 0 10px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
   flex-shrink: 0;
 }
@@ -460,7 +468,7 @@
   padding: 0 5px;
   border-radius: 999px;
   color: var(--xray-text);
-  background: rgba(108, 112, 134, .28);
+  background: color-mix(in srgb, var(--xray-hint) 28%, transparent);
   font-size: 9px;
 }
 
@@ -503,7 +511,7 @@
   display: flex;
   align-items: center;
   min-height: 44px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-surface);
 }
 
@@ -513,7 +521,7 @@
   align-items: center;
   gap: 7px;
   padding: 0 16px;
-  border-right: 1px solid rgba(108, 112, 134, .28);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 28%, transparent);
   border-bottom: 2px solid transparent;
 }
 
@@ -536,7 +544,7 @@
   align-items: center;
   gap: 7px;
   padding: 0 12px;
-  border-color: rgba(108, 112, 134, .5);
+  border-color: color-mix(in srgb, var(--xray-hint) 50%, transparent);
   border-radius: var(--xray-radius);
   background: rgba(var(--xray-surface-rgb), .74);
   color: var(--xray-text);
@@ -550,8 +558,8 @@
 
 .xray-btn.danger {
   color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .42);
-  background: rgba(243, 139, 168, .08);
+  border-color: color-mix(in srgb, var(--xray-red) 42%, transparent);
+  background: color-mix(in srgb, var(--xray-red) 8%, transparent);
 }
 
 .xray-icon-btn {
@@ -566,7 +574,7 @@
   gap: 8px;
   padding: 12px;
   background: var(--xray-surface);
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
 }
 
 .xray-search {
@@ -585,7 +593,7 @@
 .xray-input {
   width: 100%;
   height: 40px;
-  border: 1px solid rgba(108, 112, 134, .55);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 55%, transparent);
   border-radius: var(--xray-radius);
   outline: none;
   padding: 0 12px 0 38px;
@@ -619,7 +627,7 @@
   align-items: center;
   gap: 7px;
   padding: 0 14px;
-  border-color: rgba(108, 112, 134, .5);
+  border-color: color-mix(in srgb, var(--xray-hint) 50%, transparent);
   border-radius: var(--xray-radius);
   white-space: nowrap;
 }
@@ -634,7 +642,7 @@
   position: relative;
   min-height: 180px;
   max-height: min(44vh, 380px);
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-bg);
   overflow: hidden;
 }
@@ -709,7 +717,11 @@
 
 .xray-path {
   min-width: 0;
-  color: #b4befe;
+  /* Inside the panel this is overridden by `.xray-panel .xray-path` below, which
+     is why the Catppuccin lavender that used to sit here was invisible in an
+     audit of the rendered UI — it only ever painted outside a .xray-panel
+     ancestor. Same formula as that rule so the two cannot drift apart. */
+  color: color-mix(in srgb, var(--xray-text) 86%, var(--xray-accent, var(--xray-mauve)) 14%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -729,7 +741,7 @@
 .xray-bar-track {
   height: 4px;
   border-radius: 999px;
-  background: rgba(108, 112, 134, .34);
+  background: color-mix(in srgb, var(--xray-hint) 34%, transparent);
   overflow: hidden;
 }
 
@@ -802,8 +814,8 @@
   margin-left: 8px;
   padding: 1px 7px;
   border-radius: 999px;
-  border: 1px solid rgba(249, 226, 175, .5);
-  background: rgba(249, 226, 175, .12);
+  border: 1px solid color-mix(in srgb, var(--xray-yellow) 50%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 12%, transparent);
   color: var(--xray-yellow);
   font-size: 10px;
   font-weight: 800;
@@ -854,7 +866,7 @@
   /* Denser rows for a log stream where scan-density matters (research). */
   min-height: 26px;
   padding: 4px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .16);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 16%, transparent);
 }
 
 /* Right-side cell: optional source location + timestamp. Timestamps read as
@@ -890,13 +902,13 @@
 
 .xray-console-row.error {
   color: var(--xray-red);
-  background: rgba(243, 139, 168, .08);
+  background: color-mix(in srgb, var(--xray-red) 8%, transparent);
   border-left: 2px solid var(--xray-red);
 }
 
 .xray-console-row.warn {
   color: var(--xray-yellow);
-  background: rgba(249, 226, 175, .07);
+  background: color-mix(in srgb, var(--xray-yellow) 7%, transparent);
   border-left: 2px solid var(--xray-yellow);
 }
 
@@ -953,7 +965,7 @@
   max-height: 360px;
   overflow: auto;
   padding: 10px;
-  border: 1px solid rgba(108, 112, 134, .35);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   border-radius: var(--xray-radius);
   background: rgba(var(--xray-surface-rgb), .72);
 }
@@ -964,7 +976,7 @@
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
-  border-top: 1px solid rgba(108, 112, 134, .35);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-surface);
   flex-shrink: 0;
 }
@@ -972,7 +984,7 @@
 .xray-prompt input,
 .xray-prompt textarea {
   min-height: 34px;
-  border: 1px solid rgba(108, 112, 134, .55);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 55%, transparent);
   border-radius: var(--xray-radius);
   outline: none;
   padding: 9px 10px;
@@ -990,10 +1002,10 @@
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
-  border: 1px solid rgba(137, 180, 250, .5);
+  border: 1px solid color-mix(in srgb, var(--xray-blue) 50%, transparent);
   border-radius: 999px;
   color: var(--xray-text);
-  background: rgba(137, 180, 250, .12);
+  background: color-mix(in srgb, var(--xray-blue) 12%, transparent);
   cursor: pointer;
   font: inherit;
   overflow: hidden;
@@ -1010,7 +1022,7 @@
   padding: 0 10px;
   color: var(--xray-subtext);
   background: var(--xray-bg);
-  border-top: 1px solid rgba(108, 112, 134, .35);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   font-size: 10px;
   font-weight: 900;
 }
@@ -1055,7 +1067,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(108, 112, 134, .35);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   overflow: hidden;
 }
 
@@ -1069,9 +1081,9 @@
   display: grid;
   gap: 8px;
   padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background:
-    radial-gradient(circle at top left, rgba(203, 166, 247, .10), transparent 36%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--xray-mauve) 10%, transparent), transparent 36%),
     var(--xray-surface);
 }
 
@@ -1080,7 +1092,7 @@
   grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);
   gap: 6px;
   padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-bg);
 }
 
@@ -1092,7 +1104,7 @@
   align-content: center;
   gap: 2px;
   padding: 7px 9px;
-  border: 1px solid rgba(108, 112, 134, .30);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   border-radius: var(--xray-radius);
   background: rgba(var(--xray-surface-rgb), .64);
 }
@@ -1209,7 +1221,7 @@
   height: 46px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
-  background: var(--xray-hint, rgba(120, 130, 150, .5));
+  background: var(--xray-hint);
   opacity: 0;
   transition: opacity var(--xray-dur-fast, .12s) ease, background var(--xray-dur-fast, .12s) ease;
 }
@@ -1229,7 +1241,7 @@
 }
 
 .xray-api-collection-pane {
-  border-right: 1px solid rgba(108, 112, 134, .35);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-bg-rgb), .42);
 }
 
@@ -1238,9 +1250,9 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .32);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
   background:
-    radial-gradient(circle at 20% -20%, rgba(137, 180, 250, .15), transparent 42%),
+    radial-gradient(circle at 20% -20%, color-mix(in srgb, var(--xray-blue) 15%, transparent), transparent 42%),
     rgba(var(--xray-surface-rgb), .88);
 }
 
@@ -1275,10 +1287,10 @@
   align-items: center;
   gap: 6px;
   padding: 0 9px;
-  border: 1px solid rgba(148, 226, 213, .30);
+  border: 1px solid color-mix(in srgb, var(--xray-teal) 30%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-teal);
-  background: rgba(148, 226, 213, .08);
+  background: color-mix(in srgb, var(--xray-teal) 8%, transparent);
   font-size: 10px;
   font-weight: 900;
 }
@@ -1309,7 +1321,7 @@
   align-items: center;
   gap: 1px 6px;
   padding: 5px 7px;
-  border: 1px solid rgba(108, 112, 134, .30);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   border-radius: var(--xray-radius);
   background: rgba(var(--xray-bg-rgb), .66);
 }
@@ -1365,7 +1377,7 @@
   grid-template-columns: 1fr;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .72);
 }
 
@@ -1417,7 +1429,7 @@
   z-index: 2;
   height: 30px;
   padding: 0 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   color: var(--xray-hint);
   background: rgba(var(--xray-surface-rgb), .96);
   font: 900 10px/1 var(--xray-font);
@@ -1437,7 +1449,7 @@
   width: 100%;
   min-height: 68px;
   padding: 9px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .18);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 18%, transparent);
   color: var(--xray-text);
   background: transparent;
   cursor: pointer;
@@ -1463,11 +1475,11 @@
 }
 
 .xray-api-row.has-error {
-  box-shadow: inset 2px 0 0 rgba(243, 139, 168, .82);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--xray-red) 82%, transparent);
 }
 
 .xray-api-row.has-slow:not(.has-error) {
-  box-shadow: inset 2px 0 0 rgba(249, 226, 175, .72);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--xray-yellow) 72%, transparent);
 }
 
 .xray-api-row.selected.has-error,
@@ -1488,7 +1500,7 @@
 }
 
 .xray-api-row.pinned {
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .10), transparent 52%);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--xray-yellow) 10%, transparent), transparent 52%);
 }
 
 .xray-api-path-cell {
@@ -1514,7 +1526,7 @@
   min-width: 0;
   max-width: 78px;
   padding: 3px 6px;
-  border: 1px solid rgba(108, 112, 134, .36);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 36%, transparent);
   border-radius: 999px;
   color: var(--xray-subtext);
   background: rgba(var(--xray-surface-rgb), .72);
@@ -1540,28 +1552,28 @@
 
 .xray-api-flag.error {
   color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .38);
-  background: rgba(243, 139, 168, .10);
+  border-color: color-mix(in srgb, var(--xray-red) 38%, transparent);
+  background: color-mix(in srgb, var(--xray-red) 10%, transparent);
 }
 
 .xray-api-flag.slow,
 .xray-api-flag.repeated,
 .xray-api-flag.large {
   color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .34);
-  background: rgba(249, 226, 175, .10);
+  border-color: color-mix(in srgb, var(--xray-yellow) 34%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
 }
 
 .xray-api-flag.empty {
   color: var(--xray-peach);
-  border-color: rgba(250, 179, 135, .34);
-  background: rgba(250, 179, 135, .10);
+  border-color: color-mix(in srgb, var(--xray-peach) 34%, transparent);
+  background: color-mix(in srgb, var(--xray-peach) 10%, transparent);
 }
 
 .xray-api-flag.pinned {
   color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .36);
-  background: rgba(203, 166, 247, .10);
+  border-color: color-mix(in srgb, var(--xray-mauve) 36%, transparent);
+  background: color-mix(in srgb, var(--xray-mauve) 10%, transparent);
 }
 
 .xray-api-row-actions {
@@ -1586,7 +1598,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(108, 112, 134, .36);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 36%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-subtext);
   background: rgba(var(--xray-surface-rgb), .72);
@@ -1602,7 +1614,7 @@
 }
 
 .xray-request-context-pane {
-  border-right: 1px solid rgba(108, 112, 134, .35);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background:
     linear-gradient(180deg, rgba(var(--xray-surface2-rgb), .30), transparent 160px),
     rgba(var(--xray-surface-rgb), .78);
@@ -1617,7 +1629,7 @@
   display: grid;
   gap: 10px;
   padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
 }
 
 .xray-request-line {
@@ -1635,7 +1647,7 @@
   align-items: center;
   overflow: hidden;
   padding: 0 10px;
-  border: 1px solid rgba(108, 112, 134, .44);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 44%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-text);
   background: rgba(var(--xray-bg-rgb), .76);
@@ -1655,7 +1667,7 @@
   display: grid;
   gap: 2px;
   padding: 7px 8px;
-  border: 1px solid rgba(108, 112, 134, .28);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 28%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-subtext);
   background: rgba(var(--xray-bg-rgb), .48);
@@ -1696,7 +1708,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .30);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   color: var(--xray-hint);
   background: rgba(var(--xray-bg-rgb), .35);
   font-size: 10px;
@@ -1712,7 +1724,7 @@
 .xray-request-tabs {
   flex-shrink: 0;
   padding: 0 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .30);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   background: rgba(var(--xray-bg-rgb), .30);
 }
 
@@ -1740,7 +1752,7 @@
   gap: 7px;
   padding: 8px 10px;
   border: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .20);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 20%, transparent);
   color: var(--xray-text);
   background: transparent;
   cursor: pointer;
@@ -1753,7 +1765,7 @@
 }
 
 .xray-entry-row.selected {
-  background: rgba(137, 180, 250, .16);
+  background: color-mix(in srgb, var(--xray-blue) 16%, transparent);
   box-shadow: inset 3px 0 0 var(--xray-blue);
 }
 
@@ -1763,7 +1775,7 @@
 }
 
 .xray-entry-row.pinned {
-  background-image: linear-gradient(90deg, rgba(249, 226, 175, .08), transparent 45%);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--xray-yellow) 8%, transparent), transparent 45%);
 }
 
 .xray-status-dot {
@@ -1775,17 +1787,17 @@
 
 .xray-status-dot.ok {
   background: var(--xray-green);
-  box-shadow: 0 0 0 3px rgba(166, 227, 161, .12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 12%, transparent);
 }
 
 .xray-status-dot.warn {
   background: var(--xray-yellow);
-  box-shadow: 0 0 0 3px rgba(249, 226, 175, .12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-yellow) 12%, transparent);
 }
 
 .xray-status-dot.error {
   background: var(--xray-red);
-  box-shadow: 0 0 0 3px rgba(243, 139, 168, .12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-red) 12%, transparent);
 }
 
 .xray-entry-main {
@@ -1819,7 +1831,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 8px;
-  border: 1px solid rgba(108, 112, 134, .40);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 40%, transparent);
   border-radius: 999px;
   color: var(--xray-subtext);
   background: rgba(var(--xray-surface-rgb), .74);
@@ -1835,8 +1847,8 @@
 
 .xray-pin.active {
   color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .34);
-  background: rgba(249, 226, 175, .10);
+  border-color: color-mix(in srgb, var(--xray-yellow) 34%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
 }
 
 .xray-detail-panel {
@@ -1858,7 +1870,7 @@
   display: flex;
   flex-direction: column;
   background:
-    linear-gradient(180deg, rgba(203, 166, 247, .06), transparent 220px),
+    linear-gradient(180deg, color-mix(in srgb, var(--xray-mauve) 6%, transparent), transparent 220px),
     var(--xray-bg);
 }
 
@@ -1870,7 +1882,7 @@
   flex-shrink: 0;
   margin: 0;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-surface);
 }
 
@@ -1905,7 +1917,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0 9px;
-  border: 1px solid rgba(108, 112, 134, .32);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-subtext);
   background: rgba(var(--xray-bg-rgb), .68);
@@ -1916,27 +1928,27 @@
 
 .xray-response-chip.ok {
   color: var(--xray-green);
-  border-color: rgba(166, 227, 161, .30);
-  background: rgba(166, 227, 161, .10);
+  border-color: color-mix(in srgb, var(--xray-green) 30%, transparent);
+  background: color-mix(in srgb, var(--xray-green) 10%, transparent);
 }
 
 .xray-response-chip.warn {
   color: var(--xray-yellow);
-  border-color: rgba(249, 226, 175, .30);
-  background: rgba(249, 226, 175, .10);
+  border-color: color-mix(in srgb, var(--xray-yellow) 30%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
 }
 
 .xray-response-chip.error {
   color: var(--xray-red);
-  border-color: rgba(243, 139, 168, .30);
-  background: rgba(243, 139, 168, .10);
+  border-color: color-mix(in srgb, var(--xray-red) 30%, transparent);
+  background: color-mix(in srgb, var(--xray-red) 10%, transparent);
 }
 
 .xray-detail-nav {
   flex-shrink: 0;
   display: grid;
   gap: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .92);
 }
 
@@ -1979,7 +1991,7 @@
 
 .xray-detail-views {
   padding: 7px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .20);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 20%, transparent);
 }
 
 .xray-detail-content {
@@ -1989,7 +2001,7 @@
   overflow: auto;
   padding: 12px;
   background:
-    radial-gradient(circle at 82% 12%, rgba(137, 180, 250, .06), transparent 30%),
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--xray-blue) 6%, transparent), transparent 30%),
     rgba(var(--xray-bg-rgb), .74);
 }
 
@@ -1999,7 +2011,7 @@
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
-  border-top: 1px solid rgba(108, 112, 134, .35);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-surface);
   overflow-x: auto;
 }
@@ -2016,7 +2028,7 @@
   justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  border: 1px solid rgba(108, 112, 134, .42);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 42%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-subtext);
   background: transparent;
@@ -2027,8 +2039,8 @@
 .xray-action-btn:hover,
 .xray-action-btn:focus-visible {
   color: var(--xray-text);
-  border-color: rgba(137, 180, 250, .44);
-  background: rgba(137, 180, 250, .10);
+  border-color: color-mix(in srgb, var(--xray-blue) 44%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 10%, transparent);
 }
 
 .xray-action-btn.primary {
@@ -2042,7 +2054,7 @@
   display: grid;
   gap: 6px;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-bg-rgb), .45);
 }
 
@@ -2082,20 +2094,20 @@
 
 .xray-operation-chip.view {
   color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .28);
-  background: rgba(203, 166, 247, .07);
+  border-color: color-mix(in srgb, var(--xray-mauve) 28%, transparent);
+  background: color-mix(in srgb, var(--xray-mauve) 7%, transparent);
 }
 
 .xray-operation-chip.console {
   color: var(--xray-blue);
-  border-color: rgba(137, 180, 250, .30);
-  background: rgba(137, 180, 250, .08);
+  border-color: color-mix(in srgb, var(--xray-blue) 30%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 8%, transparent);
 }
 
 .xray-operation-chip.snippet {
   color: var(--xray-teal);
-  border-color: rgba(148, 226, 213, .30);
-  background: rgba(148, 226, 213, .08);
+  border-color: color-mix(in srgb, var(--xray-teal) 30%, transparent);
+  background: color-mix(in srgb, var(--xray-teal) 8%, transparent);
 }
 
 .xray-operation-chip.copy {
@@ -2104,8 +2116,8 @@
 
 .xray-operation-chip.export {
   color: var(--xray-peach);
-  border-color: rgba(250, 179, 135, .32);
-  background: rgba(250, 179, 135, .08);
+  border-color: color-mix(in srgb, var(--xray-peach) 32%, transparent);
+  background: color-mix(in srgb, var(--xray-peach) 8%, transparent);
 }
 
 .xray-api-drawer-body .xray-filter-chips {
@@ -2115,7 +2127,7 @@
 
 .xray-card,
 .xray-modal {
-  border: 1px solid rgba(108, 112, 134, .35);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   border-radius: var(--xray-radius);
   background: var(--xray-surface);
 }
@@ -2143,7 +2155,7 @@
 .xray-json-editor {
   min-width: max-content;
   padding: 10px 0;
-  border: 1px solid rgba(108, 112, 134, .22);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 22%, transparent);
   border-radius: var(--xray-radius);
   background:
     linear-gradient(90deg, rgba(var(--xray-bg-rgb), .84) 0 42px, rgba(var(--xray-surface-rgb), .52) 42px),
@@ -2158,7 +2170,7 @@
 }
 
 .xray-json-line:hover {
-  background: rgba(137, 180, 250, .06);
+  background: color-mix(in srgb, var(--xray-blue) 6%, transparent);
 }
 
 .xray-json-line-no {
@@ -2166,7 +2178,7 @@
   color: var(--xray-hint);
   text-align: right;
   user-select: none;
-  border-right: 1px solid rgba(108, 112, 134, .20);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 20%, transparent);
 }
 
 .xray-json-line-text {
@@ -2209,7 +2221,7 @@
 .xray-table th,
 .xray-table td {
   padding: 6px 8px;
-  border: 1px solid rgba(108, 112, 134, .28);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 28%, transparent);
   text-align: left;
   vertical-align: top;
 }
@@ -2266,11 +2278,11 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
 }
 
 .xray-modal-foot {
-  border-top: 1px solid rgba(108, 112, 134, .35);
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   border-bottom: 0;
 }
 
@@ -2309,7 +2321,7 @@
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  border-right: 1px solid rgba(108, 112, 134, .35);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .55);
 }
 
@@ -2358,8 +2370,8 @@
 
 .xray-export-format.active {
   color: var(--xray-text);
-  border-color: rgba(137, 180, 250, .55);
-  background: rgba(137, 180, 250, .13);
+  border-color: color-mix(in srgb, var(--xray-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 13%, transparent);
 }
 
 .xray-export-format:disabled {
@@ -2386,7 +2398,7 @@
   gap: 10px;
   align-items: flex-start;
   padding: 12px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
 }
 
 .xray-export-preview-head h3 {
@@ -2413,7 +2425,7 @@
   width: 100%;
   min-height: 96px;
   resize: vertical;
-  border: 1px solid rgba(108, 112, 134, .5);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 50%, transparent);
   border-radius: var(--xray-radius);
   padding: 10px;
   color: var(--xray-text);
@@ -2428,7 +2440,7 @@
   max-width: min(420px, calc(100% - 28px));
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid rgba(148, 226, 213, .42);
+  border: 1px solid color-mix(in srgb, var(--xray-teal) 42%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-text);
   background: rgba(var(--xray-surface-rgb), .94);
@@ -2459,7 +2471,7 @@
   align-items: center;
   gap: 8px;
   border: 0;
-  border-bottom: 1px solid rgba(108, 112, 134, .20);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 20%, transparent);
   padding: 7px 0;
   color: var(--xray-text);
   background: transparent;
@@ -2508,7 +2520,7 @@
 
 .xray-settings-nav {
   padding: 8px 0;
-  border-right: 1px solid rgba(108, 112, 134, .35);
+  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .72);
 }
 
@@ -2548,7 +2560,7 @@
 .xray-settings-section-title {
   margin: 0 0 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   color: var(--xray-hint);
   font-size: 10px;
   font-weight: 900;
@@ -2563,7 +2575,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(69, 71, 90, .25);
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 25%, transparent));
   color: var(--xray-text);
   font: 800 11px/1.35 var(--xray-font);
 }
@@ -2613,7 +2625,13 @@
 
 .xray-toggle.on::after {
   transform: translateX(16px);
-  background: #fff;
+  /* The "on" track is --xray-accent, which resolveAccentValue() flips between a
+     light pastel (dark themes) and a darkened variant (light themes). --xray-bg
+     inverts with it, so the knob is dark-on-pastel or light-on-ink. Measured
+     against the track: 9.13 on Operator, 8.77 Dev Edition, 9.58 Midnight, where
+     the flat white it replaces managed 2.11. Light Lab/Claude give up a little
+     (4.91 -> 4.40/4.23) because --xray-bg is near-white there anyway. */
+  background: var(--xray-bg);
 }
 
 .xray-number-input {
@@ -2625,7 +2643,7 @@
 .xray-number-input input,
 .xray-select {
   height: 30px;
-  border: 1px solid rgba(108, 112, 134, .45);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 45%, transparent);
   border-radius: var(--xray-radius-sm);
   color: var(--xray-text);
   background: var(--xray-surface2);
@@ -2665,9 +2683,9 @@
 .xray-settings-danger {
   margin-top: 18px;
   padding: 12px;
-  border: 1px solid rgba(243, 139, 168, .22);
+  border: 1px solid color-mix(in srgb, var(--xray-red) 22%, transparent);
   border-radius: var(--xray-radius);
-  background: rgba(243, 139, 168, .04);
+  background: color-mix(in srgb, var(--xray-red) 4%, transparent);
 }
 
 .xray-danger-title {
@@ -2695,7 +2713,7 @@
 }
 
 .xray-danger-row:hover {
-  background: rgba(243, 139, 168, .08);
+  background: color-mix(in srgb, var(--xray-red) 8%, transparent);
 }
 
 .xray-confirm-modal {
@@ -2724,7 +2742,7 @@
 .xray-command-search {
   display: block;
   padding: 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .35);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
 }
 
 .xray-command-list {
@@ -2750,8 +2768,8 @@
 }
 
 .xray-command-row:hover {
-  border-color: rgba(137, 180, 250, .42);
-  background: rgba(137, 180, 250, .10);
+  border-color: color-mix(in srgb, var(--xray-blue) 42%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 10%, transparent);
 }
 
 .xray-command-row small {
@@ -2798,7 +2816,7 @@
     display: flex;
     overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
+    border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   }
 
   .xray-settings-nav-item {
@@ -2820,7 +2838,7 @@
     display: flex;
     gap: 8px;
     border-right: 0;
-    border-bottom: 1px solid rgba(108, 112, 134, .35);
+    border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
     overflow-x: auto;
   }
 
@@ -2994,7 +3012,7 @@
     min-width: 0;
     height: min(68vh, 560px);
     border-left: 0;
-    border-top: 1px solid rgba(137, 180, 250, .34);
+    border-top: 1px solid color-mix(in srgb, var(--xray-blue) 34%, transparent);
     border-radius: var(--xray-radius-lg) var(--xray-radius-lg) 0 0;
     background: var(--xray-surface);
     box-shadow: 0 -22px 44px rgba(0, 0, 0, .28);
@@ -3090,7 +3108,7 @@
     flex-shrink: 0;
     max-height: 38vh;
     overflow: auto;
-    border-top: 1px solid rgba(108, 112, 134, .35);
+    border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
     background: var(--xray-surface);
   }
 
@@ -3180,9 +3198,9 @@
 .xray-panel .xray-card,
 .xray-panel .xray-settings-card,
 .xray-panel .xray-modal-card {
-  border-color: var(--xray-border, rgba(108,112,134,.35));
+  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 18px 50px rgba(0,0,0,.18);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--xray-text) 3.5%, transparent), 0 18px 50px rgba(0,0,0,.18);
 }
 
 .xray-panel .xray-api-row,
@@ -3190,7 +3208,7 @@
 .xray-panel .xray-console-row,
 .xray-panel .xray-log-row {
   min-height: var(--xray-row-h, 52px);
-  border-color: color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
+  border-color: color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent)) 72%, transparent);
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--xray-accent) 2%, transparent));
   transition: background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease;
 }
@@ -3233,7 +3251,7 @@
 .xray-panel input,
 .xray-panel select {
   background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);
-  border-color: var(--xray-border, rgba(108,112,134,.35));
+  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   color: var(--xray-text);
   font-family: var(--xray-font);
 }
@@ -3261,13 +3279,13 @@
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),
     color-mix(in srgb, var(--xray-bg) 86%, black 14%);
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   border-radius: var(--xray-radius);
 }
 
 .xray-panel .xray-json-line-no {
   color: color-mix(in srgb, var(--xray-hint) 82%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 72%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent)) 72%, transparent);
 }
 
 .xray-panel .xray-json-key { color: var(--xray-blue); }
@@ -3282,7 +3300,7 @@
 .xray-panel .xray-api-command-bar,
 .xray-panel .xray-detail-nav {
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 92%, var(--xray-accent) 8%), var(--xray-surface));
-  border-color: var(--xray-border, rgba(108,112,134,.35));
+  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
 }
 
 .xray-panel .xray-detail-tabs button,
@@ -3345,13 +3363,13 @@
 .xray-panel .xray-filterbar {
   gap: 10px;
   padding: 14px;
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   background: color-mix(in srgb, var(--xray-surface) 84%, transparent);
 }
 
 .xray-panel .xray-search {
   min-height: 38px;
-  border: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   border-radius: var(--xray-radius);
   background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);
 }
@@ -3361,7 +3379,7 @@
   min-height: 32px;
   color: var(--xray-accent);
   background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   font-size: 10px;
   font-weight: 900;
   letter-spacing: .14em;
@@ -3388,7 +3406,7 @@
 
 .xray-panel .xray-bar-track {
   background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);
-  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108,112,134,.35)) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent)) 70%, transparent);
   overflow: hidden;
 }
 
@@ -3398,7 +3416,7 @@
 }
 
 .xray-panel .xray-bar.slow { background: linear-gradient(90deg, var(--xray-yellow), var(--xray-peach)); }
-.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), #ff9ab0); }
+.xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), color-mix(in srgb, var(--xray-red) 62%, var(--xray-peach))); }
 
 .xray-panel .xray-request-detail {
   background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);
@@ -3430,7 +3448,7 @@
 .xray-panel .xray-operation-groups {
   padding: 10px 12px;
   background: color-mix(in srgb, var(--xray-surface) 75%, transparent);
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
 }
 
 .xray-panel .xray-operation-group-label {
@@ -3467,7 +3485,7 @@
   gap: 10px;
   padding: 10px 12px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-top: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
 }
 
 .xray-panel .xray-prompt::before {
@@ -3487,7 +3505,7 @@
   padding: 0 12px;
   color: var(--xray-subtext);
   background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);
-  border-top: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-top: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   font-size: 10px;
   font-weight: 900;
   letter-spacing: .08em;
@@ -3495,7 +3513,7 @@
 }
 
 .xray-panel .xray-page-head {
-  border-bottom: 1px solid var(--xray-border, rgba(108,112,134,.35));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, var(--xray-accent) 12%), var(--xray-surface));
 }
 
@@ -3542,7 +3560,7 @@
 .xray-panel .xray-api-metric {
   position: relative;
   overflow: hidden;
-  border-color: var(--xray-border, rgba(108,112,134,.35));
+  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));
 }
 
@@ -3592,7 +3610,7 @@
   border-radius: var(--xray-radius-lg);
   color: var(--xray-text);
   background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--xray-text) 4%, transparent);
   font: inherit;
 }
 
@@ -3639,21 +3657,21 @@
 .xray-api-flag.drift,
 .xray-api-flag.graphql {
   color: var(--xray-mauve);
-  border-color: rgba(203, 166, 247, .40);
-  background: rgba(203, 166, 247, .12);
+  border-color: color-mix(in srgb, var(--xray-mauve) 40%, transparent);
+  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
 }
 
 .xray-api-flag.ws {
   color: var(--xray-teal);
-  border-color: rgba(148, 226, 213, .38);
-  background: rgba(148, 226, 213, .12);
+  border-color: color-mix(in srgb, var(--xray-teal) 38%, transparent);
+  background: color-mix(in srgb, var(--xray-teal) 12%, transparent);
 }
 
 .xray-api-flag.mocked,
 .xray-api-flag.replayed {
   color: var(--xray-blue);
-  border-color: rgba(137, 180, 250, .38);
-  background: rgba(137, 180, 250, .12);
+  border-color: color-mix(in srgb, var(--xray-blue) 38%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 12%, transparent);
 }
 
 .xray-drift-banner {
@@ -3662,10 +3680,10 @@
   gap: 10px;
   margin: 8px 12px 0;
   padding: 8px 12px;
-  border: 1px solid rgba(203, 166, 247, .40);
+  border: 1px solid color-mix(in srgb, var(--xray-mauve) 40%, transparent);
   border-radius: var(--xray-radius);
   color: var(--xray-mauve);
-  background: rgba(203, 166, 247, .10);
+  background: color-mix(in srgb, var(--xray-mauve) 10%, transparent);
   font-size: 11px;
 }
 
@@ -3767,12 +3785,12 @@
   font-weight: 800;
   text-transform: uppercase;
   color: var(--xray-subtext);
-  background: rgba(108, 112, 134, .2);
+  background: color-mix(in srgb, var(--xray-hint) 20%, transparent);
 }
 
-.xray-ws-state.open { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
+.xray-ws-state.open { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 14%, transparent); }
 .xray-ws-state.closed { color: var(--xray-subtext); }
-.xray-ws-state.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
+.xray-ws-state.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
 
 .xray-frames-list {
   display: flex;
@@ -3792,7 +3810,7 @@
   font-size: 11px;
 }
 
-.xray-frame-row.out { background: rgba(137, 180, 250, .08); }
+.xray-frame-row.out { background: color-mix(in srgb, var(--xray-blue) 8%, transparent); }
 
 .xray-frame-dir {
   font-weight: 800;
@@ -3857,8 +3875,8 @@
   border-radius: 999px;
 }
 
-.xray-token-exp.valid { color: var(--xray-green); background: rgba(166, 227, 161, .14); }
-.xray-token-exp.expired { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
+.xray-token-exp.valid { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 14%, transparent); }
+.xray-token-exp.expired { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
 
 .xray-token-body {
   display: grid;
@@ -3883,7 +3901,7 @@
   flex-wrap: wrap;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent)) 70%, transparent);
 }
 
 .xray-rules-toolbar-label {
@@ -4026,7 +4044,7 @@
 .xray-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(137, 180, 250, .3);
+  border: 2px solid color-mix(in srgb, var(--xray-blue) 30%, transparent);
   border-top-color: var(--xray-accent, var(--xray-blue));
   border-radius: 50%;
   animation: xray-spin .7s linear infinite;
@@ -4094,7 +4112,7 @@
   align-items: center;
   flex-shrink: 0;
   max-width: 220px;
-  border: 1px solid rgba(108, 112, 134, .36);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 36%, transparent);
   border-radius: 999px;
   background: rgba(var(--xray-surface-rgb), .6);
   overflow: hidden;
@@ -4139,8 +4157,8 @@
 /* ── Console live/paused stream toggle ── */
 .xray-btn.xray-live {
   color: var(--xray-green);
-  border-color: rgba(166, 227, 161, .32);
-  background: rgba(166, 227, 161, .08);
+  border-color: color-mix(in srgb, var(--xray-green) 32%, transparent);
+  background: color-mix(in srgb, var(--xray-green) 8%, transparent);
 }
 
 .xray-btn.xray-paused {
@@ -4176,12 +4194,12 @@
   font-weight: 800;
   text-transform: uppercase;
   color: var(--xray-subtext);
-  background: rgba(108, 112, 134, .18);
+  background: color-mix(in srgb, var(--xray-hint) 18%, transparent);
 }
 
-.xray-log-level.error { color: var(--xray-red); background: rgba(243, 139, 168, .14); }
-.xray-log-level.warn { color: var(--xray-yellow); background: rgba(249, 226, 175, .14); }
-.xray-log-level.info { color: var(--xray-blue); background: rgba(137, 180, 250, .14); }
+.xray-log-level.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
+.xray-log-level.warn { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 14%, transparent); }
+.xray-log-level.info { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 14%, transparent); }
 
 .xray-log-load {
   margin-left: auto;
@@ -4296,7 +4314,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border: 1px solid rgba(128, 128, 160, .28);
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 28%, transparent));
   border-radius: var(--xray-radius);
   font: inherit;
   font-size: 11px;
@@ -4401,7 +4419,7 @@
   gap: 10px;
   margin: 8px 0 4px;
   padding: 14px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent));
   border-radius: var(--xray-radius-lg);
   background: rgba(var(--xray-surface-rgb), .5);
 }
@@ -4465,7 +4483,7 @@
   width: 34px;
   height: 30px;
   padding: 0;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 40%, transparent));
   border-radius: var(--xray-radius);
   background: transparent;
   cursor: pointer;
@@ -4493,7 +4511,7 @@
 
 /* ── Live theme preview (painted with the resolved theme vars) ── */
 .xray-theme-preview {
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent));
   border-radius: var(--xray-radius);
   background: var(--xray-bg);
   color: var(--xray-text);
@@ -4508,7 +4526,7 @@
   gap: 8px;
   padding: 7px 10px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 94%, white 6%), var(--xray-surface));
-  border-bottom: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent));
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--xray-accent) 18%, transparent);
 }
 
@@ -4557,7 +4575,7 @@
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent)) 55%, transparent);
 }
 
 .xray-tp-row.selected {
@@ -4652,7 +4670,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid color-mix(in srgb, var(--xray-border, rgba(108, 112, 134, .3)) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent)) 60%, transparent);
   border-radius: var(--xray-radius);
   background: rgba(var(--xray-surface-rgb), .45);
   transition: border-color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
@@ -4896,7 +4914,7 @@
   gap: 4px;
   margin-top: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .3));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent));
   border-radius: var(--xray-radius, 8px);
   background: rgba(var(--xray-bg-rgb), .4);
 }
@@ -5101,7 +5119,7 @@
   min-width: 16px;
   margin-right: 2px;
   padding: 1px 5px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .4));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 40%, transparent));
   border-radius: var(--xray-radius-sm);
   background: rgba(var(--xray-surface-rgb), .8);
   font-family: var(--xray-font);
@@ -5342,7 +5360,7 @@
 .xray-brand-ver {
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid var(--xray-border, rgba(108, 112, 134, .35));
+  border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   background: rgba(var(--xray-surface2-rgb), .5);
   color: var(--xray-hint);
   font-size: 9px;
@@ -5375,7 +5393,7 @@
 .xray-headers-grid {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(108, 112, 134, .3);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   border-radius: var(--xray-radius);
   overflow: hidden;
 }
@@ -5386,7 +5404,7 @@
   gap: 8px;
   align-items: center;
   padding: 5px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .18);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 18%, transparent);
   font-size: 11px;
 }
 
@@ -5439,7 +5457,7 @@
 .xray-diff-lines {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(108, 112, 134, .3);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
   border-radius: var(--xray-radius);
   overflow: hidden;
   font-size: 11px;
@@ -5451,7 +5469,7 @@
   gap: 8px;
   align-items: center;
   padding: 4px 10px;
-  border-bottom: 1px solid rgba(108, 112, 134, .16);
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 16%, transparent);
 }
 
 .xray-diff-line:last-child {
@@ -5459,15 +5477,15 @@
 }
 
 .xray-diff-line.added {
-  background: rgba(166, 227, 161, .09);
+  background: color-mix(in srgb, var(--xray-green) 9%, transparent);
 }
 
 .xray-diff-line.removed {
-  background: rgba(243, 139, 168, .09);
+  background: color-mix(in srgb, var(--xray-red) 9%, transparent);
 }
 
 .xray-diff-line.changed {
-  background: rgba(249, 226, 175, .07);
+  background: color-mix(in srgb, var(--xray-yellow) 7%, transparent);
 }
 
 .xray-diff-kind {
@@ -5704,7 +5722,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  border: 1px solid rgba(108, 112, 134, .4);
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 40%, transparent);
   border-radius: 999px;
   background: rgba(var(--xray-surface2-rgb), .6);
   color: var(--xray-subtext, var(--xray-text));
@@ -5903,8 +5921,8 @@
   overflow: hidden;
 }
 
-/* Positioned on the shared time axis; darker = downloading, the inner lighter
-   segment = waiting/TTFB (Chrome's two-tone waterfall). */
+/* Positioned on the shared time axis; the outer bar = downloading, the inner
+   contrasting segment = waiting/TTFB (Chrome's two-tone waterfall). */
 .xray-waterfall-bar {
   position: absolute;
   top: 2px;
@@ -5923,7 +5941,12 @@
   display: block;
   height: 100%;
   border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);
-  background: color-mix(in srgb, #fff 42%, transparent);
+  /* Sits on top of the bar, which is painted --xray-accent (a light pastel on
+     dark themes, a darkened variant on light ones). Washing toward --xray-bg
+     tracks that inversion. Measured against the bar, the dark themes go
+     1.39 -> 2.36/2.43/2.55; the light ones stay level (2.04 -> ~1.9) since
+     --xray-bg is close to the white this replaces. */
+  background: color-mix(in srgb, var(--xray-bg) 42%, transparent);
 }
 
 .xray-waterfall-ms {

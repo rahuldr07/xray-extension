@@ -213,19 +213,40 @@ function ApiWorkspace(): React.ReactElement {
   // Arrow-key navigation through the (possibly grouped) request rows, like the
   // DevTools network panel. Navigation only moves the selection — Enter opens
   // the drawer, and a drawer the user closed stays closed while arrowing.
+  // One screen's worth of rows for PageUp/PageDown. A fixed step keeps the jump
+  // predictable regardless of row density.
+  const PAGE_STEP = 10;
+
   function handleListKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
+    const navKeys = ['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'];
+    const isNav = navKeys.includes(event.key);
+    // Space previously fell through to the native scroller, which scrolled the
+    // viewport while the selection stayed put — the selected row would silently
+    // scroll out of view. It now activates the selected row, matching Enter.
+    if (!isNav && event.key !== 'Enter' && event.key !== ' ') return;
     if (!rows.length) return;
     const currentIndex = rows.findIndex((row) => row.entry.id === selectedId);
-    if (event.key === 'Enter') {
+
+    if (event.key === 'Enter' || event.key === ' ') {
       if (currentIndex >= 0) { setApiDetailOpen(true); event.preventDefault(); }
       return;
     }
+
     event.preventDefault();
-    const delta = event.key === 'ArrowDown' ? 1 : -1;
-    const nextIndex = currentIndex < 0
-      ? (delta === 1 ? 0 : rows.length - 1)
-      : Math.min(rows.length - 1, Math.max(0, currentIndex + delta));
+    const last = rows.length - 1;
+    let nextIndex: number;
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = last;
+    else {
+      const delta =
+        event.key === 'ArrowDown' ? 1
+          : event.key === 'ArrowUp' ? -1
+            : event.key === 'PageDown' ? PAGE_STEP
+              : -PAGE_STEP;
+      nextIndex = currentIndex < 0
+        ? (delta > 0 ? 0 : last)
+        : Math.min(last, Math.max(0, currentIndex + delta));
+    }
     const next = rows[nextIndex];
     if (!next) return;
     selectEntry(next.entry.id, { openDetail: false });
