@@ -11,7 +11,13 @@ import appCss from './styles.css?inline';
 
 let reactRoot: Root | null = null;
 let mountNode: HTMLElement | null = null;
-let shadowHost: HTMLElement | null = null;
+// C-15: the docked panel's shadow root is CLOSED, so page script cannot read the
+// rendered captured data through host.shadowRoot. It was open only because
+// `host.shadowRoot || attachShadow(...)` needs an open root to re-find one across
+// re-mounts; a closed root reports null there and the second attachShadow throws.
+// Holding it here does the same job. This module is isolated-world, so the page
+// cannot reach the reference. The HUD has always done exactly this.
+let shadowRootRef: ShadowRoot | null = null;
 let initialized = false;
 let currentMode: XrayAppMode = 'hud';
 const plainDomTokensCss = tokensCss.replace(/:host/g, '#xray-react-root');
@@ -62,11 +68,11 @@ function createShadowMount(): HTMLElement {
     host.id = '__xray_root__';
     document.documentElement.appendChild(host);
   }
-  shadowHost = host;
   hardenHost(host);
   // Shield the underlying website from the panel's own scroll/click/keyboard.
   isolatePanelEvents(host);
-  const root = host.shadowRoot || host.attachShadow({ mode: 'open' });
+  const root = shadowRootRef ?? host.attachShadow({ mode: 'closed' });
+  shadowRootRef = root;
   injectStyles(root);
   let node = root.querySelector('#xray-react-root') as HTMLElement | null;
   if (!node) {
@@ -122,7 +128,7 @@ async function init(options: XrayPanelInitOptions = {}): Promise<void> {
 
 window.XRAY_Panel = createPanelApi({
   initialize: init,
-  getSearchRoot: () => shadowHost?.shadowRoot || document,
+  getSearchRoot: () => shadowRootRef || document,
 });
 
 export {};

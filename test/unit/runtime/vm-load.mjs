@@ -86,7 +86,11 @@ export function loadIsolatedWorld(relPath, extraGlobals = {}) {
  * @returns the vm context, plus `posted` (every self.postMessage payload, in
  *          order) and `idbOpenCalls`.
  */
-export function loadWorker({ indexedDBOpen } = {}) {
+// `origin` models the worker's own location. The real worker is created with
+// new Worker(chrome.runtime.getURL(...)) and so reports chrome-extension:, but the
+// blob fallback in shared/worker-client.js inherits the PAGE's origin — and the
+// worker refuses to open IndexedDB in that case (C-11), so tests need both.
+export function loadWorker({ indexedDBOpen, origin = 'chrome-extension:' } = {}) {
   const posted = [];
   const idbOpenCalls = [];
   let clock = 0;
@@ -105,7 +109,10 @@ export function loadWorker({ indexedDBOpen } = {}) {
       },
     },
   };
-  context.self = { postMessage: (message) => posted.push(message) };
+  context.self = {
+    postMessage: (message) => posted.push(message),
+    location: { protocol: origin, href: `${origin}//worker/xray-worker.js` },
+  };
   context.globalThis = context;
 
   vm.createContext(context);

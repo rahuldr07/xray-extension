@@ -51,7 +51,10 @@ export async function requestAiExplanation(settings: AiSettings, prompt: string)
   }
   return new Promise<AiResult>((resolve) => {
     try {
-      sendMessage({ type: 'xray:ai-explain', settings, prompt }, (response) => {
+      // C-12: the prompt only. The API key stays in chrome.storage.local, where the
+      // service worker reads it directly, instead of travelling through
+      // isolated-world memory on every page just to be handed straight back.
+      sendMessage({ type: 'xray:ai-explain', prompt }, (response) => {
         const err = runtime.lastError;
         if (err) {
           resolve({ ok: false, error: err.message || 'AI request failed' });

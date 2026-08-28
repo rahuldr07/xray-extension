@@ -33,6 +33,45 @@ behaviour was, so the record survives in the assertion rather than in a document
   defence — the spreadsheet strips the quotes first. Both now prefix an apostrophe, while
   exempting plain numbers so a negative duration stays a number.
 
+### Security (second pass: every remaining threat-model finding)
+
+- **C-2, replay secrets through page-replaceable globals.** The replay path called
+  `window.fetch` with the raw restored `Authorization` value, so a page that re-wrapped
+  fetch after `document_start` read it on every replay; and `_originOf` parsed with the
+  live `URL`, so replacing `window.URL` made the same-origin check true for any target.
+  Replay now calls our own wrapper by reference, `URL` is pinned at `document_start`, and
+  the origin gate is two independent checks, the second parsing nothing.
+- **C-3, the bridge token is a MAIN-world global** and so one property read from bypass.
+  The isolated world now treats everything from MAIN as untrusted input: entries are
+  rebuilt field by field with typed, size-capped values, and an update naming an id this
+  world never originated is dropped. The MessagePort channel is deliberately not done and
+  is recorded as the one remaining open item.
+- **C-4b, URLs were captured verbatim,** so credentials in a query string escaped
+  redaction entirely. They are now scrubbed at the single emit boundary, with the
+  unscrubbed URL kept MAIN-world-only so replay still authenticates.
+- **C-6, the decryption hook lived in the page's global scope.** Deleted; decryption runs
+  in the isolated world, which is exempt from the page's CSP.
+- **C-8, `debugger` was required at install time.** Now optional and requested on demand.
+- **C-10, `web_accessible_resources` over-exposed.** Any page could iframe `window.html`
+  and permanently alter panel settings through its `location.hash` handler.
+- **C-11, worker IndexedDB was unbounded** and, on the blob-worker fallback, written to
+  the visited site's own origin. Now capped, prunable, clearable, and refused outright on
+  a page-origin worker.
+- **C-12, the BYOK key travelled to the background on every call,** so it was resident in
+  isolated-world memory on every page purely to be relayed. The service worker reads it
+  from storage itself.
+- **C-14, console history lived in the page's `localStorage`,** readable by every site.
+  Moved to extension storage. Rule regexes are now bounded against catastrophic
+  backtracking, which matters because rule sets are importable.
+- **C-15, the docked panel's shadow root was open,** so page script could read the
+  rendered captured data through `.shadowRoot`. Closed.
+
+### Added (second pass)
+
+- A first-run introduction in place of the API tab's empty state until dismissed.
+- Query-parameter redaction, bounded IndexedDB retention, and a `clearStored` worker
+  action to back a future UI control.
+
 ### Fixed — wrong results
 
 - The Diff view reported "no changes" for two equal-length arrays that differed past index

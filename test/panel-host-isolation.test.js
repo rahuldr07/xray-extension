@@ -67,7 +67,14 @@ test('React panel exposes the legacy XRAY_Panel API and injects inline Shadow DO
 
   assert.match(main, /tokens\.css\?inline/);
   assert.match(main, /styles\.css\?inline/);
-  assert.match(main, /attachShadow\(\{\s*mode:\s*'open'\s*\}\)/);
+  // C-15: the docked panel's shadow root is CLOSED. It was open so that
+  // `host.shadowRoot || attachShadow(...)` could re-find it across re-mounts, which
+  // also let page script read the rendered captured data through .shadowRoot. The
+  // isolated-world module reference does the re-find instead, exactly as the HUD does.
+  assert.match(main, /attachShadow\(\{\s*mode:\s*'closed'\s*\}\)/);
+  assert.match(main, /let shadowRootRef: ShadowRoot \| null = null;/);
+  assert.match(main, /shadowRootRef \?\? host\.attachShadow/);
+  assert.doesNotMatch(main, /shadowHost\?\.shadowRoot/, 'nothing reads it back off the host');
   assert.match(main, /createPanelApi/);
   assert.match(main, /window\.XRAY_Panel\s*=\s*createPanelApi/);
   assert.match(main, /alreadyInitialized/);

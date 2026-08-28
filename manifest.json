@@ -1,39 +1,49 @@
 {
   "manifest_version": 3,
-  "name": "XRAY — API Operations Console",
+  "name": "XRAY \u2014 API Operations Console",
   "version": "0.3.0",
   "description": "Capture, understand, and bend API traffic: fetch/XHR/WebSocket/GraphQL capture, mock rules, replay, schema-drift detection, JWT decoding, and BYOK AI explanations.",
-
-  "permissions": ["storage", "scripting", "activeTab", "clipboardWrite", "windows"],
-  "optional_permissions": ["debugger"],
-  "host_permissions": ["<all_urls>"],
-
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "clipboardWrite",
+    "windows"
+  ],
+  "optional_permissions": [
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'"
   },
-
   "background": {
     "service_worker": "background.js"
   },
-
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "content/interceptor.js",
-        "content/console-capture.js",
-        "shared/console-helpers.js"
+        "content/console-capture.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"
     },
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "shared/utils.js",
         "shared/decrypt.js",
         "shared/store.js",
         "shared/worker-client.js",
+        "shared/console-helpers.js",
         "panel/console.js",
         "dist/panel-ui.js",
         "content/content.js"
@@ -42,31 +52,36 @@
       "run_at": "document_start"
     },
     {
-      "matches": ["<all_urls>"],
-      "js": ["content/hud-mount.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/hud-mount.js"
+      ],
       "world": "ISOLATED",
       "run_at": "document_idle"
     }
   ],
-
   "web_accessible_resources": [
     {
       "resources": [
         "workers/xray-worker.js",
-        "dist/hud-ui.js",
-        "shared/console-helpers.js"
+        "dist/hud-ui.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
-
   "commands": {
     "toggle-xray": {
-      "suggested_key": { "default": "Ctrl+Shift+X", "mac": "Command+Shift+X" },
+      "suggested_key": {
+        "default": "Ctrl+Shift+X",
+        "mac": "Command+Shift+X"
+      },
       "description": "Toggle XRAY panel"
     }
   },
-
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -75,14 +90,11 @@
     },
     "default_title": "XRAY"
   },
-
   "devtools_page": "devtools/devtools.html",
-
   "options_ui": {
     "page": "settings/settings.html",
     "open_in_tab": true
   },
-
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -10,8 +10,34 @@ const DB_NAME = 'xray_db';
 const DB_VERSION = 1;
 let _db = null;
 
+// C-11: this store used to grow without bound. Every entry, bodies included, was
+// written and NOTHING was ever deleted: no retention policy, no size cap, and no
+// way to clear it from the UI. On a tool that runs on every URL and keeps response
+// bodies, that is an ever-growing archive of other people's traffic.
+const IDB_MAX_ENTRIES = 5000;
+// Pruning walks a cursor, so it is not run on every single write.
+const PRUNE_EVERY = 250;
+let _writesSincePrune = 0;
+
+// C-11: the blob-worker fallback in shared/worker-client.js builds the worker from a
+// `blob:` URL, and a blob worker inherits the CREATING DOCUMENT'S origin. On that
+// path IndexedDB is the VISITED SITE'S database, readable by page script, so
+// captured traffic from every origin would be written into whatever site the user
+// happened to be on. Detect it and stay in memory instead.
+function _isPageOriginWorker() {
+  try {
+    // An extension-origin worker reports chrome-extension:; the blob fallback does not.
+    return !String(self.location?.protocol || '').startsWith('chrome-extension');
+  } catch {
+    return true;
+  }
+}
+
 async function openDB() {
   if (_db) return _db;
+  if (_isPageOriginWorker()) {
+    return Promise.reject(new Error('xray: refusing to open IndexedDB on a page-origin worker'));
+  }
   
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -74,6 +100,41 @@ function addToMemoryCache(entry) {
 
 function getFromMemoryCache(id) {
   return _memoryCache.get(id) || null;
+}
+
+// Deletes oldest-first via the timestamp index until the store is back under the cap.
+function pruneStoredEntries(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('entries', 'readwrite');
+    const store = tx.objectStore('entries');
+    const countReq = store.count();
+    countReq.onerror = () => reject(countReq.error);
+    countReq.onsuccess = () => {
+      let excess = countReq.result - IDB_MAX_ENTRIES;
+      if (excess <= 0) { resolve(0); return; }
+      const removed = excess;
+      const cursorReq = store.index('timestamp').openCursor();
+      cursorReq.onerror = () => reject(cursorReq.error);
+      cursorReq.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor || excess <= 0) { resolve(removed); return; }
+        cursor.delete();
+        excess -= 1;
+        cursor.continue();
+      };
+    };
+  });
+}
+
+// C-11 also noted there was no "clear" control at all. This backs one.
+function clearStoredEntries(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries', 'searchIndex'], 'readwrite');
+    tx.objectStore('entries').clear();
+    tx.objectStore('searchIndex').clear();
+    tx.oncomplete = () => resolve({ cleared: true });
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -600,6 +661,11 @@ self.onmessage = async function(e) {
         openDB().then(db => {
           const tx = db.transaction('entries', 'readwrite');
           tx.objectStore('entries').put(entry);
+          _writesSincePrune += 1;
+          if (_writesSincePrune >= PRUNE_EVERY) {
+            _writesSincePrune = 0;
+            pruneStoredEntries(db).catch(() => {});
+          }
         }).catch(() => {});
         result = { added: true };
         break;
@@ -652,6 +718,18 @@ self.onmessage = async function(e) {
         break;
       }
       
+      case 'clearStored': {
+        const db = await openDB();
+        result = await clearStoredEntries(db);
+        break;
+      }
+
+      case 'pruneStored': {
+        const db = await openDB();
+        result = { removed: await pruneStoredEntries(db) };
+        break;
+      }
+
       case 'getFromCache': {
         result = getFromMemoryCache(payload.id);
         break;

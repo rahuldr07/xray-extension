@@ -4,13 +4,16 @@
 (function () {
   'use strict';
 
-  // Chrome injects a given file only once per frame even when it is listed in
-  // both the MAIN and ISOLATED content-script groups, so the isolated world
-  // never receives shared/console-helpers.js from the manifest. Import it here
-  // (helpers are only read lazily, so the async load is safe).
-  if (!window.XRAY_ConsoleHelpers) {
-    import(chrome.runtime.getURL('shared/console-helpers.js')).catch(() => {});
-  }
+  // shared/console-helpers.js is now listed in the ISOLATED group directly, so it
+  // arrives with the rest of this world's scripts and no dynamic import is needed.
+  //
+  // It used to sit in the MAIN group, and the single-injection rule (Chrome injects a
+  // file once per frame even when it is listed in both worlds) meant the isolated
+  // world had to import it at runtime. That arrangement existed for the MAIN-world
+  // console executor, which C-1 deleted. Nothing in the page realm read the helpers
+  // after that, so the file was being parsed on every page visit for no consumer
+  // while leaving a writable global there. Moving it here removes both, and lets it
+  // drop out of web_accessible_resources as well.
 
   let _panelReady = false;
   let _workerReady = false;

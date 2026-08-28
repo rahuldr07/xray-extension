@@ -83,6 +83,16 @@ regress.
 | C-9 | The service-worker message router dereferenced `msg` with no guard and did not check `sender.id`, letting any content script drive `xray:page-bridge` against **any** tab | Sender validated against `chrome.runtime.id`; `msg` null-guarded; content-script senders forced to their own tab |
 | C-5 | `storageBridge` fell back to the **page's** `localStorage` when `XRAY_Store` was absent, which could write the BYOK API key in plaintext into the visited site's storage | Fallback removed; reads return the caller's fallback and writes are dropped |
 | C-4a | Redaction denylist missed many common auth headers | Denylist widened |
+| C-2 | **High — replay secrets flowed through page-replaceable globals.** The replay path called `window.fetch` with the raw restored `Authorization` value in `init.headers`, so a page that re-wrapped fetch after `document_start` read it on every replay. `_originOf` and `_resolveUrl` parsed with the live `URL`, so replacing `window.URL` made `sameOrigin` true for any target | Replay calls our own wrapper by reference, keeping replays captured and diffed while taking the page out of the path. `URL` is pinned at `document_start`, and the origin gate is two independent checks, the second a plain string comparison that parses nothing |
+| C-3 | **High — the bridge token is a MAIN-world global,** so every gate built on it is one property read from bypass, enabling forged entries, overwritten ids and rule injection | The token still filters accidents, but the isolated world now treats everything from MAIN as untrusted: entries are rebuilt field by field with typed, size-capped values, unknown properties cannot ride along, and an update naming an id this world never originated is dropped. The MessagePort channel is NOT done and stays open below |
+| C-4b | **High — redaction was an anchored denylist over header names only.** URLs were captured verbatim, so `?access_token=`, `?sig=` and presigned-S3 credentials survived, were persisted, and were eligible for AI egress | Credentials are redacted out of query strings and the userinfo component at the single emit boundary, covering every capture path by construction. The unscrubbed URL joins the MAIN-world secret store so replay still works, restored only on an origin match and only when the operator did not edit the URL |
+| C-6 | **High — the decryption hook lived in the page's global scope.** The stub returned `null` so nothing leaked yet, but the file exists to be filled in, and a page could then read what the closure captures, use it as an oracle, or replace it and feed the analyst fabricated plaintext marked `decryptStatus: 'ok'` | `content/decrypt-bridge.js` deleted. The interceptor marks entries `pending`; `content.js` resolves them in the ISOLATED world, which is exempt from the page's CSP, so the stated reason for MAIN-world placement never held |
+| C-8 | **Medium — `debugger` was a required install-time permission,** close to the maximum-scrutiny configuration for store review, demanded whether or not the console was ever opened | Moved to `optional_permissions` and checked before every attach. C-8 also proposed preferring MAIN-world evaluation with the debugger as fallback; that half is **superseded by C-1**, which deleted MAIN-world execution outright |
+| C-10 | **Medium — `web_accessible_resources` was over-exposed.** Any page could iframe `window.html`, where `window-main.tsx` reads `location.hash` and persists settings to `chrome.storage.local` | `window.html` and `dist/window-ui.js` dropped: the pop-out opens via `chrome.windows.create`, and the page loads its own bundle. `shared/console-helpers.js` dropped too, once the dynamic import went away |
+| C-11 | **Medium — worker IndexedDB was unbounded** and, on the blob-worker fallback, written to the *visited site's* origin | Capped with oldest-first pruning over the `timestamp` index, plus `clearStored`. A page-origin worker now refuses to open IndexedDB at all; the guard keys on the worker's actual origin, so it holds whichever way Chrome resolves the direct path |
+| C-12 | **Medium — the API key travelled too far.** The panel sent its whole AI settings object, key included, to the background on every call, so the key was resident in isolated-world memory on every page purely to be relayed | The service worker reads the key from `chrome.storage.local` itself and ignores anything the content script sends about credentials. The panel sends a prompt and nothing else |
+| C-14 | **Low — console history lived in the page's `localStorage`,** so any site could read what the analyst typed on every other site. Rule regexes had no complexity bound, and rule sets are importable | History moved to extension storage. `re:` patterns are bounded by length and rejected when they contain a nested quantifier, the shape that makes catastrophic backtracking possible |
+| C-15 | **Low — the docked panel's shadow root was `mode: 'open'`,** so page script could read the rendered captured data through `.shadowRoot` | Closed. It was open only so `host.shadowRoot \|\| attachShadow(...)` could re-find it across re-mounts; an isolated-world module reference does that instead, exactly as the HUD has always done |
 | C-1 | **Critical — the console handed cross-origin captured traffic to page-controlled code.** The debugger-evaluated expression read `window.XRAY_ConsoleHelpers`, a plain writable page global, so a page that replaced `createRuntime` received the whole console context — captured URLs across every origin in the restored session, full bodies for the selected entry and its neighbours, decoded JWT claims — as soon as the user ran any expression, including `1+1`. A second path posted the same context to the page with `targetOrigin: '*'` and no token | The helper source is inlined into the evaluated expression and run against a **shadowed `window`**, so the page global is neither read nor written. The MAIN-world fallback is deleted outright: `content/console-executor.js` is removed from the repo and the manifest, `panel/console.js` no longer posts a session handshake or an exec request, and a failed debugger attach now returns an error instead of falling back |
 | C-16 | **Command injection in "Copy as cURL".** `generateCurl` interpolated `entry.url` raw into a single-quoted shell word while the header and body sites two lines below escaped correctly. A page issuing `fetch("https://x.test/a';id;echo'")` produced a command that ran `id` when pasted — the WHATWG parser does not percent-encode an apostrophe in a path or query, and imported HAR files are a second unfiltered source. The method was interpolated bare as a second injection point. The panel's `utils.ts` fallback had the same class of bug via `JSON.stringify`, whose double quotes still permit `$(...)` | Both routed through one POSIX single-quote helper |
 
@@ -92,170 +102,26 @@ See the commit history on `enterprise-hardening` for the exact changes.
 
 ## 4. Open findings
 
-**None of the following are fixed.** They need design decisions and live-browser
-verification. They are ordered by remediation priority. The critical finding that used to
-head this list, C-1, is fixed and has moved to section 3.
+Everything previously listed here is fixed and has moved to section 3. What remains is
+the one piece of C-3's direction that was deliberately not taken.
 
-### Residual note from C-1 · Low — `shared/console-helpers.js` is still injected into the page world
+### C-3 (channel) · Open — the bridge is still `postMessage`, not a `MessagePort`
 
-With `content/console-executor.js` deleted, nothing in the MAIN world reads
-`window.XRAY_ConsoleHelpers` any more. The file is still listed in the MAIN content-script
-group, so it is parsed on every page visit and leaves a writable global that no longer has
-a consumer. Nothing is exposed by this — the privileged path inlines its own copy, and the
-panel reads the ISOLATED-world copy that `content/content.js` imports dynamically — but it
-is dead weight in the page's realm.
+C-3 suggested handing a `MessagePort` to the MAIN world once at `document_start` and
+closing over it instead of storing a token on `window`. That is not done, and it is not a
+clean win: `event.ports` is readable by every listener on the event, and `postMessage` is
+asynchronous, so a page script that registers a listener before the queued transfer
+arrives takes the port too. Content scripts at `document_start` run before the page's own
+scripts, but the *delivery* of the transfer is not similarly ordered.
 
-*Direction:* move the file to the ISOLATED group and drop the dynamic import in
-`content/content.js:11`. Deferred deliberately: the MAIN/ISOLATED split for this file is
-the single-injection workaround documented in `architecture.md`, and the ISOLATED group's
-load order is pinned by regression tests, so it wants its own change rather than riding
-along with the C-1 fix.
-
-### C-2 · High — replay secrets flow through page-replaceable globals
-
-The origin-pinning logic at `content/interceptor.js:861-863` is logically correct but runs
-in a hostile realm:
-
-- `interceptor.js:892` calls `window.fetch(url, init)` where `init.headers` holds the
-  **raw restored `Authorization` value**. A page that re-wraps `window.fetch` reads it.
-- `_originOf` and `_resolveUrl` use the global `URL`. Replacing `window.URL` makes
-  `sameOrigin` true for any target.
-
-This is an escalation rather than a wash: `_secretStore` retains auth headers from requests
-made *before* an attacking script loaded, so a late-injected script or an XSS payload can
-reach historical bearer tokens it could not otherwise have captured.
-
-*Direction:* pin `_origFetch` and `_URL` at `document_start` and use them exclusively on
-the secret-bearing path; re-validate the final URL with a plain `startsWith` that does not
-depend on `URL`. Consider dropping `_secretStore` — the retention is what creates the asset.
-
-### C-3 · High — the bridge token is not a secret
-
-`window.__XRAY_BRIDGE_TOKEN__` is a MAIN-world global. Every gate built on it is one
-property read from bypass. Consequences:
-
-- **Blinding.** A page can post a config disabling `captureFetch`/`captureXhr`/`captureWs`.
-  For a traffic-inspection tool, silently turning capture off is the highest-value attack
-  available, and the UI gives no indication.
-- **Poisoning.** Forged entries enter the store, session persistence, the DevTools relay
-  and IndexedDB — or overwrite real entries by reusing an `id`.
-- **Rule injection**, including a catastrophic-backtracking `re:` pattern evaluated against
-  every request URL.
-
-The extension is also trivially fingerprintable (`__XRAY_BRIDGE_TOKEN__` is
-non-writable/non-configurable — a very reliable signal), so detect-then-blind is easy.
-
-*Direction:* hand a `MessagePort` to the MAIN world once at `document_start` and close over
-it rather than storing a token on `window`. Regardless of the channel, **validate every
-MAIN→ISOLATED message as untrusted input**: check entry shape and types, cap sizes, and
-reject updates for ids the isolated world did not originate.
-
-### C-4b · High — redaction is an anchored denylist over header *names* only
-
-`content/interceptor.js:26` covers nine exact names. Widened in this branch, but the
-structural problem stands:
-
-- A denylist cannot cover bespoke schemes, and the `^…$` anchoring lets near-misses like
-  `x-api-key-v2` through.
-- **URLs are verbatim.** `?access_token=`, `?sig=`, presigned-S3 credentials all survive.
-- **Bodies are unfiltered**, up to 250 000 chars.
-- **JWT claims leave by design**, and are then persisted and can be sent to a third-party LLM.
-
-*Direction:* invert to an allowlist for header *values*; scrub a configurable set of query
-parameters from `entry.url`; make `jwtLenses` opt-in and strip them from AI egress.
-
-### C-6 · High — the decryption hook lives in the page's global scope
-
-`content/decrypt-bridge.js:17` defines `window.__XRAY_decrypt__` as a writable page global.
-The shipped stub returns `null`, so nothing leaks today — but the file exists to be filled
-in. Once it is, a page can read whatever the closure captures, use it as an oracle, or
-**replace it** and feed the analyst fabricated plaintext marked `decryptStatus: 'ok'`.
-
-*Direction:* decrypt in the isolated world, the service worker, or the web worker. The
-stated reason for MAIN-world placement (page CSP blocking eval) does not apply to
-isolated-world content scripts, which are exempt from page CSP.
-
-### C-8 · Medium — `debugger` is the primary path, not a fallback
-
-`panel/console.js:145-147` tries `chrome.debugger` first and only falls back to the MAIN
-world on error. So every console run on every site attaches the debugger, raises Chrome's
-"XRAY started debugging this browser" infobar, and holds the attachment for 30 s. The
-`debugger` permission combined with `<all_urls>` and MAIN-world injection is close to the
-maximum-scrutiny configuration for Chrome Web Store review.
-
-*Direction:* invert the order — try MAIN-world `new Function` first, fall back to the
-debugger only on a CSP failure. Move `debugger` to `optional_permissions` and request it on
-demand. **Do this before any store submission.**
-
-### C-10 · Medium — `web_accessible_resources` over-exposed
-
-`window.html` and `dist/window-ui.js` are web-accessible but do not need to be —
-`chrome.windows.create` does not require WAR. Because `window.html` is exposed, any page
-can iframe it; `src/panel/window-main.tsx:13-21` reads `location.hash` and calls
-`updateSettings`, which **persists to `chrome.storage.local`**. A hostile page can therefore
-permanently alter panel settings with no interaction. Impact is nuisance-grade — the hex
-validation blocks CSS exfiltration — but it is unnecessary surface. All five resources use
-static URLs, so any site can probe for XRAY's presence, feeding C-3.
-
-*Direction:* drop `window.html` and `dist/window-ui.js` from WAR (verify the pop-out still
-opens), and add `"use_dynamic_url": true` to the remaining entry.
-
-> Not done in this branch because the regression suite pins both resources as present, and
-> confirming the pop-out still opens requires a live browser.
-
-### C-11 · Medium — worker IndexedDB is unbounded and may be page-origin
-
-`workers/xray-worker.js:474-492` writes every entry, bodies included, to IndexedDB `xray_db`
-and **never deletes**. No retention policy, no size cap, no "clear" control in the UI.
-
-The blob-worker fallback (`shared/worker-client.js:81-88`) creates the worker from a
-`blob:` URL, which inherits the **creating document's origin** — so in that path captured
-traffic is written into the *visited site's own* IndexedDB, readable by page script.
-
-*Unverified:* whether the direct path (`new Worker(chrome.runtime.getURL(...))` from a
-content script) yields an extension-origin or page-origin worker in current Chrome. Confirm
-with `indexedDB.databases()` in a page console before relying on either answer.
-
-### C-12 · Medium — AI egress is broader than redaction implies, and the key travels too far
-
-`buildExplainPrompt` sends the full URL, denylist-redacted headers, full bodies up to
-40 000 chars, and GraphQL variables. Provider endpoints are hardcoded, so there is no SSRF.
-
-Since the custom provider landed, the AI endpoint is **user-supplied** rather than
-hardcoded. It is validated in the service worker — https required, plain http only for
-loopback — so a downgraded or typo'd URL cannot ship captured bodies in the clear. This is
-user-directed configuration, not attacker-controlled input, but note that it widens the
-egress surface from two known hosts to whatever the user enters.
-
-Separately, `aiBridge.ts:54` passes `settings` — **including `apiKey`** — from the content
-script to the background on every call. The key is therefore resident in isolated-world
-memory on every page purely to be relayed, which is what made C-5 a key-disclosure bug.
-
-*Direction:* keep the key in the service worker and have it read from `chrome.storage`
-itself; send only `{provider, prompt}` from the panel.
-
-### C-14 / C-15 · Low — amplifiers and hygiene
-
-- **Cross-origin session restore** (`src/panel/store.ts:564-567`): 500 entries with bodies
-  are rehydrated on every site. On its own a product decision; in combination with C-1,
-  C-3, C-5 and C-11 it is what turns each into a cross-origin breach.
-- **Console history in the page's `localStorage`** (`panel/console.js:24`): any site can
-  read what the analyst typed on every other site.
-- **Rule regexes have no complexity bound** (`interceptor.js:55-57`), and rule sets are
-  importable — a shared malicious rule set is a plausible ReDoS vector.
-- **The docked panel's shadow root is `mode: 'open'`** (`src/panel/main.tsx:68`), so page
-  script can read the rendered captured data through `.shadowRoot`. The HUD correctly uses
-  `closed`.
-- **`_eventInsideXray` matches on fixed ids/classes** (`content/content.js:45-50`), so a
-  page can create decoy elements to punch holes in the focus trap.
-- **`globalSearch.ts:77`** compiles a user-supplied regex with no ReDoS guard and runs it
-  synchronously on the render path.
-
----
+The mitigation that does hold regardless of channel is in place: the isolated world
+validates every MAIN-world message as untrusted input. Blinding (a page posting a config
+that disables capture) remains possible and is the residual risk here.
 
 ## 5. Permission justification
 
-Required for a Chrome Web Store listing, and worth keeping honest.
+Required for a Chrome Web Store listing, and worth keeping honest. The
+submission-ready wording lives in [store-listing.md](store-listing.md).
 
 | Permission | Why | Reducible? |
 |---|---|---|
@@ -263,7 +129,7 @@ Required for a Chrome Web Store listing, and worth keeping honest.
 | `scripting` | Injecting the panel and HUD on demand | No |
 | `activeTab` | Toolbar-triggered activation | No |
 | `clipboardWrite` | Copy-as-cURL and export actions | No |
-| `debugger` | CDP `Runtime.evaluate` for console execution on CSP-strict sites | **Yes — see C-8.** Should be `optional_permissions` |
+| `debugger` | CDP `Runtime.evaluate` for console execution on CSP-strict sites | Done: it is in `optional_permissions` and requested on demand |
 | `windows` | The pop-out window | No |
 | `<all_urls>` | Capture is the product; it cannot know in advance which origins matter | No, but see C-14 on scoping *retention* |
 

@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 
-import { dispatch, hostify, loadIsolatedWorld, loadWorker, repoRoot } from './vm-load.mjs';
+import { dispatch, hostify, loadIsolatedWorld, loadWorker, readSource, repoRoot } from './vm-load.mjs';
 
 const W = loadWorker();
 
@@ -671,4 +671,45 @@ test('onmessage: a thrown handler error is reported with only its message', asyn
   assert.equal(reply.success, false);
   assert.equal(typeof reply.error, 'string');
   assert.equal('stack' in reply, false, 'stacks are not leaked back to the panel');
+});
+
+// ───────────────────────────────────────────────────────────── C-11 storage bounds
+
+test('C-11 a page-origin worker refuses to open IndexedDB at all', async () => {
+  // shared/worker-client.js falls back to building the worker from a blob: URL when
+  // the direct construction throws, and a blob worker inherits the CREATING
+  // DOCUMENT'S origin. On that path IndexedDB is the visited site's own database,
+  // readable by page script, so captured traffic from every origin the user browsed
+  // would be written into whatever site they happened to be on.
+  //
+  // The guard keys on the worker's ACTUAL origin rather than on which code path
+  // built it, so it holds whichever way Chrome resolves the direct path too.
+  const pageWorker = loadWorker({ origin: 'https:' });
+  const reply = await dispatch(pageWorker, 'init', {}, 'p1');
+  assert.equal(reply.success, false);
+  assert.match(reply.error, /page-origin worker/);
+  assert.equal(pageWorker.idbOpenCalls.length, 0, 'indexedDB.open is never even called');
+
+  // An extension-origin worker is unaffected.
+  const extWorker = loadWorker();
+  dispatch(extWorker, 'init', {}, 'e1');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(extWorker.idbOpenCalls.length, 1, 'the extension-origin path still opens the DB');
+});
+
+test('C-11 the entry store is bounded and can be cleared', () => {
+  // Was: every entry, bodies included, written with no retention policy, no size
+  // cap, and no way to clear it from the UI.
+  assert.match(W.pruneStoredEntries.toString(), /IDB_MAX_ENTRIES/);
+  assert.match(W.pruneStoredEntries.toString(), /index\('timestamp'\)/, 'oldest-first');
+  assert.match(W.pruneStoredEntries.toString(), /cursor\.delete\(\)/);
+  assert.equal(typeof W.clearStoredEntries, 'function', 'and a clear exists to back a UI control');
+
+  const source = readSource('workers/xray-worker.js');
+  assert.match(source, /const IDB_MAX_ENTRIES = \d+;/);
+  assert.match(source, /case 'clearStored'/);
+  assert.match(source, /case 'pruneStored'/);
+  // Pruning walks a cursor, so it must not run on every single write.
+  assert.match(source, /_writesSincePrune \+= 1;/);
+  assert.match(source, /if \(_writesSincePrune >= PRUNE_EVERY\)/);
 });

@@ -514,9 +514,31 @@ function _callCustomProvider(settings, prompt) {
   });
 }
 
-async function _runAiExplain(settings, prompt) {
+// C-12: the panel used to send its whole AI settings object, API KEY INCLUDED, to
+// the background on every explain call. That meant the key was resident in
+// isolated-world memory on every page the user visited purely to be relayed, which
+// is exactly what made C-5 (the storage fallback writing to the page's localStorage)
+// a key-disclosure bug rather than a nuisance.
+//
+// The service worker now reads the key from chrome.storage.local itself. The panel
+// sends a prompt and nothing else, and anything it does send about credentials is
+// ignored: a content script is not a trusted source for them.
+const AI_SETTINGS_STORAGE_KEY = 'xray_ai_settings';
+
+async function _loadAiSettings() {
+  try {
+    const stored = await chrome.storage.local.get(AI_SETTINGS_STORAGE_KEY);
+    const settings = stored?.[AI_SETTINGS_STORAGE_KEY];
+    return settings && typeof settings === 'object' ? settings : null;
+  } catch {
+    return null;
+  }
+}
+
+async function _runAiExplain(prompt) {
+  const settings = await _loadAiSettings();
   if (!settings || typeof settings.apiKey !== 'string' || !settings.apiKey) {
-    return { ok: false, error: 'Missing API key.' };
+    return { ok: false, error: 'Add an API key in Settings, AI to enable explanations.' };
   }
   const safePrompt = String(prompt || '').slice(0, MAX_AI_PROMPT_CHARS);
   const provider = settings.provider === 'openai' || settings.provider === 'custom' ? settings.provider : 'anthropic';
@@ -669,7 +691,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'xray:ai-explain') {
-    _runAiExplain(msg.settings, msg.prompt)
+    // msg.settings is deliberately NOT read: the key comes from storage, not the page.
+    _runAiExplain(msg.prompt)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
     return true;

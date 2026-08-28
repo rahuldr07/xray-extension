@@ -16,10 +16,17 @@ window.XRAY_Console = (() => {
     if (_initialized) return;
     _initialized = true;
 
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) _history = JSON.parse(raw).filter((item) => typeof item === 'string').slice(0, MAX_HISTORY);
-    } catch {}
+    // C-14: this used to read the PAGE's localStorage, so every site could read the
+    // console history the analyst had typed on every OTHER site. Extension storage is
+    // per-extension and the page cannot reach it. Loading is async, so history is
+    // briefly empty on first open; that is strictly better than the alternative.
+    if (window.XRAY_Store?.get) {
+      window.XRAY_Store.get(STORAGE_KEY, null).then((stored) => {
+        if (Array.isArray(stored)) {
+          _history = stored.filter((item) => typeof item === 'string').slice(0, MAX_HISTORY);
+        }
+      }).catch(() => {});
+    }
 
     // C-1: init used to postMessage a console session id to the page world and
     // listen for XRAY_EVAL_RESULT back. That handshake existed only to serve the
@@ -55,7 +62,7 @@ window.XRAY_Console = (() => {
     if (_history[0] !== trimmed) {
       _history.unshift(trimmed);
       if (_history.length > MAX_HISTORY) _history.pop();
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_history)); } catch {}
+      try { window.XRAY_Store?.set?.(STORAGE_KEY, _history); } catch {}
     }
     _historyIndex = -1;
   }

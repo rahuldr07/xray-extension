@@ -28,6 +28,9 @@
   const MAX_CAPTURE_BODY_CHARS = 50000;
   const MAX_RULES = 50;
   const MAX_RULE_BODY_CHARS = 100000;
+  const MAX_RULE_PATTERN_CHARS = 300;
+  // A quantified group that is itself quantified: (x+)+, (x*)*, (x+)*, (x{1,9})+ …
+  const NESTED_QUANTIFIER = /\([^)]*[+*}][^)]*\)\s*[+*]|\([^)]*\)\s*\{\d+,\d*\}\s*[+*]/;
   const MAX_WS_FRAMES = 200;
   const MAX_WS_FRAME_PREVIEW = 2000;
   const MAX_INITIATOR_FRAMES = 8;
@@ -73,7 +76,15 @@
     // every fetch/XHR on the page. An invalid pattern invalidates the rule.
     let regex = null;
     if (url.startsWith('re:')) {
-      try { regex = new RegExp(url.slice(3)); } catch { return null; }
+      const pattern = url.slice(3);
+      // C-14: rule sets are importable, so a shared malicious set is a plausible
+      // ReDoS vector, and _matchRule runs inside EVERY fetch and XHR on the page.
+      // A precise complexity bound is undecidable, so bound the two things that
+      // actually make catastrophic backtracking possible: overall length, and
+      // nested quantifiers of the (a+)+ / (a*)* / (a|a)* shape.
+      if (pattern.length > MAX_RULE_PATTERN_CHARS) return null;
+      if (NESTED_QUANTIFIER.test(pattern)) return null;
+      try { regex = new RegExp(pattern); } catch { return null; }
     }
     const type = ['mock', 'delay', 'fail', 'passthrough'].includes(action.type) ? action.type : 'passthrough';
     let body = typeof action.body === 'string' ? action.body : action.body != null ? (() => { try { return JSON.stringify(action.body); } catch { return ''; } })() : '';

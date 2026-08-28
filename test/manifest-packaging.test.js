@@ -5,18 +5,29 @@ const test = require('node:test');
 
 const { read, readManifest, readPkg, exists } = require('./helpers/source');
 
-test('console uses a shared helper module in both extension worlds', () => {
-  // Chrome injects a given file only once per frame even when it is listed in
-  // both content-script groups, so the isolated world must dynamically import
-  // the helpers (content.js) instead of listing the file a second time.
+test('the console helpers live in the ISOLATED world only', () => {
+  // They used to sit in the MAIN group, and the single-injection rule (Chrome
+  // injects a file once per frame even when it is listed in both worlds) forced
+  // content.js to import them at runtime for the isolated side.
+  //
+  // That arrangement existed for the MAIN-world console executor, which C-1 deleted.
+  // Nothing in the page realm read the helpers afterwards, so the file was parsed on
+  // every page visit for no consumer while leaving a writable global there. Listing
+  // it in the ISOLATED group removes both, and lets it leave web_accessible_resources
+  // too: the only remaining reader outside this world is the background service
+  // worker, which fetches it with its own privileges, and WAR does not gate that.
   const manifest = read('manifest.json');
-  const helperRefs = manifest.match(/shared\/console-helpers\.js/g) || [];
-  assert.equal(helperRefs.length, 2);
   const parsed = JSON.parse(manifest);
-  assert.ok(parsed.content_scripts[0].js.includes('shared/console-helpers.js'));
-  assert.ok(!parsed.content_scripts[1].js.includes('shared/console-helpers.js'));
-  assert.ok(parsed.web_accessible_resources[0].resources.includes('shared/console-helpers.js'));
-  assert.match(read('content/content.js'), /import\(chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)\)/);
+  const helperRefs = manifest.match(/shared\/console-helpers\.js/g) || [];
+  assert.equal(helperRefs.length, 1, 'listed exactly once, in one world');
+
+  assert.ok(!parsed.content_scripts[0].js.includes('shared/console-helpers.js'), 'not in MAIN');
+  assert.ok(parsed.content_scripts[1].js.includes('shared/console-helpers.js'), 'in ISOLATED');
+  assert.ok(!parsed.web_accessible_resources[0].resources.includes('shared/console-helpers.js'),
+    'and no longer reachable from a page');
+
+  assert.doesNotMatch(read('content/content.js'), /import\(chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)\)/,
+    'the runtime import is gone');
   assert.match(read('shared/console-helpers.js'), /window\.XRAY_ConsoleHelpers/);
 });
 
@@ -58,9 +69,10 @@ test('manifest loads the React UI bundle after vanilla runtime scripts', () => {
 
   assert.ok(isolated.includes('panel/console.js'));
   assert.ok(isolated.includes('dist/panel-ui.js'));
-  // shared/console-helpers.js is deliberately absent here: Chrome injects a
-  // file only once per frame across worlds, so content.js imports it instead.
-  assert.ok(!isolated.includes('shared/console-helpers.js'));
+  // shared/console-helpers.js now IS here, ahead of its first reader.
+  assert.ok(isolated.includes('shared/console-helpers.js'));
+  assert.ok(isolated.indexOf('shared/console-helpers.js') < isolated.indexOf('panel/console.js'),
+    'panel/console.js reads window.XRAY_ConsoleHelpers, so it must load after it');
   assert.ok(isolated.includes('shared/worker-client.js'));
   assert.ok(isolated.indexOf('panel/console.js') < isolated.indexOf('dist/panel-ui.js'));
   assert.ok(isolated.indexOf('dist/panel-ui.js') < isolated.indexOf('content/content.js'));
