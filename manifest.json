@@ -4,7 +4,8 @@
   "version": "0.3.0",
   "description": "Capture, understand, and bend API traffic: fetch/XHR/WebSocket/GraphQL capture, mock rules, replay, schema-drift detection, JWT decoding, and BYOK AI explanations.",
 
-  "permissions": ["storage", "scripting", "activeTab", "clipboardWrite", "debugger", "windows"],
+  "permissions": ["storage", "scripting", "activeTab", "clipboardWrite", "windows"],
+  "optional_permissions": ["debugger"],
   "host_permissions": ["<all_urls>"],
 
   "content_security_policy": {
@@ -52,9 +53,7 @@
     {
       "resources": [
         "workers/xray-worker.js",
-        "window.html",
         "dist/hud-ui.js",
-        "dist/window-ui.js",
         "shared/console-helpers.js"
       ],
       "matches": ["<all_urls>"]

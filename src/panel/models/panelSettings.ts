@@ -99,6 +99,7 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   dockSide: 'right',
   apiSplit: 0,
   logsSplit: 0,
+  firstRunDismissed: false,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -161,5 +162,6 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     // user-dragged split width in px.
     apiSplit: clampNumber(base.apiSplit, DEFAULT_PANEL_SETTINGS.apiSplit, 0, 2000),
     logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2000),
+    firstRunDismissed: Boolean(base.firstRunDismissed),
   };
 }

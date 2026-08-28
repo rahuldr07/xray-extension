@@ -180,7 +180,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           className={`xray-resize-handle ${dragWidth !== null ? 'dragging' : ''}`}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize panel — drag, or use arrow keys"
+          aria-label="Resize panel - drag, or use arrow keys"
           aria-valuenow={appliedWidth}
           aria-valuemin={PANEL_WIDTH_MIN}
           aria-valuemax={maxPanelWidth()}
@@ -264,7 +264,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
       </main>
       {/*
         The live region is always mounted, and only its contents change. Injecting a
-        region together with its first message is unreliably announced — assistive tech
+        region together with its first message is unreliably announced - assistive tech
         has to be observing the region before the text lands in it.
       */}
       <div className="xray-toast-region" role="status" aria-live="polite" aria-atomic="true">

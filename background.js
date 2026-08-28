@@ -317,9 +317,42 @@ chrome.debugger.onDetach.addListener((source) => {
   _debuggerSessions.delete(tabId);
 });
 
+// C-8: `debugger` is an OPTIONAL permission now. Combined with <all_urls> and
+// MAIN-world injection it was close to the maximum-scrutiny configuration for Chrome
+// Web Store review, and it was requested at install time from every user whether or
+// not they ever opened the console.
+//
+// C-8's own stated direction was to try MAIN-world `new Function` first and fall back
+// to the debugger. That half is SUPERSEDED by the C-1 fix: MAIN-world execution is
+// deleted outright, because it handed the whole console context to page-controlled
+// code. So the debugger is the only execution path, and the right move is to stop
+// demanding it up front and ask only when the user actually runs an expression.
+function _hasDebuggerPermission() {
+  return new Promise((resolve) => {
+    try {
+      chrome.permissions.contains({ permissions: ['debugger'] }, (granted) => {
+        void chrome.runtime.lastError;
+        resolve(!!granted);
+      });
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
 async function _evaluateConsoleInTab(tabId, code, context) {
   if (!Number.isInteger(tabId) || tabId < 0) {
     return { type: 'error', error: { message: 'No inspected tab available for console execution.' } };
+  }
+
+  if (!(await _hasDebuggerPermission())) {
+    return {
+      type: 'error',
+      error: {
+        message: 'Console execution needs the optional "debugger" permission. Enable it in XRAY Settings, then run this again.',
+        needsPermission: 'debugger',
+      },
+    };
   }
 
   const target = { tabId };
@@ -639,6 +672,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     _runAiExplain(msg.settings, msg.prompt)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+
+  if (msg.type === 'xray:has-debugger-permission') {
+    _hasDebuggerPermission().then((granted) => sendResponse({ granted }));
     return true;
   }
 

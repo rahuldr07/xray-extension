@@ -4740,7 +4740,9 @@
   border: none;
   border-radius: var(--xray-radius-sm);
   background: transparent;
-  color: var(--xray-hint);
+  /* Not --xray-hint: that measures 2.89:1 on --xray-surface, under the 3:1 floor for
+     a control glyph, and this is the only interactive element in the component. */
+  color: var(--xray-subtext);
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--xray-dur-fast) var(--xray-ease), color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
@@ -5283,6 +5285,137 @@
   margin-top: 6px;
 }
 
+/* ── First-run introduction (replaces the API empty state until dismissed) ── */
+/* Denser than .xray-empty on purpose: this is an operator console, so the first
+   screen should look like the product rather than like an onboarding splash. */
+.xray-firstrun {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: auto;
+  padding: 20px;
+  max-width: 620px;
+  border-radius: var(--xray-radius);
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 20%, transparent);
+  background: var(--xray-surface);
+  animation: xray-empty-in 320ms var(--xray-ease-out);
+}
+
+.xray-firstrun-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.xray-firstrun-title {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--xray-text);
+}
+
+.xray-firstrun-lede {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--xray-subtext);
+}
+
+.xray-firstrun-dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-hint);
+  cursor: pointer;
+  transition: color var(--xray-dur-fast) var(--xray-ease),
+              background-color var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-firstrun-dismiss:hover {
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-text) 8%, transparent);
+}
+
+.xray-firstrun-dismiss:focus-visible {
+  outline: none;
+  border-color: var(--xray-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--xray-accent) 45%, transparent);
+}
+
+.xray-firstrun-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--xray-radius-sm);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--xray-text) 10%, transparent);
+}
+
+.xray-firstrun-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--xray-bg);
+}
+
+.xray-firstrun-cell-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.xray-firstrun-cell-icon {
+  display: inline-flex;
+  color: var(--xray-accent);
+}
+
+.xray-firstrun-cell-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--xray-text);
+}
+
+.xray-firstrun-cell-body {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--xray-subtext);
+}
+
+.xray-firstrun-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 10.5px;
+  /* --xray-hint is 2.89:1 here, under AA for 10.5px body text. */
+  color: var(--xray-subtext);
+}
+
+.xray-firstrun-plus {
+  color: var(--xray-subtext);
+}
+
+/* One column below the docked panel's narrow width, where three cells would each
+   be ~60px wide and the body copy would break every second word. */
+@media (max-width: 560px) {
+  .xray-firstrun-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ── Animated active-tab indicator ── */
 .xray-tab {
   position: relative;
@@ -5346,6 +5479,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .xray-empty,
+  .xray-firstrun,
   .xray-modal,
   .xray-modal-backdrop,
   .xray-live-dot.on {

@@ -271,7 +271,7 @@ function SnippetBar(): React.ReactElement {
             className="xray-input xray-snippet-rename"
             value={nameText}
             autoFocus
-            placeholder="Name (optional) — Enter to save"
+            placeholder="Name (optional) - Enter to save"
             onChange={(event) => setNameText(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') confirmSave();
@@ -421,7 +421,7 @@ function NetworkTable(): React.ReactElement {
         {!events.length && (
           <EmptyState
             label={filtered ? 'No matching requests' : 'No network activity yet'}
-            hint={filtered ? 'Nothing matches the current filter and search.' : 'Trigger a request on the page — fetch, XHR, and WebSocket traffic streams in here live.'}
+            hint={filtered ? 'Nothing matches the current filter and search.' : 'Trigger a request on the page - fetch, XHR, and WebSocket traffic streams in here live.'}
             action={filtered ? (
               <button className="xray-btn" onClick={() => { setNetworkFilter('all'); setSearchQuery(''); }}>Clear filter</button>
             ) : undefined}
@@ -466,7 +466,7 @@ function StatusCell({ entry }: { entry: XrayEntry }): React.ReactElement {
       </span>
     );
   }
-  return <span className={`xray-status-swatch ${statusClass(status)}`}>{status || '—'}</span>;
+  return <span className={`xray-status-swatch ${statusClass(status)}`}>{status || '-'}</span>;
 }
 
 const NetworkRow = React.memo(function NetworkRow({ event, waterfall, index, onExpand }: { event: ConsoleEvent; waterfall: WaterfallWindow; index: number; onExpand: (index: number) => void }): React.ReactElement {
@@ -808,7 +808,7 @@ const ConsoleRow = React.memo(function ConsoleRow({ event, count }: { event: Con
         {event.truncated && <span className="xray-truncated-badge" title="The result was truncated to fit the transfer limit">truncated</span>}
       </span>
       <span className="xray-console-aside">
-        {/* Error origin (top stack frame) shown where it's free — the parsed
+        {/* Error origin (top stack frame) shown where it's free - the parsed
             stack already has it (Chrome/Firefox file:line convention). */}
         {consoleError && errorOrigin(consoleError) && <span className="xray-console-source" title={errorOrigin(consoleError)}>{shortLocation(errorOrigin(consoleError))}</span>}
         <span className="xray-console-time">{formatTime(event.timestamp)}</span>
@@ -940,7 +940,7 @@ function ConsolePrompt(): React.ReactElement {
             setConsoleDraft(event.currentTarget.value);
           }}
           onKeyDown={handleKeyDown}
-          placeholder={selected ? 'Try res.data, Object.keys(res), schema(res) — Shift+Enter for a new line' : 'Select a request, then try res.data'}
+          placeholder={selected ? 'Try res.data, Object.keys(res), schema(res) - Shift+Enter for a new line' : 'Select a request, then try res.data'}
           aria-label="Console command"
         />
         <button className="xray-btn xray-prompt-help" title="Show the console helpers cheatsheet ($help)" onClick={() => void run('$help')}>

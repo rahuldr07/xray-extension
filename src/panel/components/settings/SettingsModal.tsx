@@ -217,7 +217,7 @@ export function SettingsModal(): React.ReactElement | null {
           {section === 'general' && (
             <>
               <SettingsSectionTitle label="General" />
-              <ToggleRow label="Stream to console live" desc="Append newly captured events to the console stream as they arrive. Pausing this does not stop capture — that's under Capture." checked={recording} onChange={setRecording} />
+              <ToggleRow label="Stream to console live" desc="Append newly captured events to the console stream as they arrive. Pausing this does not stop capture - that's under Capture." checked={recording} onChange={setRecording} />
               <SelectRow label="Default detail view" desc="Switches the detail pane to this view now, and whenever settings are reset." value={settings.defaultDetailView} options={detailViews} onChange={(value) => updateSettings({ defaultDetailView: value as DetailView })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing data, pins, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
             </>
@@ -256,10 +256,10 @@ export function SettingsModal(): React.ReactElement | null {
           {section === 'ai' && (
             <>
               <SettingsSectionTitle label="AI (bring your own key)" />
-              <InfoRow label="Local & private" desc="Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background — nothing is sent anywhere else." />
+              <InfoRow label="Local & private" desc="Your key is stored only in this browser's extension storage. XRAY calls the provider directly from the extension background - nothing is sent anywhere else." />
               <SelectRow
                 label="Provider"
-                desc="Anthropic and OpenAI are built in. Custom works with any OpenAI-compatible endpoint — OpenRouter, Groq, Together, DeepSeek, Mistral, Azure, or a local Ollama or LM Studio server."
+                desc="Anthropic and OpenAI are built in. Custom works with any OpenAI-compatible endpoint - OpenRouter, Groq, Together, DeepSeek, Mistral, Azure, or a local Ollama or LM Studio server."
                 value={aiSettings.provider}
                 options={['anthropic', 'openai', 'custom']}
                 onChange={(value) => {
@@ -298,7 +298,7 @@ export function SettingsModal(): React.ReactElement | null {
                   />
                   <TextRow
                     label="Auth prefix"
-                    desc="Text before the key. Usually 'Bearer ' — leave blank to send the key on its own."
+                    desc="Text before the key. Usually 'Bearer ' - leave blank to send the key on its own."
                     value={aiSettings.authPrefix}
                     placeholder="Bearer "
                     onChange={(value) => setAiSettings({ authPrefix: value })}
@@ -315,7 +315,7 @@ export function SettingsModal(): React.ReactElement | null {
             <>
               <SettingsSectionTitle label="Appearance" />
               <div className="xray-settings-row xray-theme-picker-row">
-                <span><strong>Theme</strong><small>Pick a preset, or build your own with full color freedom. Themes only restyle this panel — never the page or the extension.</small></span>
+                <span><strong>Theme</strong><small>Pick a preset, or build your own with full color freedom. Themes only restyle this panel - never the page or the extension.</small></span>
                 <div className="xray-theme-grid">
                   {THEME_PREVIEWS.map((preview) => (
                     <button
@@ -348,7 +348,7 @@ export function SettingsModal(): React.ReactElement | null {
               <RangeRow label="Corner radius" desc="Roundness of cards, buttons, inputs, and drawers." value={settings.radius} min={0} max={20} step={1} suffix="px" onChange={(value) => updateSettings({ radius: value })} />
               <AccentRow settings={settings} onChange={(accent) => updateSettings({ accent })} />
               <ToggleRow label="Operator glow" desc="Enable subtle cyan/purple terminal glow and active-focus lighting." checked={settings.glow} onChange={(value) => updateSettings({ glow: value })} />
-              <ToggleRow label="Hacker mode" desc="CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it — it styles the panel behind this dialog. Respects reduced-motion." checked={settings.hacker} onChange={(value) => { updateSettings({ hacker: value }); showToast(value ? 'Hacker mode ON — close Settings to see the CRT.' : 'Hacker mode off.'); }} />
+              <ToggleRow label="Hacker mode" desc="CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it - it styles the panel behind this dialog. Respects reduced-motion." checked={settings.hacker} onChange={(value) => { updateSettings({ hacker: value }); showToast(value ? 'Hacker mode ON - close Settings to see the CRT.' : 'Hacker mode off.'); }} />
               <ToggleRow label="Compact rows" desc="Reduce request row height for dense API sessions." checked={settings.compactRows} onChange={(value) => updateSettings({ compactRows: value })} />
               <ToggleRow label="Show host in path column" desc="Display request host below endpoint paths." checked={settings.showHostInPath} onChange={(value) => updateSettings({ showHostInPath: value })} />
             </>
@@ -435,7 +435,7 @@ function CustomThemeEditor(): React.ReactElement {
   }
   function copyShareCode(): void {
     void copyText(encodeTheme({ colors: custom, font, radius, hacker }));
-    showToast('Share code copied — colors, font, radius & effects included.');
+    showToast('Share code copied - colors, font, radius & effects included.');
   }
   function importFromText(): void {
     // A full share code carries font/radius/effect too; fall back to colors-only.
@@ -520,7 +520,7 @@ function CustomThemeEditor(): React.ReactElement {
         <span>
           {overrideCount > 0
             ? `${overrideCount} token${overrideCount === 1 ? '' : 's'} pinned · the rest auto-derive from your base colors.`
-            : 'Every token auto-derives from your four base colors — pin any swatch for full control.'}
+            : 'Every token auto-derives from your four base colors - pin any swatch for full control.'}
         </span>
         {overrideCount > 0 && (
           <button className="xray-chip" onClick={resetOverrides} title="Revert every token to auto-derived">
@@ -528,7 +528,7 @@ function CustomThemeEditor(): React.ReactElement {
           </button>
         )}
       </div>
-      <p className="xray-custom-note">Themes are applied as inline CSS variables on this panel only — they never touch the page or the extension&apos;s capture runtime.</p>
+      <p className="xray-custom-note">Themes are applied as inline CSS variables on this panel only - they never touch the page or the extension&apos;s capture runtime.</p>
     </div>
   );
 }
@@ -635,7 +635,7 @@ function TokenField({ label, value, overridden, onChange, onReset, onCopy }: { l
     try {
       const result = await new Ctor().open();
       if (result?.sRGBHex) onChange(result.sRGBHex);
-    } catch { /* user pressed Escape — ignore */ }
+    } catch { /* user pressed Escape - ignore */ }
   }
 
   return (

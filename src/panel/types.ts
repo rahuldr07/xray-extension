@@ -193,6 +193,8 @@ export interface PanelSettings {
   apiSplit: number;
   /** User-dragged width (px) of the Logs list pane; 0 = automatic. */
   logsSplit: number;
+  /** Set once the first-run introduction has been dismissed. */
+  firstRunDismissed: boolean;
 }
 
 export type DockSide = 'left' | 'right';

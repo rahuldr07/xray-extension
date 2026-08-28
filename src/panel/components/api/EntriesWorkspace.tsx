@@ -19,6 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { CollapsibleSection } from '../common/CollapsibleSection';
 import { EmptyState } from '../common/EmptyState';
+import { FirstRun } from '../common/FirstRun';
 import { PaneDivider, usePaneSplit } from '../common/PaneDivider';
 import { RequestDetail } from '../detail/RequestDetail';
 import { LogDetail } from '../detail/LogDetail';
@@ -130,6 +131,7 @@ export function EntriesWorkspace({ mode }: { mode: 'api' | 'logs' }): React.Reac
 }
 
 function ApiWorkspace(): React.ReactElement {
+  const firstRunDismissed = usePanelStore((state) => state.settings.firstRunDismissed);
   const entries = usePanelStore((state) => state.entries);
   const selectedId = usePanelStore((state) => state.selectedId);
   const apiDetailOpen = usePanelStore((state) => state.apiDetailOpen);
@@ -293,7 +295,9 @@ function ApiWorkspace(): React.ReactElement {
                   );
                 })}
               </div>
-              {!rows.length && <EmptyState label="No API requests yet" hint="Browse the page or trigger a call — fetch, XHR, GraphQL, and WebSocket traffic streams in here live. Press Ctrl/⌘+K to jump anywhere." />}
+              {!rows.length && (firstRunDismissed
+                ? <EmptyState label="No API requests yet" hint="Browse the page or trigger a call. Fetch, XHR, GraphQL and WebSocket traffic streams in here live. Press Ctrl/Cmd+K to jump anywhere." />
+                : <FirstRun />)}
             </div>
             {newCount > 0 && (
               <button className="xray-newmsg-pill xray-newreq-pill" onClick={jumpToTop}>
@@ -354,7 +358,7 @@ function LogsWorkspace(): React.ReactElement {
               );
             })}
           </div>
-          {!rows.length && <EmptyState label="No logs captured" hint="Page console.log output and captured objects land here — trigger some activity on the page to populate the list." />}
+          {!rows.length && <EmptyState label="No logs captured" hint="Page console.log output and captured objects land here - trigger some activity on the page to populate the list." />}
         </div>
         <MobileSelectedDetail entry={selected} />
       </div>
@@ -710,7 +714,7 @@ function ApiDetailDrawer({ entry, onClose }: { entry: XrayEntry | null; onClose(
   return (
     <aside className={`xray-api-detail-drawer ${entry ? '' : 'empty'}`} aria-label="Selected API request detail">
       <div className="xray-api-drawer-body">
-        {entry ? <RequestDetail entry={entry} onClose={onClose} /> : <EmptyState label="Nothing selected" hint="Choose a request to open the detail drawer — preview, schema, diff, replay, and more." />}
+        {entry ? <RequestDetail entry={entry} onClose={onClose} /> : <EmptyState label="Nothing selected" hint="Choose a request to open the detail drawer - preview, schema, diff, replay, and more." />}
       </div>
     </aside>
   );

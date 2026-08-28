@@ -124,7 +124,12 @@ test('replay restores sensitive headers from a MAIN-world-only store', () => {
   assert.doesNotMatch(interceptor, /_emit\([^)]*_secretStore/);
   // each record is pinned to the origin its request went to, so every call site
   // must hand _rememberSecrets that URL
-  assert.match(interceptor, /_secretStore\.set\(id, \{ origin: _originOf\(url\), values: secret \}\)/);
+  // C-4b: the record now also carries the unscrubbed URL, because a credential can
+  // live only in the query string and the panel never sees the real one.
+  assert.match(interceptor, /_secretStore\.set\(id, \{/);
+  assert.match(interceptor, /origin: _originOf\(url\),/);
+  assert.match(interceptor, /values: secret,/);
+  assert.match(interceptor, /rawUrl: urlWasScrubbed \? rawUrl : null,/);
   assert.match(interceptor, /_rememberSecrets\(id, url, req\.headers, init\.headers\)/);
   assert.match(interceptor, /_rememberSecrets\(id, url, init\.headers\)/);
   assert.match(interceptor, /_rememberSecrets\(xr\.id, xr\.url, xr\.rawSecrets\)/);

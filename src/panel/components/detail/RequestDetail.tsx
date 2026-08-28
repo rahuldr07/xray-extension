@@ -405,7 +405,7 @@ function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasF
   // JSON-escaped string literal.
   if (typeof activeValue === 'string') return <pre className="xray-json xray-json-text">{activeValue}</pre>;
   if (activeValue == null && hasFrames && responseTab === 'response') {
-    return <EmptyState label="Streaming entry" hint="This is a WebSocket/SSE stream — open the Frames tab to inspect the messages." />;
+    return <EmptyState label="Streaming entry" hint="This is a WebSocket/SSE stream - open the Frames tab to inspect the messages." />;
   }
   return <JsonView value={activeValue} />;
 }

@@ -43,12 +43,23 @@
     return 'xr_' + Date.now().toString(36) + '_' + (Math.random() * 1e9 | 0).toString(36);
   }
 
+  // C-4b: the ONE boundary where a captured URL leaves this realm. Scrubbing here
+  // rather than at each call site means every path (fetch, XHR, WebSocket, SSE,
+  // deferred timing updates) is covered by construction, and the un-scrubbed URL
+  // stays available inside this file for replay origin-pinning and the real request.
+  function _scrubEntry(entry) {
+    if (!entry || typeof entry !== 'object') return entry;
+    if (typeof entry.url === 'string') entry.url = _scrubUrl(entry.url);
+    if (typeof entry.urlPath === 'string') entry.urlPath = _scrubUrl(entry.urlPath);
+    return entry;
+  }
+
   function _emit(entry) {
-    window.postMessage({ __xray_capture__: true, token: _bridgeToken, entry }, '*');
+    window.postMessage({ __xray_capture__: true, token: _bridgeToken, entry: _scrubEntry(entry) }, '*');
   }
 
   function _emitUpdate(entry) {
-    window.postMessage({ __xray_capture__: true, token: _bridgeToken, update: true, entry }, '*');
+    window.postMessage({ __xray_capture__: true, token: _bridgeToken, update: true, entry: _scrubEntry(entry) }, '*');
   }
 
   // ── config bridge (capture toggles + traffic rules from the panel) ─────────
@@ -162,6 +173,48 @@
     return value;
   }
 
+  // C-4b: URLs were captured VERBATIM, so every credential that travels in a query
+  // string survived redaction untouched and was then persisted, restored on other
+  // origins, and eligible to be sent to a third-party LLM. `?access_token=`, `?sig=`,
+  // and presigned-S3 credentials are the common cases.
+  //
+  // The name test is a SUBSTRING match, not the `^...$` anchoring used for headers:
+  // anchoring is what let near-misses like `x-api-key-v2` through, and query
+  // parameters are named far less consistently than headers.
+  const SENSITIVE_QUERY = /(token|auth|secret|password|passwd|signature|^sig$|credential|session|api[-_]?key|access[-_]?key|x-amz-security|x-amz-signature|x-amz-credential)/i;
+  // Kept out of the denylist deliberately: these are near-universal and almost never
+  // secret, and redacting them makes ordinary URLs unreadable in the request list.
+  const QUERY_ALLOW = /^(page|limit|offset|sort|order|q|query|search|filter|lang|locale|format|v|version|id|ids)$/i;
+
+  // Not '[redacted]': searchParams.set percent-encodes the brackets to %5B/%5D, and
+  // these URLs are what the operator reads in the request list.
+  const QUERY_REDACTED = 'REDACTED';
+
+  function _scrubUrl(url) {
+    const raw = String(url || '');
+    // No early return on a missing '?': credentials also travel in the userinfo
+    // component (https://user:pw@host/path), which has no query string at all.
+    if (raw.indexOf('?') === -1 && raw.indexOf('@') === -1) return raw;
+    try {
+      const parsed = new _URL(raw, _pageHref());
+      let touched = false;
+      for (const key of Array.from(parsed.searchParams.keys())) {
+        if (QUERY_ALLOW.test(key)) continue;
+        if (!SENSITIVE_QUERY.test(key)) continue;
+        parsed.searchParams.set(key, QUERY_REDACTED);
+        touched = true;
+      }
+      if (parsed.username || parsed.password) {
+        parsed.username = '';
+        parsed.password = '';
+        touched = true;
+      }
+      return touched ? parsed.href : raw;
+    } catch {
+      return raw;
+    }
+  }
+
   // Sensitive header values are kept ONLY in this MAIN-world map, keyed by entry id.
   // They are never postMessaged to the panel or persisted, but they let an
   // auth-carrying request be replayed successfully (see the replay handler below).
@@ -202,8 +255,23 @@
   function _rememberSecrets(id, url, ...sources) {
     const secret = {};
     sources.forEach((source) => { if (source) Object.assign(secret, _collectSecrets(source)); });
-    if (!Object.keys(secret).length) return;
-    _secretStore.set(id, { origin: _originOf(url), values: secret });
+    // C-4b: the unscrubbed URL is remembered even when no header secret exists,
+    // because the credential may live ONLY in the query string. Without this,
+    // scrubbing the URL on the way out would silently break replay for every
+    // request authenticated by `?access_token=` rather than by a header: the panel
+    // would send REDACTED back and the replay would go out unauthenticated.
+    // It stays in this MAIN-world map exactly like the header values do, and is
+    // restored only when the replay still targets the origin it came from.
+    const rawUrl = String(url || '');
+    const scrubbed = _scrubUrl(rawUrl);
+    const urlWasScrubbed = scrubbed !== rawUrl;
+    if (!Object.keys(secret).length && !urlWasScrubbed) return;
+    _secretStore.set(id, {
+      origin: _originOf(url),
+      values: secret,
+      rawUrl: urlWasScrubbed ? rawUrl : null,
+      scrubbedUrl: urlWasScrubbed ? scrubbed : null,
+    });
     if (_secretStore.size > MAX_SECRETS) {
       const oldest = _secretStore.keys().next().value;
       _secretStore.delete(oldest);
@@ -866,7 +934,7 @@
     if (!event.data?.__xray_replay__) return;
     if (event.data.token !== _bridgeToken) return;
     const request = event.data.request || {};
-    const url = _resolveUrl(String(request.url || ''));
+    let url = _resolveUrl(String(request.url || ''));
     if (!/^https?:/i.test(url)) return;
     const method = /^[A-Z]+$/.test(String(request.method || '').toUpperCase()) ? String(request.method).toUpperCase() : 'GET';
     const replayOf = typeof request.replayOf === 'string' ? request.replayOf.slice(0, 100) : null;
@@ -889,6 +957,12 @@
       && pinnedOrigin === _originOf(url)
       && _urlIsUnder(url, pinnedOrigin);
     const secrets = sameOrigin ? record.values : {};
+    // Restore the unscrubbed URL only when the operator did not edit it. If they
+    // changed anything, their version wins and the credential is not smuggled into
+    // a URL they rewrote. Gated on the same origin check as the header secrets.
+    if (sameOrigin && record.rawUrl && url === record.scrubbedUrl) {
+      url = record.rawUrl;
+    }
     const headers = {};
     const applied = new Set();
     if (request.headers && typeof request.headers === 'object') {

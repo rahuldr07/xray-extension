@@ -20,12 +20,24 @@ test('console uses a shared helper module in both extension worlds', () => {
   assert.match(read('shared/console-helpers.js'), /window\.XRAY_ConsoleHelpers/);
 });
 
-test('console uses privileged debugger evaluation before MAIN-world fallback', () => {
+test('C-8 debugger is an optional permission, requested only when the console runs', () => {
+  // Was a required install-time permission. Combined with <all_urls> and MAIN-world
+  // injection that is close to the maximum-scrutiny configuration for store review,
+  // and it was demanded from every user whether or not they opened the console.
+  //
+  // C-8 also proposed trying MAIN-world `new Function` first and falling back to the
+  // debugger. That half is SUPERSEDED by C-1: MAIN-world execution is deleted, so the
+  // debugger is the only path and the fix is to stop requesting it up front.
   const manifest = readManifest();
   const background = read('background.js');
   const consoleEngine = read('panel/console.js');
 
-  assert.ok(manifest.permissions.includes('debugger'));
+  assert.ok(!manifest.permissions.includes('debugger'), 'not required at install time');
+  assert.ok(manifest.optional_permissions.includes('debugger'), 'requested on demand instead');
+
+  assert.match(background, /function _hasDebuggerPermission/);
+  assert.match(background, /chrome\.permissions\.contains\(\{ permissions: \['debugger'\] \}/);
+  assert.match(background, /needsPermission: 'debugger'/, 'the panel is told what to ask for');
   assert.match(background, /xray:console-eval/);
   assert.match(background, /chrome\.debugger\.attach/);
   assert.match(background, /Runtime\.evaluate/);
@@ -91,9 +103,24 @@ test('manifest exposes three React UI modes while keeping capture runtime vanill
   assert.ok(hudScript, 'HUD mount content script is required');
   assert.equal(hudScript.world, 'ISOLATED');
   assert.equal(hudScript.run_at, 'document_idle');
-  assert.ok(resources.includes('window.html'));
+  // Only the resources a CONTENT SCRIPT has to reach are web-accessible.
+  // dist/hud-ui.js is dynamically imported by content/hud-mount.js, so it must be.
   assert.ok(resources.includes('dist/hud-ui.js'));
-  assert.ok(resources.includes('dist/window-ui.js'));
+
+  // C-10: window.html and its bundle are NOT, and never needed to be. The pop-out
+  // opens with chrome.windows.create(chrome.runtime.getURL('window.html')), which
+  // does not require web-accessibility, and window.html loads dist/window-ui.js
+  // itself with a <script src> as an extension page. Exposing window.html let ANY
+  // page iframe it, and src/panel/window-main.tsx reads location.hash and calls
+  // updateSettings, which persists to chrome.storage.local — so a hostile page could
+  // permanently alter panel settings with no user interaction.
+  assert.ok(!resources.includes('window.html'), 'window.html must not be web-accessible');
+  assert.ok(!resources.includes('dist/window-ui.js'), 'nor its bundle');
+  assert.match(read('background.js'), /chrome\.runtime\.getURL\('window\.html'\)/,
+    'because the pop-out opens through chrome.windows.create instead');
+  assert.match(read('window.html'), /<script src="dist\/window-ui\.js">/,
+    'and the bundle is loaded by the extension page itself');
+
   assert.ok(!manifest.content_scripts[0].js.includes('dist/hud-ui.js'));
   assert.ok(!manifest.content_scripts[0].js.includes('dist/window-ui.js'));
 });
