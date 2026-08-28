@@ -9,6 +9,15 @@
   window.__xray_interceptor_installed__ = true;
 
   const _origFetch = window.fetch;
+  // C-2: the secret-bearing replay path must not depend on globals the page can
+  // replace. `_URL` is captured at document_start, before page script runs; replacing
+  // `window.URL` afterwards used to make `_originOf` return whatever the attacker
+  // wanted, and `sameOrigin` then held for ANY target — sending the original site's
+  // bearer token to a host of the page's choosing.
+  const _URL = window.URL;
+  const _pageHref = () => {
+    try { return window.location.href; } catch { return ''; }
+  };
   const _origXHROpen = XMLHttpRequest.prototype.open;
   const _origXHRSend = XMLHttpRequest.prototype.send;
   const _origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
@@ -118,14 +127,19 @@
   }
 
   // ── shared helpers ─────────────────────────────────────────────────────────
-  function _tryDecrypt(token, data) {
-    try {
-      if (typeof window.__XRAY_decrypt__ === 'function' && token) {
-        const result = window.__XRAY_decrypt__(token, data);
-        if (result !== null && result !== undefined) return { ok: true, data: result };
-      }
-    } catch { return { ok: false, data: null }; }
-    return { ok: null, data: null };
+  // C-6: decryption used to run HERE, in the page's realm, through a writable page
+  // global installed by the now-deleted content/decrypt-bridge.js. The shipped stub
+  // returned null so nothing leaked yet, but the file existed to be filled in — and
+  // once it is, a page can read whatever
+  // the closure captures, use it as a decryption oracle, or replace it outright and
+  // feed the analyst fabricated plaintext stamped `decryptStatus: 'ok'`.
+  //
+  // The interceptor now only marks that a token was present. `content/content.js` runs
+  // the real hook in the ISOLATED world, which the page cannot reach at all. The stated
+  // reason for MAIN-world placement — page CSP blocking eval — never applied there:
+  // isolated-world content scripts are exempt from the page's CSP.
+  function _decryptPending(token, data) {
+    return token && data !== null && data !== undefined;
   }
 
   function _parseHeaders(headers) {
@@ -167,10 +181,18 @@
 
   function _originOf(url) {
     try {
-      return new URL(String(url), window.location.href).origin;
+      return new _URL(String(url), _pageHref()).origin;
     } catch {
       return null;
     }
+  }
+
+  // A plain-string origin check used alongside _originOf on the secret-bearing replay
+  // path. It parses nothing, so it holds even if the URL constructor is compromised.
+  function _urlIsUnder(url, origin) {
+    const u = String(url);
+    if (!origin) return false;
+    return u === origin || u.startsWith(origin + '/') || u.startsWith(origin + '?') || u.startsWith(origin + '#');
   }
 
   // Secrets are pinned to the origin they were captured from. Edit & Replay lets
@@ -240,14 +262,14 @@
 
   function _resolveUrl(url) {
     try {
-      return new URL(url, window.location.href).href;
+      return new _URL(url, _pageHref()).href;
     } catch {
       return url;
     }
   }
 
   function _path(url) {
-    try { return new URL(url).pathname; } catch { return url; }
+    try { return new _URL(url).pathname; } catch { return url; }
   }
 
   // ── GraphQL awareness ──────────────────────────────────────────────────────
@@ -377,7 +399,12 @@
   }
 
   // ── fetch wrapper ─────────────────────────────────────────────────────────
-  window.fetch = async function (...args) {
+  // Assigned to `window.fetch` below AND kept in `_xrayFetch`. The replay path calls
+  // the reference, not the global: routing through `window.fetch` meant a page that
+  // re-wrapped fetch after document_start read the raw restored Authorization value
+  // on every replay. Calling our own wrapper keeps replays captured and diffed while
+  // taking the page's wrapper out of the path.
+  const _xrayFetch = async function (...args) {
     // Consume the replay mark before the capture guard: if fetch capture is
     // off, the mark must still be cleared or it would tag the next captured
     // request as a replay.
@@ -479,12 +506,9 @@
       try { size = new TextEncoder().encode(raw).length; } catch {}
       try { parsed = JSON.parse(raw); } catch {}
 
-      let decryptStatus = 'none', decrypted = null;
-      if (token && parsed !== null) {
-        const d = _tryDecrypt(token, parsed);
-        if (d.ok === true)  { decryptStatus = 'ok';     decrypted = d.data; }
-        else if (d.ok === false) { decryptStatus = 'failed'; }
-      }
+      // 'pending' is resolved in the isolated world by content.js — see C-6.
+      const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
+      const decrypted = null;
 
       const timing = _resourceTiming(url);
       _emit(Object.assign(baseEntry, {
@@ -500,6 +524,7 @@
 
     return response;
   };
+  window.fetch = _xrayFetch;
 
   // ── XHR wrapper ───────────────────────────────────────────────────────────
   // A simulated response installs own properties that shadow the prototype's
@@ -639,12 +664,9 @@
       } catch {}
 
       const token = xr.reqHeaders['x-parse-token'] || null;
-      let decryptStatus = 'none', decrypted = null;
-      if (token && parsed !== null) {
-        const d = _tryDecrypt(token, parsed);
-        if (d.ok === true)  { decryptStatus = 'ok';     decrypted = d.data; }
-        else if (d.ok === false) { decryptStatus = 'failed'; }
-      }
+      // 'pending' is resolved in the isolated world by content.js — see C-6.
+      const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
+      const decrypted = null;
 
       const timing = _resourceTiming(xr.url);
       _emit(Object.assign(baseEntry, {
@@ -859,7 +881,13 @@
     // are dropped instead (the replay just fails unauthenticated). Cookies need no
     // such check — the browser only ever attaches an origin's own cookies.
     const record = replayOf ? _secretStore.get(replayOf) : null;
-    const sameOrigin = !!record && !!record.origin && record.origin === _originOf(url);
+    // C-2: two independent checks, so neither alone is a single point of failure.
+    // `_originOf` now parses with the URL constructor pinned at document_start, and
+    // `_urlIsUnder` is a plain string comparison that touches no global at all.
+    const pinnedOrigin = record && record.origin ? String(record.origin) : '';
+    const sameOrigin = !!pinnedOrigin
+      && pinnedOrigin === _originOf(url)
+      && _urlIsUnder(url, pinnedOrigin);
     const secrets = sameOrigin ? record.values : {};
     const headers = {};
     const applied = new Set();
@@ -889,7 +917,7 @@
     }
     _replayMark = { replayOf };
     try {
-      window.fetch(url, init).catch(() => {});
+      _xrayFetch(url, init).catch(() => {});
     } catch {
       _replayMark = null;
     }

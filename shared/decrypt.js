@@ -6,8 +6,13 @@
 // passes it here together with the parsed response JSON. Return the decrypted
 // plain object (or throw on failure).
 //
-// The actual decrypt function is in content/decrypt-bridge.js (MAIN world)
-// to avoid CSP violations. This file is just a placeholder for the ISOLATED world.
+// This is the ONLY decryption hook. It runs in the ISOLATED world, which is exempt
+// from the page's CSP, so the MAIN-world bridge that used to exist for CSP reasons
+// (content/decrypt-bridge.js) is deleted — it published a writable page global that a
+// page could read, use as an oracle, or replace to feed fabricated plaintext back to
+// the analyst marked as successfully decrypted. See C-6 in docs/threat-model.md.
+//
+// content/content.js calls this for every entry the interceptor marked 'pending'.
 
 window.XRAY_Decrypt = (() => {
   'use strict';
@@ -22,9 +27,12 @@ window.XRAY_Decrypt = (() => {
   // they stay spelled out even though the placeholder implementation ignores them.
   // eslint-disable-next-line no-unused-vars
   function decrypt(token, data) {
-    // The actual decrypt function lives in content/decrypt-bridge.js (MAIN world).
-    // This ISOLATED world version is not called directly by the interceptor.
-    // If you need to decrypt in ISOLATED world, call the MAIN world version via postMessage.
+    // ── Plug your decrypt logic here ──────────────────────────────────────
+    // Example:
+    //   return myDecryptLib.decrypt(token, data);
+    //
+    // Returning null means "no decryption performed". Throwing marks the entry
+    // decryptStatus: 'failed'. Must be synchronous.
     return null;
   }
 

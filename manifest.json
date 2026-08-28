@@ -21,7 +21,6 @@
       "js": [
         "content/interceptor.js",
         "content/console-capture.js",
-        "content/decrypt-bridge.js",
         "shared/console-helpers.js"
       ],
       "world": "MAIN",
