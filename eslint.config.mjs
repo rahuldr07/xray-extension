@@ -11,8 +11,9 @@ import prettier from 'eslint-config-prettier';
 //   test|scripts    Node
 export default tseslint.config(
   {
-    // dist/ is build output; release/ is packaging output. Neither is source.
-    ignores: ['dist/**', 'node_modules/**', 'release/**', 'docs/assets/**'],
+    // dist/ is build output; release/ is packaging output; .claude/ is vendored
+    // Claude skill tooling committed so it travels with the repo. None is source.
+    ignores: ['dist/**', 'node_modules/**', 'release/**', 'docs/assets/**', '.claude/**'],
   },
 
   js.configs.recommended,

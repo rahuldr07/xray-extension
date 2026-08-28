@@ -11,3 +11,7 @@ docs/assets/
 # (patterns of the form `\s*\n\s*`). Reformatting these files would break those
 # assertions for purely cosmetic reasons — see CONTRIBUTING.md.
 test/
+
+# Vendored Claude skill tooling - committed so it travels with the repo,
+# but not this project's source and not ours to reformat.
+.claude/
