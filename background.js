@@ -113,7 +113,24 @@ function _isConsoleExpression(code) {
     !/^(const|let|var|if|for|while|switch|try|class|function|return)\s/.test(trimmed);
 }
 
-function _buildConsoleExpression(code, context) {
+// C-1: the evaluated expression used to read `window.XRAY_ConsoleHelpers`, a plain
+// writable page global. A page that replaced `createRuntime` received the entire
+// console context — captured URLs across every origin in the session, full bodies
+// for the selected entry, decoded JWT claims — as soon as the user ran any
+// expression, including `1+1`. The helper source is now inlined into the expression
+// and evaluated against a SHADOWED `window`, so the page's global is never read and
+// never written. The source is bundled with the extension, so this is our own code,
+// not the page's.
+let _consoleHelperSource = null;
+
+async function _loadConsoleHelperSource() {
+  if (_consoleHelperSource !== null) return _consoleHelperSource;
+  const response = await fetch(chrome.runtime.getURL('shared/console-helpers.js'));
+  _consoleHelperSource = await response.text();
+  return _consoleHelperSource;
+}
+
+function _buildConsoleExpression(code, context, helperSource) {
   const trimmed = String(code || '').trim();
   const contextJson = JSON.stringify(context || {});
   const scopeNames = Object.keys(context?.scope || {});
@@ -128,7 +145,14 @@ function _buildConsoleExpression(code, context) {
   return `(async () => {
     const MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
     const __context = ${contextJson};
-    const __helpers = window.XRAY_ConsoleHelpers;
+    // The helper module is an IIFE whose only global write is
+    // \`window.XRAY_ConsoleHelpers\`. Shadowing \`window\` with a local object
+    // captures that write here instead of reading — or touching — the page's global.
+    const __helpers = (() => {
+      const window = {};
+      ${helperSource}
+      return window.XRAY_ConsoleHelpers;
+    })();
     const __runtime = __helpers?.createRuntime
       ? __helpers.createRuntime(__context || {}, (text) => {
           try { navigator.clipboard?.writeText?.(text); } catch {}
@@ -301,7 +325,7 @@ async function _evaluateConsoleInTab(tabId, code, context) {
   const target = { tabId };
   try {
     await _ensureDebuggerAttached(tabId);
-    const expression = _buildConsoleExpression(code, context);
+    const expression = _buildConsoleExpression(code, context, await _loadConsoleHelperSource());
     const evalPromise = _debuggerCommand(target, 'Runtime.evaluate', {
       expression,
       awaitPromise: true,

@@ -42,16 +42,39 @@
     }
   }
 
+  // A cell a spreadsheet will evaluate as a formula. Excel, Sheets and LibreOffice
+  // strip RFC4180 quoting BEFORE evaluating, so quoting is not a defence — the value
+  // has to stop looking like a formula. Plain numbers are exempt so a negative
+  // number stays a number. Kept identical to escapeCSV in workers/xray-worker.js.
+  const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
+  const CSV_PLAIN_NUMBER = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
+  function csvCell(value) {
+    if (value == null) return '';
+    let text = typeof value === 'string' ? value : JSON.stringify(value);
+    if (text === undefined) text = String(value);
+    if (CSV_FORMULA_LEAD.test(text) && !CSV_PLAIN_NUMBER.test(text)) text = `'${text}`;
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
   function toCSV(arr) {
     if (!Array.isArray(arr) || !arr.length) return '';
-    const keys = Object.keys(arr[0] || {});
-    const header = keys.join(',');
-    const rows = arr.map((row) => keys.map((key) => {
-      const value = row?.[key];
-      if (value == null) return '';
-      const text = typeof value === 'string' ? value : JSON.stringify(value);
-      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    }).join(','));
+    // Columns are the union across every row, not row 0's keys: captured payloads
+    // are routinely heterogeneous, and toCSV([{}, {a: 1}]) used to erase the table.
+    const keys = [];
+    const seen = new Set();
+    for (const row of arr) {
+      if (!row || typeof row !== 'object') continue;
+      for (const key of Object.keys(row)) {
+        if (!seen.has(key)) { seen.add(key); keys.push(key); }
+      }
+    }
+    if (!keys.length) return '';
+    // The header goes through the same escaper as the cells. `keys.join(',')` meant
+    // a key containing a comma or quote produced a header whose column count did
+    // not match its rows.
+    const header = keys.map(csvCell).join(',');
+    const rows = arr.map((row) => keys.map((key) => csvCell(row?.[key])).join(','));
     return [header, ...rows].join('\n');
   }
 

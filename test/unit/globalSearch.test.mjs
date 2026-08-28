@@ -115,14 +115,19 @@ test('CAP searchEntries stops at 200 matches', () => {
   assert.equal(result.truncated, true);
 });
 
-test('SUSPECTED BUG globalSearch.ts:107 — truncated is true when exactly 200 entries matched and nothing was dropped', () => {
+test('FIXED globalSearch.ts:107 — truncated is false when exactly 200 matched and nothing was dropped', () => {
   const exactly200 = Array.from({ length: 200 }, () => apiEntry({ url: 'https://x/needle' }));
   const result = searchEntries(exactly200, 'needle');
   assert.equal(result.matches.length, 200);
-  assert.equal(result.truncated, true, 'every match was returned, yet the UI is told results were capped');
+  // Was: derived from `matches.length >= MAX_MATCHES`, so a complete scan that
+  // happened to find exactly the cap told the UI results had been dropped.
+  assert.equal(result.truncated, false, 'every entry was scanned, so nothing was cut');
 
   const justUnder = Array.from({ length: 199 }, () => apiEntry({ url: 'https://x/needle' }));
-  assert.equal(searchEntries(justUnder, 'needle').truncated, false, '199 matches reports honestly');
+  assert.equal(searchEntries(justUnder, 'needle').truncated, false, '199 still reports honestly');
+
+  const over = Array.from({ length: 201 }, () => apiEntry({ url: 'https://x/needle' }));
+  assert.equal(searchEntries(over, 'needle').truncated, true, 'and a real cut is still reported');
 });
 
 test('CAP each field is scanned only to 20_000 chars', () => {

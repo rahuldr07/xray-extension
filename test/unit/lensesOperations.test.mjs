@@ -197,31 +197,34 @@ test('getResponseOperations surfaces diff actions when the endpoint schema drift
   assert.ok(opsById(getResponseOperations(preflagged, [preflagged])).diff, 'capture-time drift is trusted directly');
 });
 
-test('SUSPECTED BUG operations.ts:55-57 — pushUnique keeps the FIRST priority, so a later higher-priority push is a no-op', () => {
+test('FIXED operations.ts:55-57 — pushUnique keeps the highest-priority variant, not the first pushed', () => {
   // This entry is slow (priority-78 "Compare Previous", kind console) AND has
-  // drifted (priority-87 "Compare Previous", kind view/diff). The slow branch
-  // runs first, so the drift branch's stronger, more useful variant is dropped.
+  // drifted (priority-87 "Compare Previous", kind view/diff). The slow branch runs
+  // first, so the drift branch's stronger variant used to be silently discarded and
+  // the button could not open the diff view — while a merely-drifted request got it.
   const previous = apiEntry({ urlPath: '/users', timestamp: 100, duration: 10, responseRaw: '{"id":1}' });
   const current = apiEntry({ urlPath: '/users', timestamp: 200, duration: 5000, responseRaw: '{"id":1,"email":"x"}' });
   const byId = opsById(getResponseOperations(current, [previous, current]));
 
   assert.ok(byId.diff, 'drift was detected');
-  assert.equal(byId['compare-previous'].priority, 78, 'kept the slow branch priority, not the drift branch 87');
-  assert.equal(byId['compare-previous'].kind, 'console', 'and the console variant, not the diff view');
-  assert.equal(byId['compare-previous'].view, undefined, 'so clicking it cannot open the diff view');
+  assert.equal(byId['compare-previous'].priority, 87, 'the drift branch priority wins');
+  assert.equal(byId['compare-previous'].kind, 'view');
+  assert.equal(byId['compare-previous'].view, 'diff', 'so clicking it opens the diff view');
 
-  // Same shape on `schema`: the object-response branch (75) wins over the drift
-  // branch (86) and the large-payload branch (69).
-  assert.equal(byId.schema.priority, 75);
+  // Same shape on `schema`: the drift branch (86) now beats the object-response
+  // branch (75) and the large-payload branch (69), whatever order they ran in.
+  assert.equal(byId.schema.priority, 86);
 
-  // Proof the drift branch WOULD have used 87/view when it runs first: a fast
-  // drifted request never reaches the slow branch at all.
+  // A fast drifted request reached the drift branch first and was always correct;
+  // the two paths now agree instead of depending on branch order.
   const fast = apiEntry({ urlPath: '/orders', timestamp: 200, duration: 5, responseRaw: '{"id":1,"email":"x"}' });
   const fastPrevious = apiEntry({ urlPath: '/orders', timestamp: 100, duration: 5, responseRaw: '{"id":1}' });
   const fastById = opsById(getResponseOperations(fast, [fastPrevious, fast]));
   assert.equal(fastById['compare-previous'].priority, 87);
   assert.equal(fastById['compare-previous'].kind, 'view');
   assert.equal(fastById['compare-previous'].view, 'diff');
+  assert.deepEqual(byId['compare-previous'], fastById['compare-previous'],
+    'slow-and-drifted and fast-and-drifted now produce the identical operation');
 });
 
 test('getResponseOperations JSON-escapes the endpoint path it embeds in console commands', () => {

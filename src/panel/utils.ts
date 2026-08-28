@@ -13,6 +13,12 @@ export function parseBody(value: unknown): unknown {
 }
 
 export function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  // Number(null), Number([]) and Number('') are all 0 — finite — so the old
+  // `!Number.isFinite` guard never reached the fallback and clamped instead:
+  // a stored `maxEntries: null` became 50, the floor, rather than the 1000 default.
+  // Only a real number or a numeric string counts as a value here.
+  if (typeof value === 'string' && value.trim() === '') return fallback;
+  if (typeof value !== 'number' && typeof value !== 'string') return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.round(parsed)));
@@ -101,15 +107,22 @@ export function preview(value: unknown, limit = 220): string {
 }
 
 export function safeStringify(value: unknown, space = 2, limit = 80_000): string {
-  const seen = new WeakSet<object>();
+  // Ancestors along the CURRENT branch. A WeakSet that only ever grew reported the
+  // second sibling reference to one object as circular, so
+  // `{first: shared, second: shared}` serialised as
+  // `{"first":{"a":1},"second":"[Circular]"}` — a wrong answer for acyclic data.
+  // `this` inside a non-arrow replacer is the object the key was read from, which
+  // is what lets the stack be unwound back to the current parent.
+  const ancestors: object[] = [];
   let text = '';
 
   try {
-    text = JSON.stringify(value, (_key, child) => {
+    text = JSON.stringify(value, function (this: unknown, _key: string, child: unknown) {
       if (typeof child === 'bigint') return child.toString() + 'n';
       if (child && typeof child === 'object') {
-        if (seen.has(child)) return '[Circular]';
-        seen.add(child);
+        while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+        if (ancestors.includes(child as object)) return '[Circular]';
+        ancestors.push(child as object);
       }
       return child;
     }, space) ?? 'undefined';

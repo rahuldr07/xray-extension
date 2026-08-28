@@ -39,6 +39,15 @@ export function isHex(value: unknown): value is string {
   return typeof value === 'string' && HEX.test(value);
 }
 
+// True when clampHex can resolve this value to a colour: 6-digit or 3-digit, with
+// or without the leading '#'. `isHex` is the STRICT canonical test and stays that
+// way because it is also used on already-normalised values — but gating user INPUT
+// on it meant a 3-digit override was discarded while a 3-digit base colour in the
+// very same pasted block survived, because base colours go through clampHex.
+export function isHexInput(value: unknown): value is string {
+  return clampHex(value, '') !== '';
+}
+
 export function clampHex(value: unknown, fallback: string): string {
   if (typeof value === 'string') {
     let v = value.trim();
@@ -60,7 +69,7 @@ export function normalizeCustomTheme(input: Partial<CustomTheme> | undefined): C
   // Keep only valid hex overrides; anything else falls back to the derived value.
   for (const key of OVERRIDE_KEYS) {
     const value = base[key];
-    if (isHex(value)) theme[key] = clampHex(value, '#000000');
+    if (isHexInput(value)) theme[key] = clampHex(value, '#000000');
   }
   return theme;
 }
@@ -139,8 +148,14 @@ const RANDOM_ACCENTS = ['#7c5cff', '#22d3ee', '#fb7185', '#34d399', '#f59e0b', '
 
 // A coherent random theme: pick an accent + mode, then generate around it.
 export function randomTheme(seed: number): CustomTheme {
-  const accent = RANDOM_ACCENTS[Math.floor(seed * RANDOM_ACCENTS.length) % RANDOM_ACCENTS.length];
-  const mode: 'dark' | 'light' = (seed * 100) % 5 < 1 ? 'light' : 'dark';
+  // A negative seed made `Math.floor(seed * len) % len` negative, so the lookup was
+  // undefined and clampHex substituted the default accent — every out-of-range seed
+  // returned one identical "random" theme. NaN behaved the same way. Both call sites
+  // pass Math.random(), so this was latent, but the function is exported.
+  const safe = Number.isFinite(seed) ? seed : 0;
+  const len = RANDOM_ACCENTS.length;
+  const accent = RANDOM_ACCENTS[(((Math.floor(safe * len) % len) + len) % len)];
+  const mode: 'dark' | 'light' = ((((safe * 100) % 5) + 5) % 5) < 1 ? 'light' : 'dark';
   return generateFromAccent(accent, mode);
 }
 

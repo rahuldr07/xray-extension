@@ -43,16 +43,20 @@ test('parseBody parses JSON-looking strings and passes everything else through',
   assert.equal(parseBody(object), object);
 });
 
-test('clampNumber rounds, clamps and falls back on non-finite input', () => {
+test('clampNumber rounds, clamps, and falls back on anything that is not a number', () => {
   assert.equal(clampNumber(5, 0, 0, 10), 5);
   assert.equal(clampNumber(-5, 0, 0, 10), 0);
   assert.equal(clampNumber(50, 0, 0, 10), 10);
   assert.equal(clampNumber(5.6, 0, 0, 10), 6);
   assert.equal(clampNumber('7', 0, 0, 10), 7);
-  assert.equal(clampNumber(null, 3, 0, 10), 0, 'Number(null) is 0, which is finite');
-  for (const bad of [NaN, Infinity, -Infinity, undefined, 'text', {}]) {
+  // Was: Number(null) is 0 and 0 is finite, so the fallback was unreachable and a
+  // stored `maxEntries: null` clamped to the FLOOR instead of the default.
+  assert.equal(clampNumber(null, 3, 0, 10), 3, 'null falls back rather than coercing to 0');
+  for (const bad of [NaN, Infinity, -Infinity, undefined, 'text', {}, [], '', '   ', true, false]) {
     assert.equal(clampNumber(bad, 3, 0, 10), 3, `${String(bad)} should fall back`);
   }
+  assert.equal(clampNumber(0, 3, 0, 10), 0, 'but a real 0 is still a real value');
+  assert.equal(clampNumber('0', 3, 0, 10), 0);
 });
 
 test('schema infers a structural shape from any value (local fallback)', () => {
@@ -107,10 +111,23 @@ test('safeStringify survives circular references, BigInt and the size cap', () =
   assert.match(huge, /\n\.\.\. truncated \d+ chars$/);
 });
 
-test('safeStringify marks each object once, so a repeated sibling is not mistaken for a cycle', () => {
+test('FIXED safeStringify reports a repeated sibling as data, not a cycle', () => {
   const shared = { a: 1 };
-  const text = safeStringify({ first: shared, second: shared }, 0);
-  assert.equal(text, '{"first":{"a":1},"second":"[Circular]"}', 'a DAG is reported as circular — current behaviour');
+  // Was: '{"first":{"a":1},"second":"[Circular]"}' — the WeakSet only ever grew, so
+  // the second reference to an acyclic sibling was mistaken for a back-edge.
+  assert.equal(safeStringify({ first: shared, second: shared }, 0),
+    '{"first":{"a":1},"second":{"a":1}}');
+
+  // A real cycle is still caught.
+  const cyclic = { a: 1 };
+  cyclic.self = cyclic;
+  assert.equal(safeStringify(cyclic, 0), '{"a":1,"self":"[Circular]"}');
+
+  // And a sibling repeat nested inside a cyclic object stays honest.
+  const root = { shared, other: { shared } };
+  root.loop = root;
+  assert.equal(safeStringify(root, 0),
+    '{"shared":{"a":1},"other":{"shared":{"a":1}},"loop":"[Circular]"}');
 });
 
 test('stripXrayRefs removes the internal marker at every depth', () => {

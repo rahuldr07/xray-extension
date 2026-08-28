@@ -315,28 +315,30 @@ test('parseImport falls back to timings.wait and tolerates a missing response', 
   assert.equal(entries[1].urlPath, 'not a url', 'an unparseable url is kept as-is');
 });
 
-test('SUSPECTED BUG import.ts:46 — HAR time: -1 ("unknown" in the HAR spec) becomes a negative duration', () => {
+test('FIXED import.ts:46 — HAR time: -1 ("unknown") falls back instead of importing a negative duration', () => {
   const har = { log: { entries: [
     { request: { url: 'https://x/a', method: 'GET' }, time: -1, timings: { wait: 120 } },
     { request: { url: 'https://x/b', method: 'GET' }, time: 0, timings: { wait: 120 } },
+    { request: { url: 'https://x/c', method: 'GET' }, time: -1, timings: { wait: -1 } },
+    { request: { url: 'https://x/d', method: 'GET' }, time: 42 },
   ] } };
   const { entries } = parseImport(JSON.stringify(har));
-  // -1 is truthy, so `Number(time) || Number(timings.wait)` never reaches the
-  // wait fallback and a nonsensical negative duration is imported.
-  assert.equal(entries[0].duration, -1, 'HAR "unknown" is imported as -1ms');
-  // time: 0 IS falsy, so that path does fall back correctly.
-  assert.equal(entries[1].duration, 120, 'time: 0 correctly falls back to timings.wait');
+  // Was: -1 is truthy, so `Number(time) || Number(timings.wait)` never reached the
+  // fallback and a nonsensical negative duration was imported — and re-exported.
+  assert.equal(entries[0].duration, 120, 'unknown time falls through to timings.wait');
+  assert.equal(entries[1].duration, 120, 'time: 0 still falls back, as it always did');
+  assert.equal(entries[2].duration, 0, 'both unknown degrades to 0, never negative');
+  assert.equal(entries[3].duration, 42, 'a real timing is untouched');
 });
 
-test('a -1 duration survives into the panel models that consume it', async () => {
+test('a HAR round-trip no longer writes a negative time back out', async () => {
   const { entries: entriesModel } = await import('./harness.mjs');
   const har = { log: { entries: [{ request: { url: 'https://x/a', method: 'GET' }, time: -1, response: { status: 200 } }] } };
   const [imported] = parseImport(JSON.stringify(har)).entries;
-  assert.equal(imported.duration, -1);
-  // entries.duration() clamps at 0, so the list UI is protected...
-  assert.equal(entriesModel.duration(imported), 0);
-  // ...but the raw field is what the HAR re-export writes back out.
-  assert.equal(JSON.parse(buildSessionHar([imported])).log.entries[0].time, -1);
+  assert.equal(imported.duration, 0, 'was -1');
+  assert.equal(entriesModel.duration(imported), 0, 'the list UI clamp agrees with the stored value');
+  assert.equal(JSON.parse(buildSessionHar([imported])).log.entries[0].time, 0,
+    'and the re-export no longer emits -1');
 });
 
 // -------------------------------------------------- export -> import round-trip

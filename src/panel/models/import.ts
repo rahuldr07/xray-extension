@@ -23,6 +23,23 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// The HAR spec uses `time: -1` for "unknown", and -1 is truthy, so a plain
+// `Number(time) || Number(wait) || 0` skipped the fallback and imported a NEGATIVE
+// duration. The list UI clamps it to 0 on display, but a HAR re-export wrote -1
+// straight back out.
+//
+// `> 0` rather than `>= 0` deliberately preserves the original fallback for
+// `time: 0`, which the old truthiness check already handled correctly: a zero there
+// is in practice an unset field, and timings.wait is the better answer. The only
+// inputs whose behaviour changes are the negative ones.
+function harDuration(time: unknown, wait: unknown): number {
+  for (const candidate of [time, wait]) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) return Math.round(value);
+  }
+  return 0;
+}
+
 function harEntryToXray(harEntry: Record<string, unknown>): XrayEntry | null {
   const request = harEntry.request as Record<string, unknown> | undefined;
   const response = harEntry.response as Record<string, unknown> | undefined;
@@ -43,7 +60,7 @@ function harEntryToXray(harEntry: Record<string, unknown>): XrayEntry | null {
     url,
     urlPath,
     status: Number(response?.status) || 0,
-    duration: Math.round(Number(harEntry.time) || Number(timings?.wait) || 0),
+    duration: harDuration(harEntry.time, timings?.wait),
     size: Number(content?.size) || 0,
     requestHeaders: headerArrayToObject(request.headers),
     responseHeaders: headerArrayToObject(response?.headers),

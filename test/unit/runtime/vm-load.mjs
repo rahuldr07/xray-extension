@@ -52,7 +52,13 @@ export function hostify(value) {
 
 /** Globals every one of these files can assume exist in a browser. */
 function baseGlobals() {
-  return { URL, Date, Set, Map, console, setTimeout, clearTimeout, queueMicrotask };
+  // structuredClone and WeakMap are ordinary globals in a content script and a
+  // worker; the sandbox has to offer them or code that legitimately relies on them
+  // fails here for a reason that has nothing to do with the code under test.
+  return {
+    URL, Date, Set, Map, WeakMap, WeakSet, console,
+    setTimeout, clearTimeout, queueMicrotask, structuredClone,
+  };
 }
 
 /**

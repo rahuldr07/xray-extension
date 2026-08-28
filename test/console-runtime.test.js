@@ -23,7 +23,9 @@ test('React console executes through the existing hardened bridge and renders va
   assert.match(consoleBridge, /export function navigateConsoleHistory/);
   assert.match(consoleBridge, /window\.XRAY_Console\?\.navigateHistory\(direction\)/);
   assert.match(jsonView, /safeStringify\(value\)/);
-  assert.match(utils, /WeakSet<object>/);
+  // safeStringify tracks ancestors along the current branch (was: a WeakSet that
+  // only ever grew, which reported a repeated sibling as circular).
+  assert.match(utils, /const ancestors: object\[\] = \[\]/);
   assert.match(utils, /\[Circular\]/);
   assert.match(utils, /truncated/);
   assert.doesNotMatch(app, /dangerouslySetInnerHTML/);

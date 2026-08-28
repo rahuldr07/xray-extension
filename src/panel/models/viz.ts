@@ -85,13 +85,14 @@ function fromObjects(rows: Array<Record<string, unknown>>): VizSpec | null {
   }
 
   if (labelField) {
-    const bars = frequency(rows.map((row) => row[labelField])).slice(0, MAX_BARS);
+    const categories = frequency(rows.map((row) => row[labelField]));
+    const bars = categories.slice(0, MAX_BARS);
     return {
       kind: 'bars',
       title: `Distribution of ${labelField}`,
       subtitle: `${rows.length} rows`,
       bars,
-      truncated: 0,
+      truncated: Math.max(0, categories.length - bars.length),
       maxAbs: Math.max(...bars.map((bar) => bar.value), 0),
     };
   }
@@ -112,8 +113,9 @@ export function buildVizSpec(value: unknown): VizSpec {
       if (spec) return spec;
     }
     if (rows.every((row) => row == null || typeof row !== 'object')) {
-      const bars = frequency(rows).slice(0, MAX_BARS);
-      return { kind: 'bars', title: `Distribution of ${rows.length} values`, bars, truncated: 0, maxAbs: Math.max(...bars.map((bar) => bar.value), 0) };
+      const categories = frequency(rows);
+      const bars = categories.slice(0, MAX_BARS);
+      return { kind: 'bars', title: `Distribution of ${rows.length} values`, bars, truncated: Math.max(0, categories.length - bars.length), maxAbs: Math.max(...bars.map((bar) => bar.value), 0) };
     }
     return none('This array has no numeric or categorical field to chart.');
   }

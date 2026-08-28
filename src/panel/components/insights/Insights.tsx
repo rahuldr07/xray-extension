@@ -10,7 +10,8 @@ export function Insights(): React.ReactElement {
   const entries = usePanelStore((state) => state.entries);
   const setApiSearchQuery = usePanelStore((state) => state.setApiSearchQuery);
   const setActiveTab = usePanelStore((state) => state.setActiveTab);
-  const summary = buildInsightsSummary(entries);
+  const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
+  const summary = buildInsightsSummary(entries, slowThresholdMs);
 
   function openEndpoint(path: string): void {
     setApiSearchQuery(path);
@@ -37,9 +38,9 @@ export function Insights(): React.ReactElement {
       <div className="xray-insight-columns">
         <CollapsibleSection id="insights-repeated" title="Repeated endpoints" className="xray-card">
           {summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => (
-            <button key={item.path} className="xray-insight-row" onClick={() => openEndpoint(item.path)}>
+            <button key={item.label} className="xray-insight-row" onClick={() => openEndpoint(item.path)}>
               <IconRoute {...iconProps} />
-              <span>{item.path}</span>
+              <span>{item.label}</span>
               <strong>{item.count}x</strong>
             </button>
           )) : <p className="xray-muted">No repeated endpoint pattern above threshold.</p>}

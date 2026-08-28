@@ -180,50 +180,52 @@ test('computeDiff: a type change is one "changed" record, not a recursive walk',
   assert.deepEqual(hostify(W.computeDiff({ a: 1 }, { a: 1 })), [], 'identical inputs produce no records');
 });
 
-test('BUG: computeDiff has no cycle detection and blows the stack on cyclic input', () => {
-  // workers/xray-worker.js:234. computeStats (above) caps depth; computeDiff does
-  // not, and neither does it track visited nodes. Payloads reach this function
-  // through postMessage, whose structured-clone transport happily carries cycles,
-  // so a cyclic response body is a reachable input.
+test('FIXED computeDiff bounds cyclic input instead of blowing the stack', () => {
+  // Was (workers/xray-worker.js:234): no depth cap and no visited tracking, so a
+  // cyclic payload — reachable, because postMessage's structured-clone transport
+  // carries cycles — recursed to RangeError and lost the whole diff.
   const a = { id: 1 };
   a.self = a;
   const b = { id: 2 };
   b.self = b;
 
-  assert.throws(() => W.computeDiff(a, b), {
-    name: 'RangeError',
-    message: /Maximum call stack size exceeded/,
-  });
+  const diffs = W.computeDiff(a, b);
+  assert.deepEqual(hostify(diffs), [{ type: 'changed', path: 'id', from: 1, to: 2 }],
+    'the real difference is reported and the shared cycle is not');
+
+  // Two objects that are only a cycle diff to nothing at all.
+  const p1 = {}; p1.self = p1;
+  const p2 = {}; p2.self = p2;
+  assert.deepEqual(hostify(W.computeDiff(p1, p2)), [], 'identical cycles are not a difference');
 });
 
-test('computeDiff: a cycle on one side only does NOT throw — it emits the cyclic node as a value', () => {
+test('FIXED computeDiff emits a serialisable marker for a cycle on one side only', () => {
   // The recursion only continues when both sides have the key, so an asymmetric
-  // cycle escapes as a `value` payload. That value then has to survive being
-  // posted back; structured clone handles it, but any consumer that JSON
-  // -stringifies the diff (every export path in this repo does) will throw.
+  // cycle escaped as a raw `value`. Structured clone carried it, but every export
+  // path in this repo JSON-stringifies the diff, and that threw.
   const a = { id: 1 };
   a.self = a;
   const diffs = W.computeDiff(a, { id: 1 });
   assert.equal(diffs.length, 1);
   assert.equal(diffs[0].type, 'removed');
   assert.equal(diffs[0].path, 'self');
-  assert.equal(diffs[0].value, a, 'the raw cyclic object is handed back');
-  assert.throws(() => JSON.stringify(hostify(diffs)), { name: 'TypeError', message: /circular/i });
+  assert.deepEqual(hostify(diffs[0].value), { id: 1, self: '[Circular]' },
+    'the cycle becomes a marker rather than the raw object');
+  assert.doesNotThrow(() => JSON.stringify(hostify(diffs)), 'so consumers can serialise it');
 });
 
-test('computeDiff: the stack overflow is contained by the onmessage try/catch', async () => {
-  // Unlike safeClone (below), the failure is synchronous and therefore catchable,
-  // so the worker survives and the caller gets an error reply rather than a hang.
+test('computeDiff: a cyclic payload now returns a successful reply through onmessage', async () => {
   const worker = loadWorker();
   const a = {};
   a.self = a;
   const b = {};
   b.self = b;
   const reply = await dispatch(worker, 'computeDiff', { a, b }, 'diff-cyclic');
-  assert.equal(reply.success, false);
-  assert.match(reply.error, /Maximum call stack size exceeded/);
-  assert.equal(typeof worker.self.onmessage, 'function', 'the worker is still alive');
+  assert.equal(reply.success, true, 'was {success:false} with a RangeError message');
+  assert.deepEqual(hostify(reply.result), []);
+  assert.equal(typeof worker.self.onmessage, 'function', 'and the worker is still alive');
 });
+
 
 // ───────────────────────────────────────────────────────────── inferSchema
 
@@ -309,85 +311,81 @@ test('detailAnalysis: with a previous value it emits both schemas and a capped s
   assert.equal(capped.viz.rows, 700, 'but viz.rows still reports the true length');
 });
 
-test('detailAnalysis: a cyclic previous value propagates the computeDiff stack overflow', () => {
+test('detailAnalysis: a cyclic previous value is bounded, not fatal', () => {
   const a = { v: 1 };
   a.self = a;
   const b = { v: 2 };
   b.self = b;
-  assert.throws(() => W.detailAnalysis(a, b), { name: 'RangeError' });
+  const result = W.detailAnalysis(a, b);
+  assert.deepEqual(hostify(result.diff.structuralDiff), [{ type: 'changed', path: 'v', from: 2, to: 1 }],
+    'was: RangeError out of the whole analysis');
 });
 
 // ───────────────────────────────────────────────────────────── escapeCSV / exports
 
-test('escapeCSV: quotes unconditionally and doubles embedded quotes', () => {
-  assert.equal(W.escapeCSV('plain'), '"plain"');
+test('escapeCSV: quotes only when needed, doubles embedded quotes, JSON-encodes non-strings', () => {
+  // Was: unconditional quoting and String() for non-strings. Both now match toCSV
+  // in shared/console-helpers.js, so the same value produces the same bytes
+  // whichever of the extension's two CSV writers wrote the file.
+  assert.equal(W.escapeCSV('plain'), 'plain');
   assert.equal(W.escapeCSV('a,b'), '"a,b"');
   assert.equal(W.escapeCSV('say "hi"'), '"say ""hi"""');
   assert.equal(W.escapeCSV('line1\nline2'), '"line1\nline2"');
-  assert.equal(W.escapeCSV(null), '""');
-  assert.equal(W.escapeCSV(undefined), '""');
-  assert.equal(W.escapeCSV(0), '"0"');
-  assert.equal(W.escapeCSV(false), '"false"');
-  assert.equal(W.escapeCSV({ o: 1 }), '"[object Object]"', 'String() not JSON.stringify');
-  assert.equal(W.escapeCSV([1, 2]), '"1,2"', 'arrays join, losing their structure inside one cell');
+  assert.equal(W.escapeCSV(null), '');
+  assert.equal(W.escapeCSV(undefined), '');
+  assert.equal(W.escapeCSV(0), '0');
+  assert.equal(W.escapeCSV(false), 'false');
+  assert.equal(W.escapeCSV({ o: 1 }), '"{""o"":1}"', 'JSON.stringify, not String()');
+  assert.equal(W.escapeCSV([1, 2]), '"[1,2]"', 'an array keeps its structure inside one cell');
 });
 
-test('BUG: escapeCSV does not neutralise CSV formula injection', () => {
-  // A response body value that starts with = + - or @ is evaluated as a formula
-  // by Excel / Sheets / LibreOffice when the export is opened. RFC4180 quoting
-  // does not prevent that — the spreadsheet strips the quotes first. Neither
-  // this function nor toCSV in shared/console-helpers.js:45 prefixes the value.
-  for (const payload of ['=1+1', '+SUM(A1)', '-2+3', '@SUM(A1)', '=cmd|\'/c calc\'!A1']) {
-    assert.equal(W.escapeCSV(payload), `"${payload}"`, `${payload} is passed through verbatim`);
-  }
-  // Only the quote characters are touched; the leading `=` still survives intact.
-  assert.equal(W.escapeCSV('=HYPERLINK("http://evil.test")'), '"=HYPERLINK(""http://evil.test"")"');
+test('FIXED escapeCSV neutralises CSV formula injection', () => {
+  // A response value starting with = + - or @ is evaluated as a formula by Excel /
+  // Sheets / LibreOffice on open. RFC4180 quoting is NOT a defence: the spreadsheet
+  // strips the quotes before evaluating. A leading apostrophe is what stops it.
+  assert.equal(W.escapeCSV('=1+1'), "'=1+1");
+  assert.equal(W.escapeCSV('+SUM(A1)'), "'+SUM(A1)");
+  assert.equal(W.escapeCSV('@SUM(A1)'), "'@SUM(A1)");
+  assert.equal(W.escapeCSV("=cmd|'/c calc'!A1"), "'=cmd|'/c calc'!A1");
+  assert.equal(W.escapeCSV('=HYPERLINK("http://evil.test")'), String.raw`"'=HYPERLINK(""http://evil.test"")"`);
+
+  // Plain numbers keep their type — neutralising them would turn every negative
+  // duration into text.
+  assert.equal(W.escapeCSV(-5), '-5');
+  assert.equal(W.escapeCSV('-12.5'), '-12.5');
+  assert.equal(W.escapeCSV('-1e3'), '-1e3');
+  assert.equal(W.escapeCSV('-2+3'), "'-2+3", 'an expression that merely starts like a number is not one');
 });
 
-test('escapeCSV vs shared/console-helpers.js toCSV: the two escapers disagree', () => {
-  // These are the extension's two CSV writers. The worker one backs the panel's
-  // "Export CSV"; the helper one backs the console `csv()` / `toCSV()` builtins.
+test('escapeCSV and shared/console-helpers.js toCSV now agree cell for cell', () => {
+  // These are the extension's two CSV writers: the worker one backs the panel's
+  // "Export CSV", the helper one backs the console csv() / toCSV() builtins. They
+  // used to disagree on quoting policy AND on non-string handling, so the same
+  // value round-tripped to two different files.
   const helpers = loadIsolatedWorld('shared/console-helpers.js').window.XRAY_ConsoleHelpers;
   const cell = (value) => helpers.toCSV([{ v: value }]).split('\n')[1];
 
-  // 1. Quoting policy. The worker always quotes; the helper only quotes when the
-  //    value contains " , CR or LF. Both are valid RFC4180, so this is cosmetic —
-  //    but it means the same value round-trips to two different files.
-  assert.equal(W.escapeCSV('plain'), '"plain"');
-  assert.equal(cell('plain'), 'plain');
-  assert.equal(W.escapeCSV('=1+1'), '"=1+1"');
-  assert.equal(cell('=1+1'), '=1+1', 'the helper leaves a formula unquoted AND unprefixed');
-
-  // 2. Quote doubling is identical in both, so neither can be broken out of.
-  assert.equal(W.escapeCSV('say "hi"'), cell('say "hi"'));
-
-  // 3. Non-string values diverge materially: the worker stringifies with String(),
-  //    which flattens an object to "[object Object]" and an array into what looks
-  //    like extra columns; the helper uses JSON.stringify and keeps the value.
-  assert.equal(W.escapeCSV({ o: 1 }), '"[object Object]"');
-  assert.equal(cell({ o: 1 }), '"{""o"":1}"');
-  assert.equal(W.escapeCSV([1, 2]), '"1,2"');
-  assert.equal(cell([1, 2]), '"[1,2]"');
+  for (const value of ['plain', 'a,b', 'say "hi"', '=1+1', '-2+3', '@x', 0, false, -5, { o: 1 }, [1, 2], null]) {
+    assert.equal(W.escapeCSV(value), cell(value), JSON.stringify(value) + ' agrees across both writers');
+  }
 });
 
-test('BUG: shared/console-helpers.js toCSV writes an unescaped header row', () => {
-  // shared/console-helpers.js:48 does `keys.join(',')` while every DATA cell goes
-  // through the escaper. A response object whose key contains a comma, a quote or
-  // a newline therefore produces a CSV whose header column count does not match
-  // its rows. exportToCSV in the worker escapes its headers, but only ever gets a
-  // fixed literal list, so the divergence is invisible there.
+test('FIXED shared/console-helpers.js toCSV escapes its header row', () => {
+  // Was: `keys.join(',')` while every DATA cell went through the escaper, so a
+  // response key containing a comma or quote produced a header whose column count
+  // did not match its rows.
   const helpers = loadIsolatedWorld('shared/console-helpers.js').window.XRAY_ConsoleHelpers;
-  assert.equal(helpers.toCSV([{ 'we,ird': 1 }]), 'we,ird\n1', 'one header cell became two');
-  assert.equal(helpers.toCSV([{ 'q"k': 1 }]), 'q"k\n1', 'a bare quote in a header breaks the parse');
+  assert.equal(helpers.toCSV([{ 'we,ird': 1 }]), '"we,ird"\n1', 'one header cell stays one cell');
+  assert.equal(helpers.toCSV([{ 'q"k': 1 }]), '"q""k"\n1', 'a quote in a header is doubled');
 });
 
-test('BUG: shared/console-helpers.js toCSV derives columns from row 0 only', () => {
-  // Captured payloads are routinely heterogeneous (an error row carries `error`,
-  // a success row does not). Any key absent from the first row is silently
-  // dropped from the export rather than emitted as an empty column.
+test('FIXED shared/console-helpers.js toCSV takes columns from every row', () => {
+  // Captured payloads are routinely heterogeneous (an error row carries `error`, a
+  // success row does not). Keys absent from row 0 used to be dropped silently.
   const helpers = loadIsolatedWorld('shared/console-helpers.js').window.XRAY_ConsoleHelpers;
-  assert.equal(helpers.toCSV([{ a: 1 }, { a: 2, b: 'lost' }]), 'a\n1\n2');
-  assert.equal(helpers.toCSV([{}, { a: 1 }]), '\n\n', 'an empty first row erases the whole table');
+  assert.equal(helpers.toCSV([{ a: 1 }, { a: 2, b: 'kept' }]), 'a,b\n1,\n2,kept');
+  assert.equal(helpers.toCSV([{}, { a: 1 }]), 'a\n\n1', 'an empty first row no longer erases the table');
+  assert.equal(helpers.toCSV([{}, {}]), '', 'genuinely keyless input is still empty');
 });
 
 test('exportToCSV: fixed header, api entries only, ISO timestamps', () => {
@@ -395,41 +393,42 @@ test('exportToCSV: fixed header, api entries only, ISO timestamps', () => {
     { type: 'api', timestamp: 0, method: 'GET', url: 'https://a.test/x,y', status: 200, duration: 5, size: 10 },
     { type: 'log', logLevel: 'error' },
   ]);
+  // Cells are quoted only when they need it now, matching the console helper.
   assert.deepEqual(csv.split('\n'), [
-    '"timestamp","method","url","status","duration","size"',
-    '"1970-01-01T00:00:00.000Z","GET","https://a.test/x,y","200","5","10"',
+    'timestamp,method,url,status,duration,size',
+    '1970-01-01T00:00:00.000Z,GET,"https://a.test/x,y",200,5,10',
   ]);
   assert.equal(W.exportToCSV([]), '');
   assert.equal(W.exportToCSV([{ type: 'log' }]), '', 'a log-only capture exports an empty string, not a header');
 });
 
-test('exportToCSV: missing values become empty cells, except the timestamp', () => {
+test('exportToCSV: missing values become empty cells', () => {
   assert.equal(
     W.exportToCSV([{ type: 'api', timestamp: 0 }]),
-    '"timestamp","method","url","status","duration","size"\n'
-    + '"1970-01-01T00:00:00.000Z","","","","",""',
-    'every other missing field degrades to an empty cell',
+    'timestamp,method,url,status,duration,size\n1970-01-01T00:00:00.000Z,,,,,',
+    'every missing field degrades to an empty cell',
   );
 });
 
-test('BUG: exportToCSV throws on any entry without a valid timestamp, losing the whole export', () => {
-  // workers/xray-worker.js:367. `new Date(entry.timestamp).toISOString()` is
-  // unguarded, and Invalid Date throws RangeError rather than yielding a string.
-  // Every other column has an `|| ''` fallback, so this is the one field that can
-  // take down the export — and a single bad entry (an imported HAR with a string
-  // date, or an entry the interceptor never stamped) fails ALL of them, because
-  // exportToCSV builds the whole document before returning.
-  assert.throws(() => W.exportToCSV([{ type: 'api' }]), { name: 'RangeError', message: /Invalid time value/ });
-  assert.throws(() => W.exportToCSV([{ type: 'api', timestamp: 'not-a-date' }]), { name: 'RangeError' });
-  assert.throws(
-    () => W.exportToCSV([{ type: 'api', timestamp: 0 }, { type: 'api', timestamp: NaN }]),
-    { name: 'RangeError' },
-    'one malformed entry discards the good ones too',
-  );
-  // exportToHAR has the identical unguarded call at line 387.
-  assert.throws(() => W.exportToHAR([{ type: 'api' }]), { name: 'RangeError' });
+test('FIXED exportToCSV survives an entry with no valid timestamp', () => {
+  // Was: `new Date(entry.timestamp).toISOString()` unguarded, so Invalid Date threw
+  // RangeError and a SINGLE bad entry — an imported HAR with a string date, or an
+  // entry the interceptor never stamped — discarded the whole export, good rows
+  // included. Every other column already had a fallback; now this one does too.
+  const header = 'timestamp,method,url,status,duration,size';
+  assert.equal(W.exportToCSV([{ type: 'api' }]), header + '\n,,,,,');
+  assert.equal(W.exportToCSV([{ type: 'api', timestamp: 'not-a-date' }]), header + '\n,,,,,');
 
-  assert.throws(() => W.exportToCSV(null), { name: 'TypeError' }, 'no guard on a null entries array either');
+  const mixed = W.exportToCSV([{ type: 'api', timestamp: 0 }, { type: 'api', timestamp: NaN }]);
+  assert.deepEqual(mixed.split('\n'), [header, '1970-01-01T00:00:00.000Z,,,,,', ',,,,,'],
+    'the good entry survives alongside the malformed one');
+
+  // exportToHAR had the identical unguarded call and the same fix.
+  const har = W.exportToHAR([{ type: 'api' }]);
+  assert.equal(har.log.entries[0].startedDateTime, '', 'an unknown time is empty, not invented');
+
+  assert.equal(W.exportToCSV(null), '', 'a non-array entries list is empty, not a TypeError');
+  assert.equal(W.exportToHAR(null).log.entries.length, 0);
 });
 
 test('exportToHAR: emits a 1.2 log with header pairs and omits postData when absent', () => {
@@ -490,14 +489,20 @@ test('analyzeEntries: 3xx counts as success and a 0/failed request counts as not
   assert.equal(result.totalRequests, 3, 'the failed request is still counted in the total');
 });
 
-test('analyzeEntries: avgDuration divides by ALL requests, not the timed ones', () => {
-  // BUG (workers/xray-worker.js:462): totalDuration only accumulates entries with
-  // a truthy duration, but the divisor is apiEntries.length. Any in-flight or
-  // zero-duration request drags the reported average down.
+test('FIXED analyzeEntries: avgDuration divides by the timed requests only', () => {
+  // Was (workers/xray-worker.js:462): totalDuration accumulated only entries with a
+  // truthy duration while the divisor was apiEntries.length, so any in-flight or
+  // zero-duration request dragged the reported average down.
   const result = W.analyzeEntries([
     { type: 'api', duration: 100 }, { type: 'api' }, { type: 'api', duration: 0 },
   ]);
-  assert.equal(result.avgDuration, 33, 'the true mean of the timed requests is 100');
+  assert.equal(result.avgDuration, 100, 'the mean of the timed requests, not 33');
+  assert.equal(result.totalRequests, 3, 'while the request count still counts them all');
+
+  assert.equal(W.analyzeEntries([{ type: 'api' }]).avgDuration, 0, 'nothing timed reports 0');
+  assert.equal(W.analyzeEntries([
+    { type: 'api', duration: 100 }, { type: 'api', duration: 200 },
+  ]).avgDuration, 150);
 });
 
 test('analyzeEntries: an empty capture produces a fully-zeroed report', () => {
@@ -567,22 +572,20 @@ test('safeClone: yields to the event loop on schedule for large payloads', async
   assert.equal(solo, 0, 'a small clone completes within a single microtask drain');
 });
 
-test('BUG: safeClone never settles on cyclic input — it hangs the worker and leaks memory', () => {
-  // workers/xray-worker.js:159. No cycle detection and no depth cap. Because the
-  // recursion is `async`, the failure mode is NOT a catchable stack overflow the
-  // way computeDiff's is: every level is a microtask, so the stack stays shallow
-  // and the function simply allocates forever. Consequences, in order of severity:
+test('FIXED safeClone settles on cyclic input instead of hanging and leaking', () => {
+  // Was (workers/xray-worker.js:159): no cycle detection. Because the recursion is
+  // `async`, the failure was NOT a catchable stack overflow the way computeDiff's
+  // was — every level is a microtask, so the stack stayed shallow and the function
+  // simply allocated forever:
   //
-  //   * the promise never resolves AND never rejects, so the try/catch in
-  //     self.onmessage never runs and no reply is posted — the panel's pending
-  //     request for that message id hangs for the life of the worker;
-  //   * the clone tree grows without bound until the worker's heap is exhausted
-  //     and the whole worker is torn down, taking every other in-flight request
-  //     and the entire in-memory entry cache with it.
+  //   * the promise neither resolved nor rejected, so self.onmessage's try/catch
+  //     never ran and no reply was posted — the panel's pending request for that
+  //     message id hung for the life of the worker;
+  //   * the clone tree grew until the heap died (measured: ~4 GB in 40 s), tearing
+  //     down the worker with every other in-flight request and the entry cache.
   //
-  // Verified out-of-process because reproducing it in-process would OOM the test
-  // runner (measured: ~4 GB in 40 s). The child races the clone against a 400 ms
-  // timer and reports which won.
+  // Still verified out-of-process, under a deliberately tight heap: if the cycle
+  // fix ever regresses, this child exhausts 256 MB rather than the test runner.
   const probe = `
     const vm = require('node:vm');
     const fs = require('node:fs');
@@ -590,14 +593,16 @@ test('BUG: safeClone never settles on cyclic input — it hangs the worker and l
       self: { postMessage() {} },
       indexedDB: { open: () => ({}) },
       performance: { now: () => 0 },
-      setTimeout, URL, Date, console,
+      setTimeout, URL, Date, console, WeakMap, Set,
     };
     vm.createContext(ctx);
     vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), ctx);
     const cyclic = { a: 1 };
     cyclic.self = cyclic;
     let outcome = 'pending';
-    ctx.safeClone(cyclic).then(() => { outcome = 'resolved'; }, () => { outcome = 'rejected'; });
+    ctx.safeClone(cyclic).then((clone) => {
+      outcome = clone.self === clone && clone.a === 1 ? 'resolved' : 'wrong-shape';
+    }, () => { outcome = 'rejected'; });
     setTimeout(() => { console.log(outcome); process.exit(0); }, 400);
   `;
   const out = execFileSync(
@@ -606,8 +611,17 @@ test('BUG: safeClone never settles on cyclic input — it hangs the worker and l
     { encoding: 'utf8', timeout: 20_000 },
   ).trim();
 
-  assert.equal(out, 'pending', 'safeClone(cyclic) neither resolved nor rejected within 400ms');
+  assert.equal(out, 'resolved', 'safeClone(cyclic) resolves, and the clone preserves the cycle');
 });
+
+test('safeClone: an object referenced twice as a sibling is cloned once, not called circular', async () => {
+  const shared = { v: 1 };
+  const clone = await W.safeClone({ first: shared, second: shared });
+  assert.deepEqual(hostify(clone), { first: { v: 1 }, second: { v: 1 } });
+  assert.equal(clone.first, clone.second, 'shared identity survives the clone');
+  assert.notEqual(clone.first, shared, 'but it is still detached from the source');
+});
+
 
 // ───────────────────────────────────────────────────────────── message handler
 
@@ -622,7 +636,7 @@ test('onmessage: dispatches each action and echoes the request id', async () => 
   assert.deepEqual(hostify((await dispatch(worker, 'computeDiff', { a: { x: 1 }, b: { x: 2 } }, 's3')).result),
     [{ type: 'changed', path: 'x', from: 1, to: 2 }]);
   assert.deepEqual(hostify((await dispatch(worker, 'inferSchema', { data: { a: 1 } }, 's4')).result), { a: 'number' });
-  assert.match((await dispatch(worker, 'exportCSV', { entries }, 's5')).result, /^"timestamp"/);
+  assert.match((await dispatch(worker, 'exportCSV', { entries }, 's5')).result, /^timestamp,method,url/);
   assert.equal((await dispatch(worker, 'exportHAR', { entries }, 's6')).result.log.version, '1.2');
   assert.equal((await dispatch(worker, 'analyze', { entries }, 's7')).result.totalRequests, 1);
   assert.deepEqual(hostify((await dispatch(worker, 'clone', { data: { a: 1 } }, 's8')).result), { a: 1 });
@@ -651,8 +665,9 @@ test('onmessage: an unknown action is reported as a failure, not silence', async
 
 test('onmessage: a thrown handler error is reported with only its message', async () => {
   const worker = loadWorker();
-  // exportCSV on a null entries array throws a TypeError inside the switch.
-  const reply = await dispatch(worker, 'exportCSV', { entries: null }, 'e1');
+  // addEntry dereferences payload.entry, so a null payload throws inside the switch.
+  // (exportCSV used to be the vehicle here, but it now guards a non-array input.)
+  const reply = await dispatch(worker, 'addEntry', null, 'e1');
   assert.equal(reply.success, false);
   assert.equal(typeof reply.error, 'string');
   assert.equal('stack' in reply, false, 'stacks are not leaked back to the panel');

@@ -58,8 +58,8 @@ test('buildInsightsSummary.nPlusOneCandidates needs 3+ hits and reports the grou
   ];
   const summary = buildInsightsSummary(all);
   assert.deepEqual(summary.nPlusOneCandidates, [
-    { path: '/items/1', count: 4, avgDuration: 50 },
-    { path: '/items/2', count: 3, avgDuration: 150 },
+    { path: '/items/1', label: '/items/1', count: 4, avgDuration: 50 },
+    { path: '/items/2', label: '/items/2', count: 3, avgDuration: 150 },
   ]);
   assert.deepEqual(summary.repeatedEndpoints, { '/items/1': 4, '/items/2': 3, '/once': 1, '/twice': 2 });
 });
@@ -77,23 +77,24 @@ test('repeatedEndpoints counts every entry it is handed, including logs', () => 
   assert.equal(counts['(unknown)'], 1, 'a log entry has no path, so it lands in the (unknown) bucket');
 });
 
-test('SUSPECTED BUG insights.ts:44 — the slow threshold is a hardcoded > 500, disagreeing with entries.ts at exactly 500ms', () => {
+test('FIXED insights.ts:44 — the slow count honours slowThresholdMs and agrees with entries.ts at the boundary', () => {
   const exactly500 = apiEntry({ duration: 500 });
   const just501 = apiEntry({ duration: 501 });
   const all = [exactly500, just501];
 
-  assert.equal(buildInsightsSummary(all).slow, 1, 'Insights counts only the 501ms request');
-  assert.equal(EN.buildApiListSummary(all, new Set(), 500).slow, 2, 'the API list counts both (>= threshold)');
-  assert.ok(EN.getEntryFlags(exactly500, all, new Set(), 500).includes('slow'), 'and flags the 500ms request as slow');
+  // Was: a hardcoded `> 500`, so Insights said 1 while the request list said 2.
+  assert.equal(buildInsightsSummary(all).slow, 2, 'Insights counts both at the default threshold');
+  assert.equal(EN.buildApiListSummary(all, new Set(), 500).slow, 2, 'and the API list agrees');
+  assert.ok(EN.getEntryFlags(exactly500, all, new Set(), 500).includes('slow'), 'as does the per-entry flag');
 
-  // The disagreement is also unconditional: Insights ignores the user's
-  // configured slowThresholdMs entirely.
+  // Was: Insights ignored the configured threshold entirely.
   const fast = [apiEntry({ duration: 250 }), apiEntry({ duration: 250 })];
-  assert.equal(buildInsightsSummary(fast).slow, 0, 'Insights has no way to see a 200ms threshold');
-  assert.equal(EN.buildApiListSummary(fast, new Set(), 200).slow, 2, 'the API list honours the configured threshold');
+  assert.equal(buildInsightsSummary(fast, 200).slow, 2, 'Insights honours a 200ms threshold');
+  assert.equal(EN.buildApiListSummary(fast, new Set(), 200).slow, 2, 'matching the API list exactly');
+  assert.equal(buildInsightsSummary(fast).slow, 0, 'and still defaults to 500 when none is passed');
 });
 
-test('SUSPECTED BUG insights.ts:24-29 — grouping by entryPath collapses every GraphQL operation into one bucket', () => {
+test('FIXED insights.ts:24-29 — GraphQL operations group apart instead of collapsing into one false N+1', () => {
   const gql = (op) => apiEntry({
     urlPath: '/graphql', method: 'POST', duration: 100,
     graphql: { operationType: 'query', operationName: op },
@@ -101,13 +102,27 @@ test('SUSPECTED BUG insights.ts:24-29 — grouping by entryPath collapses every 
   const all = [gql('GetUser'), gql('ListOrders'), gql('GetSettings')];
 
   const summary = buildInsightsSummary(all);
-  assert.deepEqual(summary.repeatedEndpoints, { '/graphql': 3 }, 'three distinct operations look like one repeated endpoint');
-  assert.deepEqual(summary.nPlusOneCandidates, [{ path: '/graphql', count: 3, avgDuration: 100 }], 'reported as an N+1 candidate that is not one');
+  // Was: { '/graphql': 3 } and a bogus N+1 candidate on every GraphQL app.
+  assert.deepEqual(summary.repeatedEndpoints, {
+    '/graphql#GetUser': 1, '/graphql#ListOrders': 1, '/graphql#GetSettings': 1,
+  }, 'three distinct operations are three buckets');
+  assert.deepEqual(summary.nPlusOneCandidates, [], 'and none of them is an N+1');
 
-  // The rest of the panel groups these apart, via entryGroupPath.
+  // The rest of the panel already grouped these apart; Insights now matches it.
   assert.equal(new Set(all.map(EN.entryGroupPath)).size, 3);
   assert.equal(EN.buildEndpointGroups(all).length, 3, 'the API list shows three groups');
   assert.ok(!EN.getEntryFlags(all[0], all).includes('repeated'), 'and does not flag them as repeated');
+});
+
+test('a genuinely repeated GraphQL operation is still reported, labelled by operation', () => {
+  const gql = () => apiEntry({
+    urlPath: '/graphql', method: 'POST', duration: 100,
+    graphql: { operationType: 'query', operationName: 'GetUser' },
+  });
+  const summary = buildInsightsSummary([gql(), gql(), gql()]);
+  assert.deepEqual(summary.nPlusOneCandidates, [
+    { path: '/graphql', label: 'query GetUser', count: 3, avgDuration: 100 },
+  ], 'path stays searchable for the request-list box; label names the operation');
 });
 
 // ----------------------------------------------------------------------- viz
@@ -214,23 +229,31 @@ test('buildVizSpec labels long strings with an ellipsis and blank labels by inde
   assert.equal(spec.bars[2].label, '#3');
 });
 
-test('SUSPECTED BUG viz.ts:88-96 — the categorical-distribution path slices to 40 bars but hardcodes truncated: 0', () => {
+test('FIXED viz.ts:88-96 — the categorical-distribution path reports the categories it dropped', () => {
   const rows = Array.from({ length: 55 }, (_, i) => ({ kind: `k${i}` }));
   const spec = buildVizSpec(rows);
   assert.equal(spec.bars.length, 40, '15 categories were dropped');
-  assert.equal(spec.truncated, 0, 'but the spec claims nothing was truncated');
-  assert.equal(spec.subtitle, '55 rows', 'only the row count hints that bars are missing');
+  assert.equal(spec.truncated, 15, 'and the spec says so — was hardcoded to 0');
+  assert.equal(spec.subtitle, '55 rows');
+
+  const under = buildVizSpec(Array.from({ length: 12 }, (_, i) => ({ kind: `k${i}` })));
+  assert.equal(under.truncated, 0, 'nothing dropped still reports 0');
 });
 
-test('SUSPECTED BUG viz.ts:114-117 — the scalar-frequency path has the same hardcoded truncated: 0', () => {
+test('FIXED viz.ts:114-117 — the scalar-frequency path reports dropped values too', () => {
   const values = Array.from({ length: 55 }, (_, i) => `v${i}`);
   const spec = buildVizSpec(values);
   assert.equal(spec.bars.length, 40, '15 distinct values were dropped');
-  assert.equal(spec.truncated, 0, 'but the spec claims nothing was truncated');
+  assert.equal(spec.truncated, 15, 'and the spec says so — was hardcoded to 0');
   assert.equal(spec.title, 'Distribution of 55 values');
 
-  // Contrast with the numeric path, which reports truncation honestly.
+  // The numeric path always reported honestly; all three paths now agree.
   assert.equal(buildVizSpec(Array.from({ length: 55 }, (_, i) => i)).truncated, 15);
+
+  // Frequency collapses duplicates, so truncation counts distinct values, not rows.
+  const dupes = buildVizSpec(Array.from({ length: 200 }, (_, i) => `v${i % 10}`));
+  assert.equal(dupes.bars.length, 10);
+  assert.equal(dupes.truncated, 0, '200 rows over 10 distinct values drops nothing');
 });
 
 test('formatVizValue keeps integers, thousands separators and short decimals readable', () => {

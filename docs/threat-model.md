@@ -83,6 +83,7 @@ regress.
 | C-9 | The service-worker message router dereferenced `msg` with no guard and did not check `sender.id`, letting any content script drive `xray:page-bridge` against **any** tab | Sender validated against `chrome.runtime.id`; `msg` null-guarded; content-script senders forced to their own tab |
 | C-5 | `storageBridge` fell back to the **page's** `localStorage` when `XRAY_Store` was absent, which could write the BYOK API key in plaintext into the visited site's storage | Fallback removed; reads return the caller's fallback and writes are dropped |
 | C-4a | Redaction denylist missed many common auth headers | Denylist widened |
+| C-1 | **Critical — the console handed cross-origin captured traffic to page-controlled code.** The debugger-evaluated expression read `window.XRAY_ConsoleHelpers`, a plain writable page global, so a page that replaced `createRuntime` received the whole console context — captured URLs across every origin in the restored session, full bodies for the selected entry and its neighbours, decoded JWT claims — as soon as the user ran any expression, including `1+1`. A second path posted the same context to the page with `targetOrigin: '*'` and no token | The helper source is inlined into the evaluated expression and run against a **shadowed `window`**, so the page global is neither read nor written. The MAIN-world fallback is deleted outright: `content/console-executor.js` is removed from the repo and the manifest, `panel/console.js` no longer posts a session handshake or an exec request, and a failed debugger attach now returns an error instead of falling back |
 | C-16 | **Command injection in "Copy as cURL".** `generateCurl` interpolated `entry.url` raw into a single-quoted shell word while the header and body sites two lines below escaped correctly. A page issuing `fetch("https://x.test/a';id;echo'")` produced a command that ran `id` when pasted — the WHATWG parser does not percent-encode an apostrophe in a path or query, and imported HAR files are a second unfiltered source. The method was interpolated bare as a second injection point. The panel's `utils.ts` fallback had the same class of bug via `JSON.stringify`, whose double quotes still permit `$(...)` | Both routed through one POSIX single-quote helper |
 
 See the commit history on `enterprise-hardening` for the exact changes.
@@ -92,31 +93,23 @@ See the commit history on `enterprise-hardening` for the exact changes.
 ## 4. Open findings
 
 **None of the following are fixed.** They need design decisions and live-browser
-verification. They are ordered by remediation priority.
+verification. They are ordered by remediation priority. The critical finding that used to
+head this list, C-1, is fixed and has moved to section 3.
 
-### C-1 · Critical — the console hands cross-origin captured traffic to page-controlled code
+### Residual note from C-1 · Low — `shared/console-helpers.js` is still injected into the page world
 
-`panel/console.js:111-137` builds a context containing the selected entry in full, full
-bodies for up to 10 same-endpoint neighbours, and up to 300 slim entries **whose URLs
-include query strings**. Because the session is restored from `chrome.storage.local` on
-*every* origin, that is not limited to the current site.
+With `content/console-executor.js` deleted, nothing in the MAIN world reads
+`window.XRAY_ConsoleHelpers` any more. The file is still listed in the MAIN content-script
+group, so it is parsed on every page visit and leaves a writable global that no longer has
+a consumer. Nothing is exposed by this — the privileged path inlines its own copy, and the
+panel reads the ISOLATED-world copy that `content/content.js` imports dynamically — but it
+is dead weight in the page's realm.
 
-It reaches the page two ways:
-
-- **Privileged path (default).** `background.js:131` evaluates, in the page's MAIN world,
-  an expression that reads `window.XRAY_ConsoleHelpers` — a plain writable page global. A
-  page that replaces `createRuntime` receives the entire context.
-- **Fallback path.** `panel/console.js:180-186` posts the whole context with
-  `targetOrigin: '*'`, with no token and no nonce.
-
-A page needs one `window.addEventListener('message', …)` plus one property assignment to
-capture URLs across every site in the session, full bodies for the selected entry, decoded
-JWT claims, and `parseToken` values — as soon as the user runs any console expression,
-including `1+1`.
-
-*Direction:* never put the console context in the page world. Evaluate helpers in the
-isolated world and pass results back, or inline the helper source into the evaluated
-expression instead of reading it off `window`. Delete the fallback path.
+*Direction:* move the file to the ISOLATED group and drop the dynamic import in
+`content/content.js:11`. Deferred deliberately: the MAIN/ISOLATED split for this file is
+the single-injection workaround documented in `architecture.md`, and the ISOLATED group's
+load order is pinned by regression tests, so it wants its own change rather than riding
+along with the C-1 fix.
 
 ### C-2 · High — replay secrets flow through page-replaceable globals
 

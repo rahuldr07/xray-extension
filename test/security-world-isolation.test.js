@@ -3,16 +3,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { read } = require('./helpers/source');
+const { read, readManifest, exists } = require('./helpers/source');
 
 test('content bridge ignores postMessage events from non-window sources', () => {
   const content = read('content/content.js');
   assert.match(content, /e\.source\s*!==\s*window/);
-});
-
-test('console executor ignores postMessage events from non-window sources', () => {
-  const executor = read('content/console-executor.js');
-  assert.match(executor, /event\.source\s*!==\s*window/);
 });
 
 test('console capture ignores postMessage events from non-window sources', () => {
@@ -23,22 +18,38 @@ test('console capture ignores postMessage events from non-window sources', () =>
   assert.match(consoleCapture, /e\.source\s*!==\s*window/);
 });
 
-test('console execution bridge requires a session nonce and bounds result size', () => {
-  const executor = read('content/console-executor.js');
+test('C-1 the console context never reaches the page world', () => {
+  // content/console-executor.js is DELETED. It was the MAIN-world receiver for the
+  // fallback execution path, and panel/console.js posted the whole console context
+  // to it with targetOrigin '*' — captured URLs across every origin in the session,
+  // full bodies for the selected entry, decoded JWT claims — readable by one
+  // `window.addEventListener('message', …)` on any page, as soon as the user ran
+  // any expression at all.
+  assert.equal(exists('content/console-executor.js'), false,
+    'the MAIN-world executor must stay deleted');
+
   const consoleEngine = read('panel/console.js');
-  assert.match(executor, /XRAY_CONSOLE_SESSION/);
-  assert.match(executor, /sessionId\s*!==\s*window\.__XRAY_CONSOLE_SESSION/);
-  assert.match(executor, /MAX_RESULT_CHARS/);
-  assert.match(consoleEngine, /sessionId:\s*_sessionId/);
+  assert.doesNotMatch(consoleEngine, /XRAY_EXEC_REQUEST/, 'no exec request is posted to the page');
+  assert.doesNotMatch(consoleEngine, /XRAY_CONSOLE_SESSION/, 'and no session handshake either');
+  assert.doesNotMatch(consoleEngine, /_executeInMainWorld/);
+  assert.match(consoleEngine, /xray:console-eval/, 'execution is privileged-path only');
+
+  const mainWorld = readManifest().content_scripts.find((group) => group.world === 'MAIN');
+  assert.equal(mainWorld.js.includes('content/console-executor.js'), false,
+    'and it is no longer injected into every page');
 });
 
-test('console session nonce is first-write-wins so a page cannot wedge the console', () => {
-  // The nonce lives on the page's own window, so it is readable. It must at least be
-  // unwritable-after-set: assigning unconditionally let any page script replace the
-  // live session id, after which every real exec request failed the nonce check and
-  // was silently dropped. Mirrors the bridge-token handshake in content.js.
-  const executor = read('content/console-executor.js');
-  assert.match(executor, /!window\.__XRAY_CONSOLE_SESSION\s*&&/);
+test('C-1 the privileged expression inlines the helper source instead of reading a page global', () => {
+  // The debugger-evaluated expression ran in the page's MAIN world and read
+  // `window.XRAY_ConsoleHelpers`, a plain writable page global: replacing
+  // createRuntime handed the attacker the entire inlined context. The helper source
+  // is now inlined and evaluated against a shadowed `window`.
+  const background = read('background.js');
+  assert.match(background, /_loadConsoleHelperSource/);
+  assert.match(background, /chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)/);
+  assert.match(background, /const window = \{\};/, 'the helper IIFE writes into a shadowed window');
+  assert.doesNotMatch(background, /const __helpers = window\.XRAY_ConsoleHelpers/,
+    'the page global is never read by the evaluated expression');
 });
 
 test('content bridge requires a MAIN-world bridge token for capture and lazy object messages', () => {

@@ -41,18 +41,30 @@ window.XRAY_Utils = (() => {
   }
 
   function methodClass(method) {
-    return `xr-m-${(method || 'get').toLowerCase()}`;
+    // Was `(method || 'get').toLowerCase()`, which threw TypeError on any truthy
+    // non-string — a number, an object, anything an imported HAR might carry.
+    const name = typeof method === 'string' && method ? method : 'get';
+    return `xr-m-${name.toLowerCase()}`;
   }
 
   /** Deeply clone plain JSON-safe values */
   function safeClone(v) {
-    try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+    // On failure this used to return the ORIGINAL reference, so a "safe clone" of a
+    // cyclic value aliased the caller's object and writes to the clone mutated the
+    // source — the exact opposite of the contract. structuredClone handles cycles
+    // and Dates; null is the honest answer when even that cannot copy the value.
+    try { return JSON.parse(JSON.stringify(v)); } catch { /* fall through */ }
+    try { return structuredClone(v); } catch { return null; }
   }
 
   /** Truncate a URL path to a readable form - show meaningful endpoint */
   function shortPath(url) {
+    // The catch handler dereferenced `url.length` on the very value whose nullness
+    // caused the throw, so shortPath(null) raised TypeError out of a function whose
+    // whole job is to degrade gracefully.
+    const raw = typeof url === 'string' ? url : '';
     try {
-      const u = new URL(url);
+      const u = new URL(raw);
       let p = u.pathname;
       // Remove trailing slash
       if (p.endsWith('/') && p.length > 1) p = p.slice(0, -1);
@@ -63,8 +75,12 @@ window.XRAY_Utils = (() => {
       if (segments.length <= 2) return p.length > 40 ? '…' + p.slice(-38) : p;
       // Show last 2-3 meaningful segments
       const lastParts = segments.slice(-3).join('/');
-      return lastParts.length > 35 ? '…/' + segments.slice(-2).join('/') : '…/' + lastParts;
-    } catch { return url.length > 40 ? '…' + url.slice(-38) : url; }
+      // The 3-segment branch had no absolute cap, so one very long final segment was
+      // returned essentially in full — defeating the point of the function. Every
+      // return path is now bounded by the same 40-character budget.
+      const short = lastParts.length > 35 ? '…/' + segments.slice(-2).join('/') : '…/' + lastParts;
+      return short.length > 40 ? '…' + short.slice(-38) : short;
+    } catch { return raw.length > 40 ? '…' + raw.slice(-38) : raw; }
   }
 
   return { uid, formatTime, formatDuration, formatSize, previewJSON, statusClass, methodClass, safeClone, shortPath };

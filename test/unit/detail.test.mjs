@@ -151,31 +151,38 @@ test('CAP structuralDiff stops descending past depth 6', () => {
   assert.deepEqual(structuralDiff(shallower('x'), shallower('y')).map((line) => line.path), ['a.b.c.d.e.f']);
 });
 
-test('CAP structuralDiff compares at most the first 50 array indices', () => {
+test('CAP structuralDiff compares at most the first 50 array indices, and says when it stopped', () => {
   const before = Array.from({ length: 60 }, (_, i) => i);
   const after = before.slice();
   after[10] = 'changed-early';
   after[55] = 'changed-late';
   const lines = structuralDiff(before, after);
-  assert.deepEqual(lines.map((line) => line.path), ['[10]'], 'index 55 is past the 50-element scan window');
+  assert.deepEqual(lines.map((line) => line.path), ['[10]', '[…]'],
+    'index 55 is past the scan window, so the […] notice reports the cap was hit');
 });
 
-test('SUSPECTED BUG detail.ts:106-111 — differences past index 50 vanish silently when both arrays are the same length', () => {
+test('FIXED detail.ts:106-111 — differences past index 50 no longer vanish for equal-length arrays', () => {
   const before = Array.from({ length: 60 }, (_, i) => i);
   const equalLength = before.slice();
   equalLength[55] = 'DIFFERENT';
-  // Same length -> the `prev.length !== curr.length` guard blocks the "[…]"
-  // summary line, so the diff reports NO CHANGES for two demonstrably
-  // different arrays.
-  assert.deepEqual(structuralDiff(before, equalLength), [], 'reports no changes at all');
+  // Was: the `prev.length !== curr.length` guard blocked the "[…]" summary line,
+  // so two demonstrably different 60-element arrays diffed to NOTHING. The notice
+  // is now driven by the cap alone, which is what it was always documenting.
+  const lines = structuralDiff(before, equalLength);
+  assert.deepEqual(lines.map((line) => line.path), ['[…]'], 'the truncation notice fires');
+  assert.equal(lines[0].before, '60 items');
+  assert.equal(lines[0].after, '60 items');
 
-  // Whereas a length change does produce the summary line.
+  // A length change still produces the same line, now with differing counts.
   const differentLength = before.slice(0, 59);
   differentLength[55] = 'DIFFERENT';
-  const lines = structuralDiff(before, differentLength);
-  assert.deepEqual(lines.map((line) => line.path), ['[…]']);
-  assert.equal(lines[0].before, '60 items');
-  assert.equal(lines[0].after, '59 items');
+  const changed = structuralDiff(before, differentLength);
+  assert.deepEqual(changed.map((line) => line.path), ['[…]']);
+  assert.equal(changed[0].before, '60 items');
+  assert.equal(changed[0].after, '59 items');
+
+  // Arrays inside the window are unaffected: no cap hit, no notice.
+  assert.deepEqual(structuralDiff([1, 2, 3], [1, 2, 3]), [], 'identical short arrays still diff to nothing');
 });
 
 test('structuralDiff scopes the array cap to each array, not the whole payload', () => {
@@ -184,5 +191,6 @@ test('structuralDiff scopes the array cap to each array, not the whole payload',
     right: Array.from({ length: 3 }, (_, i) => (i === 1 ? marker : i)),
   });
   const lines = structuralDiff(mk('a'), mk('b'));
-  assert.deepEqual(lines.map((line) => line.path), ['right[1]'], 'the short array is still fully compared');
+  assert.deepEqual(lines.map((line) => line.path), ['left[…]', 'right[1]'],
+    'the long array reports its cap; the short array is still fully compared');
 });

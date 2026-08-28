@@ -523,7 +523,7 @@ const NetworkRow = React.memo(function NetworkRow({ event, waterfall, index, onE
         <span className="xray-waterfall-cell">
           <span className="xray-waterfall-track">
             <span
-              className={`xray-waterfall-bar ${dur > slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`}
+              className={`xray-waterfall-bar ${dur >= slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`}
               style={{ left: `${barLeft}%`, width: `${barWidth}%` }}
             >
               <span className="xray-waterfall-wait" style={{ width: `${Math.round(waitFrac * 100)}%` }} />
@@ -969,7 +969,7 @@ function Statusbar(): React.ReactElement {
   const stats = useMemo(() => {
     const apis = entries.filter(isApi);
     const errors = apis.filter((entry) => Number(entry.status) >= 400);
-    const slow = apis.filter((entry) => duration(entry) > slowThresholdMs);
+    const slow = apis.filter((entry) => duration(entry) >= slowThresholdMs);
     const avg = apis.length ? apis.reduce((sum, entry) => sum + duration(entry), 0) / apis.length : 0;
     return { total: apis.length, errors: errors.length, slow: slow.length, avg };
   }, [entries, slowThresholdMs]);

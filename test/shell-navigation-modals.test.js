@@ -49,7 +49,10 @@ test('React secondary tabs are separate components instead of App inline placeho
   assert.match(app, /import \{ Insights \}/);
   assert.match(app, /import \{ Rules \}/);
   assert.match(insights, /export function Insights/);
-  assert.match(insights, /buildInsightsSummary\(entries\)/);
+  // Insights reads the configured slow threshold from the store and passes it in;
+  // it used to call buildInsightsSummary(entries) and silently use a hardcoded 500.
+  assert.match(insights, /buildInsightsSummary\(entries, slowThresholdMs\)/);
+  assert.match(insights, /state\.settings\.slowThresholdMs/);
   assert.match(rules, /export function Rules/);
   assert.match(insightsModel, /export function buildInsightsSummary/);
   assert.match(insightsModel, /repeatedEndpoints/);

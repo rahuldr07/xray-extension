@@ -106,7 +106,10 @@ export function structuralDiff(previous: unknown, current: unknown, maxLines = 2
       for (let index = 0; index < Math.min(length, 50); index += 1) {
         walk(prev[index], curr[index], `${path}[${index}]`, depth + 1);
       }
-      if (length > 50 && prev.length !== curr.length && lines.length < maxLines) {
+      // Fires on length alone. Gating this on differing lengths meant two 60-element
+      // arrays differing only past index 50 produced an empty diff — the UI reported
+      // "no changes" for demonstrably different data.
+      if (length > 50 && lines.length < maxLines) {
         lines.push({ path: `${path}[…]`, kind: 'changed', before: `${prev.length} items`, after: `${curr.length} items` });
       }
       return;

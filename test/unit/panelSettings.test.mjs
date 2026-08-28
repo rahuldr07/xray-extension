@@ -60,14 +60,13 @@ test('every numeric setting falls back (not clamps) for a non-finite value', () 
   }
 });
 
-test('null and [] coerce to 0 for numeric settings, so they clamp to the minimum rather than falling back', () => {
-  // Number(null) === 0 and Number([]) === 0 are finite, so clampNumber never
-  // reaches its fallback. A persisted `maxEntries: null` therefore becomes 50,
-  // not the 1000 default.
-  for (const [key, min, , fallback] of NUMERIC_BOUNDS) {
-    assert.equal(at(key, null), min, `${key} = null`);
-    assert.equal(at(key, []), min, `${key} = []`);
-    if (min !== fallback) assert.notEqual(at(key, null), fallback, `${key} does not fall back for null`);
+test('FIXED null and [] fall back for numeric settings instead of clamping to the minimum', () => {
+  // Was: Number(null) === 0 and Number([]) === 0 are finite, so clampNumber never
+  // reached its fallback and a persisted `maxEntries: null` became 50, not 1000.
+  for (const [key, , , fallback] of NUMERIC_BOUNDS) {
+    assert.equal(at(key, null), fallback, `${key} = null falls back`);
+    assert.equal(at(key, []), fallback, `${key} = [] falls back`);
+    assert.equal(at(key, ''), fallback, `${key} = '' falls back`);
   }
 });
 
@@ -108,18 +107,22 @@ test('the other booleans are plain Boolean() coercions', () => {
   }
 });
 
-test('an explicit undefined turns every boolean except captureWs OFF, even ones that default to true', () => {
-  // `{ ...DEFAULTS, ...input }` lets an explicit `key: undefined` shadow the
-  // default, and Boolean(undefined) is false. Only captureWs has the
-  // `=== undefined ? true` guard. A stored preferences blob that round-trips
-  // through JSON never hits this (JSON drops undefined), but an in-memory
-  // partial update does.
+test('FIXED an explicit undefined no longer turns booleans off', () => {
+  // Was: `{ ...DEFAULTS, ...input }` let an explicit `key: undefined` shadow the
+  // default, and Boolean(undefined) is false — so every boolean defaulting to true
+  // silently switched off on a partial in-memory update. captureWs had a bespoke
+  // guard; now undefined is filtered out of the input for every key alike.
   const trueByDefault = ['captureFetch', 'captureXhr', 'showHostInPath', 'glow', 'confirmDestructiveActions'];
   for (const key of trueByDefault) {
     assert.equal(DEFAULT_PANEL_SETTINGS[key], true, `${key} default`);
-    assert.equal(at(key, undefined), false, `${key} = undefined silently turns off`);
+    assert.equal(at(key, undefined), true, `${key} = undefined keeps its default`);
   }
-  assert.equal(at('captureWs', undefined), true, 'captureWs is the documented exception');
+  assert.equal(at('captureWs', undefined), true, 'captureWs behaves like the rest now');
+
+  // An explicit false is still an explicit false, not a missing value.
+  for (const key of [...trueByDefault, 'captureWs']) {
+    assert.equal(at(key, false), false, `${key} = false is honoured`);
+  }
 });
 
 // --------------------------------------------------------------- enum fields
@@ -194,7 +197,8 @@ test('a fully hostile settings blob normalizes into something the panel can rend
     radius: 20,
     glow: false,
     hacker: true,
-    confirmDestructiveActions: false,
+    // confirmDestructiveActions was passed as an explicit `undefined`, which used
+    // to shadow the default and normalize to false. It now keeps its default.
     apiSplit: 0,
     logsSplit: 2000,
   });

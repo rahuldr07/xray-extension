@@ -126,11 +126,20 @@ function asDockSide(value: unknown, fallback: DockSide): DockSide {
 }
 
 export function normalizePanelSettings(input: Partial<PanelSettings> | undefined): PanelSettings {
-  const base = { ...DEFAULT_PANEL_SETTINGS, ...(input || {}) };
+  // An explicit `key: undefined` in the input used to SHADOW the default through the
+  // spread, and Boolean(undefined) is false — so every boolean defaulting to true
+  // (captureFetch, captureXhr, showHostInPath, glow, confirmDestructiveActions)
+  // silently switched off on a partial in-memory update. JSON-persisted preferences
+  // never hit it because JSON.stringify drops undefined; in-memory callers did.
+  const provided = Object.fromEntries(
+    Object.entries(input || {}).filter(([, value]) => value !== undefined),
+  ) as Partial<PanelSettings>;
+  const base = { ...DEFAULT_PANEL_SETTINGS, ...provided };
   return {
     captureFetch: Boolean(base.captureFetch),
     captureXhr: Boolean(base.captureXhr),
-    captureWs: base.captureWs === undefined ? true : Boolean(base.captureWs),
+    // (captureWs carried a bespoke undefined guard; the filter above now covers all of them.)
+    captureWs: Boolean(base.captureWs),
     maxEntries: clampNumber(base.maxEntries, DEFAULT_PANEL_SETTINGS.maxEntries, 50, 5000),
     slowThresholdMs: clampNumber(base.slowThresholdMs, DEFAULT_PANEL_SETTINGS.slowThresholdMs, 100, 5000),
     verySlowThresholdMs: clampNumber(base.verySlowThresholdMs, DEFAULT_PANEL_SETTINGS.verySlowThresholdMs, 200, 10000),

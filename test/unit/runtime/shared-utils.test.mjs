@@ -153,7 +153,7 @@ test('utils.statusClass: every HTTP band, plus the out-of-range fallbacks', () =
   assert.equal(U.statusClass('200'), 'xr-s2', 'numeric strings coerce through Math.floor');
 });
 
-test('utils.methodClass: lowercases, defaults to get — and throws on a non-string method', () => {
+test('utils.methodClass: lowercases, defaults to get, and degrades on a non-string method', () => {
   assert.equal(U.methodClass('GET'), 'xr-m-get');
   assert.equal(U.methodClass('PoSt'), 'xr-m-post');
   assert.equal(U.methodClass('PATCH'), 'xr-m-patch');
@@ -161,11 +161,12 @@ test('utils.methodClass: lowercases, defaults to get — and throws on a non-str
     assert.equal(U.methodClass(falsy), 'xr-m-get', 'falsy methods fall back to get');
   }
 
-  // BUG (shared/utils.js:44): `(method || 'get').toLowerCase()` assumes a string.
-  // Any truthy non-string — e.g. a numeric method smuggled through a HAR import
-  // or a postMessage payload — throws instead of degrading.
-  assert.throws(() => U.methodClass(123), { name: 'TypeError' });
-  assert.throws(() => U.methodClass({ toString: () => 'GET' }), { name: 'TypeError' });
+  // Was (shared/utils.js:44): `(method || 'get').toLowerCase()` assumed a string, so
+  // any truthy non-string — a numeric method smuggled through a HAR import or a
+  // postMessage payload — threw instead of degrading.
+  assert.equal(U.methodClass(123), 'xr-m-get');
+  assert.equal(U.methodClass({ toString: () => 'GET' }), 'xr-m-get');
+  assert.equal(U.methodClass([]), 'xr-m-get');
 });
 
 test('utils.safeClone: JSON round-trip produces a genuinely detached copy', () => {
@@ -179,23 +180,27 @@ test('utils.safeClone: JSON round-trip produces a genuinely detached copy', () =
   assert.equal(source.nested.list[2].deep, true, 'mutating the clone must not reach the source');
 });
 
-test('utils.safeClone: JSON-hostile values are silently reshaped or aliased', () => {
+test('utils.safeClone: JSON-hostile values are reshaped, and a cyclic value is never aliased', () => {
   // Dates degrade to ISO strings; undefined/function properties vanish.
   assert.equal(U.safeClone(new Date(0)), '1970-01-01T00:00:00.000Z');
   assert.deepEqual(hostify(U.safeClone({ a: undefined, b: () => 1, c: 1 })), { c: 1 });
   assert.deepEqual(hostify(U.safeClone([undefined, () => 1])), [null, null]);
-  assert.equal(U.safeClone(undefined), undefined, 'JSON.parse(undefined) throws, so v is returned as-is');
-  assert.equal(typeof U.safeClone(() => 1), 'function');
 
-  // BUG (shared/utils.js:49): on failure the ORIGINAL reference is returned, so
-  // a "safe clone" of a cyclic value is not a clone at all. Callers that clone
-  // in order to mutate would be writing straight through to the source.
+  // Was (shared/utils.js:49): on failure the ORIGINAL reference was returned, so a
+  // "safe clone" of a cyclic value was not a clone at all and callers cloning in
+  // order to mutate wrote straight through to the source.
   const cyclic = { a: 1 };
   cyclic.self = cyclic;
   const result = U.safeClone(cyclic);
-  assert.equal(result, cyclic, 'the catch branch aliases rather than clones');
+  assert.notEqual(result, cyclic, 'the fallback clones rather than aliases');
   result.a = 99;
-  assert.equal(cyclic.a, 99, 'writes to the "clone" mutate the caller\'s object');
+  assert.equal(cyclic.a, 1, 'writes to the clone leave the source alone');
+  assert.equal(result.self, result, 'and the cycle is preserved in the copy');
+
+  // structuredClone cannot copy a function, so null is the honest answer. undefined
+  // round-trips as undefined, which is a real value rather than a clone failure.
+  assert.equal(U.safeClone(() => 1), null);
+  assert.equal(U.safeClone(undefined), undefined);
 });
 
 test('utils.shortPath: short paths render whole, trailing slashes are trimmed', () => {
@@ -221,15 +226,17 @@ test('utils.shortPath: long paths collapse to the trailing segments', () => {
   assert.equal(U.shortPath('https://api.test/' + 'x'.repeat(60)), '…' + 'x'.repeat(38));
 });
 
-test('utils.shortPath: the 3-segment branch has no absolute length cap', () => {
-  // BUG (cosmetic, shared/utils.js:66): when the last three segments exceed 35
-  // chars the fallback is the last TWO segments — which is itself unbounded. A
-  // long final segment (a JWT, a base64 id) is returned essentially in full,
-  // defeating the whole point of the function.
+test('utils.shortPath: every branch is bounded by the same length budget', () => {
+  // Was (shared/utils.js:66): when the last three segments exceeded 35 chars the
+  // fallback was the last TWO segments — itself unbounded — so a long final segment
+  // (a JWT, a base64 id) came back essentially in full, defeating the function.
   const url = 'https://api.test/api/v1/' + 'y'.repeat(50);
   const out = U.shortPath(url);
-  assert.equal(out, '…/v1/' + 'y'.repeat(50));
-  assert.ok(out.length > 40, `shortPath returned ${out.length} chars, well past the ~40 the other branches cap at`);
+  assert.ok(out.length <= 40, `shortPath returned ${out.length} chars; every branch caps at 40`);
+  assert.ok(out.startsWith('…'), 'and says it truncated');
+
+  // A path that genuinely fits is still returned whole.
+  assert.equal(U.shortPath('https://api.test/a/b/c'), '/a/b/c');
 });
 
 test('utils.shortPath: unparseable URLs fall back to a tail slice', () => {
@@ -239,11 +246,12 @@ test('utils.shortPath: unparseable URLs fall back to a tail slice', () => {
   assert.equal(U.shortPath('z'.repeat(50)), '…' + 'z'.repeat(38));
 });
 
-test('utils.shortPath: nullish input throws out of the catch block', () => {
-  // BUG (shared/utils.js:67): `new URL(null)` throws, and the catch handler then
-  // dereferences `url.length` on that same null — so the guard rethrows a
-  // different TypeError instead of degrading. Every other helper in this module
-  // tolerates nullish input.
-  assert.throws(() => U.shortPath(null), { name: 'TypeError', message: /reading 'length'/ });
-  assert.throws(() => U.shortPath(undefined), { name: 'TypeError' });
+test('utils.shortPath: nullish input degrades instead of throwing', () => {
+  // Was (shared/utils.js:67): `new URL(null)` throws and the catch handler then
+  // dereferenced `url.length` on that same null, rethrowing a different TypeError
+  // out of a guard whose whole job is to degrade. Every other helper here tolerates
+  // nullish input; this one now does too.
+  assert.equal(U.shortPath(null), '');
+  assert.equal(U.shortPath(undefined), '');
+  assert.equal(U.shortPath(42), '', 'and any other non-string');
 });

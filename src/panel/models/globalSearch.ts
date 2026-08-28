@@ -82,7 +82,12 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
   const needleLower = q.toLowerCase();
 
   const matches: GlobalSearchMatch[] = [];
-  for (let i = entries.length - 1; i >= 0 && matches.length < MAX_MATCHES; i--) {
+  // Tracks whether the cap stopped the scan with entries still unexamined. Deriving
+  // truncation from `matches.length >= MAX_MATCHES` alone reported truncation for a
+  // search that found exactly MAX_MATCHES and had in fact scanned everything.
+  let stoppedEarly = false;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (matches.length >= MAX_MATCHES) { stoppedEarly = true; break; }
     const entry = entries[i];
     for (const [field, text] of entryFields(entry)) {
       const hit = locate(text, needleLower, q, re, caseSensitive);
@@ -104,5 +109,5 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
       break; // one match per entry
     }
   }
-  return { matches, error: null, truncated: matches.length >= MAX_MATCHES };
+  return { matches, error: null, truncated: stoppedEarly };
 }

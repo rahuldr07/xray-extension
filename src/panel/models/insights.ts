@@ -1,5 +1,5 @@
 import type { XrayEntry } from '../types';
-import { duration, entryPath, isApi } from './entries';
+import { duration, entryGroupLabel, entryGroupPath, entryPath, isApi } from './entries';
 
 export interface SlowRequestInsight {
   id: string;
@@ -17,13 +17,16 @@ export interface InsightsSummary {
   totalBytes: number;
   statusCounts: Record<string, number>;
   repeatedEndpoints: Record<string, number>;
-  nPlusOneCandidates: Array<{ path: string; count: number; avgDuration: number }>;
+  nPlusOneCandidates: Array<{ path: string; label: string; count: number; avgDuration: number }>;
   topSlowRequests: SlowRequestInsight[];
 }
 
+// Keyed by entryGroupPath, not entryPath: grouping GraphQL by URL alone collapses
+// every operation into one `POST /graphql` bucket, so three distinct operations
+// read as three calls to one endpoint and get flagged as an N+1 that is not one.
 export function repeatedEndpoints(entries: XrayEntry[]): Record<string, number> {
   return entries.reduce<Record<string, number>>((acc, entry) => {
-    const key = entryPath(entry);
+    const key = entryGroupPath(entry);
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
@@ -38,10 +41,10 @@ function statusBucket(entry: XrayEntry): string {
   return 'other';
 }
 
-export function buildInsightsSummary(entries: XrayEntry[]): InsightsSummary {
+export function buildInsightsSummary(entries: XrayEntry[], slowThresholdMs = 500): InsightsSummary {
   const apis = entries.filter(isApi);
   const errors = apis.filter((entry) => Number(entry.status) >= 400);
-  const slow = apis.filter((entry) => duration(entry) > 500);
+  const slow = apis.filter((entry) => duration(entry) >= slowThresholdMs);
   const repeated = repeatedEndpoints(apis);
   const statusCounts = apis.reduce<Record<string, number>>((acc, entry) => {
     const bucket = statusBucket(entry);
@@ -59,10 +62,14 @@ export function buildInsightsSummary(entries: XrayEntry[]): InsightsSummary {
     repeatedEndpoints: repeated,
     nPlusOneCandidates: Object.entries(repeated)
       .filter(([, count]) => count >= 3)
-      .map(([path, count]) => {
-        const group = apis.filter((entry) => entryPath(entry) === path);
+      .map(([key, count]) => {
+        const group = apis.filter((entry) => entryGroupPath(entry) === key);
+        const first = group[0];
         return {
-          path,
+          // `path` stays the plain URL path because the UI feeds it straight into
+          // the request-list search box; `label` carries the GraphQL operation.
+          path: first ? entryPath(first) : key,
+          label: first ? entryGroupLabel(first) : key,
           count,
           avgDuration: group.length ? group.reduce((sum, entry) => sum + duration(entry), 0) / group.length : 0,
         };

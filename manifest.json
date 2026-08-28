@@ -22,8 +22,7 @@
         "content/interceptor.js",
         "content/console-capture.js",
         "content/decrypt-bridge.js",
-        "shared/console-helpers.js",
-        "content/console-executor.js"
+        "shared/console-helpers.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"

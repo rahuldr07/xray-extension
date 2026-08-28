@@ -7,8 +7,88 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Engineering hardening pass. No user-facing feature changes; the extension behaves
-as it did, but it is now testable, buildable, and reviewable.
+Correctness pass. The previous entry made the project testable; this one uses those
+tests to fix everything they found. All 21 logic bugs recorded in `docs/known-issues.md`
+are fixed, along with the critical finding from `docs/threat-model.md`. Every bug's test
+now describes the corrected behaviour and carries a `FIXED` marker naming what the old
+behaviour was, so the record survives in the assertion rather than in a document.
+
+### Security
+
+- **C-1 (critical): the console handed cross-origin captured traffic to page-controlled
+  code.** The debugger-evaluated expression read `window.XRAY_ConsoleHelpers`, a plain
+  writable page global, so a page that replaced `createRuntime` received the entire console
+  context — captured URLs across every origin in the restored session, full bodies for the
+  selected entry and its same-endpoint neighbours, decoded JWT claims — the moment the user
+  ran any expression at all, including `1+1`. A second path posted the same context into
+  the page with `targetOrigin: '*'`, no token and no nonce. The helper source is now inlined
+  into the evaluated expression and run against a shadowed `window`, so the page global is
+  neither read nor written, and the MAIN-world fallback is deleted outright:
+  `content/console-executor.js` is removed from the repo and the manifest, and a failed
+  debugger attach returns an error instead of falling back.
+- **CSV formula injection in both exporters.** Neither `escapeCSV` in
+  `workers/xray-worker.js` nor `toCSV` in `shared/console-helpers.js` neutralised a cell
+  beginning `=`, `+`, `-` or `@`, so captured response data landed in a spreadsheet cell
+  that Excel, Sheets or LibreOffice would evaluate on open. RFC4180 quoting is not a
+  defence — the spreadsheet strips the quotes first. Both now prefix an apostrophe, while
+  exempting plain numbers so a negative duration stays a number.
+
+### Fixed — wrong results
+
+- The Diff view reported "no changes" for two equal-length arrays that differed past index
+  50: the truncation notice was gated on differing lengths.
+- Insights flagged a false N+1 on every GraphQL app, grouping by URL so distinct operations
+  collapsed into one `POST /graphql` bucket. It now groups the way the request list does.
+- Insights ignored the configured slow threshold entirely and hardcoded `> 500`,
+  disagreeing with the request list at exactly 500 ms. `ConsoleWorkspace` used `>` where
+  the models used `>=`; all now agree.
+- Charts dropped categories past the 40-bar cap while hardcoding `truncated: 0`.
+- Global search claimed truncation when exactly 200 matches were found and nothing was cut.
+- `analyzeEntries` divided total duration by every request rather than the timed ones,
+  reporting 33 ms where the true mean was 100 ms.
+
+### Fixed — data loss and hangs
+
+- A cyclic payload made the worker's `safeClone` allocate forever. Because the recursion is
+  `async` nothing ever threw, so no reply was posted and the caller hung for the life of the
+  worker while the heap grew (~4 GB in 40 s) until the worker died, taking every in-flight
+  request and the entry cache with it.
+- `computeDiff` overflowed the stack on cyclic input, and on an asymmetric cycle emitted a
+  raw cyclic node that threw in any consumer that serialised the diff. It is now depth-capped
+  and cycle-pair aware, so two identical cyclic objects diff to nothing instead of 50 levels
+  of spurious changes.
+- One unparseable timestamp threw `RangeError` out of an entire CSV or HAR export,
+  discarding every good entry alongside it.
+- HAR `time: -1` ("unknown" in the spec) was truthy, so the `timings.wait` fallback was
+  skipped and a negative duration was imported — and written straight back out on re-export.
+
+### Fixed — silent degradation
+
+- Response action buttons lost their best behaviour when several conditions applied:
+  `pushUnique` kept the first variant pushed, so a slow *and* drifted request got a console
+  action at priority 78 instead of the diff view at 87. It now keeps the highest priority.
+- A partial in-memory settings update with an explicit `undefined` switched off every
+  boolean defaulting to true.
+- `null` and `[]` coerce to a finite 0, so numeric settings clamped to their floor instead
+  of falling back: a stored `maxEntries: null` became 50, not 1000.
+- Three-digit hex overrides were discarded while three-digit base colours in the same
+  pasted block survived.
+- `safeStringify` reported a repeated sibling as `[Circular]`, mangling acyclic data.
+- Out-of-range theme seeds all produced one identical "random" theme.
+- `shared/utils.js`: `methodClass` threw on a non-string method, `shortPath` threw on
+  nullish input from inside the catch handler meant to prevent exactly that, its
+  three-segment branch had no length cap, and `safeClone` returned the original reference on
+  failure so writes to the "clone" mutated the source.
+- `toCSV` emitted an unescaped header row, and took its columns from row 0 only, so any key
+  absent from the first row was silently dropped. The two CSV writers also disagreed on
+  quoting and on non-string values; they now produce identical bytes.
+
+### Added
+
+- `PRIVACY.md` and `docs/store-listing.md` — the privacy policy and permission
+  justifications a Chrome Web Store submission requires, both blockers for the listing.
+- `PRODUCT.md` — the durable product record: primary user, distribution intent, and the
+  facts future work must not fabricate.
 
 ### Security
 

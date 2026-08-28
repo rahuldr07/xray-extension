@@ -53,7 +53,18 @@ function hasSchemaDrift(entry: XrayEntry, entries: XrayEntry[]): boolean {
 }
 
 function pushUnique(operations: ResponseOperation[], operation: ResponseOperation): void {
-  if (!operations.some((item) => item.id === operation.id)) operations.push(operation);
+  const index = operations.findIndex((item) => item.id === operation.id);
+  if (index === -1) {
+    operations.push(operation);
+    return;
+  }
+  // On collision keep the HIGHER-priority variant rather than merely the first one
+  // pushed. Branch order was effectively load-bearing: a request that was both slow
+  // AND drifted kept the slow branch's `compare-previous` (priority 78, kind
+  // 'console') and discarded the drift branch's (87, kind 'view', view 'diff'), so
+  // its button could not open the diff — while a merely-drifted request got the
+  // right one. `schema` was pinned at 75 instead of the drift branch's 86 the same way.
+  if (operation.priority > operations[index].priority) operations[index] = operation;
 }
 
 export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): ResponseOperation[] {

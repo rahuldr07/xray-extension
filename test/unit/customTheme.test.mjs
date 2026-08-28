@@ -80,19 +80,24 @@ test('normalizeCustomTheme keeps valid overrides and drops invalid ones', () => 
   assert.equal('green' in theme, false, 'an invalid override is not carried through');
 });
 
-test('normalizeCustomTheme gates overrides on isHex (6-digit only) while base colors go through clampHex', () => {
-  // Documented asymmetry: base colors are run through clampHex, which expands
-  // #abc -> #aabbcc; overrides are gated on isHex first, which rejects the
-  // 3-digit form outright. parseThemeInput's own picker accepts #[0-9a-f]{3,6},
-  // so a 3-digit override copied out of a CSS block is silently dropped here.
+test('FIXED normalizeCustomTheme accepts 3-digit overrides, like it always did for base colors', () => {
+  // Was a documented asymmetry: base colors ran through clampHex, which expands
+  // #abc -> #aabbcc, while overrides were gated on the strict 6-digit isHex and
+  // dropped outright. parseThemeInput's own picker accepts #[0-9a-f]{3,6}, so a
+  // 3-digit override copied out of an exported CSS block vanished while a 3-digit
+  // base color in the very same block survived.
   const theme = normalizeCustomTheme({ bg: '#abc', surface: '#def', text: '#123', accent: '#456', teal: '#0f0' });
   assert.equal(theme.bg, '#aabbcc', 'base color expands');
   assert.equal(theme.surface, '#ddeeff');
-  assert.equal('teal' in theme, false, 'a 3-digit override is dropped, not expanded');
+  assert.equal(theme.teal, '#00ff00', 'and so does the override now');
 
   const fromCss = parseThemeInput('--xray-bg: #abc; --xray-teal: #0f0;');
   assert.equal(fromCss.bg, '#aabbcc');
-  assert.equal('teal' in fromCss, false, 'the same drop happens on the CSS import path');
+  assert.equal(fromCss.teal, '#00ff00', 'the CSS import path agrees');
+
+  // Genuinely invalid overrides are still rejected.
+  assert.equal('teal' in normalizeCustomTheme({ teal: 'rebeccapurple' }), false);
+  assert.equal('teal' in normalizeCustomTheme({ teal: '#12' }), false);
 });
 
 test('themeOverrides returns only pinned non-base tokens', () => {
@@ -167,23 +172,26 @@ test('randomTheme returns a fully-formed theme for every seed in [0, 1)', () => 
   assert.ok(isHex(randomTheme(0.999999).accent));
 });
 
-test('SUSPECTED BUG customTheme.ts:142 — a negative or NaN seed indexes RANDOM_ACCENTS out of range', () => {
-  // Math.floor(seed * 10) % 10 is negative for a negative seed, so the accent
-  // lookup is `undefined`. It does not throw: generateFromAccent's clampHex
-  // silently substitutes the DEFAULT accent, so the "random" theme is always
-  // the same one. Current behaviour, documented, not fixed:
-  for (const seed of [-0.5, -1, -0.05]) {
+test('FIXED an out-of-range seed still picks a real accent from the palette', () => {
+  // Was: Math.floor(seed * 10) % 10 is negative for a negative seed, so the lookup
+  // was `undefined` and generateFromAccent's clampHex silently substituted the
+  // DEFAULT accent — every out-of-range seed produced one identical "random" theme.
+  const accents = new Set();
+  for (const seed of [-0.5, -1, -0.05, -0.25, -0.75]) {
     const theme = randomTheme(seed);
-    assert.ok(isHex(theme.accent), 'no undefined leaks into the theme');
-    assert.equal(theme.accent, DEFAULT_CUSTOM_THEME.accent, `seed ${seed} degrades to the default accent`);
+    assert.ok(isHex(theme.accent), `seed ${seed} yields a real hex`);
+    accents.add(theme.accent);
   }
-  assert.equal(randomTheme(NaN).accent, DEFAULT_CUSTOM_THEME.accent, 'NaN seed also degrades');
-  // Sanity: an in-range seed does pick a genuinely different accent, proving the
-  // above is a degradation and not just the palette's first entry.
-  assert.notEqual(randomTheme(0.25).accent, DEFAULT_CUSTOM_THEME.accent);
-});
+  assert.ok(accents.size > 1, 'negative seeds no longer collapse to one theme');
 
-// ------------------------------------------------------- resolve / CSS vars
+  // NaN has no meaningful wrap, so it is pinned to a deterministic in-range choice.
+  assert.ok(isHex(randomTheme(NaN).accent));
+  assert.equal(randomTheme(NaN).accent, randomTheme(0).accent, 'NaN is treated as seed 0');
+
+  // An in-range seed is untouched by the wrap.
+  assert.ok(isHex(randomTheme(0.25).accent));
+  assert.notEqual(randomTheme(0.25).accent, randomTheme(0.55).accent, 'distinct seeds still differ');
+});
 
 test('resolveThemeColors returns a hex for every token', () => {
   const colors = resolveThemeColors(DEFAULT_CUSTOM_THEME);

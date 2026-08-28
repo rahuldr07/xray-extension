@@ -104,12 +104,13 @@ test('toCSV: non-array and empty input yields the empty string', () => {
   assert.equal(H.toCSV({ a: 1 }), '');
 });
 
-test('toCSV: the header row is emitted unescaped and columns come from row 0 only', () => {
+test('toCSV: the header row is escaped and columns come from every row', () => {
   // Both are pinned in detail in xray-worker.test.mjs, where the same assertions
   // sit next to the worker's escapeCSV for contrast. Repeated here so a change to
   // this file fails its own suite.
-  assert.equal(H.toCSV([{ 'we,ird': 1 }]), 'we,ird\n1');
-  assert.equal(H.toCSV([{ a: 1 }, { a: 2, b: 'dropped' }]), 'a\n1\n2');
+  assert.equal(H.toCSV([{ 'we,ird': 1 }]), '"we,ird"\n1');
+  assert.equal(H.toCSV([{ a: 1 }, { a: 2, b: 'kept' }]), 'a,b\n1,\n2,kept');
+  assert.equal(H.toCSV([{ v: '=1+1' }]), "v\n'=1+1", 'formula-looking cells are neutralised');
 });
 
 test('toTable: wraps an array in the panel render marker, coercing non-arrays to empty', () => {

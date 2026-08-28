@@ -4,16 +4,12 @@ window.XRAY_Console = (() => {
 
   const STORAGE_KEY = 'xray_console_history';
   const MAX_HISTORY = 100;
-  const EXEC_TIMEOUT_MS = 10000;
 
   let _history = [];
   let _historyIndex = -1;
   let _currentEntry = null;
   let _pins = {};
   let _scope = {};
-  let _evalId = 0;
-  const _pendingEvals = new Map();
-  const _sessionId = 'xray_console_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
   let _initialized = false;
 
   function init() {
@@ -25,25 +21,10 @@ window.XRAY_Console = (() => {
       if (raw) _history = JSON.parse(raw).filter((item) => typeof item === 'string').slice(0, MAX_HISTORY);
     } catch {}
 
-    window.postMessage({ type: 'XRAY_CONSOLE_SESSION', sessionId: _sessionId }, '*');
-
-    window.addEventListener('message', (event) => {
-      if (event.source !== window) return;
-      if (!event.data || event.data.type !== 'XRAY_EVAL_RESULT') return;
-      if (event.data.sessionId !== _sessionId) return;
-
-      const { id, success, resultType, result, error, truncated } = event.data;
-      const resolver = _pendingEvals.get(id);
-      if (!resolver) return;
-      _pendingEvals.delete(id);
-      clearTimeout(resolver.timer);
-
-      if (success) {
-        resolver.resolve({ type: resultType, result, truncated: !!truncated });
-      } else {
-        resolver.resolve({ type: 'error', error: error || { message: 'Unknown execution error' } });
-      }
-    });
+    // C-1: init used to postMessage a console session id to the page world and
+    // listen for XRAY_EVAL_RESULT back. That handshake existed only to serve the
+    // MAIN-world fallback executor, which received the whole console context with
+    // targetOrigin '*'. Both are gone; execution is privileged-path only.
   }
 
   function setContext(entry) {
@@ -144,7 +125,14 @@ window.XRAY_Console = (() => {
     const context = _contextPayload();
     const privileged = await _executePrivileged(trimmed, context);
     if (privileged) return privileged;
-    return _executeInMainWorld(trimmed, context);
+    // C-1: the MAIN-world fallback used to run here. It posted the entire console
+    // context — cross-origin captured URLs, full bodies, decoded JWT claims — into
+    // the page with targetOrigin '*'. Failing loudly is the correct trade: the
+    // context must never enter the page world.
+    return {
+      type: 'error',
+      error: { message: 'XRAY console needs the debugger attachment to run. Reload the page and try again.' },
+    };
   }
 
   function _executePrivileged(code, context) {
@@ -153,7 +141,6 @@ window.XRAY_Console = (() => {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({
         type: 'xray:console-eval',
-        sessionId: _sessionId,
         code,
         context,
       }, (response) => {
@@ -167,25 +154,6 @@ window.XRAY_Console = (() => {
     });
   }
 
-  function _executeInMainWorld(code, context) {
-    return new Promise((resolve) => {
-      const id = ++_evalId;
-      const timer = setTimeout(() => {
-        if (!_pendingEvals.has(id)) return;
-        _pendingEvals.delete(id);
-        resolve({ type: 'error', error: { message: `Execution timeout (${EXEC_TIMEOUT_MS / 1000}s)` } });
-      }, EXEC_TIMEOUT_MS);
-
-      _pendingEvals.set(id, { resolve, timer });
-      window.postMessage({
-        type: 'XRAY_EXEC_REQUEST',
-        sessionId: _sessionId,
-        id,
-        code,
-        context,
-      }, '*');
-    });
-  }
 
   function getRuntimePreview() {
     const helpers = window.XRAY_ConsoleHelpers;
