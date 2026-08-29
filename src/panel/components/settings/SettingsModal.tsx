@@ -711,12 +711,60 @@ function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: st
   );
 }
 
+/**
+ * A number field that commits on blur or Enter, not on every keystroke.
+ *
+ * It used to be fully controlled and call onChange for each character typed, which
+ * made "Max entries" destructive: clearing the field and typing 2000 committed 2 on
+ * the first keypress, normalizePanelSettings clamped that to the floor of 50, and
+ * updateSettings immediately trimmed the session to 50 entries — measured, 411
+ * captured entries destroyed by one keypress, and persisted. The field then showed
+ * "50" so the remaining digits could not be typed either.
+ *
+ * Committing on blur also means an out-of-range intermediate value never reaches the
+ * store, so the same class of bug cannot come back through another caller.
+ */
 function NumberRow({ label, desc, value, min, max, step, suffix, onChange }: { label: string; desc: string; value: number; min: number; max: number; step: number; suffix: string; onChange(value: number): void }): React.ReactElement {
+  const [draft, setDraft] = React.useState(String(value));
+  const [editing, setEditing] = React.useState(false);
+
+  // While the user is typing, the draft is the truth. Outside that, follow the store —
+  // otherwise a reset or a change made on another surface would not show up here.
+  React.useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+
+  function commit(): void {
+    setEditing(false);
+    const parsed = Number(draft);
+    if (draft.trim() === '' || !Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, Math.round(parsed)));
+    setDraft(String(clamped));
+    if (clamped !== value) onChange(clamped);
+  }
+
   return (
     <label className="xray-settings-row">
       <span><strong>{label}</strong><small>{desc}</small></span>
       <span className="xray-number-input">
-        <input type="number" value={value} min={min} max={max} step={step} onChange={(event) => onChange(Number(event.currentTarget.value))} />
+        <input
+          type="number"
+          value={draft}
+          min={min}
+          max={max}
+          step={step}
+          onFocus={() => setEditing(true)}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+            // Escape abandons the edit rather than committing a half-typed number.
+            if (event.key === 'Escape') { setDraft(String(value)); setEditing(false); event.currentTarget.blur(); }
+          }}
+        />
         <small>{suffix}</small>
       </span>
     </label>

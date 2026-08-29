@@ -208,3 +208,24 @@ test('one reusable collapsible-section primitive drives every collapsible region
   assert.match(insights, /import \{ CollapsibleSection \}/);
   assert.match(insights, /id="insights-status"/);
 });
+
+test('numeric settings commit on blur, so a half-typed value never reaches the store', () => {
+  // FIXED: NumberRow was fully controlled and called onChange for every keystroke, which
+  // made "Max entries" destructive. Clearing the field and typing 2000 committed 2 on the
+  // first keypress; normalizePanelSettings clamped that to the floor of 50, and
+  // updateSettings immediately trimmed the session to 50 entries — measured in a browser,
+  // 411 captured entries destroyed by one keypress, and persisted. The field then showed
+  // "50", so the remaining digits could not be typed either.
+  const settings = read('src/panel/components/settings/SettingsModal.tsx');
+
+  // A local draft while typing; the store is followed only when not editing.
+  assert.match(settings, /const \[draft, setDraft\] = React\.useState\(String\(value\)\)/);
+  assert.match(settings, /if \(!editing\) setDraft\(String\(value\)\)/);
+  // onChange only touches the draft. Commit happens on blur, and Enter blurs.
+  assert.match(settings, /onChange=\{\(event\) => setDraft\(event\.currentTarget\.value\)\}/);
+  assert.match(settings, /onBlur=\{commit\}/);
+  // Commit clamps rather than letting an out-of-range value reach normalizePanelSettings.
+  assert.match(settings, /const clamped = Math\.min\(max, Math\.max\(min, Math\.round\(parsed\)\)\)/);
+  // An empty or unparseable field reverts instead of committing NaN.
+  assert.match(settings, /if \(draft\.trim\(\) === '' \|\| !Number\.isFinite\(parsed\)\)/);
+});
