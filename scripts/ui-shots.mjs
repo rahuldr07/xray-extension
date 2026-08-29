@@ -20,7 +20,9 @@
 // page accepts one.
 //
 // Requires Playwright's Chromium (`npx playwright install chromium`, or set
-// PLAYWRIGHT_BROWSERS_PATH where one is already unpacked).
+// PLAYWRIGHT_BROWSERS_PATH where one is already unpacked). If the build this
+// Playwright pins is absent but another one is unpacked beside it, we use that —
+// see resolveChromium().
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -57,6 +59,35 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
+// Playwright resolves one exact Chromium build number, and a machine that has a
+// different one unpacked (a preinstalled image, a Playwright upgrade without a
+// re-install) gets a path that does not exist. Launching on it does not fail fast —
+// it hangs — so look before leaping and fall back to whatever build is actually
+// there. Returns undefined to mean "let Playwright choose", which is right when the
+// pinned build is present.
+function resolveChromium() {
+  const pinned = chromium.executablePath();
+  if (fs.existsSync(pinned)) return undefined;
+
+  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (!browsersPath || !fs.existsSync(browsersPath)) return undefined;
+
+  // Layout differs across versions: chrome-linux/chrome and chrome-linux64/chrome.
+  // Prefer a full Chromium over the headless shell — the shell cannot load extensions.
+  const candidates = fs
+    .readdirSync(browsersPath)
+    .filter((entry) => entry.startsWith('chromium-'))
+    .flatMap((entry) => [
+      path.join(browsersPath, entry, 'chrome-linux', 'chrome'),
+      path.join(browsersPath, entry, 'chrome-linux64', 'chrome'),
+    ])
+    .filter((candidate) => fs.existsSync(candidate));
+
+  if (!candidates.length) return undefined;
+  console.warn(`Pinned Chromium is missing (${pinned}); using ${candidates[0]}`);
+  return candidates[0];
+}
+
 // The panel bundle is loaded with a <script src>, so file:// would put it on an
 // opaque origin and the preview's fixture seeding would be blocked. Serve the tree.
 function serveRepo() {
@@ -86,7 +117,10 @@ async function main() {
 
   const { server, port } = await serveRepo();
   const base = `http://127.0.0.1:${port}`;
-  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  const browser = await chromium.launch({
+    args: ['--no-sandbox'],
+    executablePath: resolveChromium(),
+  });
   const messages = [];
   let shots = 0;
 
