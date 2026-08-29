@@ -61,6 +61,25 @@ test('injected panel isolates its own scroll/click/keyboard from the page behind
   assert.match(styles, /overscroll-behavior:\s*contain/);
 });
 
+test('panel shortcuts stay inert on pages where no XRAY surface is presented', () => {
+  // FIXED: the injected panel mounts on the page's first captured request, long before
+  // the user asks to see anything, and installPanelKeyboard's listener is capture-phase
+  // and calls preventDefault(). So XRAY swallowed Ctrl+K and Ctrl+Shift+F on every site
+  // the user visited even if they never opened it — both are common site shortcuts, and
+  // it breaks the "panel never contaminates the page" principle in PRODUCT.md.
+  //
+  // The guard reads `open`/`devtoolsMode`, which DevTools and the pop-out both set at
+  // mount, so those surfaces keep their shortcuts.
+  const keyboard = read('src/panel/runtime/panelKeyboard.ts');
+  assert.match(keyboard, /if \(!store\.open && !store\.devtoolsMode\) return;/);
+  // The guard has to run before anything calls preventDefault, or the page still
+  // loses the keystroke.
+  const guardIndex = keyboard.indexOf('if (!store.open && !store.devtoolsMode) return;');
+  const preventIndex = keyboard.indexOf('event.preventDefault()');
+  assert.ok(guardIndex > 0, 'surface guard should be present');
+  assert.ok(guardIndex < preventIndex, 'surface guard must precede the first preventDefault');
+});
+
 test('React panel exposes the legacy XRAY_Panel API and injects inline Shadow DOM CSS', () => {
   const main = read('src/panel/main.tsx');
   const bridge = read('src/panel/bridge/panelApi.ts');
@@ -178,10 +197,19 @@ test('injected side panel is resizable, dockable, persisted, and dismissible', (
   // the page. The handler moved to runtime/panelKeyboard.ts so the pop-out could share
   // it — the dismissal is now additionally gated on a `dismissible` flag, which only the
   // injected side panel passes as true.
+  //
+  // FIXED: dismissal used to fire even while the user was typing, so Escape in the
+  // filter field destroyed the panel — losing the filter text, the scroll position and
+  // the selection — instead of clearing the field. It is now also gated on
+  // !isEditingText().
+  const keyboardRuntime = read('src/panel/runtime/panelKeyboard.ts');
   assert.match(
-    read('src/panel/runtime/panelKeyboard.ts'),
-    /dismissible && store\.open && !store\.devtoolsMode\) store\.setOpen\(false\)/,
+    keyboardRuntime,
+    /dismissible && store\.open && !store\.devtoolsMode && !isEditingText\(\)\) store\.setOpen\(false\)/,
   );
+  // isEditingText resolves focus through the shadow root: document.activeElement stops
+  // at the host, so a naive check never sees the field the user is typing in.
+  assert.match(keyboardRuntime, /while \(active\?\.shadowRoot\?\.activeElement\) active = active\.shadowRoot\.activeElement/);
   assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
   assert.match(read('src/panel/store.ts'), /_lastPageFocus/);
 
