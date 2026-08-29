@@ -197,7 +197,14 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
       <header className="xray-topbar">
         <div className="xray-brand xray-drag-handle">
           <span className="xray-brand-mark"><IconTerminal2 size={18} stroke={2} /></span>
-          <span>CONSOLE</span>
+          {/*
+            The product's name, not the name of one of its five tabs. This said
+            CONSOLE, which put the word in the header, in the tab bar and on the
+            Console workspace's own sub-tab — three things a screenshot cannot tell
+            apart — while the name PRODUCT.md lists as a brand commitment appeared
+            nowhere in the shell.
+          */}
+          <span>XRAY</span>
           <span className="xray-brand-ver" title={`XRAY ${XRAY_VERSION} · built ${XRAY_BUILD}`}>v{XRAY_VERSION}</span>
           <span className={`xray-live-dot ${open ? 'on' : ''}`} />
         </div>
@@ -216,6 +223,9 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
               aria-selected={activeTab === tab.id}
               aria-controls="xray-tabpanel"
               tabIndex={activeTab === tab.id ? 0 : -1}
+              // Below a 560px container the label span is hidden and the tab is its
+              // icon alone, so the accessible name has to live on the button itself.
+              aria-label={tab.label}
               className={`xray-tab ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(event) => onTabKeyDown(event, tab.id)}
@@ -227,8 +237,14 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
             </button>
           ))}
         </nav>
-        <div className="xray-spacer" />
-        <div className="xray-summary">{apiCount} APIs · {errorCount} Errors · {formatBytes(totalBytes)}</div>
+        {/*
+          No spacer element here. One used to sit between the tablist and this
+          summary with `flex: 1`, which is the same growth contract the tablist has —
+          so the two split the leftover space and, once the eight trailing buttons had
+          taken theirs, the tablist's share was zero. The summary pushes itself right
+          with `margin-left: auto` instead, which costs no flex child.
+        */}
+        <div className="xray-summary">{apiCount} APIs · {errorCount} {errorCount === 1 ? 'Error' : 'Errors'} · {formatBytes(totalBytes)}</div>
         <div className="xray-mode-switcher" aria-label="XRAY display mode">
           <button className={`xray-icon-btn ${mode === 'devtools' ? 'active' : ''}`} title="Open in DevTools" aria-label="Open in DevTools" onClick={openDevtoolsHint}>
             <IconDeviceLaptop {...modeIconProps} />

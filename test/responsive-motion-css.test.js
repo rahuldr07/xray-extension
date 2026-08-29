@@ -36,6 +36,66 @@ test('React preview CSS protects narrow viewport console ergonomics', () => {
   assert.match(styles, /\.xray-context-chip\s*\{[\s\S]*display: none/);
 });
 
+test('the header gives the tablist a growth contract instead of leaving it to leftovers', () => {
+  const styles = read('src/panel/styles.css');
+  const shell = read('src/panel/components/shell/PanelShell.tsx');
+
+  // FIXED: .xray-tabs had flex-basis 0 and sat next to a .xray-spacer with the same
+  // `flex: 1`, so the two split whatever the eight trailing buttons left over. At a
+  // 420px panel — and at PANEL_WIDTH_MIN, 360 — that share was 0px and all five tabs
+  // were unreachable by mouse. The tablist now claims its content width first.
+  assert.match(styles, /\.xray-tabs \{\n {2}flex: 1 1 auto;\n {2}min-width: 0;/);
+  // FIXED: with no shrink priority the flex deficit was paid by the icon buttons
+  // instead, which collapsed from a declared 28px to 18px at the DEFAULT 960px width.
+  assert.match(styles, /\.xray-topbar > \.xray-icon-btn,[\s\S]*?flex: 0 0 auto;/);
+  // The spacer div is gone from the header; the summary pushes itself right.
+  assert.doesNotMatch(shell, /<div className="xray-spacer" \/>/);
+  assert.match(styles, /\.xray-topbar > \.xray-summary \{\n {2}margin-left: auto;\n\}/);
+  // Turning the tablist into a scroll container makes it clip on both axes, which
+  // sliced the focus ring into two fragments until it got room to draw.
+  assert.match(styles, /\.xray-tabs \{[\s\S]*?padding: 3px 0;/);
+  // Below 560px the five tabs drop to their icons rather than scrolling out of reach
+  // behind a suppressed scrollbar, so the accessible name moves onto the button.
+  assert.match(styles, /@container xray \(max-width: 560px\) \{\n {2}\.xray-tab span \{\n {4}display: none;/);
+  assert.match(shell, /aria-label=\{tab\.label\}/);
+});
+
+test('workspaces and full-bleed surfaces fill the space they are given', () => {
+  const styles = read('src/panel/styles.css');
+
+  // FIXED: .xray-network was pinned at max-height: min(44vh, 380px) with no grow, so
+  // at 1600x1000 the Console workspace ended 332px above the panel's bottom edge while
+  // its request list was capped to five of twenty rows. Its sibling stream wrap always
+  // had `flex: 1`; this is the declaration it was missing.
+  assert.match(styles, /\.xray-network \{[\s\S]*?flex: 1 1 auto;/);
+  assert.doesNotMatch(styles, /\.xray-network \{[\s\S]*?max-height: min\(44vh, 380px\)/);
+  // The scroller sized itself off a percentage of what is now a flexible parent.
+  assert.match(styles, /\.xray-virtual-list \{[\s\S]*?flex: 1 1 auto;\n {2}min-height: 0;/);
+
+  // FIXED: .xray-bar was a plain inline span, so width/height were no-ops and it
+  // measured 0x0 in every theme — the Insights status-mix chart never drew and the
+  // duration bars in the API list were invisible.
+  assert.match(styles, /\.xray-bar \{\n {2}display: block;/);
+
+  // FIXED: max-width beats width, so the docked panel's 96vw cap (which stops it
+  // covering a small page) also clipped the two fullscreen surfaces and leaked a 4vw
+  // strip of raw document background down their right edge.
+  assert.match(styles, /\.xray-panel\.xray-devtools \{[\s\S]*?max-width: 100vw;/);
+  assert.match(styles, /\.xray-panel\.xray-mode-window \{[\s\S]*?max-width: 100vw;/);
+});
+
+test('a modal never pushes its own footer outside its scrollable box', () => {
+  const styles = read('src/panel/styles.css');
+
+  // FIXED: .xray-settings-modal-body had a flat min-height: 400px that a flex column
+  // cannot shrink, so head + body + foot demanded 513px and below a 626px viewport the
+  // Save/Cancel row rendered outside the modal's `overflow: hidden` box, with no
+  // scrollbar that could reach it. 626px is the normal height of a DevTools drawer.
+  assert.match(styles, /\.xray-settings-modal-body \{[\s\S]*?min-height: min\(400px, 100%\);/);
+  assert.match(styles, /\.xray-modal \{[\s\S]*?max-height: min\(82vh, 100%\);/);
+  assert.match(styles, /\.xray-modal-head,\n\.xray-modal-foot \{[\s\S]*?flex: 0 0 auto;/);
+});
+
 test('interaction polish honors reduced-motion and consistent focus rings', () => {
   const styles = read('src/panel/styles.css');
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
