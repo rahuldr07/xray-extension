@@ -81,6 +81,15 @@ test('a session restore repopulates the console tab, not just the API list', () 
   // the first thing shown was an empty console over a populated badge count.
   const store = read('src/panel/store.ts');
 
-  assert.match(store, /const restoredEvents = fresh\.map\(entryToConsoleEvent\)/);
+  // FIXED: this derived an event for EVERY imported entry, including ones the entry
+  // cap then dropped — so importing into a full session added console rows pointing at
+  // entries that did not exist, and clicking one cleared the console context. The
+  // events now describe only the entries that survived the merge.
+  assert.match(store, /const restoredEvents = fresh\.filter\(\(entry\) => survivingIds\.has\(entry\.id\)\)\.map\(entryToConsoleEvent\)/);
   assert.match(store, /consoleEvents: \[\.\.\.restoredEvents, \.\.\.get\(\)\.consoleEvents\]\.slice\(-MAX_CONSOLE_EVENTS\)/);
+  // FIXED: the merge was `[...fresh, ...entries].slice(-maxEntries)`, which trims from
+  // the front — where the imported entries are — so an import into a session at the cap
+  // kept zero of them while the modal reported success.
+  assert.match(store, /const freshKept = fresh\.slice\(-maxEntries\)/);
+  assert.match(store, /const room = Math\.max\(0, maxEntries - freshKept\.length\)/);
 });

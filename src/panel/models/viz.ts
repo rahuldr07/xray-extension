@@ -2,6 +2,8 @@
 // One series → one hue (the panel accent), title names it, values direct-labeled.
 // When nothing is meaningfully chartable we say so honestly rather than faking it.
 
+import { largestArrayProperty } from './detail';
+
 export interface VizBar {
   label: string;
   value: number;
@@ -29,13 +31,13 @@ function labelFor(value: unknown, index: number): string {
   return text.length > 40 ? text.slice(0, 40) + '…' : text || `#${index + 1}`;
 }
 
-// Find the array most worth charting: the value itself if it's an array,
-// otherwise the first array-valued property of an object.
+// Find the array most worth charting: the value itself if it's an array, otherwise its
+// largest array-valued property. Shares one helper with gridRows so the Table and Chart
+// views can never disagree about which array a payload is "really" about.
 function coerceRows(value: unknown): unknown[] | null {
   if (Array.isArray(value)) return value;
   if (value && typeof value === 'object') {
-    const arrayProp = Object.values(value as Record<string, unknown>).find(Array.isArray);
-    if (Array.isArray(arrayProp)) return arrayProp;
+    return largestArrayProperty(value as Record<string, unknown>);
   }
   return null;
 }

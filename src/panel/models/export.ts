@@ -139,16 +139,38 @@ export function buildSessionCsv(entries: XrayEntry[]): string {
     entry.source || '',
     entry.duration || '',
     entry.size || '',
-    entry.timestamp ? new Date(Number(entry.timestamp)).toISOString() : '',
+    isoOrEmpty(entry.timestamp),
   ]);
   return [['id', 'method', 'status', 'url', 'source', 'durationMs', 'sizeBytes', 'timestamp'], ...rows]
     .map((row) => row.map(escape).join(','))
     .join('\n');
 }
 
+/**
+ * `new Date(x).toISOString()` throws RangeError outside the ECMAScript time range, and
+ * both session exports are computed in a `useMemo` during render with no error boundary
+ * anywhere in the panel -- so one imported entry carrying an ISO-string or microsecond
+ * timestamp blanked the whole panel when the user picked Session CSV or Session HAR.
+ */
+const MAX_TIME_MS = 8.64e15;
+
+function isoOrEmpty(value: unknown, fallback = ''): string {
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) return fallback;
+  return new Date(ms).toISOString();
+}
+
+function harContent(entry: XrayEntry): { size: number; mimeType: string; text: string } {
+  const body = entryResponse(entry);
+  const text = body == null ? '' : typeof body === 'string' ? body : safeStringify(body, 2, 120_000);
+  // Measure the string actually emitted: `size` was computed from the compact form
+  // while `text` is written pretty-printed, so the two disagreed on every real body.
+  return { size: Number(entry.size) || text.length, mimeType: responseContentType(entry), text };
+}
+
 export function buildSessionHar(entries: XrayEntry[]): string {
   const harEntries = entries.filter((entry) => entry.type === 'api').map((entry) => ({
-    startedDateTime: entry.timestamp ? new Date(Number(entry.timestamp)).toISOString() : new Date().toISOString(),
+    startedDateTime: isoOrEmpty(entry.timestamp, new Date().toISOString()),
     time: Number(entry.duration) || 0,
     request: {
       method: entry.method || 'GET',
@@ -167,11 +189,10 @@ export function buildSessionHar(entries: XrayEntry[]): string {
       httpVersion: 'HTTP/1.1',
       headers: Object.entries(asRecord(entry.responseHeaders)).map(([name, value]) => ({ name, value: String(value) })),
       cookies: [],
-      content: {
-        size: Number(entry.size) || safeStringify(entryResponse(entry), 0).length,
-        mimeType: responseContentType(entry),
-        text: typeof entryResponse(entry) === 'string' ? String(entryResponse(entry)) : safeStringify(entryResponse(entry), 2, 120_000),
-      },
+      // A 204/304/empty-200 has no body. safeStringify(null) is the 4-character string
+      // "null", so every body-less response used to export as a 4-byte JSON body that
+      // Chrome DevTools, Charles and XRAY's own importer all showed as real content.
+      content: harContent(entry),
       redirectURL: '',
       headersSize: -1,
       bodySize: Number(entry.size) || -1,
@@ -187,7 +208,7 @@ export function buildSessionHar(entries: XrayEntry[]): string {
       ssl: -1,
     },
   }));
-  return safeStringify({ log: { version: '1.2', creator: { name: 'XRAY', version: 'react-preview' }, entries: harEntries } }, 2, 500_000);
+  return safeStringify({ log: { version: '1.2', creator: { name: 'XRAY', version: 'react-preview' }, entries: harEntries } }, 2, Infinity);
 }
 
 function buildJest(entry: XrayEntry | null): string {
@@ -252,7 +273,7 @@ export function mimeForExport(format: ExportFormat): string {
 }
 
 export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format: ExportFormat): string {
-  if (format === 'session-json') return safeStringify({ entries }, 2, 500_000);
+  if (format === 'session-json') return safeStringify({ entries }, 2, Infinity);
   if (format === 'session-csv') return buildSessionCsv(entries);
   if (format === 'session-har') return buildSessionHar(entries);
   // Log entries have no URL/method/response, so every entry-scoped format

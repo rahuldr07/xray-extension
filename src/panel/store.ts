@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { evictEntries, pinnedAndSelected } from './models/entries';
 import { setConsoleContext } from './runtime/consoleBridge';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
 import {
@@ -15,6 +16,7 @@ import { AI_SETTINGS_KEY, SESSION_ENTRIES_KEY, deserializeSessionEntries, serial
 import type { ActiveTab, AiSettings, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, ConfirmationRequest, ConsoleEvent, ConsoleMiniTab, DetailTab, DetailView, NetworkFilter, PanelSettings, Snippet, SortField, SortOrder, TrafficRule, XrayEntry } from './types';
 
 const MAX_ENTRIES = 1000;
+
 const MAX_CONSOLE_EVENTS = 2000;
 
 // restorePreferences spreads these under whatever was persisted, so settings saved
@@ -360,9 +362,12 @@ export const usePanelStore = create<PanelState>((set, get) => ({
       noteDriftEntry(driftIndex, normalized);
       added.push(entryToConsoleEvent(normalized));
     }
-    const next: Partial<PanelState> = {
-      entries: entries.length > maxEntries ? entries.slice(-maxEntries) : entries,
-    };
+    const evicted = evictEntries(entries, maxEntries, pinnedAndSelected(state));
+    const next: Partial<PanelState> = { entries: evicted.entries };
+    if (evicted.dropped.size) {
+      const pinnedIds = new Set([...state.pinnedIds].filter((id) => !evicted.dropped.has(id)));
+      if (pinnedIds.size !== state.pinnedIds.size) next.pinnedIds = pinnedIds;
+    }
     if (state.recording) {
       next.consoleEvents = [...state.consoleEvents, ...added].slice(-MAX_CONSOLE_EVENTS);
     } else {
@@ -402,13 +407,29 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     const maxEntries = Math.max(50, Math.min(5000, Number(get().settings.maxEntries) || MAX_ENTRIES));
     const existing = new Set(get().entries.map((entry) => entry.id));
     const fresh = restored.filter((entry) => !existing.has(entry.id));
-    const merged = [...fresh, ...get().entries].slice(-maxEntries);
+    // Reserve room for the incoming entries BEFORE trimming. This was
+    // `[...fresh, ...entries].slice(-maxEntries)`, which trims from the front — and the
+    // imported entries are at the front — so importing into a session already at the cap
+    // (1000 by default, minutes of traffic on a busy app) kept exactly the entries that
+    // were already there and dropped every imported one, while the modal reported
+    // "Imported 40 HAR entries."
+    //
+    // Note this list is ordered newest-first, the opposite of the ingest path, which is
+    // why it cannot just call evictEntries on the concatenation.
+    const freshKept = fresh.slice(-maxEntries);
+    const room = Math.max(0, maxEntries - freshKept.length);
+    const existingKept = evictEntries(get().entries, room, pinnedAndSelected(get())).entries;
+    const merged = [...freshKept, ...existingKept];
+    const survivingIds = new Set(merged.map((entry) => entry.id));
     // Console events have to be rebuilt here too. addEntries derives them from every
     // entry it accepts, but this path used to set `entries` alone — so after a session
     // restore or a HAR import the API and Logs tabs were populated while the Console
     // tab, which reads consoleEvents and nothing else, rendered "No network activity
     // yet". Console is the default tab, so that was the first thing shown on reopen.
-    const restoredEvents = fresh.map(entryToConsoleEvent);
+    // Only for entries that survived the merge: this used to derive an event for every
+    // imported entry regardless, so a full buffer gained console rows pointing at
+    // entries that did not exist, and clicking one cleared the console context.
+    const restoredEvents = fresh.filter((entry) => survivingIds.has(entry.id)).map(entryToConsoleEvent);
     set({
       entries: merged,
       consoleEvents: [...restoredEvents, ...get().consoleEvents].slice(-MAX_CONSOLE_EVENTS),
@@ -530,10 +551,13 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   setGlobalSearchOpen: (value) => set({ globalSearchOpen: value }),
   updateSettings: (patch) => {
     const settings = normalizePanelSettings({ ...get().settings, ...patch });
+    // Lowering maxEntries must not silently discard the entry the user pinned or is
+    // looking at right now.
+
     set({
       settings,
       detailView: patch.defaultDetailView ? settings.defaultDetailView : get().detailView,
-      entries: get().entries.slice(-settings.maxEntries),
+      entries: evictEntries(get().entries, settings.maxEntries, pinnedAndSelected(get())).entries,
     });
     publishCaptureSettings(settings);
     persistPanelPreferences(get());

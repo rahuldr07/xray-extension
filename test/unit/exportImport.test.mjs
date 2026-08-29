@@ -392,3 +392,53 @@ test('ROUND-TRIP an empty session exports and re-imports without error', () => {
   const har = exportText(null, [], 'session-har');
   assert.deepEqual(parseImport(har), { entries: [], format: 'har' });
 });
+
+// ── Data-loss regressions ────────────────────────────────────────────────────
+
+test('FIXED: a whole-session export is never truncated into invalid JSON', () => {
+  // exportText capped session JSON and HAR at 500,000 chars via safeStringify, which
+  // appends "... truncated N chars" — so the DOWNLOADED FILE stopped being JSON. A
+  // session of ~305 ordinary entries already tripped it (the default entry cap is
+  // 1000), and XRAY's own importer rejected the result with "File is not valid JSON."
+  const many = Array.from({ length: 400 }, (_, index) =>
+    apiEntry({
+      id: `bulk_${index}`,
+      url: `https://api.example.com/v1/widgets/${index}`,
+      urlPath: `/v1/widgets/${index}`,
+      responseDecrypted: { items: Array.from({ length: 12 }, (_, n) => ({ id: n, name: `widget ${n}` })) },
+    }),
+  );
+
+  const json = exportText(null, many, 'session-json');
+  assert.ok(json.length > 500_000, 'fixture must exceed the old cap to be a regression test');
+  assert.doesNotMatch(json, /truncated \d+ chars/);
+  assert.equal(parseImport(json).entries.length, 400);
+
+  const har = exportText(null, many, 'session-har');
+  assert.doesNotMatch(har, /truncated \d+ chars/);
+  assert.equal(parseImport(har).entries.length, 400);
+});
+
+test('FIXED: an out-of-range timestamp no longer throws while building a session export', () => {
+  // buildSessionCsv/buildSessionHar called new Date(Number(t)).toISOString() on
+  // unvalidated imported timestamps. RangeError there crashed the panel outright,
+  // because ExportModal computes the text in a useMemo DURING render and there is no
+  // error boundary anywhere in src/panel.
+  for (const timestamp of ['2026-01-01T00:00:00Z', 1.7e18, NaN, Infinity, null]) {
+    const entry = apiEntry({ id: 'ts', timestamp });
+    assert.doesNotThrow(() => exportText(null, [entry], 'session-csv'), `csv: ${timestamp}`);
+    assert.doesNotThrow(() => exportText(null, [entry], 'session-har'), `har: ${timestamp}`);
+  }
+});
+
+test('FIXED: a body-less response exports as an empty HAR body, not the string "null"', () => {
+  // content.text was safeStringify(entryResponse(entry)), and entryResponse is null for
+  // a 204/304/empty 200 — so every body-less response exported as the 4-character
+  // string "null" with size 4, which every HAR consumer showed as real content.
+  for (const status of [204, 304, 200]) {
+    const har = JSON.parse(buildSessionHar([apiEntry({ id: `s${status}`, status, responseRaw: null, responseDecrypted: null, size: 0 })]));
+    const { content } = har.log.entries[0].response;
+    assert.equal(content.text, '');
+    assert.equal(content.size, 0);
+  }
+});

@@ -1,7 +1,7 @@
 /* Behavioural tests for src/panel/models/detail.ts. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detail as D, apiEntry, assertSchemaFallback } from './harness.mjs';
+import { detail as D, viz, apiEntry, assertSchemaFallback } from './harness.mjs';
 
 const { detailValue, detailViews, gridRows, structuralDiff, timingPhases, vizSummary } = D;
 
@@ -193,4 +193,44 @@ test('structuralDiff scopes the array cap to each array, not the whole payload',
   const lines = structuralDiff(mk('a'), mk('b'));
   assert.deepEqual(lines.map((line) => line.path), ['left[…]', 'right[1]'],
     'the long array reports its cap; the short array is still fully compared');
+});
+
+test('FIXED: two identical long arrays are not reported as a difference', () => {
+  // structuralDiff emitted a synthetic `[…]` line whenever an array exceeded 50
+  // elements, WITHOUT comparing anything — so two byte-identical 60-row responses
+  // rendered "1 difference vs the previous call". Any endpoint returning more than 50
+  // rows (a paginated list at limit=100 is the norm) could never show "no differences",
+  // which is exactly where the Diff view earns its place.
+  const rows = (n, tweak = -1) =>
+    Array.from({ length: n }, (_, index) => ({ id: index, name: index === tweak ? 'CHANGED' : `row ${index}` }));
+
+  assert.deepEqual(structuralDiff({ items: rows(60) }, { items: rows(60) }), []);
+
+  // The older bug this guard originally fixed must stay fixed: a difference PAST
+  // index 50 is still reported, even though the element-wise walk stops at 50.
+  const tailDiff = structuralDiff({ items: rows(60) }, { items: rows(60, 55) });
+  assert.equal(tailDiff.length, 1);
+  assert.equal(tailDiff[0].path, 'items[…]');
+
+  // A length change is still a difference.
+  assert.equal(structuralDiff({ items: rows(60) }, { items: rows(61) }).length, 1);
+});
+
+test('FIXED: Table and Chart read the largest array, not the first one', () => {
+  // Both located the payload with Object.values(value).find(Array.isArray) — the FIRST
+  // array-valued property, even when empty. GraphQL ({errors: [], data: […]}), JSON:API
+  // ({included: [], data: […]}) and {warnings: [], items: […]} all put an empty array
+  // first, so the Table rendered zero rows and the chart said "No numeric fields in
+  // this object to chart" — a verdict on a property it had never looked at.
+  const rows = Array.from({ length: 25 }, (_, index) => ({ id: index, amount: index * 3 }));
+
+  for (const payload of [{ errors: [], data: rows }, { warnings: [], items: rows }, { included: [], data: rows }]) {
+    const grid = gridRows(payload);
+    assert.equal(grid.objects.length, 25, JSON.stringify(Object.keys(payload)));
+    assert.deepEqual(grid.columns, ['id', 'amount']);
+    assert.equal(viz.buildVizSpec(payload).kind, 'bars');
+  }
+
+  // With no non-empty array there is still nothing to show, and that is honest.
+  assert.equal(gridRows({ errors: [], data: [] }).objects.length, 0);
 });

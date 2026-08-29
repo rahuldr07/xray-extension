@@ -106,6 +106,15 @@ export function preview(value: unknown, limit = 220): string {
   }
 }
 
+/**
+ * JSON.stringify that survives cycles and BigInt, truncating past `limit`.
+ *
+ * Pass `Infinity` for a whole-file export. The truncation appends a plain-English
+ * suffix, which makes the result *not JSON* -- fine for a preview pane, fatal for a
+ * file. Session JSON and HAR used to pass a 500,000-char limit and wrote the result
+ * straight to disk, so a session of ~305 ordinary entries produced a download that
+ * XRAY's own importer rejected with "File is not valid JSON."
+ */
 export function safeStringify(value: unknown, space = 2, limit = 80_000): string {
   // Ancestors along the CURRENT branch. A WeakSet that only ever grew reported the
   // second sibling reference to one object as circular, so

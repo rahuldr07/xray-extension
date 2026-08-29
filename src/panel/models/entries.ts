@@ -414,3 +414,46 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
 
   return rows;
 }
+
+/** The ids eviction must never drop: everything pinned, plus the current selection. */
+export function pinnedAndSelected(state: { pinnedIds: Set<string>; selectedId: string | null }): Set<string> {
+  const ids = new Set(state.pinnedIds);
+  if (state.selectedId) ids.add(state.selectedId);
+  return ids;
+}
+
+/**
+ * Trim `entries` to `maxEntries`, dropping the oldest UNPINNED entries first.
+ *
+ * Eviction used to be a blind `entries.slice(-maxEntries)`, which defeated the entire
+ * point of pinning -- "keep this one while I keep browsing" -- and left `pinnedIds` and
+ * `selectedId` pointing at entries that no longer existed, so `selectedEntry()` returned
+ * null while the UI still showed a selection. `pinnedIds` is persisted, so it also grew
+ * without bound.
+ *
+ * Pinned entries and the current selection are kept regardless of age. If they alone
+ * exceed the cap, the oldest of them still go -- the cap is a memory bound, not a
+ * suggestion -- and the returned `dropped` set lets the caller prune its id sets.
+ */
+export function evictEntries(
+  entries: XrayEntry[],
+  maxEntries: number,
+  keepIds: ReadonlySet<string>,
+): { entries: XrayEntry[]; dropped: Set<string> } {
+  if (entries.length <= maxEntries) return { entries, dropped: new Set() };
+
+  const protectedEntries = entries.filter((entry) => keepIds.has(entry.id));
+  const evictable = entries.filter((entry) => !keepIds.has(entry.id));
+  const roomForEvictable = Math.max(0, maxEntries - protectedEntries.length);
+  const keptEvictable = new Set(evictable.slice(-roomForEvictable).map((entry) => entry.id));
+  const keptProtected = new Set(protectedEntries.slice(-maxEntries).map((entry) => entry.id));
+
+  const kept: XrayEntry[] = [];
+  const dropped = new Set<string>();
+  // One pass over the original array preserves arrival order without a re-sort.
+  for (const entry of entries) {
+    if (keptEvictable.has(entry.id) || keptProtected.has(entry.id)) kept.push(entry);
+    else dropped.add(entry.id);
+  }
+  return { entries: kept, dropped };
+}

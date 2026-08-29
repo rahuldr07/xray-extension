@@ -53,11 +53,36 @@ export function detailValue(entry: XrayEntry, detailTab: DetailTab): unknown {
   return entryResponse(entry);
 }
 
+/** Comparable key for diffing values of any shape. */
+function stableKey(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? 'undefined';
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * The array property most worth rendering: the largest non-empty one.
+ *
+ * Picking the FIRST array meant `{errors: [], data: [...25 rows]}` rendered an empty
+ * Table and "No numeric fields to chart" — a verdict on a property neither view had
+ * looked at. GraphQL, JSON:API and `{warnings: [], items: [...]}` all put an empty
+ * array first, so this was the common case rather than the exotic one.
+ */
+export function largestArrayProperty(value: Record<string, unknown>): unknown[] | null {
+  const arrays = Object.values(value).filter(Array.isArray) as unknown[][];
+  if (!arrays.length) return null;
+  const nonEmpty = arrays.filter((array) => array.length);
+  if (!nonEmpty.length) return arrays[0];
+  return nonEmpty.reduce((best, array) => (array.length > best.length ? array : best));
+}
+
 export function gridRows(value: unknown): GridData {
   const rows = Array.isArray(value)
     ? value
     : value && typeof value === 'object'
-      ? Object.values(value).find(Array.isArray) || [value]
+      ? largestArrayProperty(value as Record<string, unknown>) || [value]
       : [];
   const objects = (rows as unknown[])
     .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
@@ -106,11 +131,19 @@ export function structuralDiff(previous: unknown, current: unknown, maxLines = 2
       for (let index = 0; index < Math.min(length, 50); index += 1) {
         walk(prev[index], curr[index], `${path}[${index}]`, depth + 1);
       }
-      // Fires on length alone. Gating this on differing lengths meant two 60-element
-      // arrays differing only past index 50 produced an empty diff — the UI reported
-      // "no changes" for demonstrably different data.
+      // The walk above stops at index 50, so the tail needs its own verdict. Firing on
+      // length alone (the previous behaviour) reported "1 difference" between two
+      // BYTE-IDENTICAL 60-element arrays, which made the Diff view useless on any
+      // paginated list — the case it exists for. Gating on differing lengths instead
+      // was the older bug: two 60-element arrays differing only past index 50 produced
+      // an empty diff. So actually compare the tail.
       if (length > 50 && lines.length < maxLines) {
-        lines.push({ path: `${path}[…]`, kind: 'changed', before: `${prev.length} items`, after: `${curr.length} items` });
+        const tailDiffers =
+          prev.length !== curr.length ||
+          prev.slice(50).some((value, index) => stableKey(value) !== stableKey(curr[50 + index]));
+        if (tailDiffers) {
+          lines.push({ path: `${path}[…]`, kind: 'changed', before: `${prev.length} items`, after: `${curr.length} items` });
+        }
       }
       return;
     }

@@ -35,7 +35,14 @@ function parseJson(text: string): unknown {
 function toIso(value: unknown): string | null {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  return new Date(seconds * 1000).toISOString();
+  // A JWT `exp`/`iat` is page-controlled. A microsecond timestamp or a "never expires"
+  // sentinel like 9999999999999 lands outside the ECMAScript time range, where
+  // toISOString() throws RangeError -- and extractJwts runs inside a useMemo DURING
+  // render, with no error boundary in the panel, so React 19 unmounted the whole tree
+  // and selecting that one request blanked the panel.
+  const ms = seconds * 1000;
+  if (Math.abs(ms) > 8.64e15) return null;
+  return new Date(ms).toISOString();
 }
 
 export function decodeJwt(token: string, source: string): DecodedJwt | null {

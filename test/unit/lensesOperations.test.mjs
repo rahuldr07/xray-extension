@@ -233,3 +233,28 @@ test('getResponseOperations JSON-escapes the endpoint path it embeds in console 
   assert.ok(byId['related-errors'].command.includes(JSON.stringify('/a"b\\c')));
   assert.doesNotThrow(() => JSON.parse(byId['related-errors'].command.match(/includes\((".*")\)/)[1]));
 });
+
+test('FIXED: a JWT with an out-of-range exp/iat returns null instead of throwing', () => {
+  // toIso guarded only Number.isFinite(seconds) && seconds > 0, then called
+  // new Date(seconds * 1000).toISOString(). A microsecond timestamp or a "never
+  // expires" sentinel like 9999999999999 lands outside the ECMAScript time range,
+  // where toISOString() throws RangeError — and extractJwts runs inside a useMemo
+  // DURING render with no error boundary anywhere in src/panel, so React 19 unmounted
+  // the whole tree: selecting that one request blanked the panel. The value is
+  // page-controlled, since it comes from the token the page itself sent.
+  const encode = (payload) => {
+    const b64 = (object) => Buffer.from(JSON.stringify(object)).toString('base64url');
+    return `${b64({ alg: 'HS256' })}.${b64(payload)}.sig`;
+  };
+
+  for (const payload of [{ exp: 1767225600000000 }, { iat: 1767225600000000 }, { exp: 1e300 }, { exp: -1 }]) {
+    let decoded;
+    assert.doesNotThrow(() => { decoded = decodeJwt(encode(payload), 'test'); }, JSON.stringify(payload));
+    assert.ok(decoded, 'the token still decodes; only the unrepresentable date is dropped');
+    if (payload.exp && payload.exp > 0) assert.equal(decoded.expiresAt, null);
+    if (payload.iat) assert.equal(decoded.issuedAt, null);
+  }
+
+  // A representable timestamp still formats.
+  assert.equal(decodeJwt(encode({ exp: 1767225600 }), 'test').expiresAt, '2026-01-01T00:00:00.000Z');
+});
