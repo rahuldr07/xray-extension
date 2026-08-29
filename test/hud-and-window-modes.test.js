@@ -29,6 +29,10 @@ test('HUD host is a standalone closed-shadow content mount with persisted drag a
 
 test('React shell exposes a mode switcher and background opens HUD or pop-out window', () => {
   const shell = read('src/panel/components/shell/PanelShell.tsx');
+  // The three surface actions moved into runtime/surfaces.ts so the command palette
+  // can offer them too — the header's switcher is hidden on a narrow panel, and
+  // without palette entries the pop-out and HUD had no entry point at all.
+  const surfaces = read('src/panel/runtime/surfaces.ts');
   const styles = read('src/panel/styles.css');
   const background = read('background.js');
 
@@ -36,8 +40,8 @@ test('React shell exposes a mode switcher and background opens HUD or pop-out wi
   assert.match(shell, /IconDeviceLaptop/);
   assert.match(shell, /IconPictureInPicture/);
   assert.match(shell, /IconArrowsMaximize/);
-  assert.match(shell, /XRAY_HUD_TOGGLE_ACTIVE/);
-  assert.match(shell, /XRAY_OPEN_WINDOW/);
+  assert.match(surfaces, /XRAY_HUD_TOGGLE_ACTIVE/);
+  assert.match(surfaces, /XRAY_OPEN_WINDOW/);
   assert.match(shell, /xray-mode-switcher/);
   assert.match(shell, /mode === 'devtools'/);
   assert.match(shell, /mode === 'hud'/);

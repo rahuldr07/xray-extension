@@ -2956,7 +2956,6 @@
     padding-right: 8px;
   }
 
-  .xray-summary,
   .xray-network-row > :nth-child(5),
   .xray-network-row > :nth-child(6),
   .xray-network-head > :nth-child(5),
@@ -3185,11 +3184,28 @@
   }
 }
 
-/* Below this width eight header buttons and five labelled tabs genuinely cannot
-   coexist, so the tabs drop to their icons rather than scrolling out of reach behind
-   a suppressed scrollbar. Each button carries an aria-label, so the accessible name
-   survives the label going away. */
-@container xray (max-width: 560px) {
+/* The tablist is the only flex item left that can shrink, so anything the header
+   cannot fit is taken out of the TABS unless something else gives way first. Two
+   tiers do the giving way, in the order that costs the user least.
+
+   First the session summary, which is the cheapest thing on the bar: two of its three
+   numbers already appear as tab badges, and it is not interactive. It used to survive
+   down to 760px and cost two tabs on the way. */
+@container xray (max-width: 1120px) {
+  .xray-topbar > .xray-summary {
+    display: none;
+  }
+}
+
+/* Then the tab labels, leaving the five icons. Measured: five labelled tabs need
+   ~478px, five icons need ~160px, and below ~900px the header cannot seat the labels
+   alongside eight buttons without pushing tabs off the end. Each button carries an
+   aria-label, so the accessible name survives the label going away.
+
+   Nothing here hides the mode switcher. An earlier revision did, on the grounds that
+   its three surfaces were reachable from the command palette -- they are not, and
+   hiding it left the pop-out window and the HUD with no entry point at all. */
+@container xray (max-width: 900px) {
   .xray-tab span {
     display: none;
   }
@@ -3197,10 +3213,38 @@
   .xray-tab {
     padding: 0 8px;
   }
+}
 
-  /* All three are in the command palette, and the panel is already docked. */
+/* Narrower than this, five icons and eight buttons genuinely do not fit, so the strip
+   scrolls -- and it gets its scrollbar back. Suppressing the scrollbar on a strip that
+   overflows is what made the clipped tabs unreachable by mouse in the first place;
+   nothing is removed from the header here, it just becomes scrollable with a visible
+   affordance. Keyboard users already have arrow keys, and the active tab is scrolled
+   into view whenever it changes. */
+/* The three surface buttons step aside here. They are now genuinely redundant: the
+   command palette carries "Open in separate window", "Float over page (HUD)" and
+   "Open in DevTools" (CommandPalette.tsx, group Actions). An earlier revision hid them
+   while that was NOT true, which left the pop-out and the HUD with no entry point. */
+@container xray (max-width: 620px) {
   .xray-mode-switcher {
     display: none;
+  }
+}
+
+@container xray (max-width: 620px) {
+  .xray-tabs {
+    scrollbar-width: thin;
+    padding-bottom: 0;
+  }
+
+  .xray-tabs::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+
+  .xray-tabs::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--xray-hint) 60%, transparent);
   }
 }
 

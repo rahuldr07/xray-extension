@@ -11,6 +11,47 @@ export interface PanelKeyboardOptions {
    * there leaves an empty page with no way back.
    */
   dismissible: boolean;
+  /**
+   * The root to resolve the focused element against.
+   *
+   * The docked panel mounts in a CLOSED shadow root, and `host.shadowRoot` is null for
+   * a closed root from every script including the one that created it — so walking down
+   * from `document.activeElement` stops at the host `<div>` and can never see the field
+   * the user is typing in. The caller that owns the root has to hand it over.
+   */
+  getRoot?: () => Document | ShadowRoot;
+}
+
+/**
+ * The element that actually has focus, resolved from `root` down through any nested
+ * OPEN shadow roots.
+ *
+ * `root` matters: `document.activeElement` retargets to the shadow host, and a CLOSED
+ * root cannot be reached from outside at all, so the panel's own root has to be passed
+ * in by the code that created it.
+ */
+function deepActiveElement(root: Document | ShadowRoot): Element | null {
+  let active: Element | null = root.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active;
+}
+
+/** Fields whose value the user can clear, so Escape has something local to do. */
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA']);
+// Escape means nothing to these input types, so they should not block the panel's own
+// Escape handling the way a half-typed filter query does.
+const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'range', 'color', 'button', 'submit', 'reset', 'file', 'image']);
+
+/** True while the user is typing into a field that has something in it to clear. */
+function isEditingText(root: Document | ShadowRoot): boolean {
+  const active = deepActiveElement(root) as HTMLElement | null;
+  if (!active) return false;
+  if (active.isContentEditable) return true;
+  if (!EDITABLE_TAGS.has(active.tagName)) return false;
+  const field = active as HTMLInputElement | HTMLTextAreaElement;
+  if (field.readOnly || field.disabled) return false;
+  if (active.tagName === 'INPUT' && NON_TEXT_INPUT_TYPES.has((field as HTMLInputElement).type)) return false;
+  return !!field.value;
 }
 
 /**
@@ -22,29 +63,7 @@ export interface PanelKeyboardOptions {
  * simply dead in the pop-out. Escape appeared to work there only because ModalShell
  * installs its own handler, which covers modals but none of the layers below.
  */
-/**
- * The element that actually has focus, resolved through any shadow roots.
- *
- * `document.activeElement` stops at the shadow host, so inside the panel's shadow
- * tree it always reports the host `<div>` and never the field the user is typing in.
- */
-function deepActiveElement(): Element | null {
-  let active: Element | null = document.activeElement;
-  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-  return active;
-}
-
-/** True while the user is typing into a field that has something in it to clear. */
-function isEditingText(): boolean {
-  const active = deepActiveElement() as HTMLElement | null;
-  if (!active) return false;
-  if (active.isContentEditable) return true;
-  const tag = active.tagName;
-  if (tag !== 'INPUT' && tag !== 'TEXTAREA') return false;
-  return !!(active as HTMLInputElement | HTMLTextAreaElement).value;
-}
-
-export function installPanelKeyboard({ dismissible }: PanelKeyboardOptions): void {
+export function installPanelKeyboard({ dismissible, getRoot }: PanelKeyboardOptions): void {
   // init() is re-entrant, and the pop-out re-renders on theme changes; a second
   // listener would double-handle every keystroke.
   if (installed) return;
@@ -88,7 +107,7 @@ export function installPanelKeyboard({ dismissible }: PanelKeyboardOptions): voi
         // Not while the user is typing, though. Escape-to-clear-the-field is the
         // reflex every one of these inputs trains, and destroying the whole panel
         // instead costs the filter text, the scroll position and the selection.
-        else if (dismissible && store.open && !store.devtoolsMode && !isEditingText()) store.setOpen(false);
+        else if (dismissible && store.open && !store.devtoolsMode && !isEditingText(getRoot?.() ?? document)) store.setOpen(false);
       }
     },
     true,

@@ -205,12 +205,22 @@ test('injected side panel is resizable, dockable, persisted, and dismissible', (
   const keyboardRuntime = read('src/panel/runtime/panelKeyboard.ts');
   assert.match(
     keyboardRuntime,
-    /dismissible && store\.open && !store\.devtoolsMode && !isEditingText\(\)\) store\.setOpen\(false\)/,
+    /dismissible && store\.open && !store\.devtoolsMode && !isEditingText\(getRoot\?\.\(\) \?\? document\)\) store\.setOpen\(false\)/,
   );
-  // isEditingText resolves focus through the shadow root: document.activeElement stops
-  // at the host, so a naive check never sees the field the user is typing in.
-  assert.match(keyboardRuntime, /while \(active\?\.shadowRoot\?\.activeElement\) active = active\.shadowRoot\.activeElement/);
-  assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
+  // isEditingText has to resolve focus through the panel's own root, and that root is
+  // CLOSED: host.shadowRoot is null for a closed root from every script including the
+  // one that created it. Walking down from document.activeElement therefore stops at
+  // the host <div> and never sees the field, which made the first version of this fix
+  // a complete no-op on the only surface that passes dismissible: true. The owner of
+  // the root hands it over instead.
+  assert.match(keyboardRuntime, /getRoot\?: \(\) => Document \| ShadowRoot;/);
+  assert.match(keyboardRuntime, /isEditingText\(getRoot\?\.\(\) \?\? document\)/);
+  assert.match(read('src/panel/main.tsx'), /installPanelKeyboard\(\{ dismissible: true, getRoot: \(\) => shadowRootRef \?\? document \}\)/);
+  // Escape means nothing to a checkbox or a range, and a read-only field has nothing
+  // to clear, so those must not block the panel's own Escape handling.
+  assert.match(keyboardRuntime, /if \(field\.readOnly \|\| field\.disabled\) return false;/);
+  // Also hands over its CLOSED shadow root — see the Escape guard above.
+  assert.match(main, /installPanelKeyboard\(\{ dismissible: true, getRoot: /);
   assert.match(read('src/panel/store.ts'), /_lastPageFocus/);
 
   // the host is hardened against page CSS that would break fixed positioning

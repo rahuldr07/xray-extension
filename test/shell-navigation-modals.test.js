@@ -122,7 +122,9 @@ test('global search finds text across every captured URL, header, and body', () 
   assert.match(keyboard, /event\.shiftKey && key === 'f'/);
   assert.match(keyboard, /store\.globalSearchOpen\) store\.setGlobalSearchOpen\(false\)/);
   assert.match(palette, /setGlobalSearchOpen\(true\)/);
-  assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
+  // The docked panel also hands over its CLOSED shadow root, without which the
+  // Escape-while-typing guard cannot see the focused field at all.
+  assert.match(main, /installPanelKeyboard\(\{ dismissible: true, getRoot: /);
   // The pop-out is a standalone surface: Escape must not dismiss the panel itself,
   // because nothing would be left and there is no way to reopen it.
   assert.match(read('src/panel/window-main.tsx'), /installPanelKeyboard\(\{ dismissible: false \}\)/);

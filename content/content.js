@@ -45,11 +45,17 @@
     return true;
   }
 
+  // Hosts the focus trap must treat as "inside XRAY". The HUD host was missing, so with
+  // the HUD open every keystroke aimed at it was cancelled on the window capture
+  // listener before React inside the shadow root ever saw it -- the filter box and the
+  // console prompt simply could not be typed into. `xr-panel` and `.xr-hud` are names
+  // no code in this repo produces any more; the data attribute is the durable check,
+  // because isolatePanelEvents stamps it on every host it wires up.
+  const XRAY_HOST_IDS = new Set(['__xray_root__', 'xray-hud-host']);
+
   function _eventInsideXray(event) {
     const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-    return path.some((node) => node?.id === '__xray_root__' ||
-      node?.id === 'xr-panel' ||
-      node?.classList?.contains?.('xr-hud'));
+    return path.some((node) => XRAY_HOST_IDS.has(node?.id) || node?.dataset?.xrayIsolated === '1');
   }
 
   function _trapFocusedPanelEvent(event) {
@@ -153,10 +159,18 @@
   function _validateEntry(raw, { isUpdate = false } = {}) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     if (typeof raw.id !== 'string' || !raw.id || raw.id.length > 200) return null;
-    if (!ENTRY_TYPES.has(raw.type)) return null;
+    // An update is a PARTIAL PATCH -- { id, status, wsFrames, ... } or { id, timing } --
+    // and carries no `type`, so requiring one here silently discarded every WebSocket
+    // and SSE frame update and every deferred resource-timing update. Sockets stayed
+    // frozen at status 0 / wsState 'connecting' / zero frames forever, and any request
+    // whose timing landed after the response never got a waterfall.
+    //
+    // For an update, membership in _knownEntryIds is the real anti-forgery gate: the
+    // page cannot patch an entry the isolated world never created.
+    if (!isUpdate && !ENTRY_TYPES.has(raw.type)) return null;
     if (isUpdate && !_knownEntryIds.has(raw.id)) return null;
 
-    const entry = { id: raw.id, type: raw.type };
+    const entry = ENTRY_TYPES.has(raw.type) ? { id: raw.id, type: raw.type } : { id: raw.id };
     const num = (value, min, max) => (Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : undefined);
 
     const timestamp = num(raw.timestamp, 0, Number.MAX_SAFE_INTEGER);

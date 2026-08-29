@@ -196,8 +196,14 @@ test('C-3 every MAIN-world message is validated as untrusted input', () => {
 
   assert.match(content, /function _validateEntry\(raw, \{ isUpdate = false \} = \{\}\)/);
   // A new object is built field by field, so nothing unexamined rides into the store.
-  assert.match(content, /const entry = \{ id: raw\.id, type: raw\.type \};/);
-  assert.match(content, /if \(!ENTRY_TYPES\.has\(raw\.type\)\) return null;/);
+  // FIXED: `type` used to be required for EVERY message, but an update is a partial
+  // patch — { id, status, wsFrames, ... } or { id, timing } — and carries none, so every
+  // WebSocket/SSE frame update and every deferred resource-timing update was silently
+  // discarded. Sockets stayed frozen at status 0 / wsState 'connecting' / zero frames.
+  // A new entry still must declare a known type; an update is gated on membership in
+  // _knownEntryIds instead, which the page cannot forge.
+  assert.match(content, /const entry = ENTRY_TYPES\.has\(raw\.type\) \? \{ id: raw\.id, type: raw\.type \} : \{ id: raw\.id \};/);
+  assert.match(content, /if \(!isUpdate && !ENTRY_TYPES\.has\(raw\.type\)\) return null;/);
   assert.match(content, /if \(typeof raw\.id !== 'string' \|\| !raw\.id \|\| raw\.id\.length > 200\) return null;/);
 
   // An update for an id this world never originated is a page inventing a target.

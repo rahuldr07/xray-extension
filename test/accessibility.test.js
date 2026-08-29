@@ -67,7 +67,9 @@ test('panel keyboard shortcuts are installed on every surface that renders the p
   const windowMain = read('src/panel/window-main.tsx');
   const keyboard = read('src/panel/runtime/panelKeyboard.ts');
 
-  assert.match(main, /installPanelKeyboard\(\{ dismissible: true \}\)/);
+  // The docked panel also hands over its CLOSED shadow root, without which the
+  // Escape-while-typing guard cannot see the focused field at all.
+  assert.match(main, /installPanelKeyboard\(\{ dismissible: true, getRoot: /);
   assert.match(windowMain, /installPanelKeyboard\(\{ dismissible: false \}\)/);
   assert.match(keyboard, /key === 'k'/);
   assert.match(keyboard, /event\.shiftKey && key === 'f'/);

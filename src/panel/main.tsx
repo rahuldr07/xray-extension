@@ -101,7 +101,9 @@ function createPlainMount(options: XrayPanelInitOptions): HTMLElement {
 async function init(options: XrayPanelInitOptions = {}): Promise<void> {
   const alreadyInitialized = initialized;
   if (!initialized) {
-    installPanelKeyboard({ dismissible: true });
+    // The panel's shadow root is CLOSED, so nothing else can resolve the focused
+    // element inside it — see getSearchRoot below, which exists for the same reason.
+    installPanelKeyboard({ dismissible: true, getRoot: () => shadowRootRef ?? document });
   }
   initialized = true;
 

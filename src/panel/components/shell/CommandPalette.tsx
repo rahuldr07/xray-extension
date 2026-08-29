@@ -1,13 +1,16 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   IconArrowRight,
+  IconArrowsMaximize,
   IconBolt,
   IconChartBar,
+  IconDeviceLaptop,
   IconDice,
   IconDownload,
   IconEraser,
   IconFilterOff,
   IconPalette,
+  IconPictureInPicture,
   IconRepeat,
   IconSearch,
   IconSettings,
@@ -16,6 +19,7 @@ import {
   IconWand,
 } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
+import { devtoolsHint, openWindowSurface, toggleHudSurface } from '../../runtime/surfaces';
 import { iconProps, panelTabs } from './panelTabs';
 import { ModalShell } from '../common/ModalShell';
 import { fuzzyMatch, highlightSegments } from '../../models/fuzzy';
@@ -90,6 +94,12 @@ export function CommandPalette(): React.ReactElement | null {
       { id: 'appearance', label: 'Open Theme Studio', group: 'Appearance', icon: <IconPalette {...iconProps} />, keywords: 'theme color radius', run: () => openSettings('appearance') },
       { id: 'settings', label: 'Open Settings', group: 'Actions', icon: <IconSettings {...iconProps} />, run: () => openSettings('general') },
       { id: 'insights', label: 'Open Insights', group: 'Actions', icon: <IconChartBar {...iconProps} />, run: () => setActiveTab('insights') },
+      // The header's mode switcher is the only other way to reach these, and it does
+      // not fit on a narrow panel — without these entries the pop-out and the HUD had
+      // no entry point at all below ~560px.
+      { id: 'surface-window', label: 'Open in separate window', group: 'Actions', icon: <IconArrowsMaximize {...iconProps} />, keywords: 'popout pop-out detach surface', run: () => openWindowSurface({ showToast }) },
+      { id: 'surface-hud', label: 'Float over page (HUD)', group: 'Actions', icon: <IconPictureInPicture {...iconProps} />, keywords: 'hud overlay float surface', run: () => toggleHudSurface({ showToast }) },
+      { id: 'surface-devtools', label: 'Open in DevTools', group: 'Actions', icon: <IconDeviceLaptop {...iconProps} />, keywords: 'devtools f12 surface', run: () => devtoolsHint({ showToast }) },
       { id: 'clear-filters', label: 'Reset API filters', group: 'Actions', icon: <IconFilterOff {...iconProps} />, run: clearApiFilters },
       { id: 'clear-console', label: 'Clear console stream', group: 'Actions', icon: <IconEraser {...iconProps} />, run: () => requestConfirmation({ title: 'Clear console stream?', message: 'This clears console UI events but keeps captured API requests.', confirmLabel: 'Clear console', tone: 'danger', onConfirm: clearConsole }) },
       { id: 'clear-all', label: 'Clear all captured entries', group: 'Actions', icon: <IconEraser {...iconProps} />, run: () => requestConfirmation({ title: 'Clear all captured entries?', message: 'This removes requests, logs, console events, and pins.', confirmLabel: 'Clear all', tone: 'danger', onConfirm: clearEntries }) },

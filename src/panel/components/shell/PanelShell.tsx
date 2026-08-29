@@ -8,6 +8,7 @@ import { formatBytes } from '../../utils';
 import { XRAY_BUILD, XRAY_VERSION } from '../../version';
 import { panelTabs } from './panelTabs';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { devtoolsHint, openWindowSurface, toggleHudSurface } from '../../runtime/surfaces';
 import type { ActiveTab, XrayAppMode } from '../../types';
 
 const modeIconProps = { size: 16, stroke: 1.8 } as const;
@@ -114,31 +115,12 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     return () => window.clearTimeout(timer);
   }, [toastMessage, toastPaused, clearToast]);
 
-  function sendRuntimeMessage(message: Record<string, unknown>, fallback: string): void {
-    if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
-      try {
-        chrome.runtime.sendMessage(message, () => void 0);
-        return;
-      } catch {}
-    }
-    showToast(fallback);
-  }
-
-  function openDevtoolsHint(): void {
-    showToast('Press F12, then open the XRAY tab.');
-  }
-
-  function toggleHud(): void {
-    if (window.XRAY_HUD?.isVisible?.()) {
-      window.XRAY_HUD.collapse();
-      return;
-    }
-    sendRuntimeMessage({ type: 'XRAY_HUD_TOGGLE_ACTIVE' }, 'Open a normal page tab, then use XRAY from the extension icon.');
-  }
-
-  function openWindow(): void {
-    sendRuntimeMessage({ type: 'XRAY_OPEN_WINDOW' }, 'Pop-out window is available when the extension runtime is loaded.');
-  }
+  // Shared with the command palette, which offers the same three surfaces so they stay
+  // reachable on a panel too narrow to show this switcher.
+  const surfaceIo = React.useMemo(() => ({ showToast }), [showToast]);
+  const openDevtoolsHint = (): void => devtoolsHint(surfaceIo);
+  const toggleHud = (): void => toggleHudSurface(surfaceIo);
+  const openWindow = (): void => openWindowSurface(surfaceIo);
 
   // Arrow keys move between tabs, Home/End jump to the ends — the standard tablist
   // interaction. Focus follows selection, so activating is a single keypress.
@@ -161,6 +143,21 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     const root = event.currentTarget.getRootNode() as Document | ShadowRoot;
     (root.getElementById?.(`xray-tab-${next.id}`) as HTMLElement | null)?.focus();
   }
+
+  // Below a 620px container the tab strip scrolls, so the active tab can sit outside
+  // the visible box after a keyboard move or a programmatic setActiveTab. Bring it
+  // back into view whenever it changes; at wider widths nothing overflows and this is
+  // a no-op.
+  //
+  // Scoped through the tablist ref rather than `document`: the panel mounts in a
+  // closed shadow root, so a document-level lookup finds nothing there.
+  const tablistRef = React.useRef<HTMLElement | null>(null);
+  React.useEffect(() => {
+    const list = tablistRef.current;
+    if (!list) return;
+    const active = list.querySelector<HTMLElement>(`#xray-tab-${activeTab}`);
+    active?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeTab]);
 
   // A custom theme is applied purely as inline CSS variables on this element, so
   // it stays scoped to the panel and never affects the host page or the runtime.
@@ -214,7 +211,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           nor how many there were. Roving tabindex plus arrow keys is the expected
           pattern: the group is one tab stop, and arrows move within it.
         */}
-        <nav className="xray-tabs" role="tablist" aria-label="XRAY panel tabs">
+        <nav className="xray-tabs" role="tablist" aria-label="XRAY panel tabs" ref={tablistRef}>
           {panelTabs.map((tab) => (
             <button
               key={tab.id}

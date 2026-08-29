@@ -54,10 +54,45 @@ test('the header gives the tablist a growth contract instead of leaving it to le
   // Turning the tablist into a scroll container makes it clip on both axes, which
   // sliced the focus ring into two fragments until it got room to draw.
   assert.match(styles, /\.xray-tabs \{[\s\S]*?padding: 3px 0;/);
-  // Below 560px the five tabs drop to their icons rather than scrolling out of reach
-  // behind a suppressed scrollbar, so the accessible name moves onto the button.
-  assert.match(styles, /@container xray \(max-width: 560px\) \{\n {2}\.xray-tab span \{\n {4}display: none;/);
+  // The tablist is the only shrinkable item left, so anything the header cannot fit is
+  // taken out of the TABS unless something else gives way first. Two tiers give way,
+  // cheapest first.
+  //
+  // FIXED: an earlier revision of this change had neither tier, so the tablist absorbed
+  // the whole deficit and at the DEFAULT 960px panel width Rules was truncated mid-word
+  // and Insights was gone entirely — behind a scrollbar suppressed on both axes, so a
+  // mouse user could not reach them. Measured after this fix: zero overflow at every
+  // width from 470 to 1400.
+  assert.match(styles, /@container xray \(max-width: 1120px\) \{\n {2}\.xray-topbar > \.xray-summary \{\n {4}display: none;/);
+  assert.match(styles, /@container xray \(max-width: 900px\) \{\n {2}\.xray-tab span \{\n {4}display: none;/);
   assert.match(shell, /aria-label=\{tab\.label\}/);
+
+  // Below 620px the strip scrolls and gets its scrollbar BACK. Suppressing the
+  // scrollbar on a strip that overflows is what made clipped tabs unreachable.
+  assert.match(styles, /@container xray \(max-width: 620px\) \{[\s\S]*?\.xray-tabs \{\n {4}scrollbar-width: thin;/);
+  assert.match(styles, /\.xray-tabs::-webkit-scrollbar \{\n {4}display: block;/);
+  // ...and the active tab is scrolled into view, resolved through the tablist ref
+  // rather than `document` (the panel mounts in a closed shadow root).
+  assert.match(shell, /const list = tablistRef\.current;/);
+  assert.match(shell, /active\?\.scrollIntoView\?\.\(\{ block: 'nearest', inline: 'nearest' \}\)/);
+});
+
+test('hiding the mode switcher is only legitimate because the palette offers those surfaces', () => {
+  // FIXED: an earlier revision hid .xray-mode-switcher on narrow panels with the
+  // comment "All three are in the command palette" — they were not, so the pop-out
+  // window and the HUD were left with no entry point at all. This test fails if the
+  // switcher is hidden again without the palette actually carrying them.
+  const styles = read('src/panel/styles.css');
+  const palette = read('src/panel/components/shell/CommandPalette.tsx');
+
+  if (/\.xray-mode-switcher \{\n {4}display: none;/.test(styles)) {
+    assert.match(palette, /id: 'surface-window'/);
+    assert.match(palette, /id: 'surface-hud'/);
+    assert.match(palette, /id: 'surface-devtools'/);
+    // One implementation, shared with the header, so the two cannot drift.
+    assert.match(palette, /from '\.\.\/\.\.\/runtime\/surfaces'/);
+    assert.match(read('src/panel/components/shell/PanelShell.tsx'), /from '\.\.\/\.\.\/runtime\/surfaces'/);
+  }
 });
 
 test('workspaces and full-bleed surfaces fill the space they are given', () => {

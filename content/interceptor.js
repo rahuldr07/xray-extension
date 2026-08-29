@@ -726,38 +726,59 @@
       baseEntry.mockRuleId = rule.id;
     }
 
-    this.addEventListener('loadend', () => {
-      const duration = Date.now() - xr.start;
-      let raw = null;
-      try { raw = this.responseType === '' || this.responseType === 'text' ? this.responseText : null; } catch {}
-      let parsed = null, size = 0;
-      try { size = new TextEncoder().encode(raw || '').length; } catch {}
-      try { parsed = JSON.parse(raw); } catch {}
+    // The live per-send state the loadend handler reads. It must come off `this.__xr`
+    // rather than the closure: `open()` replaces `__xr` with a fresh id, and the
+    // listener below outlives the send that registered it.
+    xr.baseEntry = baseEntry;
 
-      const resHeaders = {};
-      try {
-        (this.getAllResponseHeaders() || '').trim().split('\r\n').forEach(line => {
-          const idx = line.indexOf(':');
-          if (idx > 0) resHeaders[line.slice(0, idx).trim().toLowerCase()] = _safeHeader(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
-        });
-      } catch {}
+    // Bound ONCE per XMLHttpRequest object. This used to register a new listener on
+    // every send() and never remove the old ones, so a page polling with one reused
+    // XHR -- legal, and the pattern the comment above calls common -- fired every
+    // stale listener on each response: the k-th response emitted k entries, the stale
+    // ones carrying the OLD id, url and timestamp with the NEW status and body. Three
+    // polls produced six entries, three with duplicate ids and responses filed under
+    // the wrong request; a hundred polls produced 5050 and evicted every real capture.
+    if (!this.__xrLoadendBound) {
+      this.__xrLoadendBound = true;
+      this.addEventListener('loadend', () => {
+        const xr = this.__xr;
+        // No base entry means this send was mocked or failed by a rule and has already
+        // been reported by _simulateXhrResponse.
+        if (!xr || !xr.baseEntry || xr.emitted) return;
+        xr.emitted = true;
+        const baseEntry = xr.baseEntry;
+        const duration = Date.now() - xr.start;
+        let raw = null;
+        try { raw = this.responseType === '' || this.responseType === 'text' ? this.responseText : null; } catch {}
+        let parsed = null, size = 0;
+        try { size = new TextEncoder().encode(raw || '').length; } catch {}
+        try { parsed = JSON.parse(raw); } catch {}
 
-      const token = xr.reqHeaders['x-parse-token'] || null;
-      // 'pending' is resolved in the isolated world by content.js — see C-6.
-      const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
-      const decrypted = null;
+        const resHeaders = {};
+        try {
+          (this.getAllResponseHeaders() || '').trim().split('\r\n').forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx > 0) resHeaders[line.slice(0, idx).trim().toLowerCase()] = _safeHeader(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
+          });
+        } catch {}
 
-      const timing = _resourceTiming(xr.url);
-      _emit(Object.assign(baseEntry, {
-        status: this.status, duration, size,
-        responseHeaders: resHeaders,
-        responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
-        responseDecrypted: decrypted,
-        decryptStatus, parseToken: token,
-        timing,
-      }));
-      if (!timing) _attachTimingLater(xr.id, xr.url);
-    });
+        const token = xr.reqHeaders['x-parse-token'] || null;
+        // 'pending' is resolved in the isolated world by content.js — see C-6.
+        const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
+        const decrypted = null;
+
+        const timing = _resourceTiming(xr.url);
+        _emit(Object.assign(baseEntry, {
+          status: this.status, duration, size,
+          responseHeaders: resHeaders,
+          responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
+          responseDecrypted: decrypted,
+          decryptStatus, parseToken: token,
+          timing,
+        }));
+        if (!timing) _attachTimingLater(xr.id, xr.url);
+      });
+    }
 
     if (rule && rule.action.type === 'delay' && rule.action.delayMs) {
       const args = arguments;
