@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const { read } = require('./helpers/source');
 
-test('Catppuccin Mocha tokens are scoped to Shadow DOM and avoid web font loading', () => {
+test('Signal Gray semantic tokens are scoped to Shadow DOM and avoid web font loading', () => {
   const tokens = read('src/panel/styles/tokens.css');
   const panelCss = read('src/panel/styles.css');
   const main = read('src/panel/main.tsx');
@@ -16,19 +16,20 @@ test('Catppuccin Mocha tokens are scoped to Shadow DOM and avoid web font loadin
   assert.match(tokens, /:host/);
   assert.doesNotMatch(tokens, /:root/);
   for (const token of [
-    '--xray-bg: #1e1e2e',
-    '--xray-surface: #181825',
-    '--xray-surface2: #313244',
-    '--xray-text: #cdd6f4',
-    '--xray-green: #a6e3a1',
-    '--xray-blue: #89b4fa',
-    '--xray-yellow: #f9e2af',
-    '--xray-red: #f38ba8',
-    '--xray-mauve: #cba6f7',
-    '--xray-teal: #94e2d5',
-    '--xray-peach: #fab387',
-    '--xray-hint: #6c7086',
-    '--xray-subtext: #a6adc8',
+    '--xray-bg: #181a1f',
+    '--xray-surface: #202329',
+    '--xray-surface2: #292e36',
+    '--xray-surface3: #333943',
+    '--xray-text: #f3f4f6',
+    '--xray-green: #43b581',
+    '--xray-blue: #5aa9e6',
+    '--xray-yellow: #d99a2b',
+    '--xray-red: #e8858d',
+    '--xray-mauve: #b694d7',
+    '--xray-teal: #4fb3a4',
+    '--xray-peach: #da9064',
+    '--xray-hint: #8e98a8',
+    '--xray-subtext: #c1c7d0',
     "--xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
   ]) {
     assert.ok(tokens.includes(token), `${token} token is required`);
@@ -59,7 +60,7 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   assert.match(settingsModal, /label="Theme"/);
   assert.match(settingsModal, /label="Font stack"/);
   assert.match(settingsModal, /label="Density"/);
-  assert.match(settingsModal, /label="Operator glow"/);
+  assert.match(settingsModal, /label="Glow"/);
   assert.match(shell, /xray-theme-\$\{settings\.theme\}/);
   assert.match(shell, /xray-density-\$\{settings\.density\}/);
   assert.match(shell, /xray-font-\$\{settings\.font\}/);
@@ -71,21 +72,20 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   assert.match(styles, /prefers-reduced-motion/);
 });
 
-test('Operator UI applies tab-specific Network, Detail, Console, Snippet, and Insights polish', () => {
+test('Operator UI applies tab-specific API, Detail, Console, Snippet, and Insights polish', () => {
   const styles = read('src/panel/styles.css');
 
   assert.match(styles, /XRAY Operator UI tab-specific polish/);
-  assert.match(styles, /\.xray-panel \.xray-network-head/);
   assert.match(styles, /\.xray-panel \.xray-api-table-head/);
-  assert.match(styles, /\.xray-panel \.xray-network-row\.selected/);
   assert.match(styles, /\.xray-panel \.xray-detail-tab\.active/);
   assert.match(styles, /\.xray-panel \.xray-operation-groups/);
-  assert.match(styles, /\.xray-panel \.xray-prompt::before/);
-  assert.match(styles, /content: '>'/);
+  assert.match(styles, /\.xray-panel \.xray-prompt-command-row > svg/);
+  assert.match(styles, /\.xray-prompt \.xray-context-line/);
   assert.match(styles, /\.xray-panel \.xray-statusbar/);
-  assert.match(styles, /\.xray-snippet-bar/);
+  assert.match(styles, /\.xray-snippet-menu/);
   assert.match(styles, /\.xray-panel \.xray-insight-row:hover/);
-  assert.match(styles, /\.xray-panel \.xray-api-metric strong/);
+  // Dead selectors from removed markup (API metric cards, insight grid, …) stay gone.
+  assert.doesNotMatch(styles, /\.xray-(api-metric|count-pill|insight-grid|insight-overview|list-controls|status-dot|textarea)\b/);
   // Notebook CSS was removed with the Notebook tab
   assert.doesNotMatch(styles, /\.xray-notebook/);
 });

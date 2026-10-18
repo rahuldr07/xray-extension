@@ -124,6 +124,27 @@ test('extractJwts does not descend past depth 4 in a nested body', () => {
 
 const opsById = (ops) => Object.fromEntries(ops.map((op) => [op.id, op]));
 
+test('slow recommendations honor the configured inclusive threshold', () => {
+  for (const [duration, slow] of [[899, false], [900, true], [901, true]]) {
+    const entry = apiEntry({ duration, responseRaw: 'text' });
+    const byId = opsById(getResponseOperations(entry, [entry], 900));
+    assert.equal(!!byId.waterfall, slow, `${duration}ms at a 900ms threshold`);
+    assert.equal(!!byId['similar-calls'], slow);
+  }
+});
+
+test('slow recommendations retain an inclusive 500ms default', () => {
+  const entry = apiEntry({ duration: 500, responseRaw: 'text' });
+  assert.ok(opsById(getResponseOperations(entry, [entry])).waterfall);
+});
+
+test('repeat-call preparation uses the configured slow threshold', () => {
+  const target = apiEntry({ urlPath: '/hot' });
+  const siblings = Array.from({ length: 3 }, () => apiEntry({ urlPath: '/hot' }));
+  assert.equal(opsById(getResponseOperations(target, [target, ...siblings], 900))['slow-calls'].command, '$slow(900)');
+  assert.equal(opsById(getResponseOperations(target, [target, ...siblings]))['slow-calls'].command, '$slow(500)');
+});
+
 test('getResponseOperations always offers the baseline copy/export actions', () => {
   assertSchemaFallback(assert);
   const entry = apiEntry({ responseRaw: '{"a":1}' });

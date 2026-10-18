@@ -12,7 +12,7 @@ export function defaultRule(): TrafficRule {
   return {
     id: createRuleId(),
     label: 'New rule',
-    enabled: true,
+    enabled: false,
     match: { url: '', method: '' },
     action: { type: 'mock', status: 200, body: '{\n  "mocked": true\n}', headers: {}, delayMs: 0 },
   };
@@ -60,11 +60,22 @@ export function normalizeRules(input: unknown): TrafficRule[] {
   return input.slice(0, MAX_TRAFFIC_RULES).map((rule) => normalizeRule(rule as Partial<TrafficRule>));
 }
 
-// The compact shape sent to the MAIN-world interceptor. Only enabled rules with
-// a URL matcher are shipped; the label is UI-only.
+export function ruleMatcherError(rule: TrafficRule): string | null {
+  const url = rule.match.url.trim();
+  if (!url) return 'Enter a URL matcher before enabling this rule.';
+  if (url.startsWith('re:')) {
+    const pattern = url.slice(3);
+    if (!pattern.trim()) return 'Enter a regular expression after re: before enabling this rule.';
+    try { new RegExp(pattern); } catch { return 'Invalid regular expression. Fix the URL matcher before enabling this rule.'; }
+  }
+  return null;
+}
+
+// The compact shape sent to the MAIN-world interceptor. Only enabled, valid
+// rules are shipped; the label is UI-only.
 export function serializeRulesForRuntime(rules: TrafficRule[]): Array<Pick<TrafficRule, 'id' | 'enabled' | 'match' | 'action'>> {
   return rules
-    .filter((rule) => rule.enabled && rule.match.url.trim())
+    .filter((rule) => rule.enabled && !ruleMatcherError(rule))
     .map((rule) => ({
       id: rule.id,
       enabled: true,
@@ -100,8 +111,8 @@ export function serializeRuleSet(rules: TrafficRule[]): string {
 }
 
 // Accepts serializeRuleSet output, a bare array of rules, or a raw session-style
-// object with a `rules` array. Returns normalized rules with fresh ids so an
-// import never collides with existing rule ids. Null if nothing parseable.
+// object with a `rules` array. Returns disabled drafts with fresh ids. Preserve
+// the whole count so the store can report capacity omissions. Null if unparseable.
 export function parseRuleSet(text: string): TrafficRule[] | null {
   const input = String(text || '').trim();
   if (!input) return null;
@@ -117,6 +128,6 @@ export function parseRuleSet(text: string): TrafficRule[] | null {
       ? (raw as { rules: unknown[] }).rules
       : null;
   if (!list || !list.length) return null;
-  const normalized = normalizeRules(list).map((rule) => ({ ...rule, id: createRuleId() }));
+  const normalized = list.map((rule) => normalizeRule({ ...(rule as Partial<TrafficRule>), id: createRuleId(), enabled: false }));
   return normalized.length ? normalized : null;
 }

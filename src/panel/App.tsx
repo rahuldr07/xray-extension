@@ -11,9 +11,11 @@ import { Rules } from './components/rules/Rules';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ReplayModal } from './components/replay/ReplayModal';
 import { ExplainModal } from './components/ai/ExplainModal';
+import { FindingSynthesisModal } from './components/ai/FindingSynthesisModal';
 import { CommandPalette } from './components/shell/CommandPalette';
 import { GlobalSearch } from './components/search/GlobalSearch';
 import { PanelShell } from './components/shell/PanelShell';
+import { ToastRegion } from './components/shell/PanelShell';
 import type { XrayAppMode } from './types';
 
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
@@ -46,9 +48,11 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
       <SettingsModal />
       <ReplayModal />
       <ExplainModal />
+      <FindingSynthesisModal />
       <CommandPalette />
       <GlobalSearch />
       <ConfirmationModal />
+      <ToastRegion />
     </div>
   );
 }

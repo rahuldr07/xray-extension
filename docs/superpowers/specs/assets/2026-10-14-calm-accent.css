@@ -1,0 +1,96 @@
+/* ---- ambient accent washes -> flat neutrals ---- */
+.xray-panel::before { background: none !important; }
+.xray-panel .xray-topbar { box-shadow: inset 0 -1px 0 var(--xray-border) !important; }
+.xray-panel .xray-body { background: var(--xray-bg) !important; }
+.xray-panel .xray-api-workspace, .xray-panel .xray-console-workspace, .xray-panel .xray-insights,
+.xray-panel .xray-settings-page, .xray-panel .xray-logs-workspace { background: var(--xray-bg) !important; }
+.xray-panel .xray-detail-hero, .xray-panel .xray-console-head, .xray-panel .xray-api-toolbar,
+.xray-panel .xray-api-command-bar, .xray-panel .xray-detail-nav, .xray-panel .xray-page-head { background: var(--xray-surface) !important; }
+.xray-panel .xray-detail-hero { box-shadow: none !important; }
+.xray-panel .xray-json, .xray-panel .xray-json-editor { background: color-mix(in srgb, var(--xray-bg) 86%, var(--xray-sink, black) 14%) !important; }
+.xray-panel .xray-api-row, .xray-panel .xray-entry-row, .xray-panel .xray-console-row, .xray-panel .xray-log-row { background: transparent !important; }
+.xray-panel .xray-api-row:hover, .xray-panel .xray-entry-row:hover, .xray-panel .xray-console-row:hover, .xray-panel .xray-log-row:hover {
+  background: color-mix(in srgb, var(--xray-surface2) 72%, transparent) !important;
+  border-color: var(--xray-border) !important;
+}
+.xray-panel .xray-console-row.result { border-left-color: var(--xray-border) !important; background: transparent !important; }
+.xray-panel .xray-console-row.result .xray-console-glyph { color: var(--xray-hint) !important; }
+
+/* ---- text tinted toward the accent -> plain text ---- */
+.xray-panel .xray-path, .xray-panel .xray-api-path, .xray-panel .xray-response-heading h3, .xray-panel h3 { color: var(--xray-text) !important; }
+.xray-panel .xray-settings-section-title, .xray-panel .xray-danger-title, .xray-panel h4,
+.xray-theme-scope .xray-settings-section-title, .xray-theme-scope h4 { color: var(--xray-hint) !important; }
+
+/* ---- column headers -> hint ---- */
+.xray-panel .xray-api-table-head, .xray-theme-scope .xray-table th { color: var(--xray-hint) !important; }
+
+/* ---- chips, badges, counts: neutral borders, no accent fill ---- */
+.xray-panel .xray-method, .xray-panel .xray-status, .xray-panel .xray-response-chip, .xray-panel .xray-chip, .xray-panel .xray-badge,
+.xray-theme-scope .xray-chip { border-color: var(--xray-border) !important; }
+/* chips that are borderless by design stay borderless (view switchers, detail tabs) */
+.xray-panel .xray-detail-views .xray-chip:not(.active), .xray-panel .xray-detail-tab:not(.active), .xray-panel .xray-result-view-btn:not([aria-pressed="true"]) { border-color: transparent !important; }
+.xray-panel .xray-badge { color: var(--xray-subtext) !important; background: rgba(var(--xray-text-rgb), .06) !important; }
+.xray-panel .xray-chip.active, .xray-panel .xray-detail-tab.active, .xray-panel .xray-detail-views .xray-chip.active,
+.xray-panel .xray-request-detail:not(.compact) .xray-detail-views .xray-chip.active, .xray-panel .xray-result-view-btn[aria-pressed="true"],
+.xray-theme-scope .xray-export-format.active, .xray-theme-scope .xray-chip.active {
+  color: var(--xray-text) !important;
+  background: var(--xray-surface3) !important;
+  border-color: color-mix(in srgb, var(--xray-hint) 45%, transparent) !important;
+  box-shadow: none !important;
+}
+.xray-panel .xray-request-detail:not(.compact) .xray-detail-action[aria-expanded="true"],
+.xray-panel .xray-editor-expand[aria-pressed="true"] { border-color: color-mix(in srgb, var(--xray-hint) 45%, transparent) !important; }
+.xray-panel .xray-mode-switcher .xray-icon-btn.active, .xray-panel .xray-icon-btn.active {
+  color: var(--xray-text) !important; background: var(--xray-surface3) !important; border-color: color-mix(in srgb, var(--xray-hint) 45%, transparent) !important;
+}
+.xray-panel .xray-icon-btn:hover, .xray-theme-scope .xray-icon-btn:hover, .xray-panel .xray-pin:hover, .xray-panel .xray-json-tree-btn:hover,
+.xray-panel .xray-editor-chip:hover, .xray-panel .xray-starter-chip:hover, .xray-panel .xray-snippet-item:hover, .xray-panel .xray-context-inspect:hover,
+.xray-panel .xray-token-btn:hover, .xray-panel .xray-snippet-action:hover, .xray-panel .xray-snippet-load:hover {
+  color: var(--xray-text) !important; background: rgba(var(--xray-text-rgb), .07) !important; border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent) !important;
+}
+.xray-panel .xray-cell-variable, .xray-panel .xray-repeat-badge, .xray-panel .xray-newmsg-pill, .xray-panel .xray-token-field.pinned,
+.xray-theme-scope .xray-ai-banner, .xray-theme-scope .xray-modal-title-icon, .xray-panel .xray-empty-glyph, .xray-panel .xray-firstrun {
+  border-color: var(--xray-border) !important; background: rgba(var(--xray-text-rgb), .04) !important; box-shadow: none !important;
+}
+.xray-theme-scope .xray-modal-title-icon, .xray-panel .xray-empty-glyph, .xray-panel .xray-token-field.pinned .xray-token-state,
+.xray-panel .xray-prompt-command-row > svg, .xray-panel .xray-context-prefix, .xray-panel .xray-firstrun-cell-icon,
+.xray-panel .xray-rule-summary, .xray-panel .xray-header-name, .xray-theme-scope .xray-header-name, .xray-panel .xray-compare-equal-toggle { color: var(--xray-subtext) !important; }
+.xray-panel .xray-card::before { background: none !important; }
+.xray-panel .xray-bar { background: color-mix(in srgb, var(--xray-hint) 70%, transparent) !important; box-shadow: none !important; }
+.xray-panel .xray-viz-fill, .xray-theme-scope .xray-viz-fill, .xray-panel .xray-waterfall-seg.total, .xray-panel .xray-waterfall-dot.total { background: var(--xray-subtext) !important; }
+.xray-panel .xray-brand-mark { background: var(--xray-surface3) !important; color: var(--xray-text) !important; box-shadow: none !important; }
+
+/* ---- selection: neutral fill, the accent stays only as the indicator bar ---- */
+.xray-panel .xray-api-row.selected, .xray-panel .xray-entry-row.selected, .xray-panel .xray-log-row.selected, .xray-panel .xray-console-row.selected {
+  background: var(--xray-surface2) !important;
+  border-color: var(--xray-border) !important;
+  box-shadow: inset 3px 0 0 var(--xray-accent) !important;
+}
+.xray-panel .xray-json-flatrow[aria-selected="true"], .xray-theme-scope .xray-command-row.active, .xray-theme-scope .xray-gsearch-row.active,
+.xray-panel .xray-editor-option.active, .xray-panel .xray-context-option[aria-current="true"], .xray-panel .xray-tp-row.selected {
+  background: var(--xray-surface2) !important;
+}
+.xray-theme-scope .xray-menu-item:hover, .xray-theme-scope .xray-menu-item:focus-visible { background: var(--xray-surface2) !important; }
+.xray-theme-scope .xray-command-row.active { box-shadow: inset 2px 0 0 var(--xray-accent) !important; }
+.xray-theme-scope .xray-command-row.active .xray-command-icon, .xray-theme-scope .xray-command-enter, .xray-theme-scope .xray-command-label mark { color: var(--xray-text) !important; }
+.xray-theme-scope .xray-gsearch-snippet mark { background: color-mix(in srgb, var(--xray-yellow) 30%, transparent) !important; }
+
+/* ---- mauve is a hidden second accent in the chrome: neutralise it too ---- */
+.xray-panel .xray-command-cell {
+  border-left: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent) !important;
+  background: var(--xray-surface) !important;
+}
+.xray-panel .xray-cell-glyph, .xray-panel .xray-console-row.command .xray-console-glyph { color: var(--xray-hint) !important; }
+.xray-panel .xray-console-row.command { background: transparent !important; }
+.xray-panel .xray-operation-btn, .xray-panel .xray-action-btn.primary, .xray-panel .xray-btn.primary {
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent) !important;
+}
+
+/* ---- keep the active tab, but without the glow ---- */
+.xray-panel .xray-tab.active { box-shadow: none !important; }
+.xray-panel .xray-tab.active .xray-badge { color: var(--xray-text) !important; }
+.xray-glow .xray-operation-btn:hover, .xray-glow .xray-action-btn.primary:hover, .xray-glow .xray-btn.primary:hover { box-shadow: none !important; }
+
+/* ---- drag affordances: neutral ---- */
+.xray-panel .xray-resize-handle:hover, .xray-panel .xray-pane-divider:hover { background: rgba(var(--xray-text-rgb), .08) !important; }
+.xray-panel .xray-resize-handle:hover::after, .xray-panel .xray-pane-divider:hover::after { background: var(--xray-hint) !important; }

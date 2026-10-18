@@ -21,6 +21,12 @@ function inspectedTabId(): number | null {
   }
 }
 
+// Route availability does not acknowledge that the page accepted a config.
+export function hasPageBridgeRoute(): boolean {
+  if (bridgeToken()) return true;
+  return inspectedTabId() != null && typeof chrome !== 'undefined' && typeof chrome.runtime?.sendMessage === 'function';
+}
+
 // Deliver a config or replay payload to the page's MAIN-world interceptor.
 // Returns false when no route exists (e.g. the pop-out window, which has no
 // tab binding) so callers can surface an honest failure instead of a fake
@@ -51,8 +57,8 @@ export function postToPageBridge(kind: 'config' | 'replay', payload: Record<stri
   return false;
 }
 
-export function publishCaptureSettings(settings: Pick<PanelSettings, 'captureFetch' | 'captureXhr' | 'captureWs'>): void {
-  postToPageBridge('config', {
+export function publishCaptureSettings(settings: Pick<PanelSettings, 'captureFetch' | 'captureXhr' | 'captureWs'>): boolean {
+  return postToPageBridge('config', {
     config: {
       captureFetch: settings.captureFetch,
       captureXhr: settings.captureXhr,
@@ -61,6 +67,6 @@ export function publishCaptureSettings(settings: Pick<PanelSettings, 'captureFet
   });
 }
 
-export function publishTrafficRules(rules: TrafficRule[]): void {
-  postToPageBridge('config', { config: { rules: serializeRulesForRuntime(rules) } });
+export function publishTrafficRules(rules: TrafficRule[]): boolean {
+  return postToPageBridge('config', { config: { rules: serializeRulesForRuntime(rules) } });
 }

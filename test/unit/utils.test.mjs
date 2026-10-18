@@ -10,6 +10,8 @@ const {
   buildFetch,
   buildMockPayload,
   clampNumber,
+  copyText,
+  downloadText,
   entryRequest,
   entryResponse,
   entrySchema,
@@ -189,10 +191,132 @@ test('buildCurl / buildFetch / buildMockPayload use their local fallbacks', () =
   const entry = apiEntry({ url: 'https://api.example.com/x?a=1', method: 'delete', responseRaw: '{"a":1}' });
   // Single-quoted, not JSON.stringify'd. A double-quoted shell word still evaluates
   // $(...) and backticks, and entry.url is attacker-controlled.
-  assert.equal(buildCurl(entry), "curl 'https://api.example.com/x?a=1' -X 'DELETE'");
-  assert.equal(buildFetch(entry), 'fetch("https://api.example.com/x?a=1")');
-  assert.deepEqual(JSON.parse(buildMockPayload(entry)), { a: 1 });
-  assert.equal(buildCurl(null), '// Select an API request first');
-  assert.equal(buildFetch(null), '// Select an API request first');
-  assert.equal(buildMockPayload(null), 'null');
+  // E3: fallbacks mirror shared generateCurl / generateFetch / buildMock.
+  assert.equal(buildCurl(entry), "curl 'https://api.example.com/x?a=1' \\\n  -X 'delete'");
+  assert.equal(buildFetch(entry), 'fetch("https://api.example.com/x?a=1", {\n  "method": "delete",\n  "headers": {}\n})');
+  assert.deepEqual(JSON.parse(buildMockPayload(entry)), { url: 'https://api.example.com/x?a=1', method: 'DELETE', status: 200, response: { a: 1 } });
+  assert.equal(buildCurl(null), '// No request selected');
+  assert.equal(buildFetch(null), '// No request selected');
+  assert.equal(JSON.parse(buildMockPayload(null)), '// Select an API request first');
 });
+
+function stubGlobal(t, name, value) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, name);
+  Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, name, original);
+    else delete globalThis[name];
+  });
+}
+
+test('clipboardUnavailableRejects when navigator, clipboard or writeText is unavailable', async (t) => {
+  for (const [name, navigator] of [
+    ['navigator absent', undefined],
+    ['clipboard absent', {}],
+    ['writeText absent', { clipboard: {} }],
+  ]) {
+    await t.test(name, async (t) => {
+      stubGlobal(t, 'navigator', navigator);
+      await assert.rejects(copyText('synthetic text'), Error);
+    });
+  }
+});
+
+test('clipboardDeniedRejects with the original write failure', async (t) => {
+  const denied = new Error('Synthetic permission denial');
+  stubGlobal(t, 'navigator', { clipboard: { writeText: async () => { throw denied; } } });
+  await assert.rejects(copyText('synthetic text'), (error) => error === denied);
+});
+
+test('copyText rejects a synchronous clipboard write failure', async (t) => {
+  const denied = new Error('Synthetic synchronous denial');
+  stubGlobal(t, 'navigator', { clipboard: { writeText: () => { throw denied; } } });
+  await assert.rejects(copyText('synthetic text'), (error) => error === denied);
+});
+
+test('clipboardAcceptedResolves only after the browser accepts the exact text', async (t) => {
+  let acceptWrite;
+  const accepted = new Promise((resolve) => { acceptWrite = resolve; });
+  const clipboard = {
+    writeText(text) {
+      assert.equal(this, clipboard, 'the browser method keeps its receiver');
+      assert.equal(text, 'synthetic text');
+      return accepted;
+    },
+  };
+  stubGlobal(t, 'navigator', { clipboard });
+  let resolved = false;
+  const result = copyText('synthetic text').then((value) => {
+    resolved = true;
+    return value;
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(resolved, false, 'starting a write is not an accepted write');
+  acceptWrite();
+  assert.equal(await result, undefined, 'the existing Promise<void> signature is preserved');
+  assert.equal(resolved, true);
+});
+
+function stubDownloadBrowser(t, createElement) {
+  const blobs = [];
+  const revoked = [];
+  t.mock.method(URL, 'createObjectURL', (blob) => {
+    blobs.push(blob);
+    return 'blob:synthetic-download';
+  });
+  t.mock.method(URL, 'revokeObjectURL', (url) => { revoked.push(url); });
+  stubGlobal(t, 'document', { createElement });
+  return { blobs, revoked };
+}
+
+for (const [name, mime, expectedMime] of [
+  ['default MIME', undefined, 'text/plain;charset=utf-8'],
+  ['explicit MIME', 'application/json', 'application/json'],
+]) {
+  test(`downloadText initiates the download and releases its URL (${name})`, async (t) => {
+    let clicks = 0;
+    const anchor = {
+      click() {
+        clicks += 1;
+        assert.equal(this.href, 'blob:synthetic-download');
+        assert.equal(this.download, 'synthetic.txt');
+        assert.deepEqual(revoked, [], 'the URL remains live until the download is initiated');
+      },
+    };
+    const { blobs, revoked } = stubDownloadBrowser(t, (tag) => {
+      assert.equal(tag, 'a');
+      return anchor;
+    });
+    assert.equal(downloadText('synthetic.txt', 'synthetic payload', mime), undefined,
+      'initiating a download returns no saved-file receipt');
+    assert.equal(clicks, 1);
+    assert.equal(blobs.length, 1);
+    assert.equal(blobs[0].type, expectedMime);
+    assert.equal(await blobs[0].text(), 'synthetic payload');
+    assert.deepEqual(revoked, ['blob:synthetic-download']);
+  });
+}
+
+for (const stage of ['createElement', 'href', 'download', 'click']) {
+  test(`downloadText releases its URL and propagates a synchronous ${stage} failure`, (t) => {
+    const failure = new Error(`Synthetic ${stage} failure`);
+    let clicks = 0;
+    const anchor = {
+      click() {
+        clicks += 1;
+        if (stage === 'click') throw failure;
+      },
+    };
+    if (stage === 'href' || stage === 'download') {
+      Object.defineProperty(anchor, stage, { set() { throw failure; } });
+    }
+    const { revoked } = stubDownloadBrowser(t, () => {
+      if (stage === 'createElement') throw failure;
+      return anchor;
+    });
+    assert.throws(() => downloadText('synthetic.txt', 'synthetic payload'), (error) => error === failure);
+    assert.deepEqual(revoked, ['blob:synthetic-download'], 'a preparation failure must not leak the URL');
+    assert.equal(clicks, stage === 'click' ? 1 : 0, 'failed preparation never initiates the download');
+  });
+}

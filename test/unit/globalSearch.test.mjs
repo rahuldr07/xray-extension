@@ -1,9 +1,10 @@
 /* Behavioural tests for src/panel/models/globalSearch.ts. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { globalSearch as G, apiEntry, logEntry } from './harness.mjs';
+import { globalSearch as G, sessionIndex as I, apiEntry, logEntry } from './harness.mjs';
 
 const { searchEntries } = G;
+const { buildSessionIndex } = I;
 
 test('an empty or whitespace query returns nothing without error', () => {
   const all = [apiEntry()];
@@ -144,4 +145,73 @@ test('searchEntries skips absent fields rather than matching on "undefined"', ()
   assert.equal(searchEntries([bare], 'undefined').matches.length, 0);
   assert.equal(searchEntries([bare], 'null').matches.length, 0);
   assert.deepEqual(searchEntries([bare], 'anything'), { matches: [], error: null, truncated: false });
+});
+
+test('searchEntries can scope the scan to selected fields', () => {
+  const entry = apiEntry({
+    url: 'https://api.example.com/orders',
+    method: 'POST',
+    requestHeaders: { authorization: '[redacted]', 'x-trace': 'needle' },
+    requestBody: JSON.stringify({ needle: true }),
+    responseRaw: JSON.stringify({ result: 'needle' }),
+  });
+
+  assert.equal(searchEntries([entry], 'needle', { fields: ['responseBody'] }).matches[0].field, 'Response body');
+  assert.equal(searchEntries([entry], 'needle', { fields: ['requestHeaders'] }).matches[0].field, 'Request headers');
+  assert.equal(searchEntries([entry], 'needle', { fields: ['url'] }).matches.length, 0);
+  assert.equal(searchEntries([entry], 'needle', { fields: [] }).matches.length, 0);
+});
+
+test('field-scoped search preserves the existing cap and newest-first ordering', () => {
+  const entries = Array.from({ length: 205 }, (_, index) => apiEntry({ url: `https://x/${index}`, responseRaw: JSON.stringify({ needle: index }) }));
+  const result = searchEntries(entries, 'needle', { fields: ['responseBody'] });
+  assert.equal(result.matches.length, 200);
+  assert.equal(result.truncated, true);
+  assert.equal(result.matches[0].id, entries[204].id);
+  assert.equal(result.matches[0].field, 'Response body');
+});
+
+test('searchEntries reuses bounded indexed documents without stringifying bodies again', () => {
+  let calls = 0;
+  const entries = Array.from({ length: 500 }, (_, index) => apiEntry({
+    id: `indexed-${index}`,
+    responseRaw: { toJSON() { calls += 1; return { marker: index === 499 ? 'needle' : 'other' }; } },
+  }));
+  const index = buildSessionIndex(entries);
+  const afterBuild = calls;
+
+  assert.equal(searchEntries(entries, 'needle', { index }).matches.length, 1);
+  assert.equal(searchEntries(entries, 'needle', { index }).matches.length, 1);
+  assert.equal(calls, afterBuild);
+  assert.ok(index.searchDocuments.size <= 1000);
+});
+
+for (const count of [1001, 5000]) {
+  test(`explicit and implicit search cover all ${count} entries beyond the document cap`, () => {
+    const entries = Array.from({ length: count }, (_, i) => apiEntry({
+      id: `coverage-${i}`, url: `https://x/${i}`, responseRaw: JSON.stringify({ value: i === 0 ? 'oldest-needle' : 'ordinary' }),
+    }));
+    const index = buildSessionIndex(entries);
+    const uncached = buildSessionIndex([]);
+    for (const opts of [{}, { fields: ['responseBody'] }, { regex: true, caseSensitive: true, fields: ['body'] }]) {
+      const result = searchEntries(entries, 'oldest-needle', { ...opts, index });
+      assert.deepEqual(result.matches.map(match => match.id), [entries[0].id]);
+      assert.equal(result.matches[0].field, 'Response body');
+      assert.deepEqual(result, searchEntries(entries, 'oldest-needle', opts));
+      assert.deepEqual(result, searchEntries(entries, 'oldest-needle', { ...opts, index: uncached }));
+    }
+    for (const query of ['ordinary', 'absent']) {
+      assert.deepEqual(searchEntries(entries, query, { index }), searchEntries(entries, query, { index: uncached }));
+    }
+    assert.equal(index.searchDocuments.size, 1000);
+    assert.equal(uncached.searchDocuments.size, 0, 'a transient scan does not populate an unrelated index');
+  });
+}
+
+test('global search ignores an indexed document for a different entry object with the same ID', () => {
+  const original = apiEntry({ id: 'reused', responseRaw: '{"value":"before"}' });
+  const index = buildSessionIndex([original]);
+  const patched = { ...original, responseRaw: '{"value":"after"}' };
+  assert.equal(searchEntries([patched], 'after', { index }).matches[0]?.entry, patched);
+  assert.equal(searchEntries([patched], 'before', { index }).matches.length, 0);
 });

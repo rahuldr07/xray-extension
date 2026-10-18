@@ -10,11 +10,23 @@
 
 .xray-app-root *,
 .xray-hud * {
-  scrollbar-color: color-mix(in srgb, var(--xray-hint) 62%, transparent) rgba(var(--xray-bg-rgb), .44);
+  scrollbar-color: var(--xray-scroll-thumb, color-mix(in srgb, var(--xray-hint) 62%, transparent)) rgba(var(--xray-bg-rgb), .44);
   scrollbar-width: thin;
   /* Absorb overscroll inside the panel so scrolling a list/detail to its edge
      never chains through to the website behind an injected side panel or HUD. */
   overscroll-behavior: contain;
+}
+
+/* ...but anything nested inside a scroll region hands its overscroll up to that
+   region, which still contains it. Otherwise an inner element that is a scroll
+   container in name only (e.g. a tree with overflow-x:auto, whose overflow-y then
+   computes to auto) latches the wheel and nothing scrolls at all. */
+:is(.xray-console-stream, .xray-result-body, .xray-inspector-body, .xray-cell-stack-body,
+  .xray-virtual-list, .xray-detail, .xray-detail-panel, .xray-detail-content,
+  .xray-api-table-scroll, .xray-request-context-content, .xray-modal-body,
+  .xray-settings-content, .xray-export-rail, .xray-log-detail-body, .xray-logs-detail-body,
+  .xray-frames-list, .xray-command-list, .xray-gsearch-list) * {
+  overscroll-behavior: auto;
 }
 
 .xray-app-root *::-webkit-scrollbar,
@@ -32,7 +44,7 @@
 .xray-hud *::-webkit-scrollbar-thumb {
   border: 2px solid rgba(var(--xray-bg-rgb), .44);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--xray-hint) 72%, transparent);
+  background: var(--xray-scroll-thumb, color-mix(in srgb, var(--xray-hint) 72%, transparent));
 }
 
 .xray-app-root *::-webkit-scrollbar-thumb:hover,
@@ -156,7 +168,7 @@
 
 .xray-close-btn:hover {
   color: var(--xray-red, #ff5c7a);
-  background: color-mix(in srgb, var(--xray-red, #ff5c7a) 16%, transparent);
+  background: color-mix(in srgb, var(--xray-red, #ff5c7a) 10%, transparent);
 }
 
 /* The theme scope carries color tokens to the panel AND its sibling modals via
@@ -168,95 +180,148 @@
 /* Theme token blocks key off the theme class alone (present on both .xray-theme-scope
    and .xray-panel), so popups rendered outside .xray-panel inherit the active theme. */
 .xray-theme-operator {
-  --xray-bg: #0b0f14;
-  --xray-surface: #101720;
-  --xray-surface2: #151f2b;
-  --xray-surface3: #1b2836;
-  --xray-bg-rgb: 11, 15, 20;
-  --xray-surface-rgb: 16, 23, 32;
-  --xray-surface2-rgb: 21, 31, 43;
-  --xray-text-rgb: 216, 226, 239;
-  --xray-text: #d8e2ef;
-  --xray-subtext: #8fa1b7;
-  --xray-hint: #536274;
-  --xray-blue: #37d5ff;
-  --xray-mauve: #8b5cf6;
-  --xray-green: #38f29b;
-  --xray-yellow: #f6c76f;
-  --xray-red: #ff5c7a;
-  --xray-teal: #2ee6c5;
-  --xray-peach: #ff9e64;
-  --xray-border: rgba(80, 114, 148, .42);
-  --xray-operator-grid: rgba(55, 213, 255, .035);
+  /* Signal Gray / Instrument Amber — the compatibility `operator` ID is the
+     default persisted theme. */
+  --xray-bg: #181a1f;
+  --xray-surface: #202329;
+  --xray-surface2: #292e36;
+  --xray-surface3: #333943;
+  --xray-bg-rgb: 24, 26, 31;
+  --xray-surface-rgb: 32, 35, 41;
+  --xray-surface2-rgb: 41, 46, 54;
+  --xray-text-rgb: 243, 244, 246;
+  --xray-text: #f3f4f6;
+  --xray-subtext: #c1c7d0;
+  --xray-hint: #8e98a8;
+  --xray-border: rgba(142, 152, 168, .34);
+  --xray-border-control: #717b8a;
+  --xray-focus: #d99a2b;
+  --xray-selection: #4d3b1d;
+  --xray-hover: #2b3038;
+  --xray-active: #59421e;
+  --xray-disabled: #626a76;
+  --xray-accent-soft: #4d3b1d;
+  --xray-blue: #5aa9e6;
+  --xray-mauve: #b694d7;
+  --xray-green: #43b581;
+  --xray-yellow: #d99a2b;
+  --xray-red: #e8858d;
+  --xray-teal: #4fb3a4;
+  --xray-peach: #da9064;
+  --xray-pending: #d99a2b;
+  --xray-neutral: #8e98a8;
+  --xray-shadow: rgba(0, 0, 0, .38);
+  --xray-overlay: rgba(24, 26, 31, .74);
+  --xray-operator-grid: rgba(217, 154, 43, .035);
 }
 
 .xray-theme-dev-edition {
-  --xray-bg: #11131f;
-  --xray-surface: #171a2b;
-  --xray-surface2: #20243a;
-  --xray-surface3: #282d49;
-  --xray-bg-rgb: 17, 19, 31;
-  --xray-surface-rgb: 23, 26, 43;
-  --xray-surface2-rgb: 32, 36, 58;
-  --xray-text-rgb: 225, 231, 255;
-  --xray-text: #e1e7ff;
-  --xray-subtext: #a8b0cf;
-  --xray-hint: #6f789d;
-  --xray-blue: #75ddff;
-  --xray-mauve: #b18cff;
-  --xray-green: #62e6a8;
-  --xray-yellow: #ffd37a;
-  --xray-red: #ff6f91;
-  --xray-teal: #5fe3d0;
-  --xray-peach: #ffab70;
-  --xray-border: rgba(124, 138, 189, .36);
-  --xray-operator-grid: rgba(177, 140, 255, .04);
+  /* Harbor Instrument / Copper */
+  --xray-bg: #20252b;
+  --xray-surface: #282e35;
+  --xray-surface2: #343b44;
+  --xray-surface3: #414a55;
+  --xray-bg-rgb: 32, 37, 43;
+  --xray-surface-rgb: 40, 46, 53;
+  --xray-surface2-rgb: 52, 59, 68;
+  --xray-text-rgb: 238, 241, 243;
+  --xray-text: #eef1f3;
+  --xray-subtext: #c3cbd2;
+  --xray-hint: #9ba5af;
+  --xray-border: rgba(173, 184, 194, .35);
+  --xray-border-control: #7a8693;
+  --xray-focus: #c47b4c;
+  --xray-selection: #523a2c;
+  --xray-hover: #353d46;
+  --xray-active: #654632;
+  --xray-disabled: #697581;
+  --xray-accent-soft: #523a2c;
+  --xray-blue: #7cbcdb;
+  --xray-mauve: #c2abd8;
+  --xray-green: #75c39d;
+  --xray-yellow: #ddb66a;
+  --xray-red: #ec9fa2;
+  --xray-teal: #7bc0b8;
+  --xray-peach: #d9aa8b;
+  --xray-pending: #ddb66a;
+  --xray-neutral: #9ba5af;
+  --xray-shadow: rgba(0, 0, 0, .44);
+  --xray-overlay: rgba(32, 37, 43, .78);
+  --xray-operator-grid: rgba(196, 123, 76, .035);
 }
 
 .xray-theme-midnight {
-  --xray-bg: #05070a;
-  --xray-surface: #090d12;
-  --xray-surface2: #0f151d;
-  --xray-surface3: #151d29;
-  --xray-bg-rgb: 5, 7, 10;
-  --xray-surface-rgb: 9, 13, 18;
-  --xray-surface2-rgb: 15, 21, 29;
-  --xray-text-rgb: 215, 247, 255;
-  --xray-text: #d7f7ff;
-  --xray-subtext: #83a4ad;
-  --xray-hint: #49626b;
-  --xray-blue: #00e5ff;
-  --xray-mauve: #7c3aed;
-  --xray-green: #00ff95;
+  /* High Contrast — compatibility `midnight` ID. */
+  --xray-bg: #000000;
+  --xray-surface: #101010;
+  --xray-surface2: #1d1d1d;
+  --xray-surface3: #2b2b2b;
+  --xray-bg-rgb: 0, 0, 0;
+  --xray-surface-rgb: 16, 16, 16;
+  --xray-surface2-rgb: 29, 29, 29;
+  --xray-text-rgb: 255, 255, 255;
+  --xray-text: #ffffff;
+  --xray-subtext: #eeeeee;
+  --xray-hint: #c8c8c8;
+  --xray-border: #ffffff;
+  --xray-border-control: #ffffff;
+  --xray-focus: #ffd166;
+  --xray-selection: #5b4300;
+  --xray-hover: #2a2a2a;
+  --xray-active: #6c5000;
+  --xray-disabled: #a0a0a0;
+  --xray-accent-soft: #5b4300;
+  --xray-blue: #70c7ff;
+  --xray-mauve: #d4a8ff;
+  --xray-green: #75e6a8;
   --xray-yellow: #ffd166;
-  --xray-red: #ff3b6b;
-  --xray-teal: #00e5c7;
-  --xray-peach: #ff9e5e;
-  --xray-border: rgba(0, 229, 255, .28);
-  --xray-operator-grid: rgba(0, 229, 255, .045);
+  --xray-red: #ff9da3;
+  --xray-teal: #6de0d0;
+  --xray-peach: #ffd166;
+  --xray-pending: #ffd166;
+  --xray-neutral: #c8c8c8;
+  --xray-shadow: rgba(0, 0, 0, .7);
+  --xray-overlay: rgba(0, 0, 0, .86);
+  --xray-operator-grid: rgba(255, 209, 102, .08);
 }
 
 .xray-theme-light-lab {
-  --xray-bg: #edf3fb;
-  --xray-surface: #f8fbff;
-  --xray-surface2: #e6eef9;
-  --xray-surface3: #d9e5f5;
-  --xray-bg-rgb: 237, 243, 251;
-  --xray-surface-rgb: 248, 251, 255;
-  --xray-surface2-rgb: 230, 238, 249;
-  --xray-text-rgb: 23, 32, 51;
-  --xray-text: #172033;
-  --xray-subtext: #526173;
-  --xray-hint: #75869a;
-  --xray-blue: #006adc;
-  --xray-mauve: #7048e8;
-  --xray-green: #087f5b;
-  --xray-yellow: #8f6212;
-  --xray-red: #b5195a;
-  --xray-teal: #0b7285;
-  --xray-peach: #c2410c;
-  --xray-border: rgba(82, 97, 115, .28);
-  --xray-operator-grid: rgba(0, 106, 220, .035);
+  /* Paper Relay / Technical Light */
+  --xray-bg: #f7f5ef;
+  --xray-surface: #fffdf8;
+  --xray-surface2: #ece9df;
+  --xray-surface3: #dedbd1;
+  --xray-bg-rgb: 247, 245, 239;
+  --xray-surface-rgb: 255, 253, 248;
+  --xray-surface2-rgb: 236, 233, 223;
+  --xray-text-rgb: 40, 39, 34;
+  --xray-text: #282722;
+  --xray-subtext: #57544c;
+  --xray-hint: #6c675c;
+  --xray-border: rgba(75, 71, 61, .30);
+  --xray-border-control: #837d70;
+  --xray-focus: #9a6500;
+  --xray-selection: #f0dfba;
+  --xray-hover: #f0eee7;
+  --xray-active: #e5c98f;
+  --xray-disabled: #aaa59b;
+  --xray-accent-soft: #f0dfba;
+  --xray-blue: #2a6493;
+  --xray-mauve: #6e4f97;
+  --xray-green: #256c49;
+  --xray-yellow: #825500;
+  --xray-red: #a4383d;
+  --xray-teal: #1e6b66;
+  --xray-peach: #8e4d24;
+  --xray-pending: #825500;
+  --xray-neutral: #6c675c;
+  --xray-shadow: rgba(36, 34, 29, .18);
+  --xray-overlay: rgba(247, 245, 239, .88);
+  --xray-operator-grid: rgba(154, 101, 0, .04);
+  /* Composite wells (input, JSON, table head, status bar) lighten toward white
+     instead of greying toward black. */
+  --xray-sink: #ffffff;
+  --xray-scroll-thumb: color-mix(in srgb, var(--xray-hint) 74%, transparent);
 }
 
 .xray-theme-claude {
@@ -269,17 +334,79 @@
   --xray-surface2-rgb: 236, 234, 224;
   --xray-text-rgb: 35, 34, 31;
   --xray-text: #23221f;
-  --xray-subtext: #6b675f;
-  --xray-hint: #9a968c;
-  --xray-blue: #4a6fa5;
-  --xray-mauve: #8a5cc4;
-  --xray-green: #3f8a4f;
-  --xray-yellow: #8a6215;
-  --xray-red: #c0392b;
+  --xray-subtext: #5f5b53;
+  --xray-hint: #6d6960;
+  --xray-blue: #3d6197;
+  --xray-mauve: #6e44a4;
+  --xray-green: #2a6d38;
+  --xray-yellow: #765411;
+  --xray-red: #a33023;
   --xray-teal: #1c6b6b;
-  --xray-peach: #d97757;
+  --xray-peach: #8f4325;
   --xray-border: rgba(60, 55, 48, .18);
+  --xray-border-control: #817c72;
+  --xray-focus: #b84a24;
+  --xray-selection: #f0d9cb;
+  --xray-hover: #f3f1e9;
+  --xray-active: #e8c5b4;
+  --xray-disabled: #aaa59b;
+  --xray-accent-soft: #f0d9cb;
+  --xray-pending: #765411;
+  --xray-neutral: #6d6960;
+  --xray-shadow: rgba(35, 34, 31, .18);
+  --xray-overlay: rgba(240, 238, 230, .88);
   --xray-operator-grid: rgba(217, 119, 87, .05);
+  --xray-sink: #ffffff;
+  --xray-scroll-thumb: color-mix(in srgb, var(--xray-hint) 78%, transparent);
+}
+
+/* Semantic interaction roles keep keyboard and pointer states consistent across
+   presets, custom themes, sibling modals, and the HUD. */
+.xray-app-root :is(button, input, textarea, select, [tabindex]):focus-visible,
+.xray-hud :is(button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--xray-focus);
+  outline-offset: 2px;
+}
+
+.xray-panel {
+  box-shadow: -20px 0 80px var(--xray-shadow);
+}
+
+.xray-panel .xray-input,
+.xray-panel .xray-prompt input,
+.xray-panel .xray-prompt textarea,
+.xray-panel .xray-select {
+  border-color: var(--xray-border-control);
+}
+
+.xray-panel .xray-input:focus,
+.xray-panel .xray-prompt input:focus,
+.xray-panel .xray-prompt textarea:focus,
+.xray-panel .xray-select:focus {
+  border-color: var(--xray-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--xray-focus) 38%, transparent);
+}
+
+.xray-panel .xray-btn.primary,
+.xray-panel .xray-tab.active,
+.xray-panel .xray-chip.active,
+.xray-panel .xray-api-row.selected {
+  background: var(--xray-accent-soft);
+}
+
+.xray-panel .xray-btn:disabled,
+.xray-panel .xray-icon-btn:disabled,
+.xray-panel .xray-chip:disabled,
+.xray-panel .xray-select:disabled,
+.xray-panel .xray-input:disabled {
+  color: var(--xray-disabled);
+  border-color: color-mix(in srgb, var(--xray-disabled) 48%, transparent);
+  cursor: not-allowed;
+}
+
+.xray-panel .xray-modal-backdrop,
+.xray-panel + .xray-modal-backdrop {
+  background: var(--xray-overlay);
 }
 
 .xray-panel.xray-density-compact {
@@ -393,6 +520,12 @@
   box-shadow: 0 0 22px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 32%, transparent);
 }
 
+/* Bright accent gradients (amber, yellow) wash out a white glyph. */
+.xray-theme-operator .xray-brand-mark,
+.xray-theme-midnight .xray-brand-mark {
+  color: var(--xray-bg);
+}
+
 .xray-live-dot {
   width: 7px;
   height: 7px;
@@ -406,7 +539,6 @@
 }
 
 .xray-tabs,
-.xray-console-tabs,
 .xray-filter-chips {
   display: flex;
   align-items: center;
@@ -436,7 +568,6 @@
 }
 
 .xray-tab,
-.xray-mini-tab,
 .xray-btn,
 .xray-chip,
 .xray-icon-btn {
@@ -455,13 +586,11 @@
   gap: 6px;
   padding: 0 12px;
   border-radius: var(--xray-radius);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  font-size: calc(11px * var(--xray-density-scale, 1));
+  letter-spacing: 0;
+  font-size: calc(12px * var(--xray-density-scale, 1));
 }
 
 .xray-tab:hover,
-.xray-mini-tab:hover,
 .xray-btn:hover,
 .xray-chip:hover,
 .xray-icon-btn:hover {
@@ -470,7 +599,6 @@
 }
 
 .xray-tab.active,
-.xray-mini-tab.active,
 .xray-chip.active {
   color: var(--xray-text);
   border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 64%, transparent);
@@ -479,7 +607,6 @@
 }
 
 .xray-no-glow .xray-tab.active,
-.xray-no-glow .xray-mini-tab.active,
 .xray-no-glow .xray-chip.active,
 .xray-no-glow .xray-brand-mark,
 .xray-no-glow .xray-live-dot.on {
@@ -516,9 +643,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--xray-subtext);
-  font-size: calc(10px * var(--xray-density-scale, 1));
-  text-transform: uppercase;
-  letter-spacing: .08em;
+  font-size: calc(11px * var(--xray-density-scale, 1));
+  letter-spacing: .02em;
 }
 
 .xray-mode-switcher {
@@ -530,7 +656,7 @@
 .xray-mode-switcher .xray-icon-btn.active {
   color: var(--xray-accent, var(--xray-blue));
   border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
 .xray-body {
@@ -549,18 +675,13 @@
   background: var(--xray-surface);
 }
 
-.xray-mini-tab {
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 16px;
-  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 28%, transparent);
-  border-bottom: 2px solid transparent;
-}
-
-.xray-mini-tab.active {
-  border-bottom-color: var(--xray-blue);
+.xray-console-title {
+  min-width: 0;
+  padding: 0 12px;
+  color: var(--xray-text);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
 }
 
 .xray-toolbar {
@@ -587,7 +708,7 @@
 .xray-btn.primary {
   color: var(--xray-accent, var(--xray-blue));
   border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
 }
 
 .xray-btn.danger {
@@ -604,7 +725,7 @@
 
 .xray-filterbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, auto);
   gap: 8px;
   padding: 12px;
   background: var(--xray-surface);
@@ -650,6 +771,14 @@
   row-gap: 5px;
 }
 
+.xray-console-workspace .xray-filter-chips {
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  white-space: nowrap;
+}
+
 .xray-filter-chips.compact {
   gap: 6px;
   flex-wrap: wrap;
@@ -672,64 +801,11 @@
   font-size: 10px;
 }
 
-/* Grows to fill the body, mirroring its sibling .xray-console-stream-wrap. It used
-   to be pinned at max-height: min(44vh, 380px) with no flex-grow, so at 1600x1000
-   the workspace ended 332px above the panel's bottom edge while the request list was
-   capped to five of twenty rows. The prompt, snippet bar and status bar keep their
-   space on their own -- they are auto-sized siblings, so the cap was never what
-   protected them. */
-.xray-network {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 160px;
-  flex: 1 1 auto;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
-  background: var(--xray-bg);
-  overflow: hidden;
-}
-
-.xray-network-head,
-.xray-network-row {
-  display: grid;
-  /* Status · Method · Name · Type · Size · Waterfall — the waterfall takes the
-     remaining flexible width (2fr) so wide rows have no dead gap. */
-  grid-template-columns: 52px 52px minmax(120px, 1.3fr) 76px 66px minmax(140px, 2fr);
-  align-items: center;
-  gap: 10px;
-}
-
-.xray-network-head {
-  height: 28px;
-  padding: 0 12px;
-  color: var(--xray-mauve);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  font-size: 10px;
-  font-weight: 900;
-}
-
 .xray-virtual-list {
   position: relative;
   overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
-}
-
-.xray-network-row {
-  min-height: 32px;
-  padding: 0 12px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.xray-network-row:hover {
-  background: rgba(var(--xray-text-rgb), .04);
-}
-
-.xray-network-row.selected {
-  background: color-mix(in srgb, var(--xray-accent) 15%, transparent);
-  box-shadow: inset 2px 0 0 var(--xray-accent, var(--xray-blue));
 }
 
 .xray-method {
@@ -810,15 +886,237 @@
 
 .xray-console-stream-wrap {
   position: relative;
+  min-height: 28px;
+  flex: 1 1 28px;
+  display: flex;
+}
+
+.xray-console-workspace {
   min-height: 0;
   flex: 1;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* The inspector docks by the Console's own width (spec C7), not the panel's. */
+  container: xray-console / inline-size;
+}
+
+/* ── Console inspector (spec C6–C7) ─────────────────────────────────────────
+   Below 900 px of Console width the inspector is a full-height overlay with
+   Back; at ≥ 900 px it docks right of the stream, resizable by PaneDivider.
+   ConsoleWorkspace reads --xray-console-docked back, so the semantics (dialog
+   vs complementary) always match what this query paints. */
+.xray-console-layout {
+  --xray-console-docked: 0;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.xray-console-column {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.xray-inspector-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.xray-inspector-pane > .xray-pane-divider {
+  left: -5px;
+  right: auto;
+}
+
+@container xray-console (min-width: 900px) {
+  .xray-console-layout {
+    --xray-console-docked: 1;
+  }
+
+  .xray-inspector-pane {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    flex: 0 0 clamp(320px, 38%, 640px);
+    border-left: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
+  }
+
+  .xray-console-layout[data-split] > .xray-console-column {
+    flex: 0 0 var(--xray-console-split);
+  }
+
+  .xray-console-layout[data-split] > .xray-inspector-pane {
+    flex: 1 1 0;
+    min-width: 320px;
+  }
+}
+
+.xray-inspector {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--xray-text);
+  background: var(--xray-surface);
+}
+
+.xray-inspector:focus-visible {
+  outline: none;
+}
+
+.xray-inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent);
+}
+
+.xray-inspector-back {
+  flex: 0 0 auto;
+}
+
+.xray-inspector-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.xray-inspector-kicker {
+  color: var(--xray-subtext);
+  font: 800 10px/1.3 var(--xray-font);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.xray-inspector-label {
+  overflow: hidden;
+  font: 700 12px/1.4 var(--xray-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-inspector-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+}
+
+.xray-inspector-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.xray-inspector-filter {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.xray-inspector-filter .xray-input {
+  height: 30px;
+  font-size: 12px;
+}
+
+.xray-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 10px 8px;
+}
+
+.xray-inspector-body .xray-result-json {
+  margin: 0;
+}
+
+.xray-inspector-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent);
+  background: rgba(var(--xray-surface2-rgb), .5);
+}
+
+.xray-inspector-path {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  font: 700 12px/1.5 var(--xray-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-inspector-path.is-empty {
+  color: var(--xray-subtext);
+  font-weight: 600;
+}
+
+.xray-inspector-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.xray-inspector-actions .xray-btn:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+/* C6: a big result in its cell — summary line and Open in inspector. */
+.xray-result-big {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent);
+  border-radius: var(--xray-radius-sm);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-result-summary {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  font: 600 11.5px/1.5 var(--xray-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-result-inspect {
+  flex: 0 0 auto;
+}
+
+.xray-console-inspect {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 22px;
 }
 
 /* overflow: hidden here made the stream wheel-unscrollable — the virtualizer
    could move it programmatically but the user could not. */
 .xray-console-stream {
-  min-height: 0;
+  min-height: 28px;
   flex: 1;
   background: var(--xray-surface);
   overflow-y: auto;
@@ -833,17 +1131,30 @@
   align-items: center;
   gap: 5px;
   padding: 5px 12px;
-  border: 1px solid rgba(var(--xray-accent-rgb), .6);
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 60%, transparent);
   border-radius: 999px;
   color: var(--xray-text);
   background: rgba(var(--xray-surface2-rgb), .95);
   box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
   cursor: pointer;
   font: 800 11px/1 var(--xray-font);
+  /* "N new messages · Jump to latest" stays one line, even at 420 px. */
+  white-space: nowrap;
+  max-width: calc(100% - 24px);
 }
 
 .xray-newmsg-pill:hover {
-  background: rgba(var(--xray-accent-rgb), .2);
+  /* Opaque: the pill floats over stream text. */
+  background: color-mix(in srgb, var(--xray-accent) 20%, rgb(var(--xray-surface2-rgb)));
+}
+
+.xray-newmsg-pill:focus-visible {
+  outline: 2px solid var(--xray-accent);
+  outline-offset: 2px;
+}
+
+.xray-newmsg-sep {
+  opacity: .6;
 }
 
 .xray-repeat-badge {
@@ -851,8 +1162,8 @@
   margin-left: 8px;
   padding: 1px 7px;
   border-radius: 999px;
-  border: 1px solid rgba(var(--xray-accent-rgb), .45);
-  background: rgba(var(--xray-accent-rgb), .14);
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
   color: var(--xray-text);
   font-size: 10px;
   font-weight: 800;
@@ -864,7 +1175,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--xray-yellow) 50%, transparent);
-  background: color-mix(in srgb, var(--xray-yellow) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
   color: var(--xray-yellow);
   font-size: 10px;
   font-weight: 800;
@@ -918,6 +1229,26 @@
   border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 16%, transparent);
 }
 
+/* Glyph + message: the row's expand toggle, a sibling of the aside's controls. */
+.xray-console-toggle {
+  display: grid;
+  grid-column: 1 / 3;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  border-radius: var(--xray-radius-sm);
+}
+
+.xray-console-toggle[role="button"] {
+  cursor: pointer;
+}
+
+.xray-console-toggle:focus-visible {
+  outline: 2px solid var(--xray-accent);
+  outline-offset: 1px;
+}
+
 /* Right-side cell: optional source location + timestamp. Timestamps read as
    optional clutter (Firefox/Chrome default them off), so keep them quiet and
    reveal on row hover; the source location stays for error provenance. */
@@ -969,7 +1300,7 @@
 }
 
 .xray-console-row.result {
-  border-left: 2px solid rgba(var(--xray-accent-rgb), .55);
+  border-left: 2px solid color-mix(in srgb, var(--xray-accent) 55%, transparent);
   background: color-mix(in srgb, var(--xray-accent) 5%, transparent);
 }
 
@@ -1019,15 +1350,391 @@
   background: rgba(var(--xray-surface-rgb), .72);
 }
 
-.xray-prompt {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto auto;
-  gap: 8px;
+/* ── Command cells (spec C1–C5): a command and its result as one card. ── */
+.xray-command-cell {
+  margin: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--xray-mauve) 70%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-surface) 90%, var(--xray-mauve) 4%);
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-command-cell.is-error {
+  border-left-color: var(--xray-red);
+}
+
+.xray-command-cell.is-cancelled {
+  border-left-color: color-mix(in srgb, var(--xray-hint) 70%, transparent);
+}
+
+.xray-cell-head {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 6px 4px 8px;
+}
+
+.xray-cell-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--xray-mauve);
+}
+
+.xray-cell-command {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  font: 700 12px/1.5 var(--xray-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-command-cell.is-scalar .xray-cell-command {
+  flex: 0 1 auto;
+}
+
+.xray-cell-lines {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: color-mix(in srgb, var(--xray-hint) 18%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.xray-cell-tail {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.xray-cell-time {
+  color: var(--xray-subtext);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.xray-cell-actions,
+.xray-result-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.xray-result-actions {
+  margin-left: auto;
+}
+
+.xray-cell-action,
+.xray-result-action {
+  width: 26px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.xray-cell-action:disabled,
+.xray-result-action:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.xray-cell-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.xray-cell-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 46%, transparent);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px rgba(var(--xray-bg-rgb), .28);
+}
+
+.xray-cell-menu.is-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.xray-cell-menu .xray-menu-item:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+/* Each virtual row is its own stacking context (transform); lift the one whose
+   menu is open so the menu paints over its neighbours. */
+.xray-console-stream [data-index]:has(.xray-cell-menu) {
+  z-index: 5;
+}
+
+.xray-cell-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 10px 8px 30px;
+  color: var(--xray-subtext);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.xray-cell-error {
+  display: grid;
+  gap: 6px;
+  padding: 2px 10px 10px 30px;
+}
+
+.xray-cell-error-line,
+.xray-cell-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.xray-cell-error-line {
+  color: var(--xray-red);
+  font: 700 12px/1.5 var(--xray-font);
+}
+
+.xray-cell-error-line > svg,
+.xray-cell-hint > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.xray-cell-error-message {
+  min-width: 0;
+  color: var(--xray-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.xray-cell-hint {
+  color: var(--xray-subtext);
+  font-size: 12px;
+}
+
+.xray-cell-hint > svg {
+  color: var(--xray-yellow);
+}
+
+.xray-cell-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  color: var(--xray-subtext);
+  background: transparent;
+  font: 700 11px/1.4 var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-cell-stack:hover,
+.xray-cell-stack:focus-visible {
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-hint) 16%, transparent);
+}
+
+.xray-cell-stack-body {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.xray-cell-variable {
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 45%, transparent);
+  border-radius: 999px;
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+  font: 800 11px/1.5 var(--xray-font);
+}
+
+/* Scalar results: one compact line inside the cell header. */
+.xray-result-inline {
+  display: inline-flex;
+  flex: 1 1 140px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.xray-result-arrow {
+  color: var(--xray-subtext);
+}
+
+.xray-result-scalar {
+  min-width: 0;
+  overflow: hidden;
+  font: 700 12px/1.5 var(--xray-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-result-badge {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.xray-result {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 10px 10px 30px;
+}
+
+.xray-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.xray-result-views {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+  border-radius: 999px;
+}
+
+.xray-result-view-btn {
+  min-height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: transparent;
+  font: 800 11px/1 var(--xray-font);
+  cursor: pointer;
+  transition: background var(--xray-dur-fast) var(--xray-ease), color var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-result-view-btn:hover {
+  color: var(--xray-text);
+}
+
+.xray-result-view-btn[aria-pressed="true"] {
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-accent) 22%, transparent);
+}
+
+.xray-result-body {
+  min-width: 0;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 26%, transparent);
+  border-radius: var(--xray-radius-sm);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-result-table-wrap {
+  min-width: 0;
+}
+
+.xray-table.xray-result-table {
+  width: auto;
+  min-width: min(100%, 320px);
+}
+
+.xray-result-table th {
+  position: sticky;
+  top: 0;
+}
+
+.xray-result-table td {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--xray-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-result-more {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.xray-result-text,
+.xray-result-json {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 600 11px/1.5 var(--xray-font);
+}
+
+.xray-result-body .xray-json-tree {
+  padding: 4px 0;
+}
+
+/* The result body already draws the frame; drop the JSON skin's second border. */
+.xray-panel .xray-result-body .xray-json {
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-result-view-btn { transition: none; }
+}
+
+.xray-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
   padding: 8px 10px;
   border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: var(--xray-surface);
   flex-shrink: 0;
+}
+
+.xray-prompt-command-row,
+.xray-prompt-context-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-prompt-command-row > svg {
+  flex: 0 0 auto;
+}
+
+.xray-prompt-command-row textarea {
+  flex: 1 1 auto;
+}
+
+.xray-prompt-context-row {
+  overflow: hidden;
 }
 
 .xray-prompt input,
@@ -1043,24 +1750,6 @@
   resize: none;
   overflow-y: auto;
   max-height: 110px;
-}
-
-.xray-context-chip {
-  max-width: 260px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--xray-blue) 50%, transparent);
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: color-mix(in srgb, var(--xray-blue) 12%, transparent);
-  cursor: pointer;
-  font: inherit;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
 }
 
 .xray-statusbar {
@@ -1108,6 +1797,11 @@
   /* Split is the MAX of a minmax, never a fixed track: the list caps at the
      dragged width but yields down to its min when the panel shrinks, so a wide
      split can't starve the detail pane. */
+  /* S24: nothing open -> the list takes the full width. */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.xray-split.detail-open {
   grid-template-columns: minmax(240px, var(--xray-logs-split, 42%)) minmax(300px, 1fr);
 }
 
@@ -1126,16 +1820,6 @@
   height: auto;
 }
 
-.xray-list-controls {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--xray-mauve) 10%, transparent), transparent 36%),
-    var(--xray-surface);
-}
-
 .xray-api-summary {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(180px, 1.4fr);
@@ -1145,7 +1829,6 @@
   background: var(--xray-bg);
 }
 
-.xray-api-metric,
 .xray-api-top-endpoint {
   min-width: 0;
   min-height: 44px;
@@ -1162,17 +1845,6 @@
   min-height: 36px;
 }
 
-.xray-api-metric {
-  grid-template-columns: 18px minmax(0, 1fr);
-}
-
-.xray-api-metric svg {
-  grid-row: 1 / 3;
-  align-self: center;
-  color: var(--xray-blue);
-}
-
-.xray-api-metric span,
 .xray-api-top-endpoint span {
   min-width: 0;
   color: var(--xray-hint);
@@ -1185,7 +1857,6 @@
   letter-spacing: .07em;
 }
 
-.xray-api-metric strong,
 .xray-api-top-endpoint strong {
   min-width: 0;
   color: var(--xray-text);
@@ -1193,21 +1864,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-}
-
-.xray-api-metric.ok strong,
-.xray-api-metric.ok svg {
-  color: var(--xray-green);
-}
-
-.xray-api-metric.warn strong,
-.xray-api-metric.warn svg {
-  color: var(--xray-yellow);
-}
-
-.xray-api-metric.error strong,
-.xray-api-metric.error svg {
-  color: var(--xray-red);
 }
 
 .xray-api-workspace {
@@ -1294,114 +1950,80 @@
   background: rgba(var(--xray-bg-rgb), .42);
 }
 
-.xray-api-collection-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
-  background:
-    radial-gradient(circle at 20% -20%, color-mix(in srgb, var(--xray-blue) 15%, transparent), transparent 42%),
-    rgba(var(--xray-surface-rgb), .88);
-}
-
-.xray-api-collection-title {
+/* S16: one summary line ("10 requests · 1 error · 2 slow · avg 499ms · 27.6kb")
+   replaces the summary cards; error/slow counts are filter shortcuts. */
+.xray-api-summary-line {
+  flex-shrink: 0;
   min-width: 0;
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px 6px;
+  overflow: hidden;
+  padding: 5px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-surface-rgb), .88);
+  font: 600 12px/18px var(--xray-font);
+  white-space: nowrap;
 }
 
-.xray-api-collection-title span,
-.xray-pane-kicker,
-.xray-api-summary-pill span {
+.xray-api-summary-line > * {
+  flex: 0 0 auto;
+}
+
+.xray-api-summary-line .xray-api-request-count {
+  color: var(--xray-text);
+  font-weight: 800;
+}
+
+.xray-api-summary-sep {
   color: var(--xray-hint);
+}
+
+.xray-api-summary-muted {
+  color: var(--xray-subtext);
+}
+
+/* Low-priority stats give way first in a narrow list pane. */
+.xray-api-summary-stat {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xray-api-summary-link {
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.xray-api-summary-link.errors {
+  color: var(--xray-red);
+}
+
+.xray-api-summary-link.slow {
+  color: var(--xray-yellow);
+}
+
+.xray-api-summary-link:hover,
+.xray-api-summary-link.active {
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.xray-pane-kicker {
+  color: var(--xray-subtext);
   font-size: 9px;
   font-weight: 900;
   letter-spacing: .08em;
   text-transform: uppercase;
-}
-
-.xray-api-collection-title strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--xray-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.xray-api-env-pill {
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--xray-teal) 30%, transparent);
-  border-radius: var(--xray-radius);
-  color: var(--xray-teal);
-  background: color-mix(in srgb, var(--xray-teal) 8%, transparent);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.xray-api-stats-collapsible {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-
-/* The stats collapsible carries its own header, so drop the strip's padding. */
-.xray-api-stats-collapsible .xray-collapsible-header {
-  padding: 2px 0 6px;
-}
-
-.xray-api-summary-strip {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.xray-api-summary-pill {
-  min-width: 0;
-  height: 38px;
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-content: center;
-  align-items: center;
-  gap: 1px 6px;
-  padding: 5px 7px;
-  border: 1px solid color-mix(in srgb, var(--xray-hint) 30%, transparent);
-  border-radius: var(--xray-radius);
-  background: rgba(var(--xray-bg-rgb), .66);
-}
-
-.xray-api-summary-pill svg {
-  grid-row: 1 / 3;
-  color: var(--xray-blue);
-}
-
-.xray-api-summary-pill strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--xray-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-.xray-api-summary-pill.ok svg,
-.xray-api-summary-pill.ok strong {
-  color: var(--xray-green);
-}
-
-.xray-api-summary-pill.warn svg,
-.xray-api-summary-pill.warn strong {
-  color: var(--xray-yellow);
-}
-
-.xray-api-summary-pill.error svg,
-.xray-api-summary-pill.error strong {
-  color: var(--xray-red);
 }
 
 .xray-api-main {
@@ -1421,31 +2043,63 @@
   bottom: auto;
 }
 
+/* S17: one toolbar row. The search grows; the filter group (quick chips, active
+   filters, Clear filters, the Filters & Sort toggle) sits beside it and drops
+   under it as a unit when the list pane is narrow. The secondary panel always
+   takes its own full-width line. */
 .xray-api-toolbar {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .72);
 }
 
 .xray-api-search {
+  flex: 1 1 220px;
   min-width: 0;
-  height: 36px;
-  align-self: start;
+  height: 32px;
 }
 
 .xray-api-search .xray-input {
-  height: 36px;
-  font-size: 11px;
+  height: 32px;
+  font-size: 12px;
 }
 
-.xray-api-primary-filters {
+.xray-api-filter-row {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-api-primary-filters,
+.xray-api-active-filters {
   justify-content: flex-start;
   min-width: 0;
   flex-wrap: wrap;
+  gap: 4px;
   overflow: visible;
+}
+
+.xray-api-filters-collapsible {
+  display: flex;
+  min-width: 0;
+}
+
+.xray-api-filters-toggle,
+.xray-api-clear-filters {
+  width: 30px;
+  height: 30px;
+}
+
+.xray-api-secondary-panel {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .xray-api-secondary-controls {
@@ -1464,12 +2118,13 @@
   text-transform: uppercase;
 }
 
+/* S18 single-line rows: method | path · flags · meta | status | bar + ms | actions. */
 .xray-api-table-head,
 .xray-api-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px 76px 66px;
+  grid-template-columns: 46px minmax(0, 1fr) 40px 84px auto;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .xray-api-table-head {
@@ -1496,8 +2151,8 @@
 
 .xray-api-row {
   width: 100%;
-  min-height: 68px;
-  padding: 9px 10px;
+  min-height: 44px;
+  padding: 0 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 18%, transparent);
   color: var(--xray-text);
   background: transparent;
@@ -1554,8 +2209,42 @@
 
 .xray-api-path-cell {
   min-width: 0;
-  display: grid;
-  gap: 4px;
+  height: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 8px 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* One visible line, by priority: the path always stays on it (shrinking with an
+   ellipsis only when it alone is too long); flags and then the dimmed meta
+   (host · source · size · time) join it only when they fit, otherwise they wrap
+   to the clipped second line instead of showing as unreadable stubs. Errors and
+   slow calls still read from the status colour, the bar and the row edge. */
+.xray-api-path-cell > .xray-path,
+.xray-api-path-cell > .xray-entry-meta {
+  line-height: 20px;
+}
+
+.xray-api-path-cell > .xray-path {
+  flex: 0 1 auto;
+}
+
+.xray-api-path-cell > .xray-api-flags {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.xray-api-path-cell > .xray-entry-meta {
+  flex: 1 1 14ch;
+  min-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 .xray-api-flags {
@@ -1630,7 +2319,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
   opacity: .62;
   transition: opacity .15s ease;
 }
@@ -1659,7 +2348,7 @@
 .xray-icon-btn.active {
   color: var(--xray-accent, var(--xray-blue));
   border-color: color-mix(in srgb, var(--xray-accent) 42%, transparent);
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
 .xray-request-context-pane {
@@ -1796,10 +2485,10 @@
   width: 100%;
   min-height: 58px;
   display: grid;
-  grid-template-columns: 10px 50px 48px minmax(0, 1fr) 92px auto 30px;
+  grid-template-columns: 52px 76px minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 0 10px;
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 20%, transparent);
   color: var(--xray-text);
@@ -1827,28 +2516,6 @@
   background-image: linear-gradient(90deg, color-mix(in srgb, var(--xray-yellow) 8%, transparent), transparent 45%);
 }
 
-.xray-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--xray-hint);
-}
-
-.xray-status-dot.ok {
-  background: var(--xray-green);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-green) 12%, transparent);
-}
-
-.xray-status-dot.warn {
-  background: var(--xray-yellow);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-yellow) 12%, transparent);
-}
-
-.xray-status-dot.error {
-  background: var(--xray-red);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-red) 12%, transparent);
-}
-
 .xray-entry-main {
   min-width: 0;
   display: grid;
@@ -1873,7 +2540,6 @@
   font-size: 10px;
 }
 
-.xray-count-pill,
 .xray-pin {
   height: 24px;
   display: inline-flex;
@@ -1892,6 +2558,16 @@
   width: 26px;
   padding: 0;
   color: var(--xray-hint);
+  cursor: pointer;
+  transition: color var(--xray-dur-fast, .12s) var(--xray-ease, ease),
+              border-color var(--xray-dur-fast, .12s) var(--xray-ease, ease),
+              background-color var(--xray-dur-fast, .12s) var(--xray-ease, ease);
+}
+
+.xray-pin:hover {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
 }
 
 .xray-pin.active {
@@ -1906,10 +2582,6 @@
   overflow: auto;
   padding: 12px;
   background: var(--xray-surface);
-}
-
-.xray-mobile-detail-panel {
-  display: none;
 }
 
 .xray-request-detail {
@@ -2095,7 +2767,7 @@
 .xray-action-btn.primary {
   color: var(--xray-accent, var(--xray-blue));
   border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 46%, transparent);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
 }
 
 .xray-operation-groups {
@@ -2291,6 +2963,19 @@
   z-index: 2147483647;
 }
 
+/* Receipts are App siblings of modal backdrops, and must remain actionable while
+   a modal is open without displacing the permanently mounted live region. */
+.xray-toast-region {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483648;
+  pointer-events: none;
+}
+
+.xray-toast-region .xray-toast {
+  pointer-events: auto;
+}
+
 .xray-modal {
   width: min(820px, 92vw);
   max-height: min(82vh, 100%);
@@ -2299,10 +2984,69 @@
   overflow: hidden;
 }
 
+.xray-modal {
+  /* One body size (12px) and one hint size (11px) for every modal; headers stay 13px. */
+  color: var(--xray-text);
+  font-family: var(--xray-font);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .xray-modal h3 {
   margin: 0;
   color: var(--xray-text);
   font-size: 13px;
+}
+
+.xray-modal-hint {
+  margin: 0;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.xray-modal-eyebrow {
+  color: var(--xray-subtext);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+
+.xray-modal-head > div {
+  min-width: 0;
+}
+
+.xray-modal-head h3,
+.xray-modal-head .xray-modal-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The title block gives way, never the icon or the close button. */
+.xray-modal-title-icon,
+.xray-modal-head > .xray-icon-btn {
+  flex: 0 0 auto;
+}
+
+/* Modal form fields: the global .xray-input reserves 38px for a leading icon, which
+   only .xray-search wrappers draw. */
+.xray-modal .xray-input {
+  padding-left: 12px;
+}
+
+.xray-modal .xray-search .xray-input {
+  padding-left: 38px;
+}
+
+.xray-modal textarea.xray-input {
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.5;
 }
 
 .xray-modal-title-icon {
@@ -2314,11 +3058,167 @@
   color: var(--xray-accent, var(--xray-blue));
   border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 28%, transparent);
   border-radius: var(--xray-radius);
-  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 11%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
 }
 
 .xray-export-modal {
   width: min(980px, 94vw);
+  /* Definite height so the preview can fill the body instead of collapsing. */
+  height: min(82vh, 760px);
+  /* The modal is its own size container: the narrow layout follows the modal's width
+     (L5), not the window's. Its children query it by name; the panel's own
+     container is a sibling of the modal and never applies here. */
+  container-type: inline-size;
+  container-name: xray-export;
+  --xray-export-control-h: 26px;
+}
+
+.xray-compare-modal {
+  width: min(1100px, 100%);
+}
+
+.xray-compare-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.xray-compare-selectors,
+.xray-compare-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.xray-compare-selectors label,
+.xray-compare-values > div {
+  min-width: 0;
+}
+
+.xray-compare-selectors label {
+  display: grid;
+  gap: 6px;
+  color: var(--xray-subtext);
+}
+
+.xray-compare-selectors select {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-compare-result {
+  font-weight: 700;
+}
+
+.xray-compare-result.changed {
+  /* Raw --xray-yellow is ~3.6:1 on custom light themes; mixing toward text keeps >=4.5:1 everywhere. */
+  color: color-mix(in srgb, var(--xray-yellow) 50%, var(--xray-text));
+}
+
+.xray-compare-result.equal {
+  color: var(--xray-subtext);
+  font-weight: 400;
+}
+
+.xray-compare-result.unavailable {
+  color: var(--xray-subtext);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.xray-compare-equal-toggle {
+  margin-top: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--xray-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.xray-compare-equal-toggle:hover {
+  text-decoration: underline;
+}
+
+.xray-compare-section {
+  margin-top: 20px;
+}
+
+.xray-compare-section h4 {
+  margin: 0 0 8px;
+}
+
+.xray-compare-notice {
+  padding: 10px 12px;
+  border-left: 2px solid var(--xray-yellow);
+  color: var(--xray-subtext);
+  background: color-mix(in srgb, var(--xray-yellow) 7%, transparent);
+  overflow-wrap: anywhere;
+}
+
+ul.xray-compare-notice {
+  padding-left: 28px;
+}
+
+.xray-compare-table {
+  table-layout: fixed;
+}
+
+.xray-compare-table th,
+.xray-compare-table td {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.xray-compare-table small {
+  display: block;
+  color: var(--xray-subtext);
+}
+
+.xray-compare-text {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.xray-compare-modal .xray-json {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.xray-compare-captured {
+  margin-top: 10px;
+}
+
+.xray-compare-captured summary {
+  cursor: pointer;
+  color: var(--xray-subtext);
+}
+
+.xray-detail-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+@media (max-width: 560px) {
+  .xray-compare-selectors,
+  .xray-compare-values {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xray-compare-table th,
+  .xray-compare-table td {
+    padding: 5px 4px;
+  }
 }
 
 .xray-modal-head,
@@ -2341,15 +3241,183 @@
 
 .xray-modal-body {
   min-height: 0;
+  flex: 1 1 auto;
   overflow: auto;
   padding: 12px;
+}
+
+/* Footer: [meta/status] ··· [secondary … primary]. Buttons never wrap their label. */
+.xray-modal-foot .xray-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.xray-modal-foot-meta {
+  min-width: 0;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.xray-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xray-toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.xray-toggle-field.disabled {
+  cursor: not-allowed;
+  color: var(--xray-disabled);
+}
+
+/* Settings toggle look on a real checkbox. */
+.xray-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 20px;
+  flex: 0 0 auto;
+  position: relative;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--xray-surface2);
+  cursor: inherit;
+}
+
+.xray-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--xray-hint);
+  transition: transform .15s ease, background .15s ease;
+}
+
+.xray-switch:checked {
+  background: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-switch:checked::after {
+  transform: translateX(16px);
+  background: var(--xray-bg);
+}
+
+.xray-switch:disabled {
+  opacity: .5;
+}
+
+.xray-switch:focus-visible {
+  outline: 2px solid var(--xray-accent, var(--xray-blue));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-switch::after { transition: none; }
+}
+
+.xray-btn.xray-btn-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+/* AI destination + model, one compact line at the top of AI modals. */
+.xray-ai-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 30%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 8%, transparent);
+  font-size: 11px;
+}
+
+.xray-ai-banner strong {
+  color: var(--xray-text);
+}
+
+.xray-ai-banner span {
+  min-width: 0;
+  color: var(--xray-subtext);
+  overflow-wrap: anywhere;
+}
+
+.xray-prompt-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xray-prompt-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-prompt-preview-code {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 45%, transparent);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface2-rgb), .5);
+  color: var(--xray-text);
+  font: 600 11px/1.55 var(--xray-font);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.xray-prompt-preview-code:focus-visible {
+  outline: 2px solid var(--xray-accent, var(--xray-blue));
+  outline-offset: 1px;
+}
+
+.xray-finding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xray-finding-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xray-finding-list li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.xray-finding-list-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .xray-modal-subtitle,
 .xray-export-subtitle {
   max-width: 520px;
   margin-top: 2px;
-  color: var(--xray-hint);
+  color: var(--xray-subtext);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2366,53 +3434,74 @@
 .xray-export-body {
   min-height: 0;
   flex: 1;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
 }
 
 .xray-export-rail {
-  min-height: 0;
+  flex: 0 0 auto;
+  max-height: 46%;
   overflow: auto;
-  padding: 10px;
-  border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .55);
 }
 
 .xray-export-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+/* The scope switch uses the same control height as the format chips (L6). */
+.xray-export-mode .xray-chip {
+  height: var(--xray-export-control-h);
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.xray-export-select {
+  display: none;
+  width: 100%;
+  margin-bottom: 6px;
 }
 
 .xray-export-group {
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .xray-export-group-label {
-  margin: 0 0 6px;
+  padding-top: 5px;
   color: var(--xray-hint);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.xray-export-group-items {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .xray-export-format {
-  width: 100%;
-  min-height: 38px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  height: var(--xray-export-control-h);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   border-radius: var(--xray-radius);
-  padding: 0 10px;
+  padding: 0 8px;
   color: var(--xray-subtext);
   background: transparent;
   cursor: pointer;
-  font: 800 11px/1.2 var(--xray-font);
+  font: 600 11px/1.2 var(--xray-font);
   text-align: left;
 }
 
@@ -2423,8 +3512,8 @@
 
 .xray-export-format.active {
   color: var(--xray-text);
-  border-color: color-mix(in srgb, var(--xray-blue) 55%, transparent);
-  background: color-mix(in srgb, var(--xray-blue) 13%, transparent);
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 13%, transparent);
 }
 
 .xray-export-format:disabled {
@@ -2434,11 +3523,19 @@
 
 .xray-export-format small {
   color: var(--xray-hint);
-  font-size: 9px;
-  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.xray-export-format.active small {
+  color: var(--xray-subtext);
+}
+
+.xray-export-import {
+  border-style: dashed;
 }
 
 .xray-export-preview {
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -2457,7 +3554,7 @@
 .xray-export-preview-head h3 {
   margin: 0;
   color: var(--xray-text);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .xray-export-preview-head p {
@@ -2466,24 +3563,47 @@
   font-size: 11px;
 }
 
+.xray-export-preview-head .xray-export-privacy {
+  color: var(--xray-subtext);
+}
+
+/* L5: below 640px of modal width the format rail becomes one grouped select above a
+   full-height preview. Import stays reachable as the only chip left in the rail. */
+@container xray-export (max-width: 639px) {
+  .xray-export-select {
+    display: block;
+  }
+
+  .xray-export-rail {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .xray-export-group-label,
+  .xray-export-format:not(.xray-export-import) {
+    display: none;
+  }
+
+  .xray-export-group {
+    display: block;
+    margin-bottom: 0;
+  }
+
+  .xray-export-group:not(:has(.xray-export-import)) {
+    display: none;
+  }
+
+  .xray-export-preview {
+    min-height: 0;
+  }
+}
+
 .xray-export-code {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 12px;
   background: rgba(var(--xray-bg-rgb), .54);
-}
-
-.xray-textarea {
-  width: 100%;
-  min-height: 96px;
-  resize: vertical;
-  border: 1px solid color-mix(in srgb, var(--xray-hint) 50%, transparent);
-  border-radius: var(--xray-radius);
-  padding: 10px;
-  color: var(--xray-text);
-  background: var(--xray-surface);
-  font: 800 12px/1.45 var(--xray-font);
 }
 
 .xray-toast {
@@ -2500,13 +3620,6 @@
   box-shadow: 0 12px 38px rgba(0, 0, 0, .32);
   font: 800 11px/1.35 var(--xray-font);
   cursor: pointer;
-}
-
-.xray-insight-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
 }
 
 .xray-insight-columns,
@@ -2561,23 +3674,38 @@
 }
 
 .xray-settings-modal {
-  width: min(620px, 94vw);
+  width: min(780px, 94vw);
+  /* L1: a fixed height, so switching sections never resizes the dialog; the
+     content pane scrolls instead. */
+  height: min(640px, 90vh);
+  max-height: none;
 }
 
 .xray-settings-modal-body {
-  /* A flat min-height: 400px could not shrink, so head + body + foot demanded 513px
-     and the footer fell off the bottom below a 626px viewport -- the normal height of
-     a docked DevTools drawer. The nav and content panes already scroll. */
-  min-height: min(400px, 100%);
+  /* Let the modal's fixed head and foot determine the available pane height. The
+     nav and content panes own their overflow instead of escaping this clipped grid. */
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   overflow: hidden;
 }
 
 .xray-settings-nav {
+  min-height: 0;
+  overflow: auto;
   padding: 8px 0;
   border-right: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
   background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-settings-nav-group-title {
+  padding: 8px 14px 4px;
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
 .xray-settings-nav-item {
@@ -2601,6 +3729,10 @@
   background: rgba(var(--xray-surface2-rgb), .55);
 }
 
+.xray-settings-nav-item span {
+  white-space: nowrap;
+}
+
 .xray-settings-nav-item.active {
   color: var(--xray-text);
   border-left-color: var(--xray-accent, var(--xray-mauve));
@@ -2611,6 +3743,9 @@
   min-height: 0;
   overflow: auto;
   padding: 16px;
+  /* The theme grid follows the content pane's own width. */
+  container-type: inline-size;
+  container-name: xray-settings-content;
 }
 
 .xray-settings-section-title {
@@ -2638,6 +3773,51 @@
 
 .xray-settings-row.read-only {
   align-items: flex-start;
+}
+
+.xray-settings-diagnostics {
+  border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 25%, transparent));
+}
+
+.xray-settings-diagnostics > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--xray-text);
+  font: 800 11px/1.35 var(--xray-font);
+}
+
+.xray-settings-diagnostics > summary:focus-visible {
+  outline: 2px solid var(--xray-focus, var(--xray-accent));
+  outline-offset: 2px;
+}
+
+/* display:flex drops the native ::marker, so draw the disclosure chevron. */
+.xray-settings-diagnostics > summary::-webkit-details-marker {
+  display: none;
+}
+
+.xray-settings-diagnostics > summary::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 0 2px;
+  border-right: 2px solid var(--xray-hint, var(--xray-subtext));
+  border-bottom: 2px solid var(--xray-hint, var(--xray-subtext));
+  transform: rotate(-45deg);
+  transition: transform .15s ease;
+}
+
+.xray-settings-diagnostics[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-settings-diagnostics > summary::before {
+    transition: none;
+  }
 }
 
 .xray-settings-row strong,
@@ -2717,9 +3897,20 @@
   padding: 0 8px;
 }
 
+/* A select in a settings row keeps its full selected label; the description wraps instead. */
+.xray-settings-row > .xray-select {
+  flex: 0 0 auto;
+  max-width: 70%;
+}
+
+.xray-settings-row > span {
+  min-width: 0;
+}
+
 .xray-color-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: 6px;
 }
@@ -2779,11 +3970,11 @@
 .xray-confirm-message {
   margin: 0;
   color: var(--xray-subtext);
-  font: 800 12px/1.55 var(--xray-font);
+  font: 600 12px/1.55 var(--xray-font);
 }
 
 .xray-compact-rows .xray-api-row {
-  min-height: 42px;
+  min-height: 32px;
 }
 
 .xray-compact-rows .xray-api-row .xray-entry-meta,
@@ -2835,15 +4026,12 @@
 
 @container xray (max-width: 1700px) {
   .xray-api-body {
-    grid-template-columns: minmax(260px, var(--xray-api-split, 480px)) minmax(340px, 1fr);
+    /* Single-line rows use extra width well: the list takes ~38% (440-640px). */
+    grid-template-columns: minmax(260px, var(--xray-api-split, clamp(440px, 38%, 640px))) minmax(340px, 1fr);
   }
 
   .xray-request-context-pane {
     display: none;
-  }
-
-  .xray-api-summary-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2860,7 +4048,6 @@
 
   .xray-settings-modal {
     width: 96vw;
-    max-height: 88vh;
   }
 
   .xray-settings-modal-body {
@@ -2870,9 +4057,16 @@
 
   .xray-settings-nav {
     display: flex;
+    align-items: flex-start;
+    min-height: 140px;
     overflow-x: auto;
+    overflow-y: hidden;
     border-right: 0;
     border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
+  }
+
+  .xray-settings-nav-group {
+    flex: 0 0 auto;
   }
 
   .xray-settings-nav-item {
@@ -2882,33 +4076,90 @@
     border-bottom: 2px solid transparent;
   }
 
+  .xray-settings-nav-item span {
+    white-space: nowrap;
+  }
+
   .xray-settings-nav-item.active {
     border-bottom-color: var(--xray-accent, var(--xray-mauve));
   }
 
-  .xray-export-body {
+  .xray-settings-grid {
     grid-template-columns: 1fr;
   }
+}
 
+/* Narrow: every modal is a full-height sheet. This is deliberately a viewport
+   @media query, not a container query: modals are position: fixed viewport overlays
+   that render outside the .xray container, so no container query can apply.
+   Header and footer stay pinned (flex: 0 0 auto); the body is the only scroller. */
+@media (max-width: 600px) {
+  .xray-modal-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .xray-modal-backdrop > .xray-modal {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border-width: 0;
+  }
+
+  .xray-gsearch-list {
+    flex: 1 1 auto;
+    max-height: none;
+  }
+
+  /* The format picker may take most of a phone-height sheet so every format and
+     Import stay reachable; the preview keeps a minimum and scrolls itself. */
   .xray-export-rail {
-    display: flex;
-    gap: 8px;
-    border-right: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
-    overflow-x: auto;
+    max-height: 64%;
   }
 
   .xray-export-group {
-    min-width: 170px;
-    margin-bottom: 0;
+    grid-template-columns: 60px minmax(0, 1fr);
+    gap: 6px;
   }
 
-  .xray-export-preview-head {
-    display: grid;
+  .xray-export-preview {
+    min-height: 120px;
   }
 
-  .xray-settings-grid {
-    grid-template-columns: 1fr;
+  .xray-modal-foot {
+    flex-wrap: wrap;
+  }
+
+  .xray-modal-foot .xray-muted,
+  .xray-modal-foot .xray-modal-version,
+  .xray-modal-foot-meta {
+    flex: 1 1 100%;
+  }
+
+  .xray-modal-foot .xray-spacer {
+    display: none;
+  }
+
+  .xray-modal-foot .xray-btn {
+    flex: 1 1 auto;
+  }
+
+  /* Fieldless confirmations are content-height bottom sheets, not full screen. */
+  .xray-modal-backdrop > .xray-modal.xray-confirm-modal {
+    height: auto;
+    max-height: 100%;
+    align-self: flex-end;
+  }
+
+  /* Extra .xray-replay-body keeps these above the base .xray-replay-line rules below. */
+  .xray-replay-body .xray-replay-line .xray-select {
+    flex: 0 0 100%;
+  }
+
+  .xray-replay-body .xray-replay-line .xray-input {
+    flex: 1 1 100%;
   }
 }
 
@@ -2933,7 +4184,6 @@
   }
 
   .xray-tabs::-webkit-scrollbar,
-  .xray-console-head::-webkit-scrollbar,
   .xray-filter-chips::-webkit-scrollbar {
     display: none;
   }
@@ -2943,24 +4193,12 @@
     padding: 0 10px;
   }
 
-  .xray-console-head {
-    overflow-x: auto;
-  }
-
-  .xray-console-tabs,
   .xray-toolbar {
     flex: 0 0 auto;
   }
 
   .xray-toolbar {
     padding-right: 8px;
-  }
-
-  .xray-network-row > :nth-child(5),
-  .xray-network-row > :nth-child(6),
-  .xray-network-head > :nth-child(5),
-  .xray-network-head > :nth-child(6) {
-    display: none;
   }
 
   .xray-filterbar {
@@ -2971,113 +4209,8 @@
     padding-bottom: 2px;
   }
 
-  .xray-network-head,
-  .xray-network-row {
-    grid-template-columns: 52px 46px minmax(120px, 1fr) 92px;
-  }
-
-  .xray-split {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-detail-panel {
-    display: none;
-  }
-
-  .xray-api-workspace {
-    overflow: hidden;
-  }
-
-  .xray-api-body {
-    grid-template-columns: 1fr;
-  }
-
-  .xray-api-toolbar {
-    grid-template-columns: 1fr;
-    padding: 8px;
-  }
-
-  .xray-api-collection-pane {
-    border-right: 0;
-  }
-
-  .xray-api-collection-head {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .xray-api-env-pill {
-    justify-self: start;
-  }
-
-  .xray-api-summary-strip {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .xray-api-summary-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .xray-api-summary-pill {
-    flex: 0 0 112px;
-  }
-
-  .xray-api-primary-filters,
-  .xray-api-secondary-controls,
-  .xray-api-secondary-controls .xray-filter-chips {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .xray-api-secondary-controls {
-    display: grid;
-    gap: 6px;
-  }
-
-  .xray-api-table-head,
-  .xray-api-row {
-    grid-template-columns: 48px minmax(0, 1fr) 46px 58px;
-  }
-
-  .xray-api-table-head > :nth-child(4),
-  .xray-api-row > .xray-entry-duration {
-    display: none;
-  }
-
-  .xray-api-row-actions {
-    gap: 2px;
-  }
-
-  .xray-api-row-actions .xray-icon-btn[aria-label="Copy request URL"] {
-    display: none;
-  }
-
-  .xray-api-detail-drawer {
-    position: absolute;
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    height: min(68vh, 560px);
-    border-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--xray-blue) 34%, transparent);
-    border-radius: var(--xray-radius-lg) var(--xray-radius-lg) 0 0;
-    background: var(--xray-surface);
-    box-shadow: 0 -22px 44px rgba(0, 0, 0, .28);
-    z-index: 8;
-    overflow: hidden;
-  }
-
-  .xray-api-drawer-body,
-  .xray-request-detail,
-  .xray-detail-content {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
+  /* API workspace narrow layouts (stacked split / full-height detail) live in
+     the "S20" section near the end of this file. */
 
   .xray-detail-content .xray-json-editor {
     min-width: 0;
@@ -3100,17 +4233,6 @@
   .xray-detail-views,
   .xray-operation-bar {
     max-width: 100%;
-  }
-
-  .xray-detail-views {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow-x: visible;
-  }
-
-  .xray-detail-views .xray-chip {
-    min-width: 0;
-    justify-content: center;
   }
 
   .xray-operation-group {
@@ -3139,14 +4261,6 @@
     overflow: hidden;
   }
 
-  .xray-api-detail-drawer.empty {
-    display: none;
-  }
-
-  .xray-entry-row {
-    grid-template-columns: 9px 44px 42px minmax(0, 1fr) auto 28px;
-  }
-
   .xray-list-panel > .xray-virtual-list {
     min-height: 168px;
   }
@@ -3155,26 +4269,6 @@
     display: none;
   }
 
-  .xray-mobile-detail-panel {
-    display: block;
-    flex-shrink: 0;
-    max-height: 38vh;
-    overflow: auto;
-    border-top: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
-    background: var(--xray-surface);
-  }
-
-  .xray-prompt {
-    grid-template-columns: 20px minmax(120px, 1fr) auto;
-    gap: 6px;
-    padding: 8px;
-  }
-
-  .xray-context-chip {
-    display: none;
-  }
-
-  .xray-insight-grid,
   .xray-insight-columns {
     grid-template-columns: 1fr;
   }
@@ -3197,15 +4291,41 @@
   }
 }
 
-/* Then the tab labels, leaving the five icons. Measured: five labelled tabs need
-   ~478px, five icons need ~160px, and below ~900px the header cannot seat the labels
-   alongside eight buttons without pushing tabs off the end. Each button carries an
-   aria-label, so the accessible name survives the label going away.
+/* Header give-way tiers, widest first. Each gives way only when the tablist would
+   otherwise be squeezed (measured: tabs need ~460-500px with labels, ~160px as icons).
 
-   Nothing here hides the mode switcher. An earlier revision did, on the grounds that
-   its three surfaces were reachable from the command palette -- they are not, and
-   hiding it left the pop-out window and the HUD with no entry point at all. */
-@container xray (max-width: 900px) {
+   1. Below 880px the three surface buttons step aside. They are redundant there: the
+      command palette carries "Open in separate window", "Float over page (HUD)" and
+      "Open in DevTools" (CommandPalette.tsx, group Actions). An earlier revision hid
+      them while that was NOT true, which left the pop-out and the HUD with no entry
+      point; test/responsive-motion-css.test.js guards the palette entries. Above 880px
+      they fit alongside labelled tabs, so they stay.
+   2. Below 680px the tab labels go (measured: tight labelled tabs need ~440px, which the
+      header only has from ~680px; spec target was ~600px), leaving the five icons (each tab carries an
+      aria-label, so the accessible name survives). Labels stay visible down to here.
+   3. Below 420px even icons can overflow, so the strip scrolls -- and gets its
+      scrollbar back. Suppressing the scrollbar on a strip that overflows is what made
+      clipped tabs unreachable by mouse in the first place. Keyboard users have arrow
+      keys, and the active tab is scrolled into view whenever it changes. */
+@container xray (max-width: 880px) {
+  .xray-mode-switcher {
+    display: none;
+  }
+}
+
+/* Tight labelled tabs: the 680-700px band keeps labels, so reclaim padding and the
+   brand's reserved width instead of letting the strip scroll. */
+@container xray (max-width: 700px) {
+  .xray-tab {
+    padding: 0 8px;
+  }
+
+  .xray-brand {
+    min-width: 0;
+  }
+}
+
+@container xray (max-width: 680px) {
   .xray-tab span {
     display: none;
   }
@@ -3215,23 +4335,7 @@
   }
 }
 
-/* Narrower than this, five icons and eight buttons genuinely do not fit, so the strip
-   scrolls -- and it gets its scrollbar back. Suppressing the scrollbar on a strip that
-   overflows is what made the clipped tabs unreachable by mouse in the first place;
-   nothing is removed from the header here, it just becomes scrollable with a visible
-   affordance. Keyboard users already have arrow keys, and the active tab is scrolled
-   into view whenever it changes. */
-/* The three surface buttons step aside here. They are now genuinely redundant: the
-   command palette carries "Open in separate window", "Float over page (HUD)" and
-   "Open in DevTools" (CommandPalette.tsx, group Actions). An earlier revision hid them
-   while that was NOT true, which left the pop-out and the HUD with no entry point. */
-@container xray (max-width: 620px) {
-  .xray-mode-switcher {
-    display: none;
-  }
-}
-
-@container xray (max-width: 620px) {
+@container xray (max-width: 420px) {
   .xray-tabs {
     scrollbar-width: thin;
     padding-bottom: 0;
@@ -3249,20 +4353,6 @@
 }
 
 @container xray (max-width: 420px) {
-  .xray-api-table-head,
-  .xray-api-row {
-    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
-    gap: 5px;
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .xray-api-table-head > :nth-child(4),
-  .xray-api-row > .xray-entry-duration {
-    display: none;
-  }
-
-  .xray-response-chips,
   .xray-detail-footer {
     flex-wrap: wrap;
   }
@@ -3276,22 +4366,8 @@
     flex: 1 1 calc(50% - 8px);
   }
 
-  .xray-detail-views {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
-  .xray-detail-views .xray-chip {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
   .xray-operation-group {
     grid-template-columns: 1fr;
-  }
-
-  .xray-api-row-actions .xray-icon-btn {
-    width: 25px;
   }
 }
 
@@ -3351,8 +4427,19 @@
 .xray-panel .xray-badge {
   border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   font-weight: 900;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.xray-panel .xray-badge {
+  color: var(--xray-accent, var(--xray-blue));
+  border-color: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 42%, transparent);
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
+}
+
+/* The active tab already sits on an accent tint; accent-on-accent text there drops
+   below AA, so its count reads in the text colour. */
+.xray-panel .xray-tab.active .xray-badge {
+  color: var(--xray-text);
 }
 
 .xray-panel .xray-method.get { color: var(--xray-green); }
@@ -3366,10 +4453,16 @@
 .xray-panel textarea,
 .xray-panel input,
 .xray-panel select {
-  background: color-mix(in srgb, var(--xray-surface2) 88%, black 12%);
-  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
+  background: color-mix(in srgb, var(--xray-surface2) 88%, var(--xray-sink, black) 12%);
+  border-color: var(--xray-border-control);
   color: var(--xray-text);
   font-family: var(--xray-font);
+}
+
+/* Placeholders follow the theme's faint text (the console editor keeps its own rule). */
+.xray-panel :is(.xray-input, input, textarea)::placeholder {
+  color: var(--xray-hint);
+  opacity: 1;
 }
 
 .xray-panel .xray-input:focus,
@@ -3394,7 +4487,7 @@
 .xray-panel .xray-json-editor {
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 5%, transparent), transparent 16%),
-    color-mix(in srgb, var(--xray-bg) 86%, black 14%);
+    color-mix(in srgb, var(--xray-bg) 86%, var(--xray-sink, black) 14%);
   border: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   border-radius: var(--xray-radius);
 }
@@ -3431,7 +4524,7 @@
 .xray-panel .xray-operation-btn,
 .xray-panel .xray-action-btn.primary,
 .xray-panel .xray-btn.primary {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 20%, transparent), color-mix(in srgb, var(--xray-mauve) 14%, transparent));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--xray-accent) 10%, transparent), color-mix(in srgb, var(--xray-mauve) 10%, transparent));
   border-color: color-mix(in srgb, var(--xray-accent) 48%, transparent);
 }
 
@@ -3443,10 +4536,15 @@
 
 .xray-panel .xray-settings-section-title,
 .xray-panel .xray-danger-title,
-.xray-panel h3,
 .xray-panel h4 {
   text-transform: uppercase;
   letter-spacing: .12em;
+  color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);
+}
+
+/* h3 carries real titles (detail and finding titles, page heads): real case. */
+.xray-panel h3 {
+  letter-spacing: 0;
   color: color-mix(in srgb, var(--xray-text) 88%, var(--xray-accent) 12%);
 }
 
@@ -3490,11 +4588,10 @@
   background: color-mix(in srgb, var(--xray-bg) 72%, var(--xray-surface2) 28%);
 }
 
-.xray-panel .xray-network-head,
 .xray-panel .xray-api-table-head {
   min-height: 32px;
   color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-bg) 86%, black 14%);
+  background: color-mix(in srgb, var(--xray-bg) 86%, var(--xray-sink, black) 14%);
   border-bottom: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   font-size: 10px;
   font-weight: 900;
@@ -3502,14 +4599,12 @@
   text-transform: uppercase;
 }
 
-.xray-panel .xray-network-row,
 .xray-panel .xray-api-row {
   font-variant-numeric: tabular-nums;
 }
 
-.xray-panel .xray-network-row.selected,
 .xray-panel .xray-api-row.selected {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 18%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xray-accent) 10%, transparent), color-mix(in srgb, var(--xray-surface2) 80%, transparent));
   border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
 }
 
@@ -3521,7 +4616,7 @@
 }
 
 .xray-panel .xray-bar-track {
-  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, black 22%);
+  background: color-mix(in srgb, var(--xray-surface3, var(--xray-surface2)) 78%, var(--xray-sink, black) 22%);
   border: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent)) 70%, transparent);
   overflow: hidden;
 }
@@ -3535,7 +4630,7 @@
 .xray-panel .xray-bar.error { background: linear-gradient(90deg, var(--xray-red), color-mix(in srgb, var(--xray-red) 62%, var(--xray-peach))); }
 
 .xray-panel .xray-request-detail {
-  background: color-mix(in srgb, var(--xray-bg) 92%, black 8%);
+  background: color-mix(in srgb, var(--xray-bg) 92%, var(--xray-sink, black) 8%);
 }
 
 .xray-panel .xray-detail-hero {
@@ -3549,9 +4644,8 @@
   border: 1px solid transparent;
   color: var(--xray-subtext);
   background: transparent;
-  font: 900 10px/1 var(--xray-font);
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font: 700 11px/1 var(--xray-font);
+  letter-spacing: 0;
 }
 
 .xray-panel .xray-detail-tab.active,
@@ -3585,11 +4679,6 @@
   min-height: var(--xray-chrome-h, 44px);
 }
 
-.xray-panel .xray-console-tabs .xray-mini-tab {
-  text-transform: none;
-  letter-spacing: .04em;
-}
-
 .xray-panel .xray-console-row {
   font-variant-numeric: tabular-nums;
   /* Message stream scans best dense — override the shared 52px operator row
@@ -3597,30 +4686,11 @@
   min-height: 28px;
 }
 
-.xray-panel .xray-prompt {
-  gap: 10px;
-  padding: 10px 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 82%, transparent), color-mix(in srgb, var(--xray-bg) 96%, black 4%));
-  border-top: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
-}
-
-.xray-panel .xray-prompt::before {
-  content: '>';
-  color: var(--xray-accent);
-  font: 900 18px/1 var(--xray-font);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--xray-accent) 55%, transparent);
-}
-
-.xray-panel .xray-prompt .xray-input {
-  min-height: 40px;
-  border-radius: var(--xray-radius);
-}
-
 .xray-panel .xray-statusbar {
   min-height: 28px;
   padding: 0 12px;
   color: var(--xray-subtext);
-  background: color-mix(in srgb, var(--xray-bg) 90%, black 10%);
+  background: color-mix(in srgb, var(--xray-bg) 90%, var(--xray-sink, black) 10%);
   border-top: 1px solid var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
   font-size: 10px;
   font-weight: 900;
@@ -3642,13 +4712,7 @@
   color: var(--xray-subtext);
 }
 
-.xray-panel .xray-insight-columns,
-.xray-panel .xray-insight-grid {
-  padding: 14px;
-}
-
-.xray-panel .xray-card::before,
-.xray-panel .xray-api-metric::before {
+.xray-panel .xray-card::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
@@ -3673,97 +4737,81 @@
   background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface2) 60%);
 }
 
-.xray-panel .xray-api-metric {
-  position: relative;
-  overflow: hidden;
-  border-color: var(--xray-border, color-mix(in srgb, var(--xray-hint) 35%, transparent));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--xray-surface) 88%, white 7%), color-mix(in srgb, var(--xray-bg) 90%, black 10%));
-}
-
-.xray-panel .xray-api-metric strong {
-  font-size: 18px;
-  color: var(--xray-text);
-  text-shadow: 0 0 16px color-mix(in srgb, var(--xray-accent) 20%, transparent);
-}
-
-/* XRAY Operator UI prompt layout hardening */
+/* Console controls are two explicit rows so a resized panel never asks the
+   command editor, context picker, and actions to share one grid track. */
 .xray-panel .xray-prompt {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(180px, auto);
-  gap: 10px;
-  align-items: center;
   padding: 10px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-border) 78%, transparent);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--xray-bg-elevated) 92%, transparent), color-mix(in srgb, var(--xray-bg) 92%, transparent)),
-    linear-gradient(180deg, color-mix(in srgb, var(--xray-accent) 12%, transparent), transparent 60%);
+  border-top-color: color-mix(in srgb, var(--xray-border) 78%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--xray-surface) 88%, transparent), color-mix(in srgb, var(--xray-bg) 96%, transparent));
 }
 
-.xray-panel .xray-prompt::before {
-  display: none;
-}
-
-.xray-panel .xray-prompt > svg {
-  color: var(--xray-accent-2);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--xray-accent-2) 32%, transparent));
-}
-
-.xray-panel .xray-prompt-command {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
-}
+.xray-panel .xray-prompt-command-row > svg { color: var(--xray-accent); }
 
 .xray-panel .xray-prompt input,
 .xray-panel .xray-prompt textarea {
   min-width: 0;
-  width: 100%;
   min-height: 38px;
   padding: 10px 13px;
-  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, var(--xray-accent));
   border-radius: var(--xray-radius-lg);
-  color: var(--xray-text);
-  background: color-mix(in srgb, var(--xray-bg-elevated) 82%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--xray-text) 4%, transparent);
   font: inherit;
 }
 
-.xray-panel .xray-prompt input:focus,
-.xray-panel .xray-prompt textarea:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--xray-accent) 78%, var(--xray-border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 16%, transparent);
-}
-
-.xray-panel .xray-context-chip {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  justify-self: end;
-  max-width: min(28vw, 460px);
-  padding: 8px 13px;
-  border: 1px solid color-mix(in srgb, var(--xray-accent) 55%, var(--xray-border));
-  border-radius: 999px;
-  color: var(--xray-text);
-  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
-}
-
-@container xray (max-width: 860px) {
-  .xray-panel .xray-prompt {
-    grid-template-columns: auto minmax(0, 1fr);
+@container xray (max-width: 620px) {
+  .xray-console-action > span,
+  .xray-prompt-help > span,
+  .xray-console-run > span,
+  .xray-console-cancel > span,
+  .xray-prompt-context-row .xray-console-action > span,
+  .xray-context-inspect > span,
+  .xray-snippet-trigger > .xray-chip-count {
+    display: none;
   }
 
-  .xray-panel .xray-prompt-command {
-    grid-column: 2 / -1;
+  .xray-console-action,
+  .xray-prompt-help,
+  .xray-console-run,
+  .xray-console-cancel {
+    width: 34px;
+    justify-content: center;
+    padding: 0;
   }
 
-  .xray-panel .xray-context-chip {
-    grid-column: 2 / -1;
-    justify-self: stretch;
-    max-width: none;
+  .xray-prompt-context-row {
+    gap: 6px;
+  }
+
+}
+
+@container xray (max-width: 420px) {
+  .xray-console-head {
+    min-height: 40px;
+  }
+
+  .xray-console-title {
+    padding-inline: 8px;
+  }
+
+  .xray-toolbar {
+    gap: 4px;
+    padding-right: 6px;
+  }
+
+  .xray-filterbar {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .xray-prompt {
+    padding: 6px 8px;
+  }
+
+  .xray-prompt-command-row,
+  .xray-prompt-context-row {
+    gap: 5px;
+  }
+
+  .xray-prompt textarea {
+    max-height: 50px;
   }
 }
 
@@ -3774,20 +4822,20 @@
 .xray-api-flag.graphql {
   color: var(--xray-mauve);
   border-color: color-mix(in srgb, var(--xray-mauve) 40%, transparent);
-  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-mauve) 10%, transparent);
 }
 
 .xray-api-flag.ws {
   color: var(--xray-teal);
   border-color: color-mix(in srgb, var(--xray-teal) 38%, transparent);
-  background: color-mix(in srgb, var(--xray-teal) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-teal) 10%, transparent);
 }
 
 .xray-api-flag.mocked,
 .xray-api-flag.replayed {
   color: var(--xray-blue);
   border-color: color-mix(in srgb, var(--xray-blue) 38%, transparent);
-  background: color-mix(in srgb, var(--xray-blue) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-blue) 10%, transparent);
 }
 
 .xray-drift-banner {
@@ -3805,13 +4853,6 @@
 
 .xray-drift-banner span {
   flex: 1;
-}
-
-.xray-detail-actionbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 12px 0;
 }
 
 .xray-waterfall-card {
@@ -3904,9 +4945,9 @@
   background: color-mix(in srgb, var(--xray-hint) 20%, transparent);
 }
 
-.xray-ws-state.open { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 14%, transparent); }
+.xray-ws-state.open { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 10%, transparent); }
 .xray-ws-state.closed { color: var(--xray-subtext); }
-.xray-ws-state.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
+.xray-ws-state.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 10%, transparent); }
 
 .xray-frames-list {
   display: flex;
@@ -3991,8 +5032,8 @@
   border-radius: 999px;
 }
 
-.xray-token-exp.valid { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 14%, transparent); }
-.xray-token-exp.expired { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
+.xray-token-exp.valid { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 10%, transparent); }
+.xray-token-exp.expired { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 10%, transparent); }
 
 .xray-token-body {
   display: grid;
@@ -4009,7 +5050,67 @@
   color: var(--xray-hint);
 }
 
+/* Controlled experiments live alongside the existing Rules workspace. */
+.xray-experiments { min-width: 0; margin-bottom: 24px; }
+.xray-experiment-list { display: grid; gap: 12px; min-width: 0; }
+.xray-experiment-card { min-width: 0; overflow-wrap: anywhere; }
+.xray-experiment-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.xray-experiment-head h4 { margin: 0; }
+.xray-experiment-status { border: 1px solid var(--xray-border); border-radius: var(--xray-radius-sm); padding: 3px 7px; text-transform: capitalize; }
+.xray-experiment-status.running, .xray-experiment-status.armed { color: var(--xray-accent); }
+.xray-experiment-status.failed { color: var(--xray-red); }
+.xray-experiment-status.observed { color: var(--xray-green); }
+.xray-experiment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.xray-experiment-url { grid-column: span 2; }
+.xray-experiment-grid .xray-field, .xray-experiment-grid input, .xray-experiment-grid select { min-width: 0; width: 100%; }
+.xray-experiment-options { display: grid; gap: 8px; margin: 12px 0; }
+.xray-experiment-options label { display: flex; align-items: flex-start; gap: 6px; }
+.xray-experiment-card details { margin: 12px 0; }
+.xray-experiment-card pre { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.xray-experiment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.xray-experiment-results ul { padding-left: 20px; }
 /* Rules tab */
+.xray-subtabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xray-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+.xray-subtab {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.xray-subpanel[hidden] {
+  display: none;
+}
+
+.xray-section-hint {
+  margin: 0;
+  min-width: 0;
+  color: var(--xray-subtext);
+  font-size: 11px;
+}
+
+.xray-investigations-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.xray-investigations-bar .xray-section-hint {
+  flex: 1 1 200px;
+}
+
 .xray-rules-toolbar {
   display: flex;
   align-items: center;
@@ -4020,13 +5121,45 @@
   border-bottom: 1px solid color-mix(in srgb, var(--xray-border, color-mix(in srgb, var(--xray-hint) 30%, transparent)) 70%, transparent);
 }
 
-.xray-rules-toolbar-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+.xray-rules-hint {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin: 0;
   color: var(--xray-subtext);
-  margin-right: 2px;
+  font-size: 11px;
+}
+
+.xray-rules-toolbar > .xray-spacer {
+  display: none;
+}
+
+/* When the hint takes its own row, the actions stay right-aligned. */
+.xray-rules-toolbar > .xray-toolbar-menu:first-of-type {
+  margin-inline-start: auto;
+}
+
+.xray-toolbar-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.xray-toolbar-menu-list {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 180px;
+  max-width: calc(100cqw - 24px);
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 46%, transparent);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px rgba(var(--xray-bg-rgb), .28);
 }
 
 .xray-rules-import {
@@ -4078,7 +5211,6 @@
 .xray-rule-summary {
   font-size: 10px;
   font-weight: 800;
-  text-transform: uppercase;
   color: var(--xray-accent, var(--xray-blue));
   white-space: nowrap;
 }
@@ -4127,12 +5259,26 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 4px 2px;
 }
 
 .xray-replay-line {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.xray-replay-body > .xray-field {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* The body is the free-form field: it takes the spare height. */
+.xray-replay-body > .xray-field:has(.xray-replay-bodyfield) {
+  flex: 1 1 auto;
+}
+
+.xray-replay-bodyfield {
+  flex: 1 1 auto;
 }
 
 .xray-replay-line .xray-select {
@@ -4140,13 +5286,17 @@
 }
 
 .xray-replay-line .xray-input {
-  flex: 1;
+  flex: 1 1 200px;
+  min-width: 0;
+  width: auto;
 }
 
 /* AI Explain modal */
 .xray-explain-body {
   min-height: 160px;
-  padding: 6px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .xray-explain-loading {
@@ -4154,7 +5304,7 @@
   align-items: center;
   gap: 10px;
   color: var(--xray-subtext);
-  padding: 24px 0;
+  padding: 12px 0;
 }
 
 .xray-spinner {
@@ -4173,8 +5323,9 @@
 .xray-explain-error {
   display: flex;
   gap: 10px;
+  margin: 0;
   color: var(--xray-red);
-  padding: 16px 0;
+  padding: 4px 0;
 }
 
 .xray-explain-error .xray-btn {
@@ -4186,54 +5337,10 @@
   line-height: 1.6;
   color: var(--xray-text);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 /* ── Console snippet bar (folded-in Notebook) ── */
-.xray-snippet-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-top: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
-  background: color-mix(in srgb, var(--xray-surface) 82%, transparent);
-  overflow: hidden;
-}
-
-.xray-snippet-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--xray-hint);
-}
-
-.xray-snippet-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.xray-snippet-chips::-webkit-scrollbar { display: none; }
-
-.xray-snippet-chip {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  max-width: 220px;
-  border: 1px solid color-mix(in srgb, var(--xray-hint) 36%, transparent);
-  border-radius: 999px;
-  background: rgba(var(--xray-surface-rgb), .6);
-  overflow: hidden;
-}
-
 .xray-snippet-load {
   max-width: 190px;
   padding: 4px 4px 4px 10px;
@@ -4264,12 +5371,6 @@
 }
 
 .xray-snippet-remove:hover { color: var(--xray-red); }
-
-.xray-snippet-save {
-  flex-shrink: 0;
-  padding: 5px 10px;
-}
-
 /* ── Console live/paused stream toggle ── */
 .xray-btn.xray-live {
   color: var(--xray-green);
@@ -4306,16 +5407,15 @@
   gap: 5px;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  text-transform: uppercase;
   color: var(--xray-subtext);
   background: color-mix(in srgb, var(--xray-hint) 18%, transparent);
 }
 
-.xray-log-level.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 14%, transparent); }
-.xray-log-level.warn { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 14%, transparent); }
-.xray-log-level.info { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 14%, transparent); }
+.xray-log-level.error { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 10%, transparent); }
+.xray-log-level.warn { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 10%, transparent); }
+.xray-log-level.info { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 10%, transparent); }
 
 .xray-log-load {
   margin-left: auto;
@@ -4415,14 +5515,22 @@
 
 /* ── Theme picker swatches (Settings → Appearance) ── */
 .xray-theme-picker-row {
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .xray-theme-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  min-width: 220px;
+}
+
+/* Two columns hold down to 560px of content width; below that one column keeps names whole. */
+@container xray-settings-content (max-width: 559px) {
+  .xray-theme-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .xray-theme-swatch {
@@ -4458,6 +5566,10 @@
 
 .xray-theme-swatch-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
 }
 
@@ -4497,7 +5609,6 @@
 .xray-icon-btn,
 .xray-btn,
 .xray-api-row,
-.xray-network-row,
 .xray-entry-row {
   transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease;
 }
@@ -4510,7 +5621,6 @@
    reads as jitter there while the row itself stays put. Keep them flat. */
 .xray-api-row .xray-icon-btn:hover,
 .xray-api-row-actions .xray-icon-btn:hover,
-.xray-network-row .xray-icon-btn:hover,
 .xray-console-row .xray-icon-btn:hover,
 .xray-log-row .xray-icon-btn:hover {
   transform: none;
@@ -4668,7 +5778,7 @@
 
 .xray-tp-tab.active {
   color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
 .xray-tp-grow { flex: 1; }
@@ -4743,11 +5853,11 @@
   text-transform: uppercase;
 }
 
-.xray-tp-badge.green { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 16%, transparent); }
-.xray-tp-badge.yellow { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 16%, transparent); }
-.xray-tp-badge.red { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 16%, transparent); }
-.xray-tp-badge.blue { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 16%, transparent); }
-.xray-tp-badge.mauve { color: var(--xray-mauve); background: color-mix(in srgb, var(--xray-mauve) 16%, transparent); }
+.xray-tp-badge.green { color: var(--xray-green); background: color-mix(in srgb, var(--xray-green) 10%, transparent); }
+.xray-tp-badge.yellow { color: var(--xray-yellow); background: color-mix(in srgb, var(--xray-yellow) 10%, transparent); }
+.xray-tp-badge.red { color: var(--xray-red); background: color-mix(in srgb, var(--xray-red) 10%, transparent); }
+.xray-tp-badge.blue { color: var(--xray-blue); background: color-mix(in srgb, var(--xray-blue) 10%, transparent); }
+.xray-tp-badge.mauve { color: var(--xray-mauve); background: color-mix(in srgb, var(--xray-mauve) 10%, transparent); }
 
 /* ── Full-freedom token editor (grouped swatch grid) ── */
 .xray-custom-group {
@@ -4827,7 +5937,7 @@
 
 .xray-token-field.pinned .xray-token-state {
   color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
 .xray-token-meta .xray-custom-hex {
@@ -4875,7 +5985,7 @@
 .xray-token-btn:hover,
 .xray-token-reset:hover:not(:disabled) {
   color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
 }
 
 .xray-token-reset:disabled {
@@ -5075,17 +6185,17 @@
 
 .xray-contrast-grade.ok {
   color: var(--xray-green);
-  background: color-mix(in srgb, var(--xray-green) 16%, transparent);
+  background: color-mix(in srgb, var(--xray-green) 10%, transparent);
 }
 
 .xray-contrast-grade.warn {
   color: var(--xray-yellow);
-  background: color-mix(in srgb, var(--xray-yellow) 16%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
 }
 
 .xray-contrast-grade.fail {
   color: var(--xray-red);
-  background: color-mix(in srgb, var(--xray-red) 18%, transparent);
+  background: color-mix(in srgb, var(--xray-red) 10%, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -5098,6 +6208,9 @@
 }
 
 .xray-command-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   padding: 14px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
@@ -5105,11 +6218,22 @@
   background: transparent;
 }
 
-.xray-command-search .xray-input {
+/* The shared .xray-search icon is absolutely positioned and the input's left padding
+   used to be zeroed here, so the icon sat on top of the placeholder. Lay it out inline. */
+.xray-command-search svg {
+  position: static;
+  transform: none;
+  flex: 0 0 auto;
+}
+
+.xray-modal .xray-command-search .xray-input {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 14px;
   border: none;
   background: transparent;
   padding: 0;
+  text-overflow: ellipsis;
 }
 
 .xray-command-search .xray-input:focus {
@@ -5118,14 +6242,28 @@
 }
 
 .xray-command-list {
+  grid-template-columns: minmax(0, 1fr);
   max-height: min(56vh, 460px);
   overflow-y: auto;
   padding: 6px;
   scroll-padding: 40px 0;
 }
 
+.xray-command-group {
+  min-width: 0;
+}
+
 .xray-command-group + .xray-command-group {
   margin-top: 2px;
+}
+
+.xray-command-group-label.request {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
 }
 
 .xray-command-group-label {
@@ -5152,6 +6290,11 @@
   text-align: left;
   cursor: pointer;
   transition: background-color var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-command-row {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .xray-command-row.active {
@@ -5198,6 +6341,10 @@
 }
 
 .xray-command-hint {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -5254,13 +6401,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--xray-surface2) 70%, transparent);
 }
 
 .xray-gsearch-input {
   flex: 1;
   margin: 0;
+}
+
+/* The limits sentence wraps in full; it is never an ellipsised or clipped line. */
+.xray-gsearch-limits {
+  display: block;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .xray-gsearch-list {
@@ -5378,7 +6532,7 @@
   height: 52px;
   border-radius: 50%;
   color: var(--xray-accent);
-  background: color-mix(in srgb, var(--xray-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent) 22%, transparent), 0 0 28px color-mix(in srgb, var(--xray-accent) 16%, transparent);
 }
 
@@ -5524,9 +6678,23 @@
   color: var(--xray-subtext);
 }
 
-/* One column below the docked panel's narrow width, where three cells would each
-   be ~60px wide and the body copy would break every second word. */
-@media (max-width: 560px) {
+/* These forms live inside the size-contained panel; keep the rules after their
+   default declarations so the narrow layout wins the cascade on wide monitors. */
+@container xray (max-width: 600px) {
+  .xray-experiment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xray-experiment-url {
+    grid-column: auto;
+  }
+
+  .xray-experiment-actions .xray-spacer {
+    display: none;
+  }
+}
+
+@container xray (max-width: 560px) {
   .xray-firstrun-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5579,7 +6747,6 @@
 
 /* ── Selection & row micro-interactions ── */
 .xray-api-row.selected,
-.xray-network-row.selected,
 .xray-entry-row.selected {
   box-shadow: inset 3px 0 0 var(--xray-accent, var(--xray-blue));
 }
@@ -5598,6 +6765,7 @@
   .xray-firstrun,
   .xray-modal,
   .xray-modal-backdrop,
+  .xray-spinner,
   .xray-live-dot.on {
     animation: none;
   }
@@ -5816,6 +6984,157 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* S18: ~44px single-line request rows. Comes after the operator layer, whose
+   `.xray-panel .xray-api-row { min-height: var(--xray-row-h) }` would otherwise
+   win; density still scales it, and the compact-rows setting goes denser. */
+.xray-panel .xray-api-workspace .xray-api-row {
+  min-height: calc(44px * var(--xray-density-scale, 1));
+}
+
+.xray-panel.xray-compact-rows .xray-api-workspace .xray-api-row {
+  min-height: 32px;
+}
+
+.xray-api-row-actions .xray-icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+/* ── S20: narrow API layouts ─────────────────────────────────────────────────
+   > 900px   list | detail side by side (draggable column divider).
+   600–900   list on top, detail below; a row divider resizes the list (40–75%).
+   < 600     the detail replaces the list at full height; "Requests" goes back.
+   Selectors carry the workspace class so they outrank the closed-drawer grid
+   rules above (which only apply side by side). */
+.xray-api-detail-back {
+  display: none;
+}
+
+.xray-pane-divider.xray-pane-divider-rows {
+  display: none;
+  top: auto;
+  right: 0;
+  bottom: -4px;
+  left: 0;
+  width: auto;
+  height: 9px;
+  cursor: ns-resize;
+}
+
+.xray-pane-divider.xray-pane-divider-rows::after {
+  width: 46px;
+  height: 3px;
+}
+
+@container xray (max-width: 900px) {
+  .xray-api-workspace .xray-api-body,
+  .xray-api-workspace:not(.detail-open) .xray-api-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .xray-api-workspace.detail-open .xray-api-body {
+    grid-template-rows: minmax(0, var(--xray-api-vlist, 50fr)) minmax(0, var(--xray-api-vrest, 50fr));
+  }
+
+  .xray-api-workspace .xray-pane-divider:not(.xray-pane-divider-rows) {
+    display: none;
+  }
+
+  .xray-api-workspace .xray-api-collection-pane {
+    border-right: 0;
+  }
+
+  .xray-api-workspace .xray-api-detail-drawer {
+    border-top: 1px solid color-mix(in srgb, var(--xray-accent) 34%, transparent);
+  }
+
+  .xray-api-workspace .xray-api-detail-drawer.empty {
+    display: none;
+  }
+
+  /* Short stacked detail: let the whole drawer scroll so the response keeps a
+     usable height under the header and facet row instead of being squeezed. */
+  .xray-api-workspace .xray-api-drawer-body {
+    overflow: auto;
+  }
+
+  .xray-api-workspace .xray-request-detail {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .xray-api-workspace .xray-detail-content {
+    flex: 1 0 200px;
+  }
+
+  /* The base ≤760px rule hides `.xray-entry-duration` for Logs; API rows keep it. */
+  .xray-api-workspace .xray-api-row > .xray-entry-duration {
+    display: grid;
+  }
+}
+
+@container xray (600px <= width <= 900px) {
+  .xray-api-workspace.detail-open .xray-pane-divider.xray-pane-divider-rows {
+    display: block;
+  }
+}
+
+@container xray (width < 600px) {
+  .xray-api-workspace.detail-open .xray-api-body {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .xray-api-workspace.detail-open .xray-api-collection-pane {
+    display: none;
+  }
+
+  .xray-api-workspace .xray-api-detail-drawer {
+    border-top: 0;
+  }
+
+  .xray-api-workspace.detail-open .xray-api-detail-back {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+    background: var(--xray-surface);
+  }
+
+  .xray-api-back-btn {
+    height: 30px;
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  /* "Requests" is the way back here; the header close would duplicate it. */
+  .xray-api-workspace .xray-detail-close {
+    display: none;
+  }
+
+  .xray-panel .xray-api-workspace .xray-api-table-head {
+    letter-spacing: .04em;
+  }
+
+  .xray-api-table-head,
+  .xray-api-row {
+    grid-template-columns: 44px minmax(0, 1fr) 34px 54px auto;
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .xray-api-row .xray-bar-track {
+    display: none;
+  }
+
+  .xray-api-row > .xray-entry-duration {
+    grid-template-columns: auto;
+    justify-content: end;
+  }
+}
+
 /* ── Collapsible section primitive (CollapsibleSection.tsx) ───────────────── */
 
 .xray-collapsible {
@@ -5913,16 +7232,6 @@
   }
 }
 
-/* API filters collapsible: keep the chip blocks spaced like the old toolbar. */
-.xray-api-filters-collapsible .xray-collapsible-header {
-  padding: 0 0 2px;
-}
-
-.xray-api-filters-collapsible .xray-collapsible-inner {
-  display: grid;
-  gap: 8px;
-}
-
 /* Insight cards use the collapsible header in place of the old <h3>. Keep the
    card's inner padding but let the header title read like the old heading. */
 .xray-card.xray-collapsible {
@@ -5934,14 +7243,330 @@
   font-size: 12px;
 }
 
-.xray-insight-overview .xray-collapsible-header {
-  padding: 0 0 6px;
-}
-
 /* Density toggle in the API table header (last column, right-aligned). */
 .xray-api-table-tools {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Phase 2 response-first workspace: keep the response readable, then disclose
+   metadata and secondary operations without changing the token contract. */
+.xray-request-detail:not(.compact) {
+  container-type: inline-size;
+  container-name: xray-detail;
+}
+
+/* S19 header: request line, status chips and the request actions (Copy, Export,
+   Console, More actions) share one row; the bottom action bar is gone. Nothing
+   here may clip overflow: the More menu is positioned against .xray-detail-more. */
+.xray-request-detail:not(.compact) .xray-detail-hero {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 8px 10px 8px 12px;
+}
+
+.xray-request-detail:not(.compact) .xray-response-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.xray-request-detail:not(.compact) .xray-response-chips {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.xray-request-detail:not(.compact) .xray-response-chip {
+  height: 24px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.xray-detail-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-action {
+  flex: 0 0 auto;
+  height: 30px;
+  gap: 5px;
+  padding: 0 9px;
+  font: 700 12px/1 var(--xray-font);
+  white-space: nowrap;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-action[aria-expanded="true"] {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+}
+
+.xray-request-detail:not(.compact) .xray-detail-close {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+}
+
+/* One facet row (Response · Request · Headers · Timing …) with the lens as a
+   compact segmented control on the right. When both do not fit, the lens drops
+   to its own line; the facet row scrolls (visible thin scrollbar) rather than
+   wrapping or clipping. */
+.xray-request-detail:not(.compact) .xray-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 4px 10px 4px 12px;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-tabs::-webkit-scrollbar {
+  display: block;
+  height: 4px;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--xray-hint) 60%, transparent);
+}
+
+.xray-request-detail:not(.compact) .xray-detail-tab {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--xray-subtext);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-tab.active {
+  color: var(--xray-text);
+}
+
+.xray-request-detail:not(.compact) .xray-detail-views {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 0;
+  margin-left: auto;
+  padding: 2px;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 34%, transparent);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-bg-rgb), .5);
+}
+
+.xray-request-detail:not(.compact) .xray-detail-views .xray-chip {
+  min-width: 0;
+  height: 24px;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--xray-radius-sm);
+  font: 600 11px/1 var(--xray-font);
+  white-space: nowrap;
+}
+
+.xray-request-detail:not(.compact) .xray-detail-views .xray-chip.active {
+  color: var(--xray-text);
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-detail-more {
+  position: relative;
+  min-width: 0;
+}
+
+.xray-detail-action-list {
+  position: absolute;
+  inset-inline-end: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 232px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 46%, transparent);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px rgba(var(--xray-bg-rgb), .28);
+  bottom: calc(100% + 4px);
+}
+
+.xray-detail-action-list[data-placement="down"] {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+
+.xray-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.xray-menu-item svg {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+}
+
+.xray-menu-item:hover,
+.xray-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--xray-accent) 14%, transparent);
+}
+
+.xray-menu-item[aria-pressed="true"] {
+  color: var(--xray-accent);
+}
+
+.xray-menu-sep {
+  flex: 0 0 auto;
+  height: 1px;
+  margin: 3px 4px;
+  background: color-mix(in srgb, var(--xray-hint) 32%, transparent);
+}
+
+.xray-detail-metadata,
+.xray-detail-recommendations {
+  min-width: 0;
+  padding: 6px 12px;
+}
+
+.xray-detail-metadata {
+  display: grid;
+  gap: 6px;
+}
+
+.xray-detail-metadata label {
+  display: grid;
+  gap: 6px;
+  color: var(--xray-subtext);
+  font-size: 12px;
+}
+
+.xray-detail-metadata .xray-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.xray-detail-recommendations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.xray-api-toolbar .xray-filter-chips,
+.xray-api-active-filters,
+.xray-api-filters-collapsible {
+  min-width: 0;
+}
+
+.xray-api-toolbar .xray-filter-chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.xray-api-filter-remove {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.xray-api-filter-remove > svg {
+  flex: 0 0 auto;
+}
+
+.xray-api-toolbar .xray-chip {
+  min-height: 30px;
+  height: auto;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.xray-panel .xray-api-toolbar .xray-api-search {
+  min-height: 32px;
+}
+
+.xray-api-toolbar .xray-filter-label,
+.xray-api-toolbar .xray-chip-count {
+  font-size: 12px;
+}
+
+.xray-request-detail:not(.compact) :is(button, input):focus-visible,
+.xray-api-toolbar :is(button, input):focus-visible {
+  outline: 2px solid var(--xray-text);
+  outline-offset: 2px;
+}
+
+/* Narrower detail: the action labels collapse to icons (the label text stays in
+   the accessibility tree, so names and `title`s are unchanged). */
+@container xray-detail (max-width: 940px) {
+  .xray-request-detail:not(.compact) .xray-detail-action {
+    width: 30px;
+    padding: 0;
+  }
+
+  .xray-request-detail:not(.compact) .xray-detail-action-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Phone-width detail: the request line takes its own row; chips and actions
+   share the second. The lens spans the width as one equal-segment row. */
+@container xray-detail (max-width: 560px) {
+  .xray-request-detail:not(.compact) .xray-detail-hero {
+    flex-wrap: wrap;
+  }
+
+  .xray-request-detail:not(.compact) .xray-response-heading {
+    flex: 1 0 100%;
+  }
+
+  .xray-request-detail:not(.compact) .xray-response-chips {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .xray-request-detail:not(.compact) .xray-detail-views {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .xray-request-detail:not(.compact) .xray-detail-views .xray-chip {
+    flex: 1 1 0;
+    padding: 0 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .xray-density-toggle {
@@ -6002,6 +7627,22 @@
   text-align: left;
 }
 
+/* S21: a long value never shreds its key. Keys, separators and brackets keep
+   their width on one line; only the value wraps, inside its own box. A key
+   wider than the pane scrolls with the tree body instead of breaking. */
+.xray-json-row > .xray-json-key,
+.xray-json-row > .xray-json-punct {
+  flex: 0 0 auto;
+  white-space: pre;
+}
+
+.xray-json-row > .xray-json-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .xray-json-branch {
   border: 0;
   background: transparent;
@@ -6043,6 +7684,56 @@
   margin: 0;
 }
 
+/* Selectable tree (Console inspector): flat rows, one roving tab stop; the
+   chevron toggles on click, the row selects. */
+.xray-json-flatrow {
+  border-radius: var(--xray-radius-sm);
+  cursor: pointer;
+}
+
+.xray-json-flatrow:hover {
+  background: rgba(var(--xray-surface2-rgb), .4);
+}
+
+.xray-json-flatrow:focus-visible {
+  outline: 2px solid var(--xray-accent);
+  outline-offset: -2px;
+}
+
+.xray-json-flatrow[aria-selected="true"] {
+  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--xray-accent);
+}
+
+.xray-json-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--xray-radius-sm);
+  cursor: pointer;
+}
+
+.xray-json-toggle:hover {
+  background: rgba(var(--xray-surface2-rgb), .7);
+}
+
+.xray-json-toggle .xray-json-chevron {
+  margin-top: 0;
+}
+
+.xray-json-more {
+  margin: 2px 0;
+}
+
+.xray-json-empty {
+  margin: 8px 0;
+  color: var(--xray-subtext);
+  font: 600 12px/1.5 var(--xray-font);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .xray-json-chevron {
     transition: none;
@@ -6073,6 +7764,19 @@
   padding: 1px 0;
 }
 
+/* Keep the console chrome within the short viewport after the operator skin's
+   later rules have set its comfortable defaults. */
+@media (max-height: 400px) {
+  .xray-panel .xray-console-head { min-height: 36px; }
+  .xray-panel .xray-filterbar { padding-block: 5px; }
+  .xray-panel .xray-filterbar .xray-input { height: 32px; }
+  .xray-panel .xray-filter-chips .xray-chip { height: 28px; padding-inline: 8px; }
+  .xray-panel .xray-prompt { gap: 4px; padding-block: 4px; }
+  .xray-panel .xray-prompt textarea { min-height: 30px; max-height: 40px; padding-block: 6px; }
+  .xray-panel .xray-prompt .xray-btn { height: 28px; }
+  .xray-panel .xray-statusbar { min-height: 22px; height: 22px; font-size: 9px; }
+}
+
 .xray-error-fn {
   color: var(--xray-text);
   font-weight: 800;
@@ -6089,124 +7793,1442 @@
   white-space: nowrap;
 }
 
-/* ── Network sub-tab: status swatch, stream chip, type, waterfall ─────────── */
-
-.xray-status-swatch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  padding: 1px 6px;
-  border-radius: var(--xray-radius-sm);
-  font-weight: 900;
-  font-size: 11px;
-  /* tinted background so unusual codes pop (Firefox Network Monitor) */
-  background: color-mix(in srgb, currentColor 16%, transparent);
+/* ── Record control (header runtime-diagnostics button) ──
+   Recording is a red dot, not an accent ring. The ring is reserved for :focus-visible,
+   which the shared focus rules draw. Specificity (not source order) keeps these ahead
+   of the generic .xray-icon-btn hover/active accent rules. */
+.xray-topbar .xray-icon-btn.xray-record-btn:not(:focus-visible) {
+  color: var(--xray-subtext);
+  border-color: color-mix(in srgb, var(--xray-hint) 36%, transparent);
+  background: rgba(var(--xray-surface-rgb), .72);
+  outline: none;
 }
 
-.xray-status-swatch.ok { color: var(--xray-green); }
-.xray-status-swatch.redirect { color: var(--xray-yellow); }
-.xray-status-swatch.warn { color: var(--xray-peach); }
-.xray-status-swatch.error { color: var(--xray-red); }
-.xray-status-swatch.pending { color: var(--xray-subtext, var(--xray-hint)); }
+.xray-topbar .xray-icon-btn.xray-record-btn:not(:focus-visible):hover {
+  background: rgba(var(--xray-text-rgb), .06);
+}
 
-.xray-status-chip.stream {
-  display: inline-flex;
+.xray-topbar .xray-record-btn.recording .xray-live-dot {
+  background: var(--xray-red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-red) 20%, transparent);
+  animation: none;
+}
+
+/* ── Shared notice / callout ── */
+.xray-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-notice-color) 36%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-notice-color) 10%, transparent);
+  color: var(--xray-text);
+  font-size: 12px;
+  line-height: 1.4;
+  --xray-notice-color: var(--xray-blue);
+}
+
+.xray-notice.warning { --xray-notice-color: var(--xray-yellow); }
+.xray-notice.error { --xray-notice-color: var(--xray-red); }
+
+.xray-notice-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--xray-notice-color);
+}
+
+.xray-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.xray-notice-action {
+  flex: 0 0 auto;
+}
+
+
+/* ── S22–S24: Logs tab ───────────────────────────────────────────────────────
+   Same visual language as the API tab: one toolbar row, 32px single-line rows,
+   and the detail beside the list only once a log is open.
+   > 900px   list | detail side by side (draggable column divider).
+   600–900   list on top, detail below; a row divider resizes the list (40–75%).
+   < 600     the detail replaces the list at full height; "Logs" goes back. */
+.xray-logs-workspace .xray-list-panel,
+.xray-logs-workspace .xray-detail-panel {
+  background: var(--xray-surface);
+}
+
+.xray-logs-workspace:not(.detail-open) .xray-pane-divider,
+.xray-logs-workspace:not(.detail-open) .xray-logs-detail {
+  display: none;
+}
+
+.xray-logs-workspace:not(.detail-open) .xray-list-panel {
+  border-right: 0;
+}
+
+.xray-logs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 35%, transparent);
+  background: rgba(var(--xray-surface-rgb), .72);
+}
+
+.xray-logs-search {
+  flex: 1 1 180px;
+  min-width: 0;
+  height: 32px;
+}
+
+.xray-logs-search .xray-input {
+  height: 32px;
+  font-size: 12px;
+}
+
+.xray-logs-levels {
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 4px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 900;
-  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);
-  color: var(--xray-mauve);
-  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
 }
 
-.xray-stream-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
+.xray-logs-levels .xray-chip {
+  min-height: 30px;
+  height: auto;
+  padding: 4px 9px;
+  font-size: 12px;
 }
 
-.xray-status-chip.stream.open .xray-stream-dot {
-  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent);
+.xray-logs-levels .xray-chip-count {
+  font-size: 12px;
 }
 
-.xray-status-chip.stream.closed {
-  color: var(--xray-subtext, var(--xray-hint));
-  border-color: color-mix(in srgb, var(--xray-hint) 40%, transparent);
-  background: transparent;
+.xray-logs-toolbar :is(button, input):focus-visible {
+  outline: 2px solid var(--xray-text);
+  outline-offset: 2px;
 }
 
-.xray-net-type {
-  color: var(--xray-subtext, var(--xray-hint));
-  font-weight: 700;
-  font-size: 10px;
+.xray-panel .xray-logs-list .xray-entry-row {
+  min-height: calc(32px * var(--xray-density-scale, 1));
+  height: calc(32px * var(--xray-density-scale, 1));
+  font-weight: 600;
+}
+
+.xray-logs-list .xray-entry-main,
+.xray-logs-list .xray-path {
+  min-width: 0;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.xray-net-size {
-  text-align: right;
+.xray-log-row-level,
+.xray-log-row-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
 }
 
-.xray-waterfall-cell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.xray-waterfall-track {
-  position: relative;
-  height: 12px;
-  min-width: 0;
-  border-radius: var(--xray-radius-sm);
-  background: color-mix(in srgb, var(--xray-surface2) 60%, transparent);
-  overflow: hidden;
-}
-
-/* Positioned on the shared time axis; the outer bar = downloading, the inner
-   contrasting segment = waiting/TTFB (Chrome's two-tone waterfall). */
-.xray-waterfall-bar {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  /* Floor the width so a fast, near-instant request still reads as a legible
-     pill instead of a 2px dot; slow requests stay proportionally wider. */
-  min-width: 10px;
-  border-radius: var(--xray-radius-sm);
-  background: var(--xray-accent, var(--xray-blue));
-}
-
-.xray-waterfall-bar.slow { background: var(--xray-yellow); }
-.xray-waterfall-bar.error { background: var(--xray-red); }
-
-.xray-waterfall-wait {
-  display: block;
-  height: 100%;
-  border-radius: var(--xray-radius-sm) 0 0 var(--xray-radius-sm);
-  /* Sits on top of the bar, which is painted --xray-accent (a light pastel on
-     dark themes, a darkened variant on light ones). Washing toward --xray-bg
-     tracks that inversion. Measured against the bar, the dark themes go
-     1.39 -> 2.36/2.43/2.55; the light ones stay level (2.04 -> ~1.9) since
-     --xray-bg is close to the white this replaces. */
-  background: color-mix(in srgb, var(--xray-bg) 42%, transparent);
-}
-
-.xray-waterfall-ms {
-  color: var(--xray-subtext, var(--xray-hint));
-  font-size: 10px;
+.xray-log-row-level {
+  color: var(--xray-subtext);
   font-weight: 800;
-  white-space: nowrap;
+}
+
+.xray-log-row-level.error { color: var(--xray-red); }
+.xray-log-row-level.warn { color: var(--xray-yellow); }
+.xray-log-row-level.info { color: var(--xray-blue); }
+
+.xray-log-row-time {
+  color: var(--xray-subtext);
   font-variant-numeric: tabular-nums;
 }
 
-.xray-network-row.expanded {
-  background: color-mix(in srgb, var(--xray-accent) 8%, transparent);
+.xray-logs-workspace .xray-logs-detail {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xray-logs-detail-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.xray-logs-detail-back {
+  display: none;
+}
+
+.xray-log-close.solo {
+  margin-left: auto;
+}
+
+@container xray (max-width: 900px) {
+  .xray-logs-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, var(--xray-logs-vlist, 50fr)) minmax(0, var(--xray-logs-vrest, 50fr));
+  }
+
+  .xray-logs-workspace .xray-pane-divider:not(.xray-pane-divider-rows) {
+    display: none;
+  }
+
+  .xray-logs-workspace .xray-list-panel {
+    border-right: 0;
+  }
+
+  .xray-logs-workspace .xray-logs-detail {
+    border-top: 1px solid color-mix(in srgb, var(--xray-accent) 34%, transparent);
+  }
+}
+
+@container xray (600px <= width <= 900px) {
+  .xray-logs-workspace.detail-open .xray-pane-divider.xray-pane-divider-rows {
+    display: block;
+  }
+}
+
+@container xray (width < 600px) {
+  .xray-logs-workspace.detail-open {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .xray-logs-workspace.detail-open .xray-list-panel {
+    display: none;
+  }
+
+  .xray-logs-workspace .xray-logs-detail {
+    border-top: 0;
+  }
+
+  .xray-logs-workspace.detail-open .xray-logs-detail-back {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+    background: var(--xray-surface);
+  }
+
+  /* "Logs" is the way back here; the header close would duplicate it. */
+  .xray-logs-workspace .xray-log-close {
+    display: none;
+  }
+
+  .xray-logs-list .xray-entry-row {
+    grid-template-columns: 44px 70px minmax(0, 1fr) 28px;
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+
+/* ── Console tab layout refresh (S25-S29) ── */
+
+/* S26: search + level chips share one compact row (matches the Logs toolbar).
+   The chips never wrap; when they do not fit they scroll with an edge fade. */
+.xray-panel .xray-console-workspace .xray-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+}
+
+.xray-console-workspace .xray-filterbar .xray-search {
+  /* Wide enough to read "Filter console messages…"; with the five S2 chips this
+     puts the chips on their own row below ~800 px instead of squeezing the field. */
+  flex: 1 1 240px;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+}
+
+.xray-console-workspace .xray-filterbar .xray-input {
+  height: 32px;
+  font-size: 12px;
+}
+
+.xray-console-workspace .xray-console-levels {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xray-console-workspace .xray-console-levels::-webkit-scrollbar {
+  display: none;
+}
+
+.xray-console-workspace .xray-console-levels .xray-chip {
+  flex: 0 0 auto;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.xray-console-workspace .xray-console-levels[data-overflow="end"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.xray-console-workspace .xray-console-levels[data-overflow="start"] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+
+.xray-console-workspace .xray-console-levels[data-overflow="both"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
+/* S25 / P1: request context is one line above the prompt:
+   res = GET /path · 200 · 14 kb  [a ×] [b ×]  Change ▾  [inspect].
+   The picker menu is a sibling of the line (the line clips its overflow). */
+.xray-context-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.xray-prompt .xray-context-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 50%, transparent);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface2-rgb), .5);
+  overflow: hidden;
+}
+
+.xray-context-line:focus-within {
+  border-color: var(--xray-accent, var(--xray-blue));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 48%, transparent);
+}
+
+.xray-context-summary {
+  /* A small basis keeps the picker on the first row; pins wrap below when crowded. */
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--xray-text);
+  font: 800 12px/26px var(--xray-font);
+}
+
+.xray-context-prefix {
+  flex: 0 0 auto;
+  color: var(--xray-accent, var(--xray-blue));
+  font: 800 12px/1 var(--xray-font);
+  white-space: pre;
+}
+
+.xray-context-request {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xray-context-meta {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.xray-context-age {
+  /* Collapses first when the line is tight (large shrink weight), then the path. */
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--xray-hint);
+  font-weight: 600;
+  white-space: pre;
+}
+
+.xray-context-summary.xray-context-none {
+  display: block;
+  text-overflow: ellipsis;
+  color: var(--xray-subtext);
+  font-weight: 600;
+}
+
+.xray-pin-chips {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.xray-pin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 150px;
+  height: 22px;
+  padding: 0 2px 0 7px;
+  border: 1px solid color-mix(in srgb, var(--xray-mauve) 45%, transparent);
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-mauve) 12%, transparent);
+  color: var(--xray-text);
+  font: 700 11px/1 var(--xray-font);
+}
+
+.xray-pin-chip-name {
+  flex: 0 0 auto;
+  color: var(--xray-mauve);
+  font-weight: 800;
+}
+
+.xray-pin-chip-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--xray-subtext);
+}
+
+.xray-pin-chip-remove {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-subtext);
+  cursor: pointer;
+}
+
+.xray-pin-chip-remove:hover {
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-text) 10%, transparent);
+}
+
+.xray-pin-chip-remove:focus-visible,
+.xray-context-change:focus-visible {
+  outline: 2px solid var(--xray-text);
+  outline-offset: 1px;
+}
+
+/* Change ▾ and Inspect wrap together, never leaving an orphan icon on its own row. */
+.xray-context-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.xray-context-change {
+  flex: 0 0 auto;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-accent, var(--xray-blue));
+  font: 700 11px/1 var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-context-change:hover,
+.xray-context-change[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 12%, transparent);
+}
+
+.xray-context-change[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.xray-context-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 440px;
+  max-width: calc(100cqw - 20px);
+  max-height: min(360px, 60vh);
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 46%, transparent);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px rgba(var(--xray-bg-rgb), .28);
+}
+
+.xray-prompt .xray-context-menu .xray-context-filter {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: 30px;
+  max-height: none;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.xray-context-options {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.xray-context-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-text);
+  font: 600 12px/1 var(--xray-font);
+  text-align: start;
+  cursor: pointer;
+}
+
+.xray-context-option:hover,
+.xray-context-option:focus-visible {
+  background: color-mix(in srgb, var(--xray-text) 8%, transparent);
+  outline: none;
+}
+
+.xray-context-option:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--xray-text);
+}
+
+.xray-context-option[aria-current="true"] {
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 18%, transparent);
+  box-shadow: inset 2px 0 0 var(--xray-accent, var(--xray-blue));
+}
+
+.xray-context-option-method {
+  flex: 0 0 42px;
+  color: var(--xray-subtext);
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.xray-context-option-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-context-option-meta {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-context-option-pin {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-mauve) 10%, transparent);
+  color: var(--xray-mauve);
+  font-weight: 800;
+}
+
+.xray-context-empty {
+  margin: 6px 8px;
+  font-size: 12px;
+}
+
+.xray-context-menu .xray-context-pin:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.xray-context-inspect {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-subtext);
+  font: 700 11px/1 var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-context-inspect:hover {
+  color: var(--xray-accent, var(--xray-blue));
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
+}
+
+.xray-context-inspect:focus-visible {
+  outline: 2px solid var(--xray-text);
+  outline-offset: 1px;
+}
+
+@container xray (max-width: 760px) {
+  .xray-pin-chip-path {
+    display: none;
+  }
+}
+
+/* Narrow: Change ▾ becomes its chevron (it keeps its accessible name), leaving the
+   request path room. "Pick request" stays spelled out. */
+@container xray (max-width: 460px) {
+  .xray-context-change:not(.pick) > .xray-context-change-text {
+    display: none;
+  }
+
+  .xray-context-change:not(.pick) {
+    width: 28px;
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+/* S27: Snippets menu beside Run. */
+.xray-snippet-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.xray-snippet-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 280px;
+  max-width: calc(100cqw - 20px);
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 46%, transparent);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px rgba(var(--xray-bg-rgb), .28);
+}
+
+.xray-snippet-menu .xray-snippet-save:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.xray-snippet-naming {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-snippet-menu .xray-snippet-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.xray-snippet-empty {
+  margin: 4px 8px;
+  font-size: 12px;
+}
+
+.xray-snippet-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-radius: var(--xray-radius-sm);
+}
+
+.xray-snippet-item:hover {
+  background: color-mix(in srgb, var(--xray-accent, var(--xray-blue)) 10%, transparent);
+}
+
+.xray-snippet-menu .xray-snippet-load {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 28px;
+  padding: 0 8px;
+  text-align: start;
+  color: var(--xray-text);
+  font-size: 12px;
+}
+
+.xray-snippet-action {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-hint);
+  cursor: pointer;
+}
+
+.xray-snippet-action:hover {
+  color: var(--xray-accent, var(--xray-blue));
+}
+
+.xray-snippet-action.xray-snippet-remove:hover {
+  color: var(--xray-red);
+}
+
+.xray-snippet-menu :is(button, input):focus-visible {
+  outline: 2px solid var(--xray-text);
+  outline-offset: 1px;
+}
+
+.xray-snippet-undo {
+  align-self: flex-start;
+  margin: 2px 4px;
+}
+
+/* S28: example commands in the empty stream. */
+.xray-console-examples {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.xray-console-example {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.xray-console-example code {
+  font: 700 12px/1 var(--xray-font);
+}
+
+/* S29: the status bar is always a single line; low-priority items drop first. */
+.xray-panel .xray-statusbar {
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.xray-statusbar > .xray-status-item {
+  flex: 0 0 auto;
+}
+
+.xray-statusbar > .xray-status-total {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container xray (max-width: 620px) {
+  .xray-statusbar .xray-status-avg {
+    display: none;
+  }
+}
+
+@container xray (max-width: 420px) {
+  .xray-statusbar .xray-status-slow {
+    display: none;
+  }
+}
+
+/* S33: Insights overview is one strip of label/value pairs (same register as the
+   API tab's summary line); Findings follow, breakdown cards after. */
+.xray-insight-strip {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface-rgb), .88);
+  font: 600 12px/18px var(--xray-font);
+}
+
+.xray-insight-stat {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.xray-insight-stat-label {
+  color: var(--xray-subtext);
+}
+
+.xray-insight-stat strong {
+  color: var(--xray-text);
+  font-weight: 800;
+}
+
+.xray-insight-stat.warn strong { color: var(--xray-yellow); }
+.xray-insight-stat.error strong { color: var(--xray-red); }
+
+/* S34: compact finding rows grouped under their request. */
+.xray-findings {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
+.xray-findings-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.xray-findings-toolbar h4 {
+  margin: 0 4px 0 0;
+}
+
+.xray-findings-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.xray-findings .xray-chip {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.xray-finding-group {
+  margin-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--xray-hint) 22%, transparent);
+}
+
+.xray-finding-request {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0 2px;
+  font: 700 12px/1.35 var(--xray-font);
+}
+
+.xray-finding-path {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-finding-request-meta {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.xray-finding-row {
+  min-width: 0;
+  padding: 1px 0 1px 12px;
+}
+
+.xray-finding-line {
+  min-width: 0;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-finding-line input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.xray-finding-severity {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--xray-blue);
+}
+
+.xray-finding-severity.warning { color: var(--xray-yellow); }
+.xray-finding-severity.error { color: var(--xray-red); }
+
+.xray-finding-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.xray-finding-row.dismissed .xray-finding-title {
+  color: var(--xray-subtext);
+}
+
+.xray-finding-tags {
+  flex: 0 0 auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.xray-finding-action {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+
+.xray-finding-chevron {
+  transition: transform .15s ease;
+}
+
+.xray-finding-chevron.open {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-finding-chevron { transition: none; }
+}
+
+.xray-finding-details {
+  padding: 2px 0 6px 52px;
+  color: var(--xray-subtext);
+  font-size: 11px;
+}
+
+.xray-finding-details[hidden] {
+  display: none;
+}
+
+.xray-finding-details p {
+  margin: 0 0 4px;
+}
+
+.xray-finding-evidence {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+@container xray (max-width: 420px) {
+  .xray-finding-request-meta { display: none; }
+  .xray-finding-details { padding-left: 12px; }
+}
+
+/* ── Console prompt editor (spec P3–P7, P9) ──────────────────────────────────
+   The textarea is the real input (transparent text, native caret/selection/IME);
+   the aria-hidden overlay behind it paints the token colours. Both share one box
+   model so every glyph lines up. Grows to 8 lines (8 × 18px + 2 × 8px), then
+   scrolls. */
+.xray-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.xray-panel .xray-prompt .xray-editor .xray-prompt-command-row {
+  align-items: flex-start;
+}
+
+.xray-panel .xray-prompt .xray-editor .xray-prompt-command-row > svg {
+  margin-top: 10px;
+}
+
+.xray-editor-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  border: 1px solid var(--xray-border-control, color-mix(in srgb, var(--xray-hint) 55%, transparent));
+  border-radius: var(--xray-radius-lg, var(--xray-radius));
+  background: var(--xray-surface2);
+}
+
+.xray-editor-field:focus-within {
+  border-color: var(--xray-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--xray-focus) 38%, transparent);
+}
+
+.xray-panel .xray-prompt .xray-editor-input,
+.xray-panel .xray-prompt .xray-editor-highlight {
+  box-sizing: border-box;
+  margin: 0;
+  border: 0;
+  padding: 8px 10px;
+  font: 500 12px/18px var(--xray-font);
+  font-variant-ligatures: none;
+  letter-spacing: normal;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  scrollbar-gutter: stable;
+}
+
+.xray-panel .xray-prompt .xray-editor-input {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 160px;
+  border-radius: inherit;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--xray-text);
+  box-shadow: none;
+  outline: none;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.xray-panel .xray-prompt .xray-editor-input:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.xray-panel .xray-prompt .xray-editor-input::placeholder {
+  color: var(--xray-hint);
+  opacity: 1;
+}
+
+.xray-panel .xray-prompt .xray-editor-input::selection {
+  background: color-mix(in srgb, var(--xray-accent) 32%, transparent);
+  color: transparent;
+}
+
+.xray-panel .xray-prompt .xray-editor-highlight {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--xray-text);
+  background: transparent;
+}
+
+.xray-tok-keyword { color: var(--xray-mauve); }
+.xray-tok-string { color: var(--xray-green); }
+.xray-tok-number { color: var(--xray-peach); }
+.xray-tok-comment { color: var(--xray-hint); font-style: italic; }
+.xray-tok-punct { color: var(--xray-subtext); }
+.xray-tok-plain { color: var(--xray-text); }
+
+/* P5: suggestions open above the field (the prompt sits at the bottom). */
+.xray-editor-suggestions {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  z-index: 30;
+  width: min(420px, 100%);
+  max-height: 232px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--xray-border);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 10px 28px var(--xray-shadow);
+}
+
+/* Expanded (P10): the field is the tall pane, and at full height it starts at the top
+   of the Console, so "above the field" is off-screen. The list opens inside the field,
+   next to the caret's line (ConsoleEditor sets top/max-height: below the line, or above
+   it when there is more room there), and never outgrows the field. */
+.xray-editor.is-expanded .xray-editor-suggestions {
+  top: 4px;
+  bottom: auto;
+  left: 4px;
+  width: min(420px, calc(100% - 8px));
+  max-height: min(232px, calc(100% - 8px));
+}
+
+.xray-editor-group {
+  list-style: none;
+}
+
+.xray-editor-group-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xray-editor-group-label {
+  padding: 6px 8px 2px;
+  color: var(--xray-hint);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.xray-editor-option {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: var(--xray-radius-sm);
+  color: var(--xray-text);
+  font: 500 12px/16px var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-editor-option:hover {
+  background: color-mix(in srgb, var(--xray-text) 7%, transparent);
+}
+
+.xray-editor-option.active {
+  background: color-mix(in srgb, var(--xray-accent) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--xray-accent);
+}
+
+.xray-editor-option-label {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.xray-editor-option-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* P6/P7: one muted line under the editor — a helper signature or a live preview. */
+.xray-editor-hint {
+  min-width: 0;
+  padding-left: 24px;
+  overflow: hidden;
+  color: var(--xray-subtext);
+  font: 500 11px/16px var(--xray-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-editor-hint.signature .xray-editor-hint-main { color: var(--xray-text); font-weight: 700; }
+.xray-editor-hint.signature .xray-editor-hint-main .xray-editor-hint-param {
+  color: var(--xray-text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--xray-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.xray-editor-hint-note { color: var(--xray-hint); }
+
+/* Manual open (Ctrl+Space) with nothing to offer: a visible, non-interactive row. */
+.xray-editor-suggestions-empty {
+  padding: 8px 12px;
+  overflow: visible;
+  color: var(--xray-hint);
+  font: 500 12px/16px var(--xray-font);
+  pointer-events: none;
+}
+
+/* P9: chips insert at the caret. They wrap rather than scroll out of reach. */
+.xray-editor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 24px;
+}
+
+.xray-editor-chip {
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--xray-border) 90%, transparent);
+  border-radius: var(--xray-radius-sm);
+  background: transparent;
+  color: var(--xray-subtext);
+  font: 600 11px/1 var(--xray-font);
+  cursor: pointer;
+  transition: color var(--xray-dur-fast) var(--xray-ease), border-color var(--xray-dur-fast) var(--xray-ease), background var(--xray-dur-fast) var(--xray-ease);
+}
+
+.xray-editor-chip:hover {
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
+  color: var(--xray-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-editor-chip { transition: none; }
+}
+
+@container xray (max-width: 420px) {
+  .xray-editor-hint,
+  .xray-editor-chips { padding-left: 0; }
+}
+
+/* Short viewports keep the stream usable: the editor stops growing at 3 lines. */
+@media (max-height: 400px) {
+  .xray-panel .xray-prompt .xray-editor-input { max-height: 70px; padding-block: 8px; }
+  .xray-editor-chip { height: 20px; }
+}
+
+/* ── Smart starters (spec P8) ─────────────────────────────────────────────────
+   Chips generated from the selected response. In the empty stream they replace the
+   fixed examples; above the editor they show while the draft is empty. */
+.xray-starter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.xray-console-examples.xray-starter-chips { justify-content: center; }
+
+.xray-starter-row { padding-left: 24px; gap: 4px; }
+
+.xray-panel .xray-starter-chip {
+  height: 28px;
+  padding: 0 10px;
+  color: var(--xray-text);
+  font: 600 12px/1 var(--xray-font);
+  cursor: pointer;
+}
+
+.xray-panel .xray-starter-row .xray-starter-chip {
+  height: 24px;
+  padding: 0 8px;
+  border-style: dashed;
+  color: var(--xray-subtext);
+  font-size: 11px;
+}
+
+.xray-panel .xray-starter-chip:hover {
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-accent) 10%, transparent);
+  color: var(--xray-text);
+}
+
+@container xray (max-width: 420px) {
+  .xray-starter-row { padding-left: 0; }
+}
+
+/* ── Expanded editor (spec P10) ───────────────────────────────────────────────
+   The prompt grows to ~70% of the Console column (the field itself ≈ 60%); on a
+   narrow Console (< 600 px wide) or a short viewport it takes the whole column and
+   the stream steps aside. Lines never wrap, so the gutter's numbers stay on their
+   lines; the overlay and gutter follow the textarea's scroll. ConsolePrompt reads
+   --xray-editor-full back to know when the stream is covered. */
+.xray-editor-code {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  border-radius: inherit;
+}
+
+.xray-editor-actions { display: contents; }
+
+.xray-panel .xray-prompt.is-expanded {
+  flex: 0 0 70%;
+  min-height: 0;
+}
+
+.xray-prompt.is-expanded .xray-editor {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.xray-panel .xray-prompt .xray-editor.is-expanded .xray-prompt-command-row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.xray-editor.is-expanded .xray-prompt-command-row > svg { display: none; }
+
+.xray-editor.is-expanded .xray-editor-tools {
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.xray-editor-tools-hint {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-hint);
+  font: 500 11px/16px var(--xray-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xray-editor.is-expanded .xray-editor-actions {
+  grid-row: 1;
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-editor.is-expanded .xray-editor-field {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  min-height: 0;
+}
+
+.xray-panel .xray-prompt .xray-editor.is-expanded .xray-editor-input {
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.xray-panel .xray-prompt .xray-editor.is-expanded .xray-editor-highlight {
+  white-space: pre;
+  overflow-wrap: normal;
+  /* A longer scroll range than the textarea's (its scrollbars take room the
+     overlay does not have), so the overlay can always follow it. */
+  padding-right: 40px;
+  padding-bottom: 40px;
+}
+
+.xray-editor-gutter {
+  flex: 0 0 auto;
+  min-width: 3.5ch;
+  padding: 8px 8px 48px 10px;
+  overflow: hidden;
+  border-right: 1px solid color-mix(in srgb, var(--xray-border) 80%, transparent);
+  color: var(--xray-hint);
+  font: 500 12px/18px var(--xray-font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  pointer-events: none;
+  user-select: none;
+}
+
+.xray-editor-gutter > span { display: block; }
+
+.xray-editor-expand {
+  width: 34px;
+  justify-content: center;
+  padding: 0;
+}
+
+.xray-editor-expand[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--xray-accent) 55%, transparent);
+  color: var(--xray-text);
+}
+
+@container xray-console (max-width: 599px) {
+  .xray-panel .xray-prompt.is-expanded {
+    --xray-editor-full: 1;
+    flex: 1 1 0;
+  }
+
+  .xray-console-column:has(> .xray-prompt.is-expanded) > .xray-filterbar,
+  .xray-console-column:has(> .xray-prompt.is-expanded) > .xray-console-stream-wrap {
+    display: none;
+  }
+
+  .xray-editor-tools-hint { display: none; }
+}
+
+@media (max-height: 600px) {
+  .xray-panel .xray-prompt.is-expanded {
+    --xray-editor-full: 1;
+    flex: 1 1 0;
+  }
+
+  .xray-console-column:has(> .xray-prompt.is-expanded) > .xray-filterbar,
+  .xray-console-column:has(> .xray-prompt.is-expanded) > .xray-console-stream-wrap {
+    display: none;
+  }
+}
+
+/* An empty editor stays one line: the placeholder is clipped with an ellipsis
+   instead of wrapping the field to two or three lines in a narrow prompt (the
+   full text is in the field's title). Wrapping resumes with the first character. */
+.xray-panel .xray-prompt .xray-editor-input:placeholder-shown {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-panel .xray-prompt .xray-editor-input::placeholder {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-editor-tools .xray-btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* Below ~720 px the tool labels give way to icons (names stay in aria-label/title). */
+@container xray (max-width: 720px) {
+  .xray-editor-tools .xray-btn > span { display: none; }
+  .xray-editor-tools .xray-btn { width: 34px; justify-content: center; padding: 0; }
+}
+
+/* The shortcut hint only shows where it fits whole (the tooltips carry it too). */
+@container xray (max-width: 900px) {
+  .xray-editor-tools-hint { display: none; }
 }

@@ -33,6 +33,7 @@ if (root) {
     applyThemeFromHash();
     usePanelStore.getState().setOpen(true);
     usePanelStore.getState().setDevtoolsMode(false);
+    usePanelStore.getState().setSurface('window');
     usePanelStore.getState().setInitialized(true);
     // The pop-out is a standalone surface, so Escape must not dismiss the panel —
     // there would be nothing left and no way to bring it back.

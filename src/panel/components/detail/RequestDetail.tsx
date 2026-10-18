@@ -5,9 +5,12 @@ import {
   IconChartBar,
   IconCode,
   IconCopy,
+  IconDots,
   IconDownload,
   IconFileDiff,
+  IconInfoCircle,
   IconKey,
+  IconPin,
   IconPlugConnected,
   IconRepeat,
   IconRoute,
@@ -21,27 +24,29 @@ import {
 } from '@tabler/icons-react';
 import { EmptyState } from '../common/EmptyState';
 import { usePanelStore } from '../../store';
-import type { WsFrame, XrayEntry } from '../../types';
-import { detailValue, detailViews, gridRows, structuralDiff, timingPhases } from '../../models/detail';
+import type { DetailView, WsFrame, XrayEntry } from '../../types';
+import { detailValue, gridRows, structuralDiff, timingPhases, type DiffLine } from '../../models/detail';
+import { bodyViews, isBodyView, resolveDetailFacet, type DetailFacet } from '../../models/detailNavigation';
 import { buildVizSpec, formatVizValue } from '../../models/viz';
 import { duration, entryGroupPath, entryPath } from '../../models/entries';
 import { extractJwts } from '../../models/lenses';
 import { getResponseOperations, type ResponseOperation } from '../../models/operations';
-import { copyText, entryResponse, formatBytes, formatTime, methodClass, preview, safeStringify, schema, statusClass } from '../../utils';
+import { isReplayableEntry } from '../../models/replayability';
+import { buildCurl, buildFetch, buildMockPayload, copyText, entryResponse, formatBytes, formatTime, methodClass, preview, safeStringify, schema, statusClass } from '../../utils';
 import { JsonView } from './JsonView';
+import { focusFirstItem, handleMenuKeyDown, useMenuDismiss } from '../common/menuBehavior';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
-type ResponseTab = 'response' | 'headers' | 'cookies' | 'timeline' | 'frames' | 'initiator' | 'tokens';
-
-const responseTabs: Array<{ id: ResponseTab; label: string }> = [
-  { id: 'response', label: 'Preview' },
+const responseTabs: Array<{ id: DetailFacet; label: string }> = [
+  { id: 'response', label: 'Response' },
+  { id: 'request', label: 'Request' },
   { id: 'headers', label: 'Headers' },
-  { id: 'cookies', label: 'Cookies' },
+  { id: 'timing', label: 'Timing' },
   { id: 'frames', label: 'Frames' },
+  { id: 'cookies', label: 'Cookies' },
   { id: 'initiator', label: 'Initiator' },
   { id: 'tokens', label: 'Tokens' },
-  { id: 'timeline', label: 'Timeline' },
 ];
 
 const viewLabels: Record<string, string> = {
@@ -54,13 +59,6 @@ const viewLabels: Record<string, string> = {
   waterfall: 'Waterfall',
   headers: 'Headers',
 };
-
-const operationGroups = [
-  { label: 'Inspect', ids: ['inspect-error', 'schema', 'table', 'visualize', 'headers', 'waterfall', 'request'] },
-  { label: 'Transform', ids: ['compare-previous', 'diff', 'mock', 'related-errors', 'similar-calls', 'slow-calls'] },
-  { label: 'Copy', ids: ['copy-curl', 'copy-fetch', 'copy-full'] },
-  { label: 'Send', ids: ['send-console', 'save-snippet', 'export'] },
-] as const;
 
 function jwtSourceLabel(source: string): string {
   if (source.startsWith('requestHeaders')) return 'Request header';
@@ -93,12 +91,41 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
   const replayEntry = usePanelStore((state) => state.replayEntry);
   const openReplayEditor = usePanelStore((state) => state.openReplayEditor);
   const openExplain = usePanelStore((state) => state.openExplain);
-  const [responseTab, setResponseTab] = React.useState<ResponseTab>('response');
+  const compareLeftId = usePanelStore((state) => state.compareLeftId);
+  const compareRightId = usePanelStore((state) => state.compareRightId);
+  const setComparisonEntry = usePanelStore((state) => state.setComparisonEntry);
+  const openComparison = usePanelStore((state) => state.openComparison);
+  const slowThresholdMs = usePanelStore((state) => state.settings.slowThresholdMs);
+  const rememberedBodyView = React.useRef(isBodyView(detailView) ? detailView : 'tree');
+  const [conditional, setConditional] = React.useState<{ facet: DetailFacet; tab: typeof detailTab; view: DetailView } | null>(null);
+  const [metadataOpen, setMetadataOpen] = React.useState(false);
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const detailRef = React.useRef<HTMLDivElement>(null);
+  const moreRef = React.useRef<HTMLDivElement>(null);
+  const moreTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const [menuFit, setMenuFit] = React.useState<{ placement: 'up' | 'down'; maxHeight?: number; maxWidth?: number }>({ placement: 'up' });
+  const moreId = React.useId();
+  const metadataId = React.useId();
+  const replayable = isReplayableEntry(entry);
   const cookies = React.useMemo(() => cookieSummary(entry), [entry]);
   const hasCookies = Object.keys(cookies).length > 0;
   const jwts = React.useMemo(() => extractJwts(entry), [entry]);
   const hasFrames = Array.isArray(entry.wsFrames);
   const hasInitiator = Array.isArray(entry.initiator) && entry.initiator.length > 0;
+  const requestedFacet = conditional && conditional.tab === detailTab && conditional.view === detailView
+    ? conditional.facet : resolveDetailFacet(detailTab, detailView);
+  const facetAvailable = (facet: DetailFacet): boolean => {
+    if (facet === 'frames') return hasFrames;
+    if (facet === 'cookies') return hasCookies;
+    if (facet === 'initiator') return hasInitiator;
+    if (facet === 'tokens') return jwts.length > 0;
+    return true;
+  };
+  // Derive the fallback during render, so a new entry never paints stale facet
+  // content while waiting for an effect. The effect makes the fallback durable.
+  const responseTab = facetAvailable(requestedFacet) ? requestedFacet : 'response';
+  const bodyView = isBodyView(detailView) ? detailView : 'tree';
   const driftFrom = React.useMemo(
     () => entry.driftFromId ? usePanelStore.getState().entries.find((candidate) => candidate.id === entry.driftFromId) || null : null,
     [entry.driftFromId, entriesLength],
@@ -106,98 +133,170 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
   const activeValue = React.useMemo(() => {
     if (responseTab === 'headers') return headerSummary(entry);
     if (responseTab === 'cookies') return cookies;
-    if (responseTab === 'timeline') return timelineSummary(entry);
-    return detailValue(entry, detailTab);
-  }, [cookies, detailTab, entry, responseTab]);
-  const operations = React.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries), [entry, entriesLength]);
-  const groupedOperations = React.useMemo(() => groupResponseOperations(operations), [operations]);
+    if (responseTab === 'timing') return timelineSummary(entry);
+    if (responseTab === 'frames') return entry.wsFrames || [];
+    if (responseTab === 'initiator') return entry.initiator || [];
+    if (responseTab === 'tokens') return jwts;
+    return detailValue(entry, compact ? detailTab : responseTab === 'request' ? 'request' : 'response');
+  }, [compact, cookies, detailTab, entry, jwts, responseTab]);
+  const operations = React.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries, slowThresholdMs), [entry, entriesLength, slowThresholdMs]);
+  const secondaryOperations = React.useMemo(() => {
+    // View operations have a direct facet/body-mode entry point. Console/Export
+    // already live in the common row. Preserve all other applicable operations.
+    const items = operations.filter((op) => op.kind !== 'view' && op.id !== 'send-console' && op.kind !== 'export');
+    const required: ResponseOperation[] = [
+      { id: 'copy-curl', label: 'Copy cURL', kind: 'copy', lazyCommand: () => buildCurl(entry), toast: 'cURL copied.', priority: 45 },
+      { id: 'copy-fetch', label: 'Copy fetch', kind: 'copy', lazyCommand: () => buildFetch(entry), toast: 'fetch snippet copied.', priority: 44 },
+      { id: 'mock', label: 'Copy mock JSON', kind: 'copy', lazyCommand: () => buildMockPayload(entry), priority: 43 },
+      { id: 'save-snippet', label: 'Save Snippet', kind: 'snippet', command: 'schema(res)', priority: 42 },
+    ];
+    for (const op of required) if (!items.some((item) => item.id === op.id)) items.push(op);
+    return items
+      .filter((op) => replayable || !['copy-curl', 'copy-fetch', 'mock'].includes(op.id))
+      .map((op) => op.id === 'copy-full' ? { ...op, label: 'Copy response preview' } : op.id === 'mock' ? { ...op, label: 'Copy mock JSON' } : op);
+  }, [entry, operations, replayable]);
+  const recommendations = secondaryOperations.filter((op) => ['compare-previous', 'related-errors', 'similar-calls', 'slow-calls'].includes(op.id)).slice(0, 2);
+  const moreOperations = secondaryOperations.filter((op) => !recommendations.some((item) => item.id === op.id));
+  // More-actions groups after the fixed run/analyse items: other analysis, then copy/save.
+  const copyOrder = ['copy-curl', 'copy-fetch', 'mock', 'save-snippet'];
+  const isCopyOperation = (op: ResponseOperation): boolean => op.kind === 'copy' || op.kind === 'snippet';
+  const analyseOperations = moreOperations.filter((op) => !isCopyOperation(op));
+  const copyOperations = moreOperations.filter(isCopyOperation).sort((a, b) => {
+    const rank = (op: ResponseOperation): number => { const i = copyOrder.indexOf(op.id); return i < 0 ? -1 : i; };
+    return rank(a) - rank(b);
+  });
   // Diff pairs against the recorded drift baseline when one exists; otherwise
   // the previous call on the same endpoint (grouped per GraphQL operation).
   const previous = React.useMemo(
     () => driftFrom ?? previousSameEndpoint(entry, usePanelStore.getState().entries),
     [driftFrom, entry, entriesLength],
   );
-  const previousValue = React.useMemo(() => previous ? entryResponse(previous) : null, [previous]);
-  const [workerAnalysis, setWorkerAnalysis] = React.useState<WorkerDetailAnalysis | null>(null);
+  const previousValue = React.useMemo(() => previous ? detailValue(previous, responseTab === 'request' ? 'request' : 'response') : null, [previous, responseTab]);
+  // Tagged with the inputs it was computed for, so a previous entry's diff/schema
+  // is never shown during the render before the clearing effect runs.
+  const [workerResult, setWorkerResult] = React.useState<{ active: unknown; previous: unknown; analysis: WorkerDetailAnalysis } | null>(null);
+  const workerAnalysis = workerResult && workerResult.active === activeValue && workerResult.previous === previousValue ? workerResult.analysis : null;
+  const workerDiff = React.useMemo(() => normalizeWorkerDiff(workerAnalysis?.diff), [workerAnalysis?.diff]);
 
-  // The active tab survives selection changes so comparing the same facet
-  // across requests doesn't require re-clicking; only tabs that don't apply to
-  // the new entry fall back to the preview.
   React.useEffect(() => {
-    setResponseTab((tab) => {
-      if (tab === 'frames' && !hasFrames) return 'response';
-      if (tab === 'initiator' && !hasInitiator) return 'response';
-      if (tab === 'tokens' && !jwts.length) return 'response';
-      return tab;
-    });
-  }, [entry.id, hasFrames, hasInitiator, jwts.length]);
+    if (isBodyView(detailView)) rememberedBodyView.current = detailView;
+  }, [detailView]);
+
+  React.useEffect(() => {
+    if (conditional && (conditional.tab !== detailTab || conditional.view !== detailView)) setConditional(null);
+    if (requestedFacet !== responseTab) {
+      setConditional(null);
+      setDetailTab('response');
+      setDetailView(rememberedBodyView.current);
+    }
+  }, [conditional, detailTab, detailView, requestedFacet, responseTab, setDetailTab, setDetailView]);
+
+  React.useEffect(() => { setMoreOpen(false); setMetadataOpen(false); }, [entry.id]);
+
+  // Open towards whichever side of the trigger has more room inside this panel and
+  // scroll the menu when neither side fits it, so every item stays reachable.
+  React.useLayoutEffect(() => {
+    if (!moreOpen || !detailRef.current || !moreTriggerRef.current || !menuRef.current) return;
+    const bounds = detailRef.current.getBoundingClientRect();
+    const trigger = moreTriggerRef.current.getBoundingClientRect();
+    const gap = 8;
+    const above = trigger.top - bounds.top - gap;
+    const below = bounds.bottom - trigger.bottom - gap;
+    const needed = menuRef.current.scrollHeight + 2;
+    const placement = above >= needed || above >= below ? 'up' : 'down';
+    setMenuFit({ placement, maxHeight: Math.max(120, Math.floor(Math.min(needed, placement === 'up' ? above : below))), maxWidth: Math.max(160, Math.floor(bounds.width - 16)) });
+  }, [moreOpen]);
+
+  // Disclosure of buttons (not an ARIA menu): focus moves in on open; the keyboard,
+  // Escape and outside-press behaviour is shared in menuBehavior.ts. Initial focus
+  // skips items that act immediately (Replay sends at once), so a double Enter on
+  // the trigger can never replay; Edit & Replay only opens the editor.
+  React.useEffect(() => {
+    if (!moreOpen) return;
+    const safe = menuRef.current?.querySelector<HTMLElement>('button:not(:disabled):not([data-sends-immediately])');
+    if (safe) safe.focus(); else focusFirstItem(menuRef.current);
+  }, [moreOpen]);
+  useMenuDismiss(moreOpen, moreRef, moreTriggerRef, () => setMoreOpen(false), undefined, true);
+
+  // Closing from an activated item returns focus to the trigger; an item that opens
+  // a modal therefore hands the modal the trigger as its restore target.
+  function closeMenu(): void {
+    setMoreOpen(false);
+    moreTriggerRef.current?.focus();
+  }
+
+  function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    handleMenuKeyDown(event, menuRef.current, moreRef.current, moreTriggerRef.current, () => setMoreOpen(false));
+  }
 
   React.useEffect(() => {
     let cancelled = false;
-    setWorkerAnalysis(null);
+    setWorkerResult(null);
     if (!window.XRAY_Worker?.detailAnalysis) return;
     window.XRAY_Worker.detailAnalysis(activeValue, previousValue)
       .then((analysis) => {
-        if (!cancelled && analysis && typeof analysis === 'object') setWorkerAnalysis(analysis as WorkerDetailAnalysis);
+        if (!cancelled && analysis && typeof analysis === 'object') setWorkerResult({ active: activeValue, previous: previousValue, analysis: analysis as WorkerDetailAnalysis });
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [activeValue, previousValue]);
 
-  React.useEffect(() => {
-    if (responseTab === 'cookies' && !hasCookies) setResponseTab('response');
-  }, [hasCookies, responseTab]);
-
-  function selectResponseTab(tab: ResponseTab): void {
-    setResponseTab(tab);
-    if (tab === 'headers') {
-      setDetailTab('headers');
-      // Always land on the headers grid — leaving a diff/schema view active
-      // rendered that view over the header summary instead.
-      setDetailView('tree');
+  function selectResponseTab(tab: DetailFacet): void {
+    if (tab !== 'response' && tab !== 'request' && tab !== 'headers' && tab !== 'timing') {
+      setConditional({ facet: tab, tab: detailTab, view: detailView });
       return;
     }
-    setDetailTab('response');
-    if (tab === 'timeline') {
+    setConditional(null);
+    if (tab === 'headers') {
+      setDetailTab('headers');
+      setDetailView('headers');
+      return;
+    }
+    if (tab === 'timing') {
+      setDetailTab('response');
       setDetailView('waterfall');
       return;
     }
-    if (detailView === 'headers' || detailView === 'waterfall') setDetailView('tree');
+    setDetailTab(tab);
+    setDetailView(rememberedBodyView.current);
   }
 
-  function selectDetailView(view: typeof detailViews[number]): void {
+  function selectDetailView(view: DetailView): void {
+    setConditional(null);
     setDetailView(view);
     if (view === 'headers') {
       setDetailTab('headers');
-      setResponseTab('headers');
       return;
     }
     if (view === 'waterfall') {
       setDetailTab('response');
-      setResponseTab('timeline');
       return;
     }
-    setDetailTab('response');
-    setResponseTab('response');
+    rememberedBodyView.current = isBodyView(view) ? view : rememberedBodyView.current;
+    setDetailTab(responseTab === 'request' ? 'request' : 'response');
   }
 
   async function copyActiveValue(): Promise<void> {
-    await copyText(typeof activeValue === 'string' ? activeValue : safeStringify(activeValue, 2, 500_000));
-    showToast('Response copied.');
+    let value = activeValue;
+    const body = responseTab === 'request' || responseTab === 'response';
+    if (body && bodyView === 'schema') value = workerAnalysis?.schema ?? schema(activeValue);
+    if (body && bodyView === 'grid') value = (workerAnalysis?.grid ?? gridRows(activeValue)).objects;
+    if (body && bodyView === 'diff') value = previousValue == null ? [] : structuralDiff(previousValue, activeValue);
+    if (body && bodyView === 'viz') value = buildVizSpec(activeValue);
+    const text = typeof value === 'string' ? value : safeStringify(value, 2, 500_000);
+    const label = responseTabs.find((tab) => tab.id === responseTab)?.label || 'Content';
+    await copyWithReceipt(text, `${label}${body && bodyView !== 'tree' && bodyView !== 'raw' ? ` ${viewLabels[bodyView]}` : ''} copied${isTruncated(text) ? ' as a truncated preview' : ''}.`, showToast);
   }
 
   async function runOperation(operation: ResponseOperation): Promise<void> {
+    setMoreOpen(false);
     if (operation.kind === 'view') {
       if (operation.id === 'headers' || operation.view === 'headers') {
-        setResponseTab('headers');
-        setDetailTab('headers');
-        setDetailView('tree');
+        selectResponseTab('headers');
       } else if (operation.view === 'waterfall') {
-        setResponseTab('timeline');
-        setDetailTab('response');
-        setDetailView('waterfall');
+        selectResponseTab('timing');
       } else {
-        setResponseTab('response');
+        setConditional(null);
         setDetailTab(operation.id === 'request' ? 'request' : 'response');
         if (operation.view) setDetailView(operation.view);
       }
@@ -217,8 +316,10 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
     if (operation.kind === 'copy') {
       const text = operation.command ?? operation.lazyCommand?.();
       if (!text) return;
-      await copyText(text);
-      showToast(operation.toast || `${operation.label} copied.`);
+      const receipt = operation.id === 'copy-full'
+        ? `Response preview copied${isTruncated(text) ? ' (truncated)' : ''}.`
+        : `${operation.id === 'mock' ? 'Mock JSON' : operation.label.replace(/^Copy /, '')} copied${isTruncated(text) ? ' as a truncated preview' : ''}.`;
+      await copyWithReceipt(text, receipt, showToast);
       return;
     }
     if (operation.kind === 'export') {
@@ -236,103 +337,195 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
   });
   const status = Number(entry.status) || 0;
 
+  function createMock(): void {
+    setMoreOpen(false);
+    const value = entryResponse(entry);
+    const serialized = typeof value === 'string' ? value : safeStringify(value, 2, 100_000);
+    const body = serialized.length > 100_000 ? serialized.slice(0, 100_000) : serialized;
+    const truncated = serialized.length > 100_000 || isTruncated(body);
+    const receipt = usePanelStore.getState().addRule({
+      label: `${entry.method || 'GET'} ${entryPath(entry)}`,
+      match: { url: String(entry.urlPath || entry.url || ''), method: String(entry.method || '') },
+      action: { type: 'mock', status: Number(entry.status) || 200, body, headers: {}, delayMs: 0 },
+    });
+    showToast(receipt.accepted ? `Created disabled mock rule${truncated ? ' with truncated response preview' : ''}.` : 'Mock rule not created: rule limit reached.');
+  }
+
+  // P2: the pinned request becomes `a`…`f` in the Console (its parsed response body).
+  function pinInConsole(): void {
+    const state = usePanelStore.getState();
+    const existing = state.consolePins.find((pin) => pin.entryId === entry.id);
+    const name = state.pinConsoleRequest(entry.id);
+    if (!name) return; // refused: the store has shown why (limit of 6)
+    showToast(existing ? `Already pinned as ${name} in Console.` : `Pinned as ${name} in Console.`);
+  }
+
+  function prepareConsole(): void {
+    const commands: Record<DetailFacet, string> = {
+      response: 'res', request: 'req', headers: '({ requestHeaders: entry.requestHeaders, responseHeaders: entry.responseHeaders })',
+      timing: 'entry.timing', frames: 'entry.wsFrames', cookies: '({ requestHeaders: entry.requestHeaders, responseHeaders: entry.responseHeaders })',
+      initiator: 'entry.initiator', tokens: 'entry.jwtLenses',
+    };
+    insertConsoleCommand(commands[responseTab]);
+  }
+
   function replayNow(): void {
     replayEntry(entry);
   }
 
   return (
-    <div className={`xray-request-detail ${compact ? 'compact' : ''}`}>
+    <div ref={detailRef} className={`xray-request-detail ${compact ? 'compact' : ''}`}>
       {!compact && (
         <>
           <div className="xray-detail-hero">
             <div className="xray-response-heading">
               <span className={`xray-method ${methodClass(entry.method)}`}>{entry.method || 'GET'}</span>
-              <h3>{entryPath(entry)}</h3>
+              <h3 title={String(entry.url || entry.urlPath || '')}>{entryPath(entry)}</h3>
             </div>
             <div className="xray-response-chips">
               <span className={`xray-response-chip ${statusClass(status)}`}>{entry.status || entry.logLevel || 'log'}</span>
               <span className="xray-response-chip">{Math.round(duration(entry))}ms</span>
               <span className="xray-response-chip">{formatBytes(entry.size)}</span>
+              {entry.mocked && <span className="xray-api-flag mocked">Mocked</span>}
+              {entry.replayed && <span className="xray-api-flag replayed">Replayed</span>}
+              {entry.imported && <span className="xray-api-flag">Imported</span>}
+              {hasFrames && <span className="xray-api-flag">{entry.wsState || 'Streaming'}</span>}
             </div>
-            {onClose && <button className="xray-icon-btn" aria-label="Close selected request detail" onClick={onClose}><IconX {...iconProps} /></button>}
+            <button className="xray-action-btn xray-detail-action" aria-expanded={metadataOpen} aria-controls={metadataId} title="Metadata" onClick={() => setMetadataOpen((open) => !open)}><IconInfoCircle {...iconProps} /><span className="xray-detail-action-label">Metadata</span></button>
+            <div className="xray-detail-actions" role="group" aria-label="Request actions">
+              <button className="xray-action-btn xray-detail-action" title="Copy the inspected content" onClick={() => void copyActiveValue()}><IconCopy {...iconProps} /><span className="xray-detail-action-label">Copy</span></button>
+              <button className="xray-action-btn xray-detail-action primary" title="Export" onClick={() => setExportOpen(true)}><IconDownload {...iconProps} /><span className="xray-detail-action-label">Export</span></button>
+              <button className="xray-action-btn xray-detail-action" title="Send to Console" onClick={prepareConsole}><IconSend {...iconProps} /><span className="xray-detail-action-label">Console</span></button>
+              <div ref={moreRef} className="xray-detail-more">
+                <button ref={moreTriggerRef} className="xray-action-btn xray-detail-action" aria-label="More actions" title="More actions" aria-expanded={moreOpen} aria-controls={moreId} onClick={() => setMoreOpen((open) => !open)}><IconDots {...iconProps} /><span className="xray-detail-action-label">More actions</span></button>
+                {moreOpen && <div id={moreId} ref={menuRef} className="xray-detail-action-list" data-placement={menuFit.placement} style={{ maxHeight: menuFit.maxHeight, maxWidth: menuFit.maxWidth }} role="group" aria-label="Secondary request actions" onKeyDown={onMenuKeyDown}>
+                  {replayable && <>
+                    <button className="xray-menu-item" data-sends-immediately="" onClick={() => { closeMenu(); replayNow(); }}><IconRepeat {...iconProps} />Replay</button>
+                    <button className="xray-menu-item" onClick={() => { closeMenu(); openReplayEditor(entry); }}><IconRepeat {...iconProps} />Edit &amp; Replay</button>
+                    <button className="xray-menu-item" onClick={() => { closeMenu(); usePanelStore.getState().draftExperiment(entry); }}><IconRepeat {...iconProps} />Prepare experiment</button>
+                    <div className="xray-menu-sep" aria-hidden="true" />
+                  </>}
+                  <button className="xray-menu-item" onClick={() => { closeMenu(); openExplain(entry); }}><IconSparkles {...iconProps} />Explain</button>
+                  {entry.type === 'api' && <button className="xray-menu-item" title="Keep this request as a Console variable (its response body)" onClick={() => { closeMenu(); pinInConsole(); }}><IconPin {...iconProps} />Pin in Console</button>}
+                  <button className="xray-menu-item" onClick={() => { closeMenu(); const state = usePanelStore.getState(); state.selectEntry(entry.id); if (state.saveInvestigation()) state.setActiveTab('rules'); }}><IconBookmark {...iconProps} />Save investigation</button>
+                  {replayable && <button className="xray-menu-item" onClick={() => { closeMenu(); createMock(); }}><IconPlugConnected {...iconProps} />Create disabled mock rule</button>}
+                  {analyseOperations.map((operation) => <button key={operation.id} className="xray-menu-item" onClick={() => { closeMenu(); void runOperation(operation); }}><OperationIcon operation={operation} />{operation.label}</button>)}
+                  {copyOperations.length > 0 && <div className="xray-menu-sep" aria-hidden="true" />}
+                  {copyOperations.map((operation) => <button key={operation.id} className="xray-menu-item" onClick={() => { closeMenu(); void runOperation(operation); }}><OperationIcon operation={operation} />{operation.label}</button>)}
+                  <div className="xray-menu-sep" aria-hidden="true" />
+                  <button className="xray-menu-item" aria-pressed={compareLeftId === entry.id} onClick={() => { setComparisonEntry('left', entry.id); closeMenu(); }}><IconFileDiff {...iconProps} />Set as comparison left</button>
+                  <button className="xray-menu-item" aria-pressed={compareRightId === entry.id} onClick={() => { setComparisonEntry('right', entry.id); closeMenu(); }}><IconFileDiff {...iconProps} />Set as comparison right</button>
+                  <button className="xray-menu-item" onClick={() => { closeMenu(); openComparison(); }}><IconFileDiff {...iconProps} />Open comparison</button>
+                </div>}
+              </div>
+            </div>
+            {onClose && <button className="xray-icon-btn xray-detail-close" aria-label="Close selected request detail" onClick={onClose}><IconX {...iconProps} /></button>}
           </div>
+          {metadataOpen && <div id={metadataId} className="xray-detail-metadata">
+            <label>Full URL<input className="xray-input" aria-label="Full request URL" readOnly value={String(entry.url || entry.urlPath || '')} /></label>
+            <span className="xray-muted">{entry.source || 'fetch'} · {formatTime(entry.timestamp)}{entry.graphql?.operationName ? ` · ${entry.graphql.operationName}` : ''}</span>
+            {entry.replayOf && <span className="xray-muted">Replay of {entry.replayOf}</span>}
+            {entry.mockRuleId && <span className="xray-muted">Mock rule {entry.mockRuleId}</span>}
+          </div>}
+          {(compareLeftId || compareRightId) && <div className="xray-detail-comparison" role="group" aria-label="Comparison selection">
+            <span className="xray-muted">Left {compareLeftId ? 'selected' : 'not selected'} · Right {compareRightId ? 'selected' : 'not selected'}</span>
+            <button className="xray-chip" onClick={() => { setMoreOpen(false); openComparison(); }}>Open comparison</button>
+          </div>}
           {driftFrom && (
             <div className="xray-drift-banner" role="status">
               <IconRoute {...iconProps} />
               <span>Response schema changed versus the previous call to this endpoint.</span>
-              <button className="xray-chip" onClick={() => { setResponseTab('response'); setDetailTab('response'); setDetailView('diff'); }}>View diff</button>
+              <button className="xray-chip" onClick={() => { setConditional(null); setDetailTab('response'); setDetailView('diff'); }}>View diff</button>
             </div>
           )}
-          <div className="xray-detail-actionbar" aria-label="Request actions">
-            <button className="xray-chip xray-operation-chip" onClick={replayNow} title="Replay this request from the page"><IconRepeat {...iconProps} />Replay</button>
-            <button className="xray-chip xray-operation-chip" onClick={() => openReplayEditor(entry)} title="Edit method, headers, or body then replay"><IconRepeat {...iconProps} />Edit &amp; Replay</button>
-            <button className="xray-chip xray-operation-chip" onClick={() => openExplain(entry)} title="Explain this request with AI"><IconSparkles {...iconProps} />Explain</button>
-            <button className="xray-chip xray-operation-chip" onClick={() => usePanelStore.getState().addRule({ label: `${entry.method || 'GET'} ${entryPath(entry)}`, match: { url: String(entry.urlPath || entry.url || ''), method: String(entry.method || '') }, action: { type: 'mock', status: Number(entry.status) || 200, body: typeof entryResponse(entry) === 'string' ? String(entryResponse(entry)) : safeStringify(entryResponse(entry), 2, 100_000), headers: {}, delayMs: 0 } })} title="Create a mock rule from this response"><IconPlugConnected {...iconProps} />Mock this</button>
-          </div>
           <div className="xray-detail-nav">
-            <div className="xray-detail-tabs" aria-label="Response tabs">
-              {visibleResponseTabs.map((tab) => <button key={tab.id} className={`xray-detail-tab ${responseTab === tab.id ? 'active' : ''}`} onClick={() => selectResponseTab(tab.id)}>{tab.label}</button>)}
+            <div className="xray-detail-tabs" role="group" aria-label="Request facets">
+              {visibleResponseTabs.map((tab) => <button key={tab.id} aria-pressed={responseTab === tab.id} className={`xray-detail-tab ${responseTab === tab.id ? 'active' : ''}`} onClick={() => selectResponseTab(tab.id)}>{tab.label}</button>)}
             </div>
-            <div className="xray-detail-views" aria-label="View modes">
-              {detailViews.map((view) => <button key={view} className={`xray-chip ${detailView === view ? 'active' : ''}`} onClick={() => selectDetailView(view)}>{viewLabels[view] || view}</button>)}
-            </div>
+            {(responseTab === 'response' || responseTab === 'request') && <div className="xray-detail-views" role="group" aria-label="Body views">
+              {bodyViews.map((view) => <button key={view} aria-pressed={bodyView === view} className={`xray-chip ${bodyView === view ? 'active' : ''}`} onClick={() => selectDetailView(view)}>{viewLabels[view] || view}</button>)}
+            </div>}
           </div>
-          <div className="xray-operation-groups xray-smart-ops" aria-label="Smart response operations">
-            {groupedOperations.map((group) => (
-              <div key={group.label} className="xray-operation-group">
-                <span>{group.label}</span>
-                <div className="xray-operation-bar">
-                  {group.operations.map((operation) => (
-                    <button key={operation.id} className={`xray-chip xray-operation-chip ${operation.kind}`} onClick={() => void runOperation(operation)}>
-                      <OperationIcon operation={operation} />
-                      {operation.label.replace('Send to ', '')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {recommendations.length > 0 && <div className="xray-detail-recommendations" role="group" aria-label="Recommended actions">
+            {recommendations.map((operation) => <button key={operation.id} className="xray-chip xray-operation-chip" onClick={() => void runOperation(operation)}><OperationIcon operation={operation} />{operation.label}</button>)}
+          </div>}
         </>
       )}
       <div className="xray-detail-content">
         {!compact && responseTab === 'frames' && <FramesView frames={entry.wsFrames || []} state={entry.wsState} />}
         {!compact && responseTab === 'initiator' && <InitiatorView entry={entry} />}
         {!compact && responseTab === 'tokens' && <TokensView jwts={jwts} />}
-        {(compact || (responseTab !== 'frames' && responseTab !== 'initiator' && responseTab !== 'tokens')) && (
+        {!compact && responseTab === 'headers' && <HeadersView entry={entry} />}
+        {!compact && responseTab === 'timing' && <WaterfallView entry={entry} />}
+        {!compact && responseTab === 'cookies' && <JsonView value={cookies} />}
+        {(compact || responseTab === 'response' || responseTab === 'request') && (
           <>
-            {(compact || detailView === 'tree') && <TreeContent compact={compact} entry={entry} detailTab={detailTab} responseTab={responseTab} activeValue={activeValue} hasFrames={hasFrames} />}
-            {!compact && detailView === 'grid' && <GridView value={activeValue} workerGrid={workerAnalysis?.grid} />}
-            {!compact && detailView === 'raw' && <RawView value={activeValue} />}
-            {!compact && detailView === 'schema' && <SchemaView value={activeValue} workerSchema={workerAnalysis?.schema} />}
-            {!compact && detailView === 'diff' && <DiffView current={activeValue} previous={previousValue} baselineId={driftFrom?.id || null} baselineIsDrift={!!driftFrom} />}
-            {!compact && detailView === 'viz' && <VizView value={activeValue} />}
-            {!compact && detailView === 'waterfall' && <WaterfallView entry={entry} />}
-            {!compact && detailView === 'headers' && <HeadersView entry={entry} />}
+            {!compact && (activeValue == null || activeValue === '') ? <EmptyState label={hasFrames && responseTab === 'response' ? 'Streaming entry' : `No ${responseTab} body captured`} hint={hasFrames && responseTab === 'response' ? 'Open Frames to inspect the stream messages.' : 'The capture contains no body for this facet.'} /> : <>
+              {(compact || bodyView === 'tree') && <TreeContent compact={compact} entry={entry} detailTab={detailTab} responseTab={responseTab} activeValue={activeValue} hasFrames={hasFrames} />}
+              {!compact && bodyView === 'grid' && <GridView value={activeValue} workerGrid={workerAnalysis?.grid} />}
+              {!compact && bodyView === 'raw' && <RawView value={activeValue} />}
+              {!compact && bodyView === 'schema' && <SchemaView value={activeValue} workerSchema={workerAnalysis?.schema} />}
+              {!compact && bodyView === 'diff' && <DiffView current={activeValue} previous={previousValue} workerDiff={workerDiff} baselineId={driftFrom?.id || null} baselineIsDrift={!!driftFrom} />}
+              {!compact && bodyView === 'viz' && <VizView value={activeValue} />}
+            </>}
           </>
         )}
       </div>
-      {!compact && (
-        <div className="xray-detail-footer">
-          <button className="xray-action-btn" onClick={() => insertConsoleCommand('res')}><IconSend {...iconProps} />Console</button>
-          <button className="xray-action-btn" onClick={() => saveSnippet({ title: `${entry.method || 'GET'} ${entryPath(entry)}`, code: 'schema(res)' })}><IconBookmark {...iconProps} />Snippet</button>
-          <button className="xray-action-btn" onClick={() => void copyActiveValue()}><IconCopy {...iconProps} />Copy</button>
-          <button className="xray-action-btn primary" onClick={() => setExportOpen(true)}><IconDownload {...iconProps} />Export</button>
-        </div>
-      )}
     </div>
   );
 }
 
-function groupResponseOperations(operations: ResponseOperation[]): Array<{ label: string; operations: ResponseOperation[] }> {
-  const seen = new Set<string>();
-  const groups = operationGroups.map((group) => {
-    const ids = group.ids as readonly string[];
-    const items = operations.filter((operation) => ids.includes(operation.id));
-    items.forEach((operation) => seen.add(operation.id));
-    return { label: group.label, operations: items };
-  }).filter((group) => group.operations.length);
-  const other = operations.filter((operation) => !seen.has(operation.id));
-  return other.length ? [...groups, { label: 'More', operations: other }] : groups;
+function isTruncated(text: string): boolean {
+  return /\n\.\.\. truncated \d+ chars$/.test(text);
+}
+
+// Worker messages are an untrusted transport boundary. Accept only the bounded
+// structural metadata and scalar previews; never render workerAnalysis.diff's
+// raw previous/current payload snapshots.
+function normalizeWorkerDiff(value: unknown): DiffLine[] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const rows = (value as { structuralDiff?: unknown }).structuralDiff;
+  // The producer returns at most 500 rows. Validate the entire bounded message,
+  // even the rows beyond the existing 200-line display cap.
+  if (!Array.isArray(rows) || rows.length > 500) return null;
+  const lines: DiffLine[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+    const candidate = row as { type?: unknown; path?: unknown; from?: unknown; to?: unknown; value?: unknown };
+    if ((candidate.type !== 'added' && candidate.type !== 'removed' && candidate.type !== 'changed')
+      || typeof candidate.path !== 'string' || candidate.path.length > 500) return null;
+    const required = candidate.type === 'changed' ? ['from', 'to'] : ['value'];
+    // Undefined is a valid structured-cloned value; absence or an accessor is not.
+    if (!required.every(key => {
+      const descriptor = Object.getOwnPropertyDescriptor(row, key);
+      return descriptor && 'value' in descriptor;
+    })) return null;
+    if (lines.length >= 200) continue;
+    const line: DiffLine = { path: candidate.path, kind: candidate.type };
+    if (candidate.type === 'added') line.after = boundedWorkerValue(candidate.value);
+    else if (candidate.type === 'removed') line.before = boundedWorkerValue(candidate.value);
+    else {
+      line.before = boundedWorkerValue(candidate.from);
+      line.after = boundedWorkerValue(candidate.to);
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function boundedWorkerValue(value: unknown): unknown {
+  if (typeof value === 'string') return value.length > 2_000 ? `${value.slice(0, 2_000)}…` : value;
+  if (value === null || typeof value === 'number' || typeof value === 'boolean' || value === undefined) return value;
+  return preview(value, 2_000);
+}
+
+async function copyWithReceipt(text: string, receipt: string, showToast: (message: string) => void): Promise<void> {
+  try {
+    await copyText(text);
+    showToast(receipt);
+  } catch (error) {
+    showToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function OperationIcon({ operation }: { operation: ResponseOperation }): React.ReactElement {
@@ -395,7 +588,7 @@ function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasF
   compact: boolean;
   entry: XrayEntry;
   detailTab: string;
-  responseTab: ResponseTab;
+  responseTab: DetailFacet;
   activeValue: unknown;
   hasFrames: boolean;
 }): React.ReactElement {
@@ -433,7 +626,7 @@ function HeadersView({ entry }: { entry: XrayEntry }): React.ReactElement {
     <div className="xray-headers-view">
       <label className="xray-search xray-headers-filter">
         <IconSearch {...iconProps} />
-        <input className="xray-input" placeholder="Filter headers..." value={filter} onChange={(event) => setFilter(event.currentTarget.value)} />
+        <input className="xray-input" aria-label="Filter request and response headers" placeholder="Filter headers…" value={filter} onChange={(event) => setFilter(event.currentTarget.value)} />
       </label>
       {sections.map((section) => {
         const rows = section.headers.filter(([key, value]) => !trimmed || key.toLowerCase().includes(trimmed) || String(value ?? '').toLowerCase().includes(trimmed));
@@ -449,7 +642,7 @@ function HeadersView({ entry }: { entry: XrayEntry }): React.ReactElement {
                     <button
                       className="xray-icon-btn"
                       aria-label={`Copy ${key} value`}
-                      onClick={() => { void copyText(String(value ?? '')); showToast(`${key} copied.`); }}
+                      onClick={() => void copyWithReceipt(String(value ?? ''), `${key} copied.`, showToast)}
                     >
                       <IconCopy size={13} stroke={2} />
                     </button>
@@ -587,7 +780,7 @@ function InitiatorView({ entry }: { entry: XrayEntry }): React.ReactElement {
               <button
                 className="xray-icon-btn"
                 aria-label="Copy stack frame"
-                onClick={() => { void copyText(frame); showToast('Frame copied.'); }}
+                onClick={() => void copyWithReceipt(frame, 'Frame copied.', showToast)}
               >
                 <IconCopy size={13} stroke={2} />
               </button>
@@ -625,14 +818,15 @@ function TokensView({ jwts }: { jwts: ReturnType<typeof extractJwts> }): React.R
   );
 }
 
-const DiffView = React.memo(function DiffView({ current, previous, baselineId, baselineIsDrift }: {
+const DiffView = React.memo(function DiffView({ current, previous, workerDiff, baselineId, baselineIsDrift }: {
   current: unknown;
   previous: unknown;
+  workerDiff?: DiffLine[] | null;
   baselineId: string | null;
   baselineIsDrift: boolean;
 }): React.ReactElement {
   const selectEntry = usePanelStore((state) => state.selectEntry);
-  const lines = React.useMemo(() => (previous == null ? [] : structuralDiff(previous, current)), [previous, current]);
+  const lines = React.useMemo(() => (previous == null ? [] : workerDiff ?? structuralDiff(previous, current)), [current, previous, workerDiff]);
   if (previous == null) {
     return <EmptyState label="No previous matching response" hint="A second call to this endpoint (or a recorded drift baseline) is needed to diff against." />;
   }

@@ -16,15 +16,15 @@ test('header palette button opens Settings to Appearance with visual theme swatc
   // popover), jumping straight to the Appearance section.
   assert.match(switcher, /export function ThemeSwitcher/);
   assert.match(switcher, /openSettings\('appearance'\)/);
-  assert.match(store, /openSettings: \(section\) => set\(\{ settingsSection: section, settingsOpen: true \}\)/);
+  assert.match(store, /openSettings: \(section\) => set\(\{ settingsSectionHint: section, settingsOpen: true \}\)/);
   assert.match(shell, /<ThemeSwitcher \/>/);
 
   // Settings modal syncs to the requested section and renders visual theme swatches
   assert.match(settingsModal, /THEME_PREVIEWS/);
-  assert.match(settingsModal, /if \(open\) setSection\(settingsSection as SettingsSection\)/);
-  assert.match(settingsModal, /updateSettings\(preview\.accentPref \? \{ theme: preview\.id, accent: preview\.accentPref \} : \{ theme: preview\.id \}\)/);
+  assert.match(settingsModal, /const explicit = consumeSettingsSectionHint\(\)/);
+  // S3: the preset no longer sends an accent; the store applies it only while accentChosen is false.
+  assert.match(settingsModal, /updateSettings\(\{ theme: preview\.id \}\)/);
   assert.match(settingsModal, /id: 'claude', label: 'Claude'/);
-  assert.match(settingsModal, /accentPref: 'coral'/);
   assert.match(styles, /\.xray-theme-swatch/);
   assert.match(styles, /\.xray-theme-claude\s*\{/);
 
@@ -158,6 +158,6 @@ test('theme studio has a live preview, screen eyedropper, and per-token copy', (
   assert.match(settingsModal, /'EyeDropper' in window/);
   assert.match(settingsModal, /new Ctor\(\)\.open\(\)/);
   assert.match(settingsModal, /IconColorPicker/);
-  assert.match(settingsModal, /onCopy=\{\(\) => \{ void copyText/);
+  assert.match(settingsModal, /copyText\(text\)/);
   assert.match(styles, /\.xray-token-btn/);
 });

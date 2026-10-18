@@ -1,6 +1,7 @@
 import type { XrayEntry } from '../types';
 
 export const SESSION_ENTRIES_KEY = 'session_entries';
+export const SESSION_ENVELOPE_KEY = 'session_envelope';
 export const AI_SETTINGS_KEY = 'ai_settings';
 
 const MAX_PERSISTED_ENTRIES = 500;

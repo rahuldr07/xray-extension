@@ -13,8 +13,9 @@ export const DEFAULT_CUSTOM_THEME: CustomTheme = {
   bg: '#0f1117',
   surface: '#171a23',
   text: '#e7e9f0',
-  accent: '#7c5cff',
+  accent: '#a99aff',
 };
+
 
 // The four colors that must always be present (a theme is coherent from these alone).
 export const BASE_KEYS = ['bg', 'surface', 'text', 'accent'] as const;
@@ -23,13 +24,22 @@ export const BASE_KEYS = ['bg', 'surface', 'text', 'accent'] as const;
 export const TOKEN_KEYS = [
   'bg', 'surface', 'surface2', 'surface3',
   'text', 'subtext', 'hint', 'border',
+  'border-control', 'focus', 'selection', 'hover', 'active', 'disabled',
   'accent',
-  'green', 'red', 'yellow', 'blue', 'mauve', 'teal', 'peach',
+  'accent-soft',
+  'green', 'red', 'yellow', 'blue', 'mauve', 'teal', 'peach', 'pending', 'neutral',
+  'shadow', 'overlay',
 ] as const;
 export type CustomTokenKey = typeof TOKEN_KEYS[number];
 export const OVERRIDE_KEYS: CustomTokenKey[] = TOKEN_KEYS.filter(
   (k) => !(BASE_KEYS as readonly string[]).includes(k),
 );
+
+// Theme packages are intentionally more permissive than the four required base
+// colors. The persisted CustomTheme interface predates semantic roles, so keep
+// those fields structurally compatible while allowing old packages and new role
+// overrides to round-trip without rewriting user input.
+type ThemeInput = Partial<CustomTheme> & Partial<Record<CustomTokenKey, string>>;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -58,7 +68,7 @@ export function clampHex(value: unknown, fallback: string): string {
   return fallback;
 }
 
-export function normalizeCustomTheme(input: Partial<CustomTheme> | undefined): CustomTheme {
+export function normalizeCustomTheme(input: ThemeInput | undefined): CustomTheme {
   const base = input || {};
   const theme: CustomTheme = {
     bg: clampHex(base.bg, DEFAULT_CUSTOM_THEME.bg),
@@ -68,8 +78,8 @@ export function normalizeCustomTheme(input: Partial<CustomTheme> | undefined): C
   };
   // Keep only valid hex overrides; anything else falls back to the derived value.
   for (const key of OVERRIDE_KEYS) {
-    const value = base[key];
-    if (isHexInput(value)) theme[key] = clampHex(value, '#000000');
+    const value = (base as Partial<Record<CustomTokenKey, string>>)[key];
+    if (isHexInput(value)) (theme as Partial<Record<CustomTokenKey, string>>)[key] = clampHex(value, '#000000');
   }
   return theme;
 }
@@ -78,7 +88,8 @@ export function normalizeCustomTheme(input: Partial<CustomTheme> | undefined): C
 export function themeOverrides(theme: CustomTheme): Partial<CustomTheme> {
   const out: Partial<CustomTheme> = {};
   for (const key of OVERRIDE_KEYS) {
-    if (isHex(theme[key])) out[key] = clampHex(theme[key], '#000000');
+    const value = (theme as Partial<Record<CustomTokenKey, string>>)[key];
+    if (isHex(value)) (out as Partial<Record<CustomTokenKey, string>>)[key] = clampHex(value, '#000000');
   }
   return out;
 }
@@ -156,7 +167,9 @@ export function randomTheme(seed: number): CustomTheme {
   const len = RANDOM_ACCENTS.length;
   const accent = RANDOM_ACCENTS[(((Math.floor(safe * len) % len) + len) % len)];
   const mode: 'dark' | 'light' = ((((safe * 100) % 5) + 5) % 5) < 1 ? 'light' : 'dark';
-  return generateFromAccent(accent, mode);
+  // Run the pick through the same lightness-only accent solve as the presets, so a
+  // pastel accent on a generated light theme still reads as text.
+  return solveThemeAccent(generateFromAccent(accent, mode));
 }
 
 // Shareable export: the full derived token block (paste anywhere, or re-import here).
@@ -174,6 +187,67 @@ function channel(c: number): number {
 function relLuminance([r, g, b]: RGB): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
+function ratioRgb(a: RGB, b: RGB): number {
+  const la = relLuminance(a), lb = relLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+// ── OKLCH (lightness-only adjustments that keep a colour's hue) ────────────
+function linearChannel(c: number): number {
+  const s = c / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+function encodeChannel(c: number): number {
+  const v = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+  return v * 255;
+}
+export function rgbToOklch(rgb: RGB): [number, number, number] {
+  const [r, g, b] = rgb.map(linearChannel) as RGB;
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+  return [L, Math.hypot(A, B), Math.atan2(B, A)];
+}
+function oklchToLinear(L: number, C: number, h: number): RGB {
+  const A = C * Math.cos(h), B = C * Math.sin(h);
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3;
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+  ];
+}
+// The colour at OKLCH lightness L with the given hue, keeping as much of the chroma
+// as the sRGB gamut allows (binary search on chroma).
+export function oklchInGamut(L: number, C: number, h: number): RGB {
+  const inGamut = (rgb: RGB) => rgb.every((v) => v >= -1e-6 && v <= 1 + 1e-6);
+  let lo = 0, hi = C;
+  if (!inGamut(oklchToLinear(L, hi, h))) {
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      if (inGamut(oklchToLinear(L, mid, h))) lo = mid; else hi = mid;
+    }
+    hi = lo;
+  }
+  return oklchToLinear(L, hi, h).map((v) => encodeChannel(Math.min(1, Math.max(0, v)))) as RGB;
+}
+/** Smallest OKLCH-lightness move (in `dir`) at which `start` reaches `target` on every host. */
+function solveLightness(start: RGB, dir: 1 | -1, hosts: (fg: RGB) => RGB[], target: number, extra: (fg: RGB) => boolean = () => true): RGB {
+  const passes = (fg: RGB) => Math.min(...hosts(fg).map((h) => ratioRgb(fg, h))) >= target && extra(fg);
+  if (passes(start)) return start;
+  const [L0, C, h] = rgbToOklch(start);
+  let last = start;
+  for (let L = L0 + dir * 0.005; L >= 0 && L <= 1; L += dir * 0.005) {
+    last = toRgb(toHex(oklchInGamut(L, C, h)));
+    if (passes(last)) return last;
+  }
+  return last;
+}
+
 export function contrastRatio(a: string, b: string): number {
   const la = relLuminance(toRgb(clampHex(a, '#000000')));
   const lb = relLuminance(toRgb(clampHex(b, '#ffffff')));
@@ -279,17 +353,21 @@ export function parseThemeInput(text: string): CustomTheme | null {
   if (!bg && !surface && !textColor && !accent) return null;
   // Pull any overridden tokens out of an exported --xray-* block so a copied CSS
   // theme round-trips with all its pinned colors, not just the base four.
-  const extras: Partial<CustomTheme> = {};
+  const extras: ThemeInput = {};
   for (const key of OVERRIDE_KEYS) {
     const value = pick(key);
-    if (value) extras[key] = value;
+    if (value) (extras as Partial<Record<CustomTokenKey, string>>)[key] = value;
   }
   return normalizeCustomTheme({ bg, surface, text: textColor, accent, ...extras });
 }
 
 // Status hues chosen to stay readable against the chosen background's brightness.
 const DARK_STATUS = { green: '#a6e3a1', red: '#f38ba8', yellow: '#f9e2af', blue: '#89b4fa', mauve: '#cba6f7', teal: '#94e2d5', peach: '#fab387' };
-const LIGHT_STATUS = { green: '#0f8a4f', red: '#d6336c', yellow: '#b7791f', blue: '#1971c2', mauve: '#7048e8', teal: '#0c8599', peach: '#d9480f' };
+// Light values read at >= 4.5:1 as text on light backgrounds, surfaces, JSON wells and
+// their own 10% flag tints (test/unit/themeContrast.test.mjs, light custom presets).
+const LIGHT_STATUS = { green: '#0e7e48', red: '#ad2353', yellow: '#805516', blue: '#1970c0', mauve: '#6135e6', teal: '#0b788a', peach: '#a6370b' };
+/** The palettes status colours start from before the readability solve (exported for tests). */
+export const STATUS_PALETTES = { dark: DARK_STATUS, light: LIGHT_STATUS } as const;
 
 // Resolve every editable token to a concrete hex: an explicit override wins,
 // otherwise the value is derived from the four base colors. This is the single
@@ -304,35 +382,92 @@ export function resolveThemeColors(theme: CustomTheme): Record<CustomTokenKey, s
   const light = luminance(bg) > 140;
   const status = light ? LIGHT_STATUS : DARK_STATUS;
 
+  // Readability solve. Each faint/status colour starts from its usual value and, only
+  // if it misses its target on a surface it is painted on (the same composites the
+  // stylesheet builds), moves in OKLCH LIGHTNESS toward the text colour — hue kept,
+  // chroma only clamped to the sRGB gamut — so red stays red and a theme that already
+  // reads well is unchanged. Hosts mirror test/unit/themeContrast.test.mjs.
+  const pinned = (key: CustomTokenKey): RGB | null => {
+    const value = (theme as Partial<Record<CustomTokenKey, string>>)[key];
+    return isHex(value) ? toRgb(clampHex(value, '#000000')) : null;
+  };
+  const s2 = pinned('surface2') ?? toRgb(toHex(mix(surface, text, 0.10)));
+  const sink: RGB = light ? [255, 255, 255] : [0, 0, 0];
+  const input = mix(s2, sink, 0.12);
+  const well = mix(bg, sink, 0.14);
+  const selectedRow = mix(bg, toRgb(accent), 0.10);
+  const dir: 1 | -1 = rgbToOklch(text)[0] > rgbToOklch(bg)[0] ? 1 : -1;
+  const TEXT_TARGET = 4.51;
+  const hint = solveLightness(toRgb(toHex(mix(text, bg, light ? 0.32 : 0.38))), dir, () => [bg, surface, s2, input], TEXT_TARGET);
+  // Subtext must also stay visibly brighter (≥ 8 % more contrast on bg) than hint.
+  const subtext = solveLightness(toRgb(toHex(mix(text, bg, light ? 0.26 : 0.34))), dir, () => [bg, surface, s2], TEXT_TARGET,
+    (fg) => ratioRgb(fg, bg) >= ratioRgb(hint, bg) * 1.08);
+  const neutral = solveLightness(toRgb(toHex(mix(text, bg, light ? 0.34 : 0.46))), dir, () => [bg, surface, well], TEXT_TARGET);
+  const borderControl = solveLightness(toRgb(toHex(mix(surface, text, light ? 0.56 : 0.44))), dir, () => [input, bg], 3.01);
+  // Status colours also sit on their own 10 % tint (chips, badges, flags), on a
+  // plain row, a surface, the elevated surface and the selected-row tint.
+  const statusHosts = (fg: RGB): RGB[] => [
+    bg, surface, s2, well, selectedRow,
+    mix(bg, fg, 0.10), mix(surface, fg, 0.10), mix(s2, fg, 0.10), mix(selectedRow, fg, 0.10),
+  ];
+  const readable = (hex: string): string => toHex(solveLightness(toRgb(hex), dir, statusHosts, TEXT_TARGET));
+
   const derived: Record<CustomTokenKey, string> = {
     bg: toHex(bg),
     surface: toHex(surface),
     surface2: toHex(mix(surface, text, 0.10)),
     surface3: toHex(mix(surface, text, 0.18)),
     text: toHex(text),
-    subtext: toHex(mix(text, bg, 0.34)),
-    hint: toHex(mix(text, bg, 0.55)),
+    // Solved above: faint text reaches 4.5:1 on the elevated surface (the console
+    // editor's placeholder sits on surface2) while staying dimmer than subtext.
+    subtext: toHex(subtext),
+    hint: toHex(hint),
     border: toHex(mix(surface, text, 0.16)),
+    'border-control': toHex(borderControl),
+    focus: accent,
+    selection: toHex(mix(toRgb(accent), bg, 0.82)),
+    hover: toHex(mix(bg, text, 0.08)),
+    active: toHex(mix(toRgb(accent), bg, 0.68)),
+    disabled: toHex(mix(text, bg, 0.62)),
     accent,
-    green: status.green,
-    red: status.red,
-    yellow: status.yellow,
-    blue: status.blue,
-    mauve: status.mauve,
-    teal: status.teal,
-    peach: status.peach,
+    'accent-soft': toHex(mix(toRgb(accent), bg, 0.82)),
+    green: readable(status.green),
+    red: readable(status.red),
+    yellow: readable(status.yellow),
+    blue: readable(status.blue),
+    mauve: readable(status.mauve),
+    teal: readable(status.teal),
+    peach: readable(status.peach),
+    pending: readable(status.yellow),
+    neutral: toHex(neutral),
+    shadow: '#000000',
+    overlay: toHex(bg),
   };
 
   const out = { ...derived };
   for (const key of TOKEN_KEYS) {
-    if (isHex(theme[key])) out[key] = clampHex(theme[key], derived[key]);
+    const value = (theme as Partial<Record<CustomTokenKey, string>>)[key];
+    if (isHex(value)) out[key] = clampHex(value, derived[key]);
   }
   return out;
 }
 
 // Is this token currently pinned to an explicit value (vs. auto-derived)?
 export function isTokenOverridden(theme: CustomTheme, key: CustomTokenKey): boolean {
-  return !(BASE_KEYS as readonly string[]).includes(key) && isHex(theme[key]);
+  return !(BASE_KEYS as readonly string[]).includes(key) && isHex((theme as Partial<Record<CustomTokenKey, string>>)[key]);
+}
+
+// Lowest alpha (from `start`, in 0.02 steps) at which the hint-coloured thumb reaches
+// 3:1 against the scrollbar track (bg at 44 %) over both bg and surface.
+function scrollThumbAlpha(hint: RGB, bg: RGB, surface: RGB, start: number): number {
+  for (let a = start; a < 1; a = Math.round((a + 0.02) * 100) / 100) {
+    const ok = [bg, surface].every((under) => {
+      const track = mix(under, bg, 0.44);
+      return ratioRgb(mix(track, hint, a), track) >= 3.01;
+    });
+    if (ok) return a;
+  }
+  return 1;
 }
 
 export function buildCustomThemeVars(theme: CustomTheme): Record<string, string> {
@@ -341,6 +476,7 @@ export function buildCustomThemeVars(theme: CustomTheme): Record<string, string>
   const surface = toRgb(c.surface);
   const surface2 = toRgb(c.surface2);
   const text = toRgb(c.text);
+  const light = luminance(bg) > 140;
   // Borders stay translucent (adapting to whatever surface they sit on) unless the
   // user pins an explicit border color, in which case that solid hex wins.
   const border = isHex(theme.border) ? clampHex(theme.border, c.border) : `rgba(${rgbStr(text)}, 0.16)`;
@@ -358,7 +494,14 @@ export function buildCustomThemeVars(theme: CustomTheme): Record<string, string>
     '--xray-surface2-rgb': rgbStr(surface2),
     '--xray-text-rgb': rgbStr(text),
     '--xray-border': border,
+    '--xray-border-control': c['border-control'],
+    '--xray-focus': c.focus,
+    '--xray-selection': c.selection,
+    '--xray-hover': c.hover,
+    '--xray-active': c.active,
+    '--xray-disabled': c.disabled,
     '--xray-accent': c.accent,
+    '--xray-accent-soft': c['accent-soft'],
     '--xray-green': c.green,
     '--xray-red': c.red,
     '--xray-yellow': c.yellow,
@@ -366,6 +509,52 @@ export function buildCustomThemeVars(theme: CustomTheme): Record<string, string>
     '--xray-mauve': c.mauve,
     '--xray-teal': c.teal,
     '--xray-peach': c.peach,
+    '--xray-pending': c.pending,
+    '--xray-neutral': c.neutral,
+    '--xray-shadow': isTokenOverridden(theme, 'shadow') ? c.shadow : 'rgba(0, 0, 0, .38)',
+    '--xray-overlay': isTokenOverridden(theme, 'overlay') ? c.overlay : `rgba(${rgbStr(bg)}, .74)`,
     '--xray-operator-grid': `rgba(${rgbStr(text)}, 0.03)`,
+    // Composite wells (inputs, JSON, table head, status bar) lighten on a light
+    // theme instead of greying toward black.
+    '--xray-sink': light ? '#ffffff' : '#000000',
+    // Scrollbar thumb at >= 3:1 against its track (the global default is hint 62%).
+    '--xray-scroll-thumb': `rgba(${rgbStr(toRgb(c.hint))}, ${scrollThumbAlpha(toRgb(c.hint), bg, surface, light ? 0.8 : 0.64)})`,
   };
 }
+
+/**
+ * The theme with its accent moved in OKLCH lightness only (hue kept) until it reads at
+ * 4.5:1 as text on its own 10 % tint over surface and surface2, on the primary
+ * button's mauve stop, and on a 14 % tint over bg. An accent that already passes is
+ * returned unchanged. Used for the Theme Studio presets and Randomize; a user-picked
+ * accent is never rewritten.
+ */
+export function solveThemeAccent(theme: CustomTheme): CustomTheme {
+  const c = resolveThemeColors(theme);
+  const bg = toRgb(c.bg), surface = toRgb(c.surface), s2 = toRgb(c.surface2), text = toRgb(c.text);
+  const mauve = toRgb(c.mauve);
+  const dir: 1 | -1 = rgbToOklch(text)[0] > rgbToOklch(bg)[0] ? 1 : -1;
+  const hosts = (fg: RGB): RGB[] => [
+    mix(surface, fg, 0.10), mix(s2, fg, 0.10), mix(surface, mauve, 0.10), mix(s2, mauve, 0.10), mix(bg, fg, 0.14),
+  ];
+  const accent = toHex(solveLightness(toRgb(clampHex(theme.accent, DEFAULT_CUSTOM_THEME.accent)), dir, hosts, 4.51));
+  return { ...theme, accent };
+}
+
+/**
+ * Theme Studio starter presets (Settings > Appearance > Custom): each preset's brand
+ * accent passed through solveThemeAccent, so it keeps its hue and reads as text.
+ */
+export const THEME_STUDIO_PRESETS: Array<{ label: string; theme: CustomTheme }> = [
+  { label: 'Slate', theme: { bg: '#0f1117', surface: '#171a23', text: '#e7e9f0', accent: '#9479ff' } },
+  { label: 'Graphite', theme: { bg: '#0e0e10', surface: '#19191c', text: '#ededed', accent: '#22d3ee' } },
+  { label: 'Rosé', theme: { bg: '#1a1114', surface: '#241519', text: '#f4e9ec', accent: '#fb7185' } },
+  { label: 'Emerald', theme: { bg: '#0b1210', surface: '#131c19', text: '#e6f0ec', accent: '#34d399' } },
+  { label: 'Nord', theme: { bg: '#2e3440', surface: '#3b4252', text: '#eceff4', accent: '#88c0d0' } },
+  { label: 'Solarized', theme: { bg: '#002b36', surface: '#073642', text: '#eee8d5', accent: '#268bd2' } },
+  { label: 'Amber', theme: { bg: '#161207', surface: '#211a0c', text: '#f6ecd6', accent: '#f5a623' } },
+  { label: 'Sakura', theme: { bg: '#1c141a', surface: '#281b26', text: '#f6e9f1', accent: '#ec4899' } },
+  { label: 'Paper', theme: { bg: '#faf9f6', surface: '#ffffff', text: '#1c1b19', accent: '#2563eb' } },
+  { label: 'Sky', theme: { bg: '#eef4fb', surface: '#ffffff', text: '#16273b', accent: '#0284c7' } },
+  { label: 'Sage', theme: { bg: '#eef2ec', surface: '#fbfdfa', text: '#1e2a20', accent: '#3f8a4f' } },
+].map(({ label, theme }) => ({ label, theme: solveThemeAccent(theme) }));

@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { read } = require('./helpers/source');
+const { read, readConsoleSources } = require('./helpers/source');
 
 test('React preview models old API tab parity before live manifest switch', () => {
   const app = read('src/panel/App.tsx');
@@ -16,12 +16,12 @@ test('React preview models old API tab parity before live manifest switch', () =
 
   assert.match(preview, /dist\/panel-ui\.js/);
   assert.match(app, /import \{ EntriesWorkspace \}/);
-  assert.match(entriesWorkspace, /buildEntryListItems/);
+  assert.match(entriesWorkspace, /buildEntryListModel/);
   assert.match(entriesModel, /export function buildEntryListItems/);
   assert.match(entriesModel, /groupCount/);
   assert.match(entriesWorkspace, /togglePinned/);
-  assert.match(entriesWorkspace, /toggleStatusFilter/);
-  assert.match(entriesWorkspace, /toggleTypeFilter/);
+  assert.match(entriesWorkspace, /toggleStatus/);
+  assert.match(entriesWorkspace, /toggleType/);
   assert.match(entriesWorkspace, /setSort/);
   assert.match(detailModel, /export function detailValue/);
   assert.match(exportModel, /export type ExportFormat/);
@@ -57,7 +57,7 @@ test('React API list parity logic is pure and covers grouping, filters, sorting,
 
 test('React virtualized rows provide TanStack measurement indexes', () => {
   const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
-  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+  const consoleWorkspace = readConsoleSources();
 
   assert.match(entriesWorkspace, /data-index=\{item\.index\}/);
   assert.match(consoleWorkspace, /data-index=\{item\.index\}/);
@@ -82,7 +82,8 @@ test('React API tab has premium request intelligence controls and mobile detail 
   assert.match(entriesWorkspace, /ApiFlagPills/);
   assert.match(entriesWorkspace, /xray-api-collection-pane/);
   assert.match(entriesWorkspace, /xray-request-context-pane/);
-  assert.match(entriesWorkspace, /Captured Requests/);
+  // S16: the summary cards became one summary line
+  assert.match(entriesWorkspace, /aria-label="Captured request summary"/);
   assert.match(entriesWorkspace, /Request tabs/);
   assert.match(entriesWorkspace, /xray-api-table-head/);
   assert.match(entriesWorkspace, /xray-api-detail-drawer/);
@@ -139,23 +140,18 @@ test('React API network inspector models quick filters, flags, groups, and drawe
   assert.match(persistence, /apiDetailOpen:\s*state\.apiDetailOpen/);
   assert.match(persistence, /methodFilters:\s*Array\.from\(state\.methodFilters\)/);
   assert.match(detail, /xray-detail-tabs/);
-  assert.match(detail, /operationGroups/);
-  assert.match(detail, /Inspect/);
-  assert.match(detail, /Transform/);
-  assert.match(detail, /Copy/);
-  assert.match(detail, /Send/);
-  assert.match(detail, /Response tabs/);
-  assert.match(detail, /View modes/);
-  assert.match(detail, /xray-detail-footer/);
+  assert.match(detail, /Request facets/);
+  assert.match(detail, /Body views/);
+  assert.match(detail, /Recommended actions/);
   assert.match(detail, /Console/);
-  assert.match(detail, /Snippet/);
   assert.match(detail, /Copy/);
   assert.match(detail, /Export/);
   // panel-internal breakpoints are container-based (the docked panel's width
   // is independent of the window)
   assert.match(styles, /@container xray \(max-width: 420px\)/);
-  assert.match(styles, /\.xray-detail-footer/);
-  assert.match(styles, /\.xray-detail-footer \.xray-action-btn\s*\{[\s\S]*flex:\s*1 1 calc\(50% - 8px\)/);
+  // S19: the bottom action bar moved into the detail header
+  assert.match(styles, /\.xray-detail-actions \{/);
+  assert.match(styles, /\.xray-detail-action-list/);
   assert.doesNotMatch(entriesWorkspace, /dangerouslySetInnerHTML|innerHTML/);
 });
 
@@ -186,7 +182,7 @@ test('drift detection is a pure module wired into the store', () => {
   assert.match(store, /noteDriftEntry\(driftIndex, normalized\);/);
   // the Drift chip counts from the entries themselves; the store keeps no
   // second copy that trimming would silently desync
-  assert.match(entriesWorkspace, /entries\.reduce\(\(count, entry\) => count \+ \(entry\.driftFromId \? 1 : 0\), 0\)/);
+  assert.match(entriesWorkspace, /entries\.reduce\(\(count, entry\) => count \+ \(isApi\(entry\) && matchesApiQuickFilter\(entry, 'drift', entries\) \? 1 : 0\), 0\)/);
   assert.doesNotMatch(store, /driftCount/);
 });
 

@@ -38,10 +38,12 @@
 </head>
 <body>
   <div id="xray-window-root"></div>
-  <!-- Must load before the bundle: storageBridge falls back to localStorage when
+  <!-- Must load before the bundle (same order as manifest.json's ISOLATED list): storageBridge falls back to localStorage when
        window.XRAY_Store is missing, which silently cut the pop-out off from the
        rules, AI key, preferences and session every other surface shares. -->
+  <script src="shared/utils.js"></script>
   <script src="shared/store.js"></script>
+  <script src="shared/console-helpers.js"></script>
   <script src="dist/window-ui.js"></script>
 </body>
 </html>

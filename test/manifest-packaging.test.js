@@ -31,24 +31,22 @@ test('the console helpers live in the ISOLATED world only', () => {
   assert.match(read('shared/console-helpers.js'), /window\.XRAY_ConsoleHelpers/);
 });
 
-test('C-8 debugger is an optional permission, requested only when the console runs', () => {
-  // Was a required install-time permission. Combined with <all_urls> and MAIN-world
-  // injection that is close to the maximum-scrutiny configuration for store review,
-  // and it was demanded from every user whether or not they opened the console.
-  //
-  // C-8 also proposed trying MAIN-world `new Function` first and falling back to the
-  // debugger. That half is SUPERSEDED by C-1: MAIN-world execution is deleted, so the
-  // debugger is the only path and the fix is to stop requesting it up front.
+test('C-8 debugger is a required permission, because Chrome cannot make it optional', () => {
+  // C-8 moved `debugger` to optional_permissions to avoid an install-time warning. Chrome
+  // does not support `debugger` as an optional permission: it is silently ignored there,
+  // chrome.permissions.request rejects with "Only permissions specified in the manifest
+  // may be requested", and chrome.debugger stays undefined — so console execution could
+  // never run. The debugger is the only execution path since C-1 deleted MAIN-world
+  // evaluation, so it is required at install time again (accepted trade-off).
   const manifest = readManifest();
   const background = read('background.js');
   const consoleEngine = read('panel/console.js');
 
-  assert.ok(!manifest.permissions.includes('debugger'), 'not required at install time');
-  assert.ok(manifest.optional_permissions.includes('debugger'), 'requested on demand instead');
+  assert.ok(manifest.permissions.includes('debugger'), 'required at install time');
+  assert.ok(!(manifest.optional_permissions || []).includes('debugger'), 'never listed as optional');
 
   assert.match(background, /function _hasDebuggerPermission/);
   assert.match(background, /chrome\.permissions\.contains\(\{ permissions: \['debugger'\] \}/);
-  assert.match(background, /needsPermission: 'debugger'/, 'the panel is told what to ask for');
   assert.match(background, /xray:console-eval/);
   assert.match(background, /chrome\.debugger\.attach/);
   assert.match(background, /Runtime\.evaluate/);
@@ -160,7 +158,7 @@ test('React app has dedicated DevTools, HUD, and window entrypoints', () => {
   // the pop-out shares chrome.storage with every other surface: store.js must be
   // defined before the bundle boots, or storageBridge fails closed and every
   // preference read falls back to its default while writes are dropped
-  assert.match(windowHtml, /<script src="shared\/store\.js"><\/script>\s*\n\s*<script src="dist\/window-ui\.js"><\/script>/);
+  assert.match(windowHtml, /<script src="shared\/utils\.js"><\/script>\s*\n\s*<script src="shared\/store\.js"><\/script>\s*\n\s*<script src="shared\/console-helpers\.js"><\/script>\s*\n\s*<script src="dist\/window-ui\.js"><\/script>/);
   assert.match(vite, /hud-main\.tsx/);
   assert.match(vite, /window-main\.tsx/);
   assert.match(vite, /dist\/hud-ui\.js/);

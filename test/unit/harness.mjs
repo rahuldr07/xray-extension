@@ -35,14 +35,16 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 export async function resolve(specifier, context, next) {
   let request = specifier;
-  if (specifier.startsWith('.') && !/\\.[mc]?[jt]sx?$/.test(specifier) && context.parentURL) {
+  // A query (\`store.ts?surface=hud\`, a second module instance) is not part of the path.
+  const path = specifier.split('?')[0];
+  if (specifier.startsWith('.') && !/\\.[mc]?[jt]sx?$/.test(path) && context.parentURL) {
     for (const candidate of [specifier + '.ts', specifier + '/index.ts']) {
       const url = new URL(candidate, context.parentURL);
       if (existsSync(fileURLToPath(url))) { request = candidate; break; }
     }
   }
   const resolved = await next(request, context);
-  if (resolved.url.endsWith('.ts')) return { ...resolved, format: 'module-typescript' };
+  if (new URL(resolved.url).pathname.endsWith('.ts')) return { ...resolved, format: 'module-typescript' };
   return resolved;
 }
 `;
@@ -94,6 +96,7 @@ export const importModel = await load('models/import.ts');
 export const insights = await load('models/insights.ts');
 export const viz = await load('models/viz.ts');
 export const globalSearch = await load('models/globalSearch.ts');
+export const sessionIndex = await load('models/sessionIndex.ts');
 export const panelPersistence = await load('models/panelPersistence.ts');
 export const sessionStore = await load('models/sessionStore.ts');
 export const sessionSummary = await load('models/sessionSummary.ts');

@@ -400,6 +400,22 @@ test('lodashLite.groupBy: accepts a key or a function, and stringifies the group
   assert.deepEqual(hostify(lodashLite.groupBy(null, 'a')), {});
 });
 
+test('lodashLite.countBy: counts per group, with the same key-or-function rule as groupBy', () => {
+  const rows = [{ s: 200 }, { s: 500 }, { s: 200 }];
+  assert.deepEqual(hostify(lodashLite.countBy(rows, 's')), { 200: 2, 500: 1 });
+  assert.deepEqual(hostify(lodashLite.countBy(rows, (r) => (r.s >= 400 ? 'bad' : 'ok'))), { ok: 2, bad: 1 });
+  assert.deepEqual(hostify(lodashLite.countBy([{}], 'missing')), { undefined: 1 });
+  assert.deepEqual(hostify(lodashLite.countBy(null, 'a')), {});
+});
+
+test('$help only advertises _ helpers the runtime has (audit C-15)', () => {
+  const help = H.createRuntime().$help;
+  const advertised = [...help.matchAll(/_\.([A-Za-z]+)/g)].map((m) => m[1]);
+  assert.ok(advertised.includes('countBy'), `help lists _.countBy: ${advertised}`);
+  for (const name of advertised) assert.equal(typeof lodashLite[name], 'function', `_.${name} exists`);
+  assert.doesNotMatch(help, /\bpin\(/, 'the removed pin() helper is not advertised');
+});
+
 test('lodashLite.uniq / sortBy: set-based dedupe and a non-mutating comparator sort', () => {
   assert.deepEqual(hostify(lodashLite.uniq([1, 1, 2, 'a', 'a'])), [1, 2, 'a']);
   assert.deepEqual(hostify(lodashLite.uniq([{ a: 1 }, { a: 1 }])).length, 2, 'dedupe is by identity, not value');
@@ -419,4 +435,38 @@ test('lodashLite.sum: coerces, treats non-numeric as 0, and sums bare arrays', (
   assert.equal(lodashLite.sum([{ d: 'oops' }], 'd'), 0);
   assert.equal(lodashLite.sum([{ d: 2 }], (r) => r.d * 10), 20);
   assert.equal(lodashLite.sum(null), 0);
+});
+
+// ───────────────────────────────────────────────────────────── pinned requests (P2)
+
+test('createRuntime: a pin ({ id, body }) resolves to the parsed body, like res', () => {
+  const pin = { id: 'p1', body: '{"users":[{"id":1},{"id":2}]}' };
+  const runtime = H.createRuntime({ pins: { a: pin } });
+  assert.deepEqual(hostify(runtime.a), hostify(H.parseBody(pin.body)));
+  assert.deepEqual(hostify(runtime.a), { users: [{ id: 1 }, { id: 2 }] });
+  // An already-decoded body passes through, a missing one is null.
+  assert.deepEqual(hostify(H.createRuntime({ pins: { b: { id: 'p2', body: { ok: true } } } }).b), { ok: true });
+  assert.equal(H.createRuntime({ pins: { c: { id: 'p3' } } }).c, null);
+});
+
+test('createRuntime: only the letters a-f become pins; helpers cannot be shadowed', () => {
+  const current = { id: 'c', type: 'api', responseRaw: '{"mine":true}' };
+  const runtime = H.createRuntime({ currentEntry: current, entries: [current], pins: {
+    res: { id: 'x', body: '{"hijack":true}' },
+    g: { id: 'y', body: '{}' },
+    ['__proto__']: { id: 'z', body: '{}' },
+    'not a name': { id: 'w', body: '{}' },
+    d: null,
+  } });
+  assert.deepEqual(hostify(runtime.res), { mine: true }, 'a pin named res cannot replace the selected body');
+  for (const name of ['g', 'not a name', 'd']) assert.equal(Object.hasOwn(runtime, name), false, name);
+  assert.equal(runtime.body, undefined, 'a __proto__ pin cannot swap the runtime prototype');
+  assert.equal(runtime.id, undefined);
+});
+
+test('createRuntime: $help documents pins and no longer advertises pin("name")', () => {
+  const help = H.createRuntime().$help;
+  assert.doesNotMatch(help, /pin\("name"\)/);
+  assert.match(help, /a … f +pinned requests' parsed response bodies/);
+  assert.match(help, /reused/);
 });

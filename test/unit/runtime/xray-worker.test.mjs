@@ -713,3 +713,195 @@ test('C-11 the entry store is bounded and can be cleared', () => {
   assert.match(source, /_writesSincePrune \+= 1;/);
   assert.match(source, /if \(_writesSincePrune >= PRUNE_EVERY\)/);
 });
+
+test('capture receipt aggregation exposes only bounded counters and reason codes', async () => {
+  const worker = loadWorker();
+  const receipt = hostify((await dispatch(worker, 'captureReceipt', {
+    accepted: 3,
+    dropped: 2,
+    dropReasons: { 'invalid-entry': 2 },
+  }, 'receipt-1')).result);
+  assert.equal(receipt.accepted, 3);
+  assert.equal(receipt.dropped, 2);
+  assert.deepEqual(receipt.dropReasons, { 'invalid-entry': 2 });
+
+  const storedReceipt = (await dispatch(worker, 'getCaptureReceipt', {}, 'receipt-2')).result;
+  assert.equal(hostify(storedReceipt).accepted, 3);
+  assert.equal(hostify(storedReceipt).dropped, 2);
+  assert.deepEqual(hostify(storedReceipt).dropReasons, { 'invalid-entry': 2 });
+  assert.equal('url' in storedReceipt, false);
+  assert.equal('headers' in storedReceipt, false);
+  assert.equal('body' in storedReceipt, false);
+});
+
+test('IndexedDB cache failures return bounded cache health without raw errors or entry fields', async () => {
+  const worker = loadWorker({ indexedDBOpen: () => {
+    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
+    queueMicrotask(() => request.onerror?.());
+    return request;
+  } });
+  const reply = await dispatch(worker, 'init', {}, 'cache-failure');
+  assert.equal(reply.success, true);
+  assert.deepEqual(hostify(reply.result), { ready: true, cache: 'degraded-in-memory' });
+  const cache = hostify(reply.health.cache);
+  assert.equal(cache.state, 'degraded');
+  assert.equal(cache.lastErrorCode, 'cache-open-failed');
+  assert.equal(typeof cache.lastEventAt, 'number');
+  assert.doesNotMatch(JSON.stringify(reply), /secret|https?:\/\/|headers|body|url/i);
+});
+
+test('cache-open failure leaves the worker ready in bounded in-memory mode', async () => {
+  const worker = loadWorker({ indexedDBOpen: () => {
+    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
+    queueMicrotask(() => request.onerror?.());
+    return request;
+  } });
+  const reply = await dispatch(worker, 'init', {}, 'optional-cache-init');
+  assert.equal(reply.success, true);
+  assert.deepEqual(hostify(reply.result), { ready: true, cache: 'degraded-in-memory' });
+  const health = hostify(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache);
+  assert.equal(health.state, 'degraded');
+  assert.equal(health.lastErrorCode, 'cache-open-failed');
+  assert.doesNotMatch(JSON.stringify(health), /secret|https?:\/\/|headers|body|url/i);
+});
+
+test('real worker cache denial never restarts the client and analysis remains usable', async t => {
+  let creations = 0;
+  class InMemoryWorker {
+    constructor() {
+      creations += 1;
+      this.core = loadWorker({ indexedDBOpen() { throw new Error('raw-private-cache-denial'); } });
+      this.core.self.postMessage = message => queueMicrotask(() => this.onmessage?.({ data: message }));
+      queueMicrotask(() => this.onmessage?.({ data: this.core.posted[0] }));
+    }
+    postMessage(message) { void this.core.self.onmessage({ data: message }); }
+    terminate() {}
+  }
+  const context = loadIsolatedWorld('shared/worker-client.js', {
+    Worker: InMemoryWorker,
+    chrome: { runtime: { getURL: () => 'chrome-extension://fixture/workers/xray-worker.js' } },
+  });
+  const client = context.window.XRAY_Worker;
+  t.after(() => client.terminate());
+  await client.init();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(creations, 1);
+  assert.equal(client.isReady(), true);
+  assert.equal(client.getHealth().cache.lastErrorCode, 'cache-open-failed');
+  assert.equal(client.getHealth().state, 'degraded');
+  assert.equal((await client.computeStats({ a: 1 })).keyCount, 1);
+  assert.equal((await client.addEntry({ id: 'memory-only', type: 'log' })).added, true);
+  assert.equal((await client.getFromCache('memory-only')).id, 'memory-only');
+  assert.doesNotMatch(JSON.stringify(client.getHealth()), /raw-private/);
+});
+
+test('successful cache reuse emits a sanitized recovery receipt after a prior failure', async () => {
+  let opens = 0;
+  const store = {
+    put() {},
+    count() { return { onsuccess: null, onerror: null }; },
+    clear() {},
+    index() { return { openCursor() { return { onsuccess: null, onerror: null }; } }; },
+  };
+  const db = {
+    objectStoreNames: { contains: () => true },
+    transaction() {
+      const tx = { objectStore: () => store, oncomplete: null, onerror: null, onabort: null };
+      queueMicrotask(() => tx.oncomplete?.());
+      return tx;
+    },
+  };
+  const worker = loadWorker({ indexedDBOpen: () => {
+    opens += 1;
+    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
+    queueMicrotask(() => {
+      if (opens === 1) request.onerror?.();
+      else { request.result = db; request.onsuccess?.(); }
+    });
+    return request;
+  } });
+  await dispatch(worker, 'init', {}, 'first-open');
+  assert.equal(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache.lastErrorCode, 'cache-open-failed');
+  const add = await dispatch(worker, 'addEntry', { entry: { id: 'recover', type: 'api', url: 'https://safe.test' } }, 'recovery-write');
+  assert.equal(add.success, true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const health = hostify(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache);
+  assert.equal(health.state, 'healthy');
+  assert.equal(health.lastErrorCode, null);
+  assert.doesNotMatch(JSON.stringify(health), /secret|https?:\/\/|headers|body|url/i);
+});
+
+test('synchronous cache open denial is optional and never leaks the database error', async () => {
+  const worker = loadWorker({ indexedDBOpen() { throw new Error('raw-private-database-error'); } });
+  const reply = await dispatch(worker, 'init', {}, 'sync-cache-init');
+  assert.equal(reply.success, true);
+  assert.equal(reply.health.cache.lastErrorCode, 'cache-open-failed');
+  assert.doesNotMatch(JSON.stringify(reply), /raw-private/);
+  assert.equal((await dispatch(worker, 'computeStats', { data: { a: 1 } })).result.keyCount, 1);
+});
+
+test('cache write failure recovers on completed transaction and cached database reuse', async () => {
+  const transactions = [];
+  const db = { transaction() {
+    const tx = { objectStore: () => ({ put() {} }) };
+    transactions.push(tx);
+    return tx;
+  } };
+  const worker = loadWorker({ indexedDBOpen() {
+    const request = { result: db };
+    queueMicrotask(() => request.onsuccess());
+    return request;
+  } });
+  await dispatch(worker, 'init', {});
+  await dispatch(worker, 'addEntry', { entry: { id: 'write-one', type: 'log' } });
+  transactions[0].onerror();
+  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, 'cache-write-failed');
+  await worker.openDB();
+  assert.equal(worker.cacheHealthSnapshot().state, 'healthy', 'successful reuse clears degraded health');
+  await dispatch(worker, 'addEntry', { entry: { id: 'write-two', type: 'log' } });
+  // A different in-flight transaction fails after open reuse, before this commit.
+  transactions[0].onabort();
+  assert.equal(worker.cacheHealthSnapshot().state, 'degraded');
+  transactions[1].oncomplete();
+  const receipt = worker.posted.at(-1).health.cache;
+  assert.equal(receipt.state, 'healthy');
+  assert.equal(receipt.lastErrorCode, null);
+  assert.deepEqual(Object.keys(receipt).sort(), ['lastErrorCode', 'lastEventAt', 'state']);
+});
+
+test('prune reports transaction abort then recovers only after a later commit', async () => {
+  const transactions = [];
+  const db = { transaction() {
+    const count = { result: 0 };
+    const tx = { count, objectStore: () => ({ count: () => count }) };
+    transactions.push(tx);
+    return tx;
+  } };
+  const worker = loadWorker();
+  const failed = worker.pruneStoredEntries(db);
+  const rejected = assert.rejects(failed, /cache-prune-failed/);
+  transactions[0].onabort?.();
+  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, 'cache-prune-failed');
+  await rejected;
+  const recovery = worker.pruneStoredEntries(db);
+  let settled = false;
+  recovery.then(() => { settled = true; });
+  transactions[1].count.onsuccess();
+  await Promise.resolve();
+  assert.equal(settled, false, 'cursor/count success is not transaction commit');
+  assert.equal(worker.cacheHealthSnapshot().state, 'degraded');
+  transactions[1].oncomplete();
+  assert.equal(await recovery, 0);
+  assert.equal(worker.cacheHealthSnapshot().state, 'healthy');
+  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, null);
+});
+
+test('capture receipt keeps cumulative accepted/dropped totals beyond 500', async () => {
+  const worker = loadWorker();
+  const receipt = hostify((await dispatch(worker, 'captureReceipt', {
+    accepted: 1_200, dropped: 900, validated: 1_200, dropReasons: { 'invalid-entry': 900 },
+  }, 'receipt-big')).result);
+  assert.equal(receipt.accepted, 1_200);
+  assert.equal(receipt.dropped, 900);
+  assert.equal(receipt.dropReasons['invalid-entry'], 900);
+});

@@ -1,0 +1,333 @@
+/* XRAY — recommended preset lineup (exploration output, not product code).
+   Blocks are copied verbatim from candidates.json = exactly what was rendered in output/theme-explore/<id>/.
+   Keep the existing High Contrast (.xray-theme-midnight) block unchanged as the 7:1 accessibility preset.
+   Retire: Signal Gray (amber accent == --xray-yellow == pending), Harbor Instrument, Paper Relay, Claude.
+   Dark blocks omit --xray-sink / --xray-scroll-thumb on purpose (black sink + 62 % hint thumb fallbacks).
+   Adoption caveat: --xray-accent is ALSO set inline from settings (PanelShell.tsx/App.tsx resolveAccentValue),
+   which beats these blocks, so a preset only shows its own accent if resolveAccentValue returns the
+   preset accent while settings.accentChosen is false.
+   Pair with calm-accent.css.txt (accent only on active tab, primary button, focus, selection bar, links, on/off controls). */
+
+/* XRAY Dark: DEFAULT. Neutral graphite, one cyan accent that shares no hue with any status colour. Passes the full repo matrix unchanged.
+   source: Designed here: OKLCH graphite ramp (h 265, C ≤ 0.012) with one cyan "phosphor" accent (L 0.80 C 0.13 h 222); status hues on an even L ≈ 0.72–0.85 ramp so no status colour shares the accent hue.
+   rendered nudges (official -> rendered): none
+   to pass the repo contrast test as a shipped preset, also: none: already passes test/unit/themeContrast.test.mjs
+   contrast: requested pairs 0 -> 0 failures; repo matrix 0 -> 0 of 157 */
+.xray-theme-xray-dark {
+  --xray-bg: #141517;
+  --xray-surface: #1b1c1f;
+  --xray-surface2: #25272a;
+  --xray-surface3: #303235;
+  --xray-bg-rgb: 20, 21, 23;
+  --xray-surface-rgb: 27, 28, 31;
+  --xray-surface2-rgb: 37, 39, 42;
+  --xray-text-rgb: 238, 239, 241;
+  --xray-text: #eeeff1;
+  --xray-subtext: #bcbfc5;
+  --xray-hint: #90949b;
+  --xray-border: #34363a;
+  --xray-border-control: #71757b;
+  --xray-focus: #3dc8f5;
+  --xray-selection: #1b353f;
+  --xray-hover: #25272a;
+  --xray-active: #1f4755;
+  --xray-disabled: #5a5e63;
+  --xray-accent: #3dc8f5;
+  --xray-accent-soft: #1b353f;
+  --xray-blue: #96b2fb;
+  --xray-mauve: #c6a0f2;
+  --xray-green: #65d68a;
+  --xray-yellow: #f6c65b;
+  --xray-red: #f8767a;
+  --xray-teal: #5cd5c7;
+  --xray-peach: #f5a166;
+  --xray-pending: #f6c65b;
+  --xray-neutral: #90949b;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(20, 21, 23, .74);
+  --xray-operator-grid: rgba(61, 200, 245, .035);
+}
+
+/* XRAY Light: Light default. Cool white panes on #f3f4f6; same accent hue as XRAY Dark.
+   source: Designed here: cool neutral paper (white panes on #f3f4f6), same accent hue as XRAY Dark at L 0.52, status hues at L ≈ 0.50–0.56.
+   rendered nudges (official -> rendered): yellow #9a6807->#986602 (ΔL -0.007); accent #00729b->#006c93 (ΔL -0.02)
+   to pass the repo contrast test as a shipped preset, also: hint #666b73->#646971 (ΔL -0.007); accent #006c93->#006990 (ΔL -0.009); blue #3e5bbf->#3d5abe (ΔL -0.003); mauve #7c43b1->#7a41af (ΔL -0.007); green #137d41->#007137 (ΔL -0.039); yellow #986602->#845200 (ΔL -0.066); red #bc2c30->#b12125 (ΔL -0.03); teal #007b76->#006d68 (ΔL -0.044); peach #b24e16->#a03c01 (ΔL -0.056)
+   contrast: requested pairs 2 -> 0 failures; repo matrix 63 -> 60 of 157 */
+.xray-theme-xray-light {
+  --xray-bg: #f3f4f6;
+  --xray-surface: #ffffff;
+  --xray-surface2: #eaecef;
+  --xray-surface3: #dde0e4;
+  --xray-bg-rgb: 243, 244, 246;
+  --xray-surface-rgb: 255, 255, 255;
+  --xray-surface2-rgb: 234, 236, 239;
+  --xray-text-rgb: 22, 23, 26;
+  --xray-text: #16171a;
+  --xray-subtext: #4b4f55;
+  --xray-hint: #666b73;
+  --xray-border: #d7d9dd;
+  --xray-border-control: #858991;
+  --xray-focus: #006c93;
+  --xray-selection: #d6e4ea;
+  --xray-hover: #eaecef;
+  --xray-active: #bed6e0;
+  --xray-disabled: #a1a5ab;
+  --xray-accent: #006c93;
+  --xray-accent-soft: #d6e4ea;
+  --xray-blue: #3e5bbf;
+  --xray-mauve: #7c43b1;
+  --xray-green: #137d41;
+  --xray-yellow: #986602;
+  --xray-red: #bc2c30;
+  --xray-teal: #007b76;
+  --xray-peach: #b24e16;
+  --xray-pending: #986602;
+  --xray-neutral: #666b73;
+  --xray-shadow: rgba(22, 23, 26, .16);
+  --xray-overlay: rgba(243, 244, 246, .86);
+  --xray-operator-grid: rgba(0, 108, 147, .04);
+  --xray-sink: #ffffff;
+  --xray-scroll-thumb: color-mix(in srgb, var(--xray-hint) 74%, transparent);
+}
+
+/* GitHub Dark: Familiar Primer dark. Accent nudged from accent.fg #2f81f7 so it reads on its own tint.
+   source: Primer primitives 7.17.1 dark: canvas.default/overlay, btn.bg, border.default; fg.default, scale.gray[1], fg.muted; accent.fg; prettylights constant; done/success/attention/danger/severe.fg; ansi.cyan.
+   rendered nudges (official -> rendered): accent #2f81f7->#3c8bff (ΔL +0.03)
+   to pass the repo contrast test as a shipped preset, also: hint #848d97->#8a939d (ΔL +0.02); accent #3c8bff->#5497ff (ΔL +0.034); mauve #a371f7->#b07eff (ΔL +0.038); red #f85149->#ff6058 (ΔL +0.03); peach #db6d28->#e77934 (ΔL +0.036)
+   contrast: requested pairs 1 -> 0 failures; repo matrix 48 -> 36 of 157 */
+.xray-theme-github-dark {
+  --xray-bg: #0d1117;
+  --xray-surface: #161b22;
+  --xray-surface2: #21262d;
+  --xray-surface3: #30363d;
+  --xray-bg-rgb: 13, 17, 23;
+  --xray-surface-rgb: 22, 27, 34;
+  --xray-surface2-rgb: 33, 38, 45;
+  --xray-text-rgb: 230, 237, 243;
+  --xray-text: #e6edf3;
+  --xray-subtext: #c9d1d9;
+  --xray-hint: #848d97;
+  --xray-border: #30363d;
+  --xray-border-control: #6e7681;
+  --xray-focus: #3c8bff;
+  --xray-selection: #152741;
+  --xray-hover: #21262d;
+  --xray-active: #1a3358;
+  --xray-disabled: #484f58;
+  --xray-accent: #3c8bff;
+  --xray-accent-soft: #152741;
+  --xray-blue: #79c0ff;
+  --xray-mauve: #a371f7;
+  --xray-green: #3fb950;
+  --xray-yellow: #d29922;
+  --xray-red: #f85149;
+  --xray-teal: #39c5cf;
+  --xray-peach: #db6d28;
+  --xray-pending: #d29922;
+  --xray-neutral: #848d97;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(13, 17, 23, .74);
+  --xray-operator-grid: rgba(60, 139, 255, .035);
+}
+
+/* GitHub Light: Familiar Primer light, built from the fg roles (success/attention/danger.fg), not the emphasis swatches.
+   source: Primer primitives 7.17.1 light: canvas.subtle/default, scale.gray[1], border.default; fg.default, scale.gray[7], fg.muted; accent.fg; prettylights constant; done/success/attention/danger/severe.fg; ansi.cyan.
+   rendered nudges (official -> rendered): hint #656d76->#646c75 (ΔL -0.002); accent #0969da->#0062d1 (ΔL -0.022)
+   to pass the repo contrast test as a shipped preset, also: accent #0062d1->#005dcc (ΔL -0.015); mauve #8250df->#703ecd (ΔL -0.056); green #1a7f37->#0a722a (ΔL -0.042); yellow #9a6700->#875400 (ΔL -0.062); red #d1242f->#bb0019 (ΔL -0.058); teal #1b7c83->#076d74 (ΔL -0.049); peach #bc4c00->#a04100 (ΔL -0.061)
+   contrast: requested pairs 1 -> 0 failures; repo matrix 89 -> 86 of 157 */
+.xray-theme-github-light {
+  --xray-bg: #f6f8fa;
+  --xray-surface: #ffffff;
+  --xray-surface2: #eaeef2;
+  --xray-surface3: #d0d7de;
+  --xray-bg-rgb: 246, 248, 250;
+  --xray-surface-rgb: 255, 255, 255;
+  --xray-surface2-rgb: 234, 238, 242;
+  --xray-text-rgb: 31, 35, 40;
+  --xray-text: #1f2328;
+  --xray-subtext: #424a53;
+  --xray-hint: #646c75;
+  --xray-border: #d0d7de;
+  --xray-border-control: #6e7781;
+  --xray-focus: #0062d1;
+  --xray-selection: #d8e6f5;
+  --xray-hover: #eaeef2;
+  --xray-active: #c0d7f1;
+  --xray-disabled: #8c959f;
+  --xray-accent: #0062d1;
+  --xray-accent-soft: #d8e6f5;
+  --xray-blue: #0550ae;
+  --xray-mauve: #8250df;
+  --xray-green: #1a7f37;
+  --xray-yellow: #9a6700;
+  --xray-red: #d1242f;
+  --xray-teal: #1b7c83;
+  --xray-peach: #bc4c00;
+  --xray-pending: #9a6700;
+  --xray-neutral: #646c75;
+  --xray-shadow: rgba(31, 35, 40, .16);
+  --xray-overlay: rgba(246, 248, 250, .86);
+  --xray-operator-grid: rgba(0, 98, 209, .04);
+  --xray-sink: #ffffff;
+  --xray-scroll-thumb: color-mix(in srgb, var(--xray-hint) 74%, transparent);
+}
+
+/* Tokyo Night: Navy + periwinkle. Strict pass needs only ΔL <= 0.009, so it is nearly preset-ready.
+   source: enkia Tokyo Night (night): editor #1a1b26, sideBar/panel #16161e, sideBar.foreground #787c99, panel borders #101014; folke night palette: bg_highlight, fg_gutter, fg, fg_dark, dark3, blue, magenta, green, green1, yellow, red, orange.
+   rendered nudges (official -> rendered): hint #787c99->#9094b2 (ΔL +0.08); borderControl #545c7e->#687194 (ΔL +0.072)
+   to pass the repo contrast test as a shipped preset, also: accent #7aa2f7->#7ca4f9 (ΔL +0.006); blue #7aa2f7->#7ba3f8 (ΔL +0.003); red #f7768e->#fa7991 (ΔL +0.009)
+   contrast: requested pairs 5 -> 0 failures; repo matrix 33 -> 24 of 157 */
+.xray-theme-tokyo-night {
+  --xray-bg: #16161e;
+  --xray-surface: #1a1b26;
+  --xray-surface2: #292e42;
+  --xray-surface3: #3b4261;
+  --xray-bg-rgb: 22, 22, 30;
+  --xray-surface-rgb: 26, 27, 38;
+  --xray-surface2-rgb: 41, 46, 66;
+  --xray-text-rgb: 192, 202, 245;
+  --xray-text: #c0caf5;
+  --xray-subtext: #a9b1d6;
+  --xray-hint: #9094b2;
+  --xray-border: #101014;
+  --xray-border-control: #687194;
+  --xray-focus: #7aa2f7;
+  --xray-selection: #282f45;
+  --xray-hover: #292e42;
+  --xray-active: #323d5b;
+  --xray-disabled: #545c7e;
+  --xray-accent: #7aa2f7;
+  --xray-accent-soft: #282f45;
+  --xray-blue: #7aa2f7;
+  --xray-mauve: #bb9af7;
+  --xray-green: #9ece6a;
+  --xray-yellow: #e0af68;
+  --xray-red: #f7768e;
+  --xray-teal: #73daca;
+  --xray-peach: #ff9e64;
+  --xray-pending: #e0af68;
+  --xray-neutral: #9094b2;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(22, 22, 30, .74);
+  --xray-operator-grid: rgba(122, 162, 247, .035);
+}
+
+/* Catppuccin Mocha: Strongest named dark: mauve + pastels. Passes the full repo matrix after two hint/control nudges.
+   source: catppuccin/palette v1.8.0 mocha: mantle, base, surface0, surface1; text, subtext0, overlay1, overlay0; mauve accent; blue, green, yellow, red, teal, peach.
+   rendered nudges (official -> rendered): hint #7f849c->#959ab3 (ΔL +0.073); borderControl #6c7086->#71758b (ΔL +0.017)
+   to pass the repo contrast test as a shipped preset, also: none: already passes test/unit/themeContrast.test.mjs
+   contrast: requested pairs 3 -> 0 failures; repo matrix 5 -> 0 of 157 */
+.xray-theme-catppuccin-mocha {
+  --xray-bg: #181825;
+  --xray-surface: #1e1e2e;
+  --xray-surface2: #313244;
+  --xray-surface3: #45475a;
+  --xray-bg-rgb: 24, 24, 37;
+  --xray-surface-rgb: 30, 30, 46;
+  --xray-surface2-rgb: 49, 50, 68;
+  --xray-text-rgb: 205, 214, 244;
+  --xray-text: #cdd6f4;
+  --xray-subtext: #a6adc8;
+  --xray-hint: #959ab3;
+  --xray-border: #45475a;
+  --xray-border-control: #71758b;
+  --xray-focus: #cba6f7;
+  --xray-selection: #38324b;
+  --xray-hover: #313244;
+  --xray-active: #4a4060;
+  --xray-disabled: #6c7086;
+  --xray-accent: #cba6f7;
+  --xray-accent-soft: #38324b;
+  --xray-blue: #89b4fa;
+  --xray-mauve: #cba6f7;
+  --xray-green: #a6e3a1;
+  --xray-yellow: #f9e2af;
+  --xray-red: #f38ba8;
+  --xray-teal: #94e2d5;
+  --xray-peach: #fab387;
+  --xray-pending: #f9e2af;
+  --xray-neutral: #959ab3;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(24, 24, 37, .74);
+  --xray-operator-grid: rgba(203, 166, 247, .035);
+}
+
+/* Dracula: For fans: purple accent, neon status hues (loud; best with the calm accent).
+   source: dracula/visual-studio-code dracula.yml: BGDark, BG, BGLight, Selection, BGLighter; FG, Comment; purple accent; ANSI map (cyan for blue/teal, pink for magenta), green, yellow, red, orange. Dracula has no mid-tone, so subtext = FG/Comment midpoint (derived).
+   rendered nudges (official -> rendered): hint #6272a4->#8d9fd4 (ΔL +0.147); borderControl #6272a4->#6878aa (ΔL +0.02); red #ff5555->#ff736e (ΔL +0.04)
+   to pass the repo contrast test as a shipped preset, also: accent #bd93f9->#c79dff (ΔL +0.029); mauve #ff79c6->#ff87cd (ΔL +0.022); red #ff736e->#ff8f83 (ΔL +0.045)
+   contrast: requested pairs 6 -> 0 failures; repo matrix 51 -> 31 of 157 */
+.xray-theme-dracula {
+  --xray-bg: #21222c;
+  --xray-surface: #282a36;
+  --xray-surface2: #343746;
+  --xray-surface3: #44475a;
+  --xray-bg-rgb: 33, 34, 44;
+  --xray-surface-rgb: 40, 42, 54;
+  --xray-surface2-rgb: 52, 55, 70;
+  --xray-text-rgb: 248, 248, 242;
+  --xray-text: #f8f8f2;
+  --xray-subtext: #adb5cb;
+  --xray-hint: #8d9fd4;
+  --xray-border: #424450;
+  --xray-border-control: #6878aa;
+  --xray-focus: #bd93f9;
+  --xray-selection: #3d3651;
+  --xray-hover: #343746;
+  --xray-active: #4d4265;
+  --xray-disabled: #6272a4;
+  --xray-accent: #bd93f9;
+  --xray-accent-soft: #3d3651;
+  --xray-blue: #8be9fd;
+  --xray-mauve: #ff79c6;
+  --xray-green: #50fa7b;
+  --xray-yellow: #f1fa8c;
+  --xray-red: #ff736e;
+  --xray-teal: #8be9fd;
+  --xray-peach: #ffb86c;
+  --xray-pending: #f1fa8c;
+  --xray-neutral: #8d9fd4;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(33, 34, 44, .74);
+  --xray-operator-grid: rgba(189, 147, 249, .035);
+}
+
+/* Gruvbox Dark: Only warm dark: brown-grey + orange. Orange accent sits close to error red, so pair it with the calm accent.
+   source: morhetz/gruvbox gruvbox.vim: dark0_hard, dark0, dark1, dark2; light1, light3, light4; dark2/dark4 structure; bright_orange accent; bright_blue, bright_purple, bright_green, bright_yellow, bright_red, bright_aqua.
+   rendered nudges (official -> rendered): hint #a89984->#afa08b (ΔL +0.022); borderControl #7c6f64->#86786d (ΔL +0.032); red #fb4934->#ff715c (ΔL +0.057)
+   to pass the repo contrast test as a shipped preset, also: accent #fe8019->#ff9760 (ΔL +0.044); blue #83a598->#97b9ac (ΔL +0.064); mauve #d3869b->#e99cb1 (ΔL +0.069); red #ff715c->#ff9386 (ΔL +0.058); peach #fe8019->#ff965e (ΔL +0.042)
+   contrast: requested pairs 5 -> 0 failures; repo matrix 53 -> 38 of 157 */
+.xray-theme-gruvbox-dark {
+  --xray-bg: #1d2021;
+  --xray-surface: #282828;
+  --xray-surface2: #3c3836;
+  --xray-surface3: #504945;
+  --xray-bg-rgb: 29, 32, 33;
+  --xray-surface-rgb: 40, 40, 40;
+  --xray-surface2-rgb: 60, 56, 54;
+  --xray-text-rgb: 235, 219, 178;
+  --xray-text: #ebdbb2;
+  --xray-subtext: #bdae93;
+  --xray-hint: #afa08b;
+  --xray-border: #504945;
+  --xray-border-control: #86786d;
+  --xray-focus: #fe8019;
+  --xray-selection: #463120;
+  --xray-hover: #3c3836;
+  --xray-active: #5c3b1f;
+  --xray-disabled: #7c6f64;
+  --xray-accent: #fe8019;
+  --xray-accent-soft: #463120;
+  --xray-blue: #83a598;
+  --xray-mauve: #d3869b;
+  --xray-green: #b8bb26;
+  --xray-yellow: #fabd2f;
+  --xray-red: #ff715c;
+  --xray-teal: #8ec07c;
+  --xray-peach: #fe8019;
+  --xray-pending: #fabd2f;
+  --xray-neutral: #afa08b;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(29, 32, 33, .74);
+  --xray-operator-grid: rgba(254, 128, 25, .035);
+}

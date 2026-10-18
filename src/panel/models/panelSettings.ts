@@ -15,12 +15,14 @@ export const PANEL_WIDTH_MIN = 360;
 export const PANEL_WIDTH_MAX = 2000;
 
 export const PANEL_ACCENT_VALUES: Record<PanelAccent, string> = {
-  blue: '#89b4fa',
+  // The persisted `blue` ID is retained for compatibility, but Signal Gray's
+  // default instrument accent is amber rather than neon cyan.
+  blue: '#d99a2b',
   mauve: '#cba6f7',
   teal: '#94e2d5',
   green: '#a6e3a1',
-  peach: '#fab387',
-  coral: '#d97757',
+  peach: '#ffd166',
+  coral: '#eaa388',
 };
 
 /**
@@ -32,15 +34,16 @@ export const PANEL_ACCENT_VALUES: Record<PanelAccent, string> = {
  * contrast: the primary button reads as blank, and the focus ring — which needs 3:1 under
  * WCAG 1.4.11 — becomes untrackable, so keyboard focus is effectively invisible.
  *
- * These darker equivalents measure 3.79–4.85 against both light theme backgrounds.
+ * These darker equivalents read as text on their own badge / primary-button tint in both
+ * light presets (test/unit/themeContrast.test.mjs asserts every swatch).
  */
 export const PANEL_ACCENT_VALUES_LIGHT: Record<PanelAccent, string> = {
-  blue: '#1e66f5',
-  mauve: '#8839ef',
-  teal: '#0f7a80',
-  green: '#2f8a1f',
-  peach: '#c4560a',
-  coral: '#b84a24',
+  blue: '#845600',
+  mauve: '#7418ec',
+  teal: '#0d696e',
+  green: '#226d15',
+  peach: '#865100',
+  coral: '#a23f1e',
 };
 
 const LIGHT_PRESETS: ReadonlySet<PanelTheme> = new Set<PanelTheme>(['light-lab', 'claude']);
@@ -65,6 +68,10 @@ export function isLightTheme(settings: PanelSettings): boolean {
 
 /** The accent actually applied as `--xray-accent`, darkened for light backgrounds. */
 export function resolveAccentValue(settings: PanelSettings): string {
+  // A custom theme's explicit accent is authoritative. Keeping the legacy
+  // accent enum in front of it caused the editor to display one color while
+  // the panel and sibling modals rendered another.
+  if (settings.theme === 'custom') return settings.customTheme?.accent ?? DEFAULT_CUSTOM_THEME.accent;
   const palette = isLightTheme(settings) ? PANEL_ACCENT_VALUES_LIGHT : PANEL_ACCENT_VALUES;
   return palette[settings.accent] ?? palette.blue;
 }
@@ -75,6 +82,19 @@ export const PANEL_FONT_VALUES: Record<PanelFont, string> = {
   iosevka: "'Iosevka', 'JetBrains Mono', 'Fira Code', monospace",
   system: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 };
+
+/** The accent each preset theme applies while the user has never picked one. */
+export const THEME_DEFAULT_ACCENT: Partial<Record<PanelTheme, PanelAccent>> = {
+  operator: 'blue',
+  'dev-edition': 'coral',
+  'light-lab': 'blue',
+  midnight: 'peach',
+  claude: 'coral',
+};
+
+export function themeDefaultAccent(theme: PanelTheme): PanelAccent {
+  return THEME_DEFAULT_ACCENT[theme] ?? DEFAULT_PANEL_SETTINGS.accent;
+}
 
 export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   captureFetch: true,
@@ -87,6 +107,7 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   compactRows: false,
   showHostInPath: true,
   accent: 'blue',
+  accentChosen: false,
   theme: 'operator',
   customTheme: DEFAULT_CUSTOM_THEME,
   font: 'jetbrains',
@@ -136,6 +157,13 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     Object.entries(input || {}).filter(([, value]) => value !== undefined),
   ) as Partial<PanelSettings>;
   const base = { ...DEFAULT_PANEL_SETTINGS, ...provided };
+  const theme = asTheme(base.theme, DEFAULT_PANEL_SETTINGS.theme);
+  const accent = asAccent(base.accent, DEFAULT_PANEL_SETTINGS.accent);
+  // Settings stored before accentChosen existed: the accent counts as chosen only when
+  // it differs from what the current theme would have set itself.
+  const accentChosen = typeof provided.accentChosen === 'boolean'
+    ? provided.accentChosen
+    : accent !== themeDefaultAccent(theme);
   return {
     captureFetch: Boolean(base.captureFetch),
     captureXhr: Boolean(base.captureXhr),
@@ -147,8 +175,9 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     defaultDetailView: asDetailView(base.defaultDetailView, DEFAULT_PANEL_SETTINGS.defaultDetailView),
     compactRows: Boolean(base.compactRows),
     showHostInPath: Boolean(base.showHostInPath),
-    accent: asAccent(base.accent, DEFAULT_PANEL_SETTINGS.accent),
-    theme: asTheme(base.theme, DEFAULT_PANEL_SETTINGS.theme),
+    accent,
+    accentChosen,
+    theme,
     customTheme: normalizeCustomTheme(base.customTheme),
     font: asFont(base.font, DEFAULT_PANEL_SETTINGS.font),
     density: asDensity(base.density, DEFAULT_PANEL_SETTINGS.density),

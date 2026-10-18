@@ -1,10 +1,11 @@
 import React from 'react';
-import { IconAlertTriangle, IconBolt, IconClock, IconDatabase, IconRoute, IconServer } from '@tabler/icons-react';
+import { IconRoute } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
 import { buildInsightsSummary } from '../../models/insights';
 import { formatBytes } from '../../utils';
 import { CollapsibleSection } from '../common/CollapsibleSection';
 import { iconProps } from '../shell/panelTabs';
+import { FindingsPanel } from './FindingsPanel';
 
 export function Insights(): React.ReactElement {
   const entries = usePanelStore((state) => state.entries);
@@ -23,18 +24,17 @@ export function Insights(): React.ReactElement {
       <header className="xray-page-head">
         <div>
           <h3>Insights</h3>
-          <p>Deterministic local signals from captured requests. No external AI service is used.</p>
+          <p>Local signals from captured requests. AI synthesis only runs after a reviewed preview and explicit Analyze.</p>
         </div>
       </header>
-      <CollapsibleSection id="insights-overview" title="Overview" className="xray-insight-overview">
-        <div className="xray-insight-grid">
-          <InsightMetric icon={<IconDatabase {...iconProps} />} label="Requests" value={String(summary.requests)} />
-          <InsightMetric icon={<IconAlertTriangle {...iconProps} />} label="Errors" value={String(summary.errors)} tone={summary.errors ? 'error' : 'ok'} />
-          <InsightMetric icon={<IconBolt {...iconProps} />} label="Slow" value={String(summary.slow)} tone={summary.slow ? 'warn' : 'ok'} />
-          <InsightMetric icon={<IconClock {...iconProps} />} label="Average" value={`${Math.round(summary.avgDuration)}ms`} />
-          <InsightMetric icon={<IconServer {...iconProps} />} label="Payload" value={formatBytes(summary.totalBytes)} />
-        </div>
-      </CollapsibleSection>
+      <div className="xray-insight-strip" role="group" aria-label="Capture overview">
+        <InsightMetric label="Requests" value={String(summary.requests)} />
+        <InsightMetric label="Errors" value={String(summary.errors)} tone={summary.errors ? 'error' : 'ok'} />
+        <InsightMetric label="Slow" value={String(summary.slow)} tone={summary.slow ? 'warn' : 'ok'} />
+        <InsightMetric label="Average" value={`${Math.round(summary.avgDuration)}ms`} />
+        <InsightMetric label="Payload" value={formatBytes(summary.totalBytes)} />
+      </div>
+      <FindingsPanel />
       <div className="xray-insight-columns">
         <CollapsibleSection id="insights-repeated" title="Repeated endpoints" className="xray-card">
           {summary.nPlusOneCandidates.length ? summary.nPlusOneCandidates.map((item) => (
@@ -68,12 +68,11 @@ export function Insights(): React.ReactElement {
   );
 }
 
-function InsightMetric({ icon, label, value, tone = '' }: { icon: React.ReactNode; label: string; value: string; tone?: 'ok' | 'warn' | 'error' | '' }): React.ReactElement {
+function InsightMetric({ label, value, tone = '' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'error' | '' }): React.ReactElement {
   return (
-    <div className={`xray-api-metric ${tone}`}>
-      {icon}
-      <span>{label}</span>
+    <span className={`xray-insight-stat ${tone}`}>
+      <span className="xray-insight-stat-label">{label}</span>
       <strong>{value}</strong>
-    </div>
+    </span>
   );
 }

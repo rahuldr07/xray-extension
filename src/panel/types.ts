@@ -32,6 +32,7 @@ export type PanelFont = 'jetbrains' | 'cascadia' | 'iosevka' | 'system';
 export type PanelDensity = 'compact' | 'comfortable' | 'spacious';
 export type DetailTab = 'response' | 'request' | 'headers';
 export type ConsoleMiniTab = 'network' | 'console';
+export type RulesSubTab = 'rules' | 'experiments' | 'investigations';
 export type NetworkFilter = 'all' | 'xhr' | 'fetch' | 'ws' | 'errors';
 export type ApiQuickFilter = 'all' | 'errors' | 'slow' | 'repeated' | 'pinned' | 'large' | 'empty' | 'drift' | 'graphql' | 'ws' | 'mocked' | 'replayed';
 export type ApiGroupingMode = 'flat' | 'endpoint';
@@ -41,12 +42,90 @@ export type SortOrder = 'asc' | 'desc';
 export type ConsoleEventType = 'network' | 'log' | 'command' | 'result' | 'error' | 'system';
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
 
+export type ExperimentStatus = 'draft' | 'armed' | 'running' | 'observed' | 'failed' | 'cancelled';
+
+export interface ExperimentPlan {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: unknown;
+  mockRuleId?: string;
+  retargetAcknowledged?: boolean;
+  preserveCapturedUrl?: boolean;
+  timeoutMs?: number;
+}
+
+export type ExperimentCheck =
+  | { type: 'status'; expected: number }
+  | { type: 'response'; expected: boolean }
+  | { type: 'structural'; mode: 'equal' | 'contains' | 'schema'; expected?: unknown };
+
+export interface ExperimentCheckResult {
+  type: ExperimentCheck['type'];
+  passed: boolean;
+  expected: unknown;
+  actual: unknown;
+  reason?: string;
+}
+
+export interface ExperimentEvaluation {
+  passed: boolean;
+  checks: ExperimentCheckResult[];
+}
+
+export interface ExperimentRecord {
+  id: string;
+  title: string;
+  status: ExperimentStatus;
+  baselineEntryId: string;
+  plan: ExperimentPlan;
+  checks: ExperimentCheck[];
+  createdAt: number;
+  updatedAt: number;
+  startedAt?: number;
+  observedEntryId?: string;
+  checkResults?: ExperimentCheckResult[];
+  errorCode?: string;
+  errorReason?: string;
+}
+export type RuntimeHealthState = 'unknown' | 'healthy' | 'degraded' | 'unavailable';
+
+export interface RuntimeHealth {
+  health: RuntimeHealthState;
+  captureRouteState: RuntimeHealthState;
+  workerState: RuntimeHealthState;
+  lastEventAt: number | null;
+  lastErrorCode: string | null;
+  acceptedCount: number;
+  droppedCount: number;
+}
+
+export interface SessionSource {
+  origin?: string;
+  title?: string;
+}
+
+export interface SessionEnvelope {
+  schemaVersion: 1;
+  sessionId: string;
+  createdAt: number;
+  updatedAt: number;
+  source: SessionSource;
+  entryCount: number;
+  apiCount: number;
+  logCount: number;
+  lastEntryAt: number | null;
+  entries: XrayEntry[];
+  runtime: RuntimeHealth;
+}
+
 export interface XrayEntry {
   id: string;
   type: EntryType;
   timestamp?: number;
   method?: string;
   status?: number;
+  statusText?: string;
   url?: string;
   urlPath?: string;
   source?: string;
@@ -158,6 +237,31 @@ export interface ConsoleEvent {
   entryId?: string;
   commandId?: string;
   truncated?: boolean;
+  /** Command results: wall-clock run time of the evaluation, in ms. */
+  durationMs?: number;
+  /** Command results: the console variable (`temp1`…) the result was saved as. */
+  variable?: string;
+  /** Command results: the run was cancelled; any late result was discarded. */
+  cancelled?: boolean;
+  /** Command results: the evaluator's result type (`number`, `array`, `function`…). */
+  resultType?: string;
+  /** Command errors: whether a request was selected when the command ran (C5 hint). */
+  hasRequest?: boolean;
+}
+
+/** A request pinned as a Console variable (`a`…`f`). Panel-session only, never persisted. */
+export interface ConsolePin {
+  name: string;
+  entryId: string;
+}
+
+/** What Clear console removes (spec S6): everything, only your commands, or only page logs. */
+export type ConsoleClearScope = 'all' | 'commands' | 'page';
+
+/** An in-flight console command: its id and when it started (Date.now()). */
+export interface ConsoleRun {
+  id: string;
+  startedAt: number;
 }
 
 export interface Snippet {
@@ -177,6 +281,8 @@ export interface PanelSettings {
   compactRows: boolean;
   showHostInPath: boolean;
   accent: PanelAccent;
+  /** True once the user has picked an accent; theme presets then stop overwriting it. */
+  accentChosen: boolean;
   theme: PanelTheme;
   customTheme: CustomTheme;
   font: PanelFont;
@@ -244,6 +350,11 @@ declare global {
       execute(code: string): Promise<{ type: string; result?: unknown; error?: { message?: string; stack?: string }; truncated?: boolean }>;
       navigateHistory(direction: 'up' | 'down'): string | null;
       getRuntimePreview?(): Record<string, unknown>;
+      setVar?(name: string, value: unknown): void;
+      getVar?(name: string): unknown;
+      getScope?(): Record<string, unknown>;
+      clearVariables?(): void;
+      setPins?(pins: Record<string, XrayEntry>): void;
     };
     XRAY_ConsoleHelpers?: {
       parseBody?(body: unknown): unknown;
@@ -254,8 +365,8 @@ declare global {
       toTable?(data: unknown): { __xr_render: 'table'; data: unknown };
     };
     XRAY_Store?: {
-      get<T = unknown>(key: string): Promise<T | null>;
-      set<T = unknown>(key: string, value: T): Promise<void>;
+      get<T = unknown>(key: string, defaultVal?: T | null, strict?: boolean): Promise<T | null>;
+      set<T = unknown>(key: string, value: T, strict?: boolean): Promise<void>;
     };
     XRAY_HUD?: {
       mount(): void;

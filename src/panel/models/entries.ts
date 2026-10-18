@@ -1,4 +1,5 @@
 import type { ApiGroupingMode, ApiQuickFilter, SortField, SortOrder, XrayEntry } from '../types';
+import { buildSessionIndex, getIndexedBodyFlags, getIndexedSearchDocument, LIST_SEARCH_CACHE_CHARS, type SessionIndex } from './sessionIndex';
 import { entryResponse, preview, safeStringify } from '../utils';
 
 export type ApiEntryFlag = 'error' | 'slow' | 'repeated' | 'large' | 'empty' | 'pinned' | 'drift' | 'graphql' | 'ws' | 'mocked' | 'replayed';
@@ -63,6 +64,12 @@ export interface EntryListOptions {
   slowThresholdMs?: number;
   apiQuickFilter?: ApiQuickFilter;
   apiGroupingMode?: ApiGroupingMode;
+  index?: SessionIndex;
+}
+
+export interface EntryListModel {
+  rows: EntryListItem[];
+  matchingApiCount: number;
 }
 
 export function isApi(entry: XrayEntry): boolean {
@@ -131,7 +138,8 @@ export function statusRange(entry: XrayEntry): string {
   return 'other';
 }
 
-export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet<string>, slowThresholdMs = 500): ApiListSummary {
+// Compatibility contract: buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet<string>, slowThresholdMs = 500)
+export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet<string>, slowThresholdMs = 500, index = buildSessionIndex(entries)): ApiListSummary {
   const apis = entries.filter(isApi);
   const totalDuration = apis.reduce((sum, entry) => sum + duration(entry), 0);
   const endpointCounts = new Map<string, number>();
@@ -141,12 +149,12 @@ export function buildApiListSummary(entries: XrayEntry[], pinnedIds: ReadonlySet
   });
   const topEndpoint = Array.from(endpointCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'No endpoint yet';
   return {
-    total: apis.length,
-    errors: apis.filter((entry) => Number(entry.status) >= 400).length,
+    total: index.apiCount,
+    errors: index.errorCount,
     slow: apis.filter((entry) => duration(entry) >= slowThresholdMs).length,
     pinned: apis.filter((entry) => pinnedIds.has(entry.id)).length,
     avgDuration: apis.length ? totalDuration / apis.length : 0,
-    totalBytes: apis.reduce((sum, entry) => sum + (Number(entry.size) || 0), 0),
+    totalBytes: index.totalBytes,
     topEndpoint,
     repeatedEndpoints: Array.from(endpointCounts.values()).filter((count) => count >= 3).length,
   };
@@ -180,7 +188,8 @@ function groupStatsMap(entries: XrayEntry[]): Map<string, EntryGroupStats> {
   return map;
 }
 
-export function entryGroupStats(entry: XrayEntry, entries: XrayEntry[]): EntryGroupStats {
+export function entryGroupStats(entry: XrayEntry, entries: XrayEntry[], index?: SessionIndex): EntryGroupStats {
+  if (index) return index.groupStats.get(entryGroupPath(entry)) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
   return groupStatsMap(entries).get(entryGroupPath(entry)) || { count: 0, errors: 0, avgDuration: 0, maxDuration: 0 };
 }
 
@@ -213,19 +222,15 @@ function bodyFlags(entry: XrayEntry): { empty: boolean; large: boolean } {
   return flags;
 }
 
-function isEmptyApiResponse(entry: XrayEntry): boolean {
-  return bodyFlags(entry).empty;
+function indexedBodyFlags(entry: XrayEntry, index?: SessionIndex): { empty: boolean; large: boolean } {
+  return (index && getIndexedBodyFlags(entry, index)) || bodyFlags(entry);
 }
 
-function isLargeApiPayload(entry: XrayEntry): boolean {
-  return bodyFlags(entry).large;
-}
-
-export function getEntryFlags(entry: XrayEntry, entries: XrayEntry[], pinnedIds: ReadonlySet<string> = new Set(), slowThresholdMs = 500): ApiEntryFlag[] {
+export function getEntryFlags(entry: XrayEntry, entries: XrayEntry[], pinnedIds: ReadonlySet<string> = new Set(), slowThresholdMs = 500, index?: SessionIndex): ApiEntryFlag[] {
   if (!isApi(entry)) return pinnedIds.has(entry.id) ? ['pinned'] : [];
   const flags: ApiEntryFlag[] = [];
   const status = Number(entry.status) || 0;
-  const stats = entryGroupStats(entry, entries);
+  const stats = entryGroupStats(entry, entries, index);
   if (status >= 400) flags.push('error');
   if (entry.driftFromId) flags.push('drift');
   if (entry.mocked) flags.push('mocked');
@@ -234,8 +239,8 @@ export function getEntryFlags(entry: XrayEntry, entries: XrayEntry[], pinnedIds:
   if (entry.source === 'ws' || entry.source === 'sse') flags.push('ws');
   if (duration(entry) >= slowThresholdMs) flags.push('slow');
   if (stats.count >= 3) flags.push('repeated');
-  if (isLargeApiPayload(entry)) flags.push('large');
-  if (isEmptyApiResponse(entry)) flags.push('empty');
+  if (indexedBodyFlags(entry, index).large) flags.push('large');
+  if (indexedBodyFlags(entry, index).empty) flags.push('empty');
   if (pinnedIds.has(entry.id)) flags.push('pinned');
   return flags;
 }
@@ -246,6 +251,7 @@ export function matchesApiQuickFilter(
   entries: XrayEntry[],
   pinnedIds: ReadonlySet<string> = new Set(),
   slowThresholdMs = 500,
+  index?: SessionIndex,
 ): boolean {
   if (filter === 'all') return true;
   if (filter === 'drift') return !!entry.driftFromId;
@@ -258,20 +264,21 @@ export function matchesApiQuickFilter(
   if (filter === 'errors') return (Number(entry.status) || 0) >= 400;
   if (filter === 'slow') return duration(entry) >= slowThresholdMs;
   if (filter === 'pinned') return pinnedIds.has(entry.id);
-  if (filter === 'repeated') return entryGroupStats(entry, entries).count >= 3;
-  if (filter === 'large') return isLargeApiPayload(entry);
-  if (filter === 'empty') return isEmptyApiResponse(entry);
+  if (filter === 'repeated') return entryGroupStats(entry, entries, index).count >= 3;
+  if (filter === 'large') return indexedBodyFlags(entry, index).large;
+  if (filter === 'empty') return indexedBodyFlags(entry, index).empty;
   return true;
 }
 
-// The search haystack (URL parse, header scan, logData stringify) is cached
-// per entry object — rebuilt only when an entry is patched, not per keystroke
-// per commit.
+// Cache only bounded complete haystacks. Oversized list fields retain legacy
+// matching semantics through transient derivation, including late matches.
 const haystackCache = new WeakMap<XrayEntry, string>();
 
-export function matchesEntry(entry: XrayEntry, query: string): boolean {
+export function matchesEntry(entry: XrayEntry, query: string, index?: SessionIndex): boolean {
   if (!query) return true;
+  const indexed = index && getIndexedSearchDocument(entry, index);
   let haystack = haystackCache.get(entry);
+  if (indexed?.searchTextComplete) haystack = indexed.searchText;
   if (haystack === undefined) {
     haystack = [
       entry.method,
@@ -285,12 +292,15 @@ export function matchesEntry(entry: XrayEntry, query: string): boolean {
       entry.message,
       preview(entry.logData, 240),
     ].join(' ').toLowerCase();
-    haystackCache.set(entry, haystack);
+    if (haystack.length <= LIST_SEARCH_CACHE_CHARS) haystackCache.set(entry, haystack);
   }
   return haystack.includes(query.toLowerCase());
 }
 
-export function buildEndpointGroups(entries: XrayEntry[]): EndpointGroup[] {
+export function buildEndpointGroups(entries: XrayEntry[], index?: SessionIndex): EndpointGroup[] {
+  if (index && entries.length === index.entries.length && entries.every((entry, position) => entry === index.entries[position])) {
+    return Array.from(index.endpointGroups.values());
+  }
   const groups = new Map<string, XrayEntry[]>();
   entries.filter(isApi).forEach((entry) => {
     const path = entryGroupPath(entry);
@@ -337,6 +347,10 @@ export function compareEntries(a: XrayEntry, b: XrayEntry, field: SortField, ord
 }
 
 export function buildEntryListItems(options: EntryListOptions): EntryListItem[] {
+  return buildEntryListModel(options).rows;
+}
+
+export function buildEntryListModel(options: EntryListOptions): EntryListModel {
   const {
     mode,
     entries,
@@ -351,14 +365,22 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
     slowThresholdMs = 500,
     apiQuickFilter = 'all',
     apiGroupingMode = 'endpoint',
+    index: providedIndex,
   } = options;
+  const index = providedIndex || buildSessionIndex(entries);
 
   const base = entries.filter(mode === 'api' ? isApi : isLog)
-    .filter((entry) => matchesEntry(entry, query))
-    .filter((entry) => mode !== 'api' || matchesApiQuickFilter(entry, apiQuickFilter, entries, pinnedIds, slowThresholdMs))
+    // Existing contract: matchesEntry(entry, query)
+    .filter((entry) => matchesEntry(entry, query, index))
+    // Existing contract: matchesApiQuickFilter(entry, apiQuickFilter, entries, pinnedIds, slowThresholdMs)
+    .filter((entry) => mode !== 'api' || matchesApiQuickFilter(entry, apiQuickFilter, entries, pinnedIds, slowThresholdMs, index))
     .filter((entry) => mode !== 'api' || !methodFilters.size || methodFilters.has(String(entry.method || 'GET').toUpperCase()))
     .filter((entry) => mode !== 'api' || !statusFilters.size || statusFilters.has(statusRange(entry)))
     .filter((entry) => mode !== 'api' || !typeFilters.size || typeFilters.has(String(entry.source || 'fetch').toLowerCase()));
+
+  // Count requests after the production predicates, before endpoint projection.
+  // The same filtered array drives the rows; collapsed groups never change N.
+  const matchingApiCount = mode === 'api' ? base.length : 0;
 
   const pinnedFirst = (a: XrayEntry, b: XrayEntry): number => {
     const ap = pinnedIds.has(a.id) ? 1 : 0;
@@ -368,21 +390,17 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
 
   // Flags are computed once per pipeline run here — virtualized rows render
   // them as data instead of re-deriving O(n) group scans per row per commit.
-  const flagsFor = (entry: XrayEntry): ApiEntryFlag[] => getEntryFlags(entry, entries, pinnedIds, slowThresholdMs);
+  const flagsFor = (entry: XrayEntry): ApiEntryFlag[] => getEntryFlags(entry, entries, pinnedIds, slowThresholdMs, index);
 
-  if (mode === 'logs') {
-    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
-  }
-
-  if (apiGroupingMode === 'flat') {
-    return base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) }));
+  if (mode === 'logs' || apiGroupingMode === 'flat') {
+    return { rows: base.slice().sort(pinnedFirst).map((entry) => ({ key: entry.id, entry, flags: flagsFor(entry) })), matchingApiCount };
   }
 
   // Grouped mode: order the GROUPS (pinned-containing first, then by their
   // latest entry under the active sort) and emit each header followed by its
   // children contiguously. The previous global re-sort of the flattened rows
   // interleaved unrelated group headers between a parent and its children.
-  const groups = buildEndpointGroups(base).sort((groupA, groupB) => {
+  const groups = buildEndpointGroups(base, index).sort((groupA, groupB) => {
     const aPinned = groupA.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
     const bPinned = groupB.entries.some((entry) => pinnedIds.has(entry.id)) ? 1 : 0;
     return bPinned - aPinned || compareEntries(groupA.latestEntry, groupB.latestEntry, sortField, sortOrder);
@@ -412,7 +430,7 @@ export function buildEntryListItems(options: EntryListOptions): EntryListItem[] 
     }
   });
 
-  return rows;
+  return { rows, matchingApiCount };
 }
 
 /** The ids eviction must never drop: everything pinned, plus the current selection. */

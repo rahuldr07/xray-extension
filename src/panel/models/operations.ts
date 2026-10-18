@@ -67,7 +67,7 @@ function pushUnique(operations: ResponseOperation[], operation: ResponseOperatio
   if (operation.priority > operations[index].priority) operations[index] = operation;
 }
 
-export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): ResponseOperation[] {
+export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[], slowThresholdMs = 500): ResponseOperation[] {
   const response = entryResponse(entry);
   const status = Number(entry.status) || 0;
   const path = entryPath(entry);
@@ -81,7 +81,7 @@ export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): R
     if (errors.length) pushUnique(operations, { id: 'related-errors', label: 'Related Errors', kind: 'console', command: `$errors().filter(e => (e.urlPath || e.url || '').includes(${JSON.stringify(path)}))`, priority: 90 });
   }
 
-  if (duration(entry) > 500) {
+  if (duration(entry) >= slowThresholdMs) {
     pushUnique(operations, { id: 'similar-calls', label: 'Similar Calls', kind: 'console', command: `$endpoint(${JSON.stringify(path)})`, priority: 82 });
     pushUnique(operations, { id: 'waterfall', label: 'Waterfall', kind: 'view', view: 'waterfall', priority: 80 });
     pushUnique(operations, { id: 'compare-previous', label: 'Compare Previous', kind: 'console', command: 'diff(prev, res)', priority: 78 });
@@ -113,7 +113,7 @@ export function getResponseOperations(entry: XrayEntry, entries: XrayEntry[]): R
   if (samePath.length >= 3) {
     pushUnique(operations, { id: 'similar-calls', label: 'Similar Calls', kind: 'console', command: `$endpoint(${JSON.stringify(path)})`, priority: 62 });
     pushUnique(operations, { id: 'waterfall', label: 'Waterfall', kind: 'view', view: 'waterfall', priority: 61 });
-    pushUnique(operations, { id: 'slow-calls', label: 'Slow Calls', kind: 'console', command: '$slow(500)', priority: 60 });
+    pushUnique(operations, { id: 'slow-calls', label: 'Slow Calls', kind: 'console', command: `$slow(${slowThresholdMs})`, priority: 60 });
   }
 
   pushUnique(operations, { id: 'copy-curl', label: 'Copy cURL', kind: 'copy', command: buildCurl(entry), toast: 'cURL copied.', priority: 45 });

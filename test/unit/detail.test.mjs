@@ -7,6 +7,16 @@ const { detailValue, detailViews, gridRows, structuralDiff, timingPhases, vizSum
 
 const byPath = (lines) => Object.fromEntries(lines.map((line) => [line.path, line.kind]));
 
+test('legacy detail preferences project to one primary facet', async () => {
+  const { resolveDetailFacet, bodyViews } = await import('../../src/panel/models/detailNavigation.ts');
+  assert.equal(resolveDetailFacet('response', 'tree'), 'response');
+  assert.equal(resolveDetailFacet('request', 'schema'), 'request');
+  assert.equal(resolveDetailFacet('headers', 'diff'), 'headers');
+  assert.equal(resolveDetailFacet('request', 'headers'), 'headers');
+  assert.equal(resolveDetailFacet('headers', 'waterfall'), 'timing');
+  assert.deepEqual(bodyViews, ['tree', 'raw', 'grid', 'schema', 'diff', 'viz']);
+});
+
 // ------------------------------------------------------------- timingPhases
 
 test('timingPhases uses real Resource Timing when present and drops zero phases', () => {

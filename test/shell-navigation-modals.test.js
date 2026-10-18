@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { read, exists } = require('./helpers/source');
+const { read, exists, readConsoleSources } = require('./helpers/source');
 
 test('React shell navigation and command palette share tab metadata', () => {
   const app = read('src/panel/App.tsx');
@@ -80,7 +80,8 @@ test('React modals use a shared safe shell for export, settings, command palette
   assert.match(modalShell, /role="dialog"/);
   assert.match(modalShell, /aria-modal="true"/);
   assert.match(modalShell, /event\.key !== 'Tab'/);
-  assert.match(modalShell, /event\.key === 'Escape'/);
+  assert.doesNotMatch(modalShell, /event\.key === 'Escape'/);
+  assert.match(modalShell, /isTopmostDialog/);
   assert.doesNotMatch(modalShell, /dangerouslySetInnerHTML|innerHTML/);
   assert.match(exportModal, /<ModalShell/);
   assert.match(settingsModal, /<ModalShell/);
@@ -88,6 +89,17 @@ test('React modals use a shared safe shell for export, settings, command palette
   assert.match(commandPalette, /<ModalShell/);
   assert.match(styles, /\.xray-settings-modal/);
   assert.match(styles, /\.xray-confirm-modal/);
+});
+
+test('modals share one sheet, footer and body rule instead of per-modal overrides', () => {
+  const styles = read('src/panel/styles.css');
+  assert.match(styles, /@media \(max-width: 600px\) \{\s*\.xray-modal-backdrop \{\s*align-items: stretch;\s*padding: 0;/);
+  assert.match(styles, /\.xray-modal-backdrop > \.xray-modal \{\s*width: 100%;[^}]*height: 100%;/);
+  assert.match(styles, /\.xray-modal-head > \.xray-icon-btn \{\s*flex: 0 0 auto;/);
+  assert.match(styles, /\.xray-modal-foot \.xray-btn \{\s*flex: 0 0 auto;\s*white-space: nowrap;/);
+  assert.doesNotMatch(styles, /\.xray-synthesis-modal \.xray-modal-head/);
+  assert.match(read('src/panel/components/common/ConfirmationModal.tsx'), /<ModalShell\s+title=\{request\.title\}\s+icon=/);
+  assert.doesNotMatch(readConsoleSources(), /React console stream/);
 });
 
 test('global search finds text across every captured URL, header, and body', () => {
@@ -204,9 +216,9 @@ test('one reusable collapsible-section primitive drives every collapsible region
   assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*\.xray-collapsible-body/);
 
   // reused across surfaces, not re-implemented per section
-  assert.match(api, /import \{ CollapsibleSection \}/);
-  assert.match(api, /id="api-stats"/);
-  assert.match(api, /id="api-filters"/);
+  // S16/S17: the API summary is one line and Filters & Sort an icon toggle, so
+  // the API tab no longer uses the primitive; the toggle keeps its class.
+  assert.match(api, /xray-api-filters-collapsible/);
   assert.match(insights, /import \{ CollapsibleSection \}/);
   assert.match(insights, /id="insights-status"/);
 });

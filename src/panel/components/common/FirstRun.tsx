@@ -40,7 +40,7 @@ export function FirstRun(): React.ReactElement {
   const updateSettings = usePanelStore((state) => state.updateSettings);
 
   return (
-    <section className="xray-firstrun" role="status" aria-labelledby="xray-firstrun-title">
+    <section className="xray-firstrun" aria-labelledby="xray-firstrun-title">
       <div className="xray-firstrun-head">
         <div>
           <h3 className="xray-firstrun-title" id="xray-firstrun-title">Listening for traffic</h3>
@@ -73,7 +73,7 @@ export function FirstRun(): React.ReactElement {
       </ul>
 
       <p className="xray-firstrun-foot">
-        Nothing leaves this machine. Press <kbd className="xray-kbd">Ctrl</kbd>
+        Capture stays on this machine. Nothing is sent for AI analysis unless you explicitly start it. Press <kbd className="xray-kbd">Ctrl</kbd>
         <span className="xray-firstrun-plus">+</span>
         <kbd className="xray-kbd">K</kbd> to jump anywhere.
       </p>

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { entries as M, apiEntry, logEntry, listOptions, assertSchemaFallback } from './harness.mjs';
 
 const {
+  buildEntryListModel,
   buildEntryListItems,
   buildEndpointGroups,
   buildApiListSummary,
@@ -402,6 +403,64 @@ test('buildEntryListItems returns [] when nothing survives the filters', () => {
 });
 
 // ------------------------------------------------------- buildApiListSummary
+
+test('matching API counts precede endpoint collapse and include imported session requests', () => {
+  assert.equal(typeof buildEntryListModel, 'function', 'the list model must expose request counts');
+  const all = [
+    apiEntry({ urlPath: '/widgets', timestamp: 1 }),
+    apiEntry({ urlPath: '/widgets', timestamp: 2 }),
+    apiEntry({ urlPath: '/widgets', timestamp: 3, imported: true }),
+    apiEntry({ urlPath: '/other', timestamp: 4 }),
+    logEntry({ message: '/widgets' }),
+  ];
+  for (const [options, rowCount] of [
+    [{}, 2],
+    [{ expandedGroups: new Set(['api:/widgets']) }, 4],
+    [{ apiGroupingMode: 'flat' }, 4],
+  ]) {
+    const result = buildEntryListModel(listOptions({ entries: all, ...options }));
+    assert.equal(result.matchingApiCount, 4);
+    assert.equal(result.rows.length, rowCount);
+  }
+  assert.equal(buildApiListSummary(all, new Set()).total, 4, 'session total excludes logs, includes imports');
+});
+
+test('matching count composes query, method, source, status and inclusive quick predicates once before grouping', () => {
+  assert.equal(typeof buildEntryListModel, 'function');
+  const common = { urlPath: '/wanted', method: 'POST', status: 404, source: 'xhr', duration: 900 };
+  const all = [
+    apiEntry(common), apiEntry({ ...common, imported: true }),
+    apiEntry({ ...common, urlPath: '/other' }), apiEntry({ ...common, method: 'GET' }),
+    apiEntry({ ...common, status: 200 }), apiEntry({ ...common, source: 'fetch' }),
+    apiEntry({ ...common, duration: 899 }), logEntry({ message: '/wanted' }),
+  ];
+  const options = listOptions({ entries: all, query: '/wanted', methodFilters: new Set(['POST']),
+    statusFilters: new Set(['4xx']), typeFilters: new Set(['xhr']), apiQuickFilter: 'slow', slowThresholdMs: 900 });
+  const result = buildEntryListModel(options);
+  assert.equal(result.matchingApiCount, 2);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].groupCount, 2);
+  assert.equal(buildEntryListModel({ ...options, query: 'absent' }).matchingApiCount, 0);
+  assert.equal(buildEntryListModel({ ...options, mode: 'logs', query: '/wanted' }).matchingApiCount, 0);
+});
+
+test('matching counts reuse every quick predicate independently of collapsed display rows', () => {
+  assert.equal(typeof buildEntryListModel, 'function');
+  const all = [
+    apiEntry({ urlPath: '/a', status: 500, duration: 900, source: 'ws', size: 100_000,
+      mocked: true, replayed: true, driftFromId: 'baseline', graphql: { operationType: 'query', operationName: 'A' }, responseRaw: '{}' }),
+    apiEntry({ urlPath: '/a', status: 404, duration: 899, source: 'xhr', responseRaw: '[]',
+      graphql: { operationType: 'query', operationName: 'A' } }),
+    apiEntry({ urlPath: '/a', responseRaw: '{"ok":true}', graphql: { operationType: 'query', operationName: 'A' } }),
+    apiEntry({ urlPath: '/b', responseRaw: '{"ok":true}' }), logEntry(),
+  ];
+  for (const [filter, expected] of [['all', 4], ['errors', 2], ['slow', 1], ['pinned', 2],
+    ['repeated', 3], ['large', 1], ['empty', 2], ['drift', 1], ['graphql', 3], ['ws', 1], ['mocked', 1], ['replayed', 1]]) {
+    const result = buildEntryListModel(listOptions({ entries: all, apiQuickFilter: filter,
+      pinnedIds: new Set([all[0].id, all[1].id, all[4].id]), slowThresholdMs: 900 }));
+    assert.equal(result.matchingApiCount, expected, filter);
+  }
+});
 
 test('buildApiListSummary aggregates only API entries', () => {
   const all = [

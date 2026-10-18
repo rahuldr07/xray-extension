@@ -4,7 +4,7 @@
    MAIN-world traffic interceptor, so the tests below focus on what CANNOT get
    through: out-of-range statuses, unbounded bodies, disabled rules and rules
    with no URL matcher. */
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { rules as R } from './harness.mjs';
 
@@ -18,9 +18,18 @@ const {
   normalizeRules,
   parseRuleSet,
   ruleSummary,
+  ruleMatcherError,
   serializeRuleSet,
   serializeRulesForRuntime,
 } = R;
+const { usePanelStore } = await import('../../src/panel/store.ts');
+const { hasPageBridgeRoute, publishTrafficRules } = await import('../../src/panel/runtime/captureConfig.ts');
+beforeEach(() => {
+  window.XRAY_Store = { set: async () => {}, get: async () => undefined };
+  delete window.__XRAY_bridgeToken;
+  delete globalThis.chrome;
+  usePanelStore.setState(usePanelStore.getInitialState());
+});
 
 const rule = (overrides = {}) => normalizeRule({
   id: 'r1',
@@ -48,7 +57,7 @@ test('defaultRule is already normalization-stable', () => {
   const created = defaultRule();
   const normalized = normalizeRule(created);
   assert.deepEqual(normalized, created, 'normalizing a default rule is a no-op');
-  assert.equal(created.enabled, true);
+  assert.equal(created.enabled, false);
   assert.equal(created.action.type, 'mock');
   assert.equal(created.action.status, 200);
 });
@@ -292,7 +301,7 @@ test('serializeRuleSet / parseRuleSet round-trips a whole set', () => {
   assert.equal(parsed.length, 2);
   for (const [index, item] of parsed.entries()) {
     assert.notEqual(item.id, original[index].id, 'imports get fresh ids so they cannot collide');
-    assert.deepEqual({ ...item, id: null }, { ...original[index], id: null });
+    assert.deepEqual({ ...item, id: null }, { ...original[index], id: null, enabled: false });
   }
   assert.equal(parsed[1].enabled, false, 'a disabled rule stays disabled through the round-trip');
 });
@@ -334,7 +343,113 @@ test('parseRuleSet applies every clamp to imported rules', () => {
   assert.equal(imported.match.method, 'SUPERCALIFRA');
 });
 
-test('parseRuleSet caps an oversized import at MAX_TRAFFIC_RULES', () => {
+test('parseRuleSet preserves the incoming count so the store can report capacity omissions', () => {
   const many = JSON.stringify(Array.from({ length: 500 }, () => ({ match: { url: '/a', method: '' } })));
-  assert.equal(parseRuleSet(many).length, MAX_TRAFFIC_RULES);
+  const parsed = parseRuleSet(many);
+  assert.equal(parsed.length, 500);
+  assert.ok(parsed.every(rule => !rule.enabled));
+  assert.deepEqual(usePanelStore.getState().importRules(parsed), { accepted: 50, omitted: 450 });
+});
+
+test('ruleMatcherError rejects empty matchers and invalid or empty regex but accepts literal and valid regex', () => {
+  for (const url of ['', '   ', 're:', 're:   ', 're:[', ' re:( ']) assert.equal(typeof ruleMatcherError(rule({ match: { url, method: '' } })), 'string', url);
+  for (const url of ['/api/[literal', 're:.*', '  re:\\/api\\/.*  ']) assert.equal(ruleMatcherError(rule({ match: { url, method: '' } })), null, url);
+});
+
+test('runtime serialization excludes invalid regex even when saved enabled', () => {
+  assert.deepEqual(serializeRulesForRuntime([rule({ id: 'invalid', match: { url: 're:[', method: '' } }), rule({ id: 'empty', match: { url: 're:', method: '' } }), rule({ id: 'valid' })]).map(rule => rule.id), ['valid']);
+});
+
+test('blank, preset and request-created rules are disabled even when incoming enabled is true', () => {
+  const store = usePanelStore.getState();
+  assert.deepEqual(store.addRule(), { accepted: 1, omitted: 0 });
+  for (const preset of RULE_PRESETS) assert.deepEqual(store.addRule({ ...preset.rule, enabled: true }), { accepted: 1, omitted: 0 });
+  assert.deepEqual(store.addRule({ label: 'Mock GET /users', enabled: true, match: { url: '/users', method: 'GET' }, action: { type: 'mock', status: 201, body: '{"users":[]}', headers: {}, delayMs: 0 } }), { accepted: 1, omitted: 0 });
+  assert.ok(usePanelStore.getState().rules.every(rule => !rule.enabled));
+  assert.deepEqual(serializeRulesForRuntime(usePanelStore.getState().rules), []);
+});
+
+test('rule add/import capacity receipts never drop existing rules', () => {
+  const store = usePanelStore.getState();
+  const old = Array.from({ length: 49 }, (_, i) => rule({ id: `old${i}`, enabled: i === 0 }));
+  store.setRules(old);
+  assert.deepEqual(store.importRules([rule({ id: 'same' }), rule({ id: 'same' }), rule({ id: 'old0' })]), { accepted: 1, omitted: 2 });
+  const retained = usePanelStore.getState().rules;
+  assert.deepEqual(retained.slice(0, 49), old);
+  assert.equal(retained[49].enabled, false);
+  assert.notEqual(retained[49].id, 'same');
+  assert.deepEqual(store.addRule(), { accepted: 0, omitted: 1 });
+  assert.deepEqual(store.importRules([rule()]), { accepted: 0, omitted: 1 });
+  assert.deepEqual(usePanelStore.getState().rules, retained);
+});
+
+test('repeated imports and within-file duplicate rule ids get independent fresh disabled identities', () => {
+  const store = usePanelStore.getState();
+  const incoming = [rule({ id: 'same' }), rule({ id: 'same' })];
+  assert.deepEqual(store.importRules(incoming), { accepted: 2, omitted: 0 });
+  assert.deepEqual(store.importRules(incoming), { accepted: 2, omitted: 0 });
+  const imported = usePanelStore.getState().rules;
+  assert.equal(new Set(imported.map(rule => rule.id)).size, 4);
+  assert.ok(imported.every(rule => rule.id !== 'same' && !rule.enabled));
+  assert.equal(incoming[0].enabled, true, 'incoming snapshot is untouched');
+  store.toggleRule(imported[0].id);
+  assert.deepEqual(usePanelStore.getState().rules.map(rule => rule.enabled), [true, false, false, false]);
+  store.removeRule(imported[0].id);
+  assert.equal(usePanelStore.getState().rules.length, 3);
+});
+
+test('saved restoration retains enabled while invalid matchers block all enabling paths', () => {
+  const store = usePanelStore.getState();
+  store.setRules([rule(), rule({ id: 'bad', enabled: false, match: { url: 're:[', method: '' } })]);
+  assert.equal(usePanelStore.getState().rules[0].enabled, true);
+  store.toggleRule('bad');
+  assert.equal(usePanelStore.getState().rules[1].enabled, false);
+  store.updateRule('bad', { enabled: true });
+  assert.equal(usePanelStore.getState().rules[1].enabled, false);
+  store.updateRule('bad', { match: { url: '/valid', method: '' } });
+  store.toggleRule('bad');
+  assert.equal(usePanelStore.getState().rules[1].enabled, true);
+});
+
+test('label-only edits preserve restored enabled state even if a saved matcher is invalid', () => {
+  const store = usePanelStore.getState();
+  store.setRules([rule({ match: { url: 're:[', method: '' } })]);
+  store.updateRule('r1', { label: 'Rename saved rule' });
+  assert.equal(usePanelStore.getState().rules[0].enabled, true);
+  assert.deepEqual(serializeRulesForRuntime(usePanelStore.getState().rules), []);
+});
+
+test('effective matcher/action edits disable before publication; label edits preserve enabled', async () => {
+  const messages = [];
+  window.__XRAY_bridgeToken = 'synthetic-token';
+  window.postMessage = message => messages.push(message);
+  const store = usePanelStore.getState();
+  store.setRules([rule()]);
+  store.updateRule('r1', { label: 'Renamed' });
+  assert.equal(usePanelStore.getState().rules[0].enabled, true);
+  store.updateRule('r1', { match: { url: '/changed', method: 'POST' } });
+  assert.equal(usePanelStore.getState().rules[0].enabled, false);
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.deepEqual(messages.at(-1).config.rules, []);
+  store.toggleRule('r1');
+  store.updateRule('r1', { action: { type: 'delay', status: 200, body: '', headers: {}, delayMs: 123 } });
+  assert.equal(usePanelStore.getState().rules[0].enabled, false);
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.deepEqual(messages.at(-1).config.rules, []);
+});
+
+test('bridge route availability distinguishes missing route, direct token and DevTools relay', () => {
+  assert.equal(typeof hasPageBridgeRoute, 'function');
+  assert.equal(hasPageBridgeRoute(), false);
+  assert.equal(publishTrafficRules([rule()]), false);
+  window.__XRAY_bridgeToken = 'synthetic-token';
+  window.postMessage = () => {};
+  assert.equal(hasPageBridgeRoute(), true);
+  assert.equal(publishTrafficRules([rule()]), true);
+  delete window.__XRAY_bridgeToken;
+  globalThis.chrome = { devtools: { inspectedWindow: { tabId: 3 } }, runtime: { sendMessage() {} } };
+  assert.equal(hasPageBridgeRoute(), true);
+  assert.equal(publishTrafficRules([rule()]), true);
+  globalThis.chrome.devtools.inspectedWindow.tabId = -1;
+  assert.equal(hasPageBridgeRoute(), false);
 });

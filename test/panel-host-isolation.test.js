@@ -28,6 +28,8 @@ test('overlay focus trap preserves XRAY toggle and browser modifier shortcuts', 
   assert.match(content, /if \(_isKeyboardEvent\(event\) && _isBrowserShortcut\(event\)\) return/);
   assert.match(content, /if \(_isKeyboardEvent\(event\) && _isToggleShortcut\(event\)\) return/);
   assert.match(bridge, /function focusPanelInput\(deps: PanelApiDeps\)/);
+  // Lands on the selected tab, falling back to the first input/button.
+  assert.match(bridge, /querySelector<HTMLElement>\('\.xray-tab\[aria-selected="true"\]'\)/);
   assert.match(bridge, /querySelector<HTMLElement>\('\.xray-prompt input, \.xray-input, button, \[tabindex\]:not\(\[tabindex="-1"\]\)'\)/);
   assert.match(bridge, /if \(nextOpen\) focusPanelInput\(deps\)/);
 });

@@ -4,18 +4,40 @@ window.XRAY_Store = (() => {
 
   const PREFIX = 'xray_';
 
-  async function get(key, defaultVal = null) {
-    try {
-      const full = PREFIX + key;
-      const result = await chrome.storage.local.get(full);
-      return full in result ? result[full] : defaultVal;
-    } catch { return defaultVal; }
+  function storageFailure(code) {
+    const error = new Error(code);
+    error.code = code;
+    return error;
   }
 
-  async function set(key, value) {
+  // Legacy callers keep defaults/best-effort writes. Only the React bridge opts
+  // into strict failures; receipts never retain Chrome messages, keys or values.
+  async function get(key, defaultVal = null, strict = false) {
+    let available = false;
     try {
-      await chrome.storage.local.set({ [PREFIX + key]: value });
-    } catch { /* quota or context errors — silently ignore */ }
+      const storage = typeof chrome === 'undefined' ? null : chrome.storage?.local;
+      available = typeof storage?.get === 'function';
+      if (!available) throw storageFailure('storage-unavailable');
+      const full = PREFIX + key;
+      const result = await storage.get(full);
+      return full in result ? result[full] : defaultVal;
+    } catch {
+      if (strict) throw storageFailure(available ? 'storage-read-failed' : 'storage-unavailable');
+      return defaultVal;
+    }
+  }
+
+  async function set(key, value, strict = false) {
+    let available = false;
+    try {
+      const storage = typeof chrome === 'undefined' ? null : chrome.storage?.local;
+      available = typeof storage?.set === 'function';
+      if (!available) throw storageFailure('storage-unavailable');
+      await storage.set({ [PREFIX + key]: value });
+    } catch {
+      if (strict) throw storageFailure(available ? 'storage-write-failed' : 'storage-unavailable');
+      // Legacy quota or context errors remain best effort.
+    }
   }
 
   async function remove(key) {

@@ -17,6 +17,20 @@ const RUNTIME_HELPER_NAMES = [
   'errors', 'slow', 'csv', 'table', 'mock', '$help', 'help',
 ];
 
+function _relayCapture(tabId, message, count, sendResponse) {
+  const port = _devtoolsPortsByTab.get(tabId);
+  if (!port) {
+    sendResponse({ ok: false, delivery: 'no-consumer', count: Math.max(0, Math.min(500, count)) });
+    return;
+  }
+  try {
+    port.postMessage(message);
+    sendResponse({ ok: true, delivery: 'delivered', count: Math.max(0, Math.min(500, count)) });
+  } catch {
+    sendResponse({ ok: false, delivery: 'relay-failed', count: Math.max(0, Math.min(500, count)) });
+  }
+}
+
 function _addCandidateTabId(ids, tabLike) {
   const tabId = Number(tabLike?.id);
   if (!Number.isInteger(tabId) || tabId < 0) return;
@@ -106,11 +120,61 @@ async function _openPopoutWindow() {
   return { ok: true, focused: false, id: popoutWindowId };
 }
 
+// Index just past the last top-level statement separator (`;` or newline outside
+// brackets, strings, template literals and comments), or -1. Lets multi-statement input
+// return its final expression the way DevTools does: `const x = 2; x * 3` -> 6.
+function _lastStatementStart(code) {
+  let depth = 0;
+  let quote = '';
+  let last = -1;
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i];
+    const next = code[i + 1];
+    if (quote) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      const end = code.indexOf('\n', i);
+      if (end === -1) break;
+      i = end - 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      const end = code.indexOf('*/', i + 2);
+      if (end === -1) break;
+      i = end + 1;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (ch === ';' || ch === '\n')) last = i + 1;
+  }
+  return last;
+}
+
+function _consoleUserBody(trimmed) {
+  if (_isConsoleExpression(trimmed)) return `return (${trimmed});`;
+  const body = trimmed.replace(/[;\s]+$/, '');
+  const start = _lastStatementStart(body);
+  if (start <= 0) return trimmed;
+  const tail = body.slice(start).trim();
+  // Strip leading line comments so `// note\nexpr` still returns expr.
+  const tailCode = tail.replace(/^(\/\/[^\n]*\n\s*)+/, '');
+  // The tail is a single top-level statement, so only its leading keyword decides.
+  if (!tailCode || tailCode.startsWith('//') || CONSOLE_STATEMENT_START.test(tailCode) || /^[}\])]/.test(tailCode)) return trimmed;
+  return `${body.slice(0, start)}\nreturn (${tailCode});`;
+}
+
+const CONSOLE_STATEMENT_START = /^(const|let|var|if|for|while|do|switch|try|throw|class|function|return|break|continue|debugger|import|export)\b/;
+
 function _isConsoleExpression(code) {
   const trimmed = String(code || '').trim();
   return !trimmed.includes(';') &&
     !trimmed.includes('\n') &&
-    !/^(const|let|var|if|for|while|switch|try|class|function|return)\s/.test(trimmed);
+    !CONSOLE_STATEMENT_START.test(trimmed);
 }
 
 // C-1: the evaluated expression used to read `window.XRAY_ConsoleHelpers`, a plain
@@ -134,13 +198,14 @@ function _buildConsoleExpression(code, context, helperSource) {
   const trimmed = String(code || '').trim();
   const contextJson = JSON.stringify(context || {});
   const scopeNames = Object.keys(context?.scope || {});
-  const pinNames = Object.keys(context?.pins || {});
+  // Pins are the single letters a-f; nothing else is declared from context.pins.
+  const pinNames = Object.keys(context?.pins || {}).filter((name) => /^[a-f]$/.test(name));
   const names = [...new Set([...RUNTIME_HELPER_NAMES, ...scopeNames, ...pinNames])]
     .filter((name) => VALID_CONSOLE_NAME.test(name));
   const declarations = names
     .map((name) => `const ${name} = __runtime[${JSON.stringify(name)}];`)
     .join('\n');
-  const userBody = _isConsoleExpression(trimmed) ? `return (${trimmed});` : trimmed;
+  const userBody = _consoleUserBody(trimmed);
 
   return `(async () => {
     const MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
@@ -158,7 +223,9 @@ function _buildConsoleExpression(code, context, helperSource) {
           try { navigator.clipboard?.writeText?.(text); } catch {}
         })
       : {};
-    Object.assign(__runtime, __context?.scope || {}, __context?.pins || {});
+    // Pins (a-f) are resolved by createRuntime to their parsed response bodies;
+    // only saved variables are copied over the runtime here.
+    Object.assign(__runtime, __context?.scope || {});
     ${declarations}
 
     function __resultType(value) {
@@ -223,8 +290,10 @@ function _buildConsoleExpression(code, context, helperSource) {
         return out;
       }
       const result = normalize(value);
+      // JSON.stringify(undefined) returns undefined, not a string — reading .length
+      // on it made every undefined result (e.g. a missing property) report a TypeError.
       let json = '';
-      try { json = JSON.stringify(result); } catch {}
+      try { json = JSON.stringify(result) ?? ''; } catch {}
       if (json.length > MAX_RESULT_CHARS) {
         truncated = true;
         return { result: json.slice(0, MAX_RESULT_CHARS) + '... (' + json.length + ' chars)', truncated };
@@ -281,6 +350,7 @@ function _scheduleDebuggerDetach(tabId) {
 }
 
 async function _ensureDebuggerAttached(tabId) {
+  _registerDebuggerDetach();
   const target = { tabId };
   if (_debuggerSessions.has(tabId)) {
     _scheduleDebuggerDetach(tabId);
@@ -309,13 +379,24 @@ async function _ensureDebuggerAttached(tabId) {
   _scheduleDebuggerDetach(tabId);
 }
 
-chrome.debugger.onDetach.addListener((source) => {
-  const tabId = source?.tabId;
-  if (!Number.isInteger(tabId)) return;
-  const session = _debuggerSessions.get(tabId);
-  if (session?.timer) clearTimeout(session.timer);
-  _debuggerSessions.delete(tabId);
-});
+// `debugger` is optional, so chrome.debugger is undefined until it is granted. Touching
+// it at top level threw and aborted this script before any onMessage/onConnect/command
+// listener was registered — which broke the whole extension on a fresh install.
+// Register when the API exists, and again when the permission is granted later.
+let _debuggerDetachRegistered = false;
+function _registerDebuggerDetach() {
+  if (_debuggerDetachRegistered || !chrome.debugger?.onDetach) return;
+  _debuggerDetachRegistered = true;
+  chrome.debugger.onDetach.addListener((source) => {
+    const tabId = source?.tabId;
+    if (!Number.isInteger(tabId)) return;
+    const session = _debuggerSessions.get(tabId);
+    if (session?.timer) clearTimeout(session.timer);
+    _debuggerSessions.delete(tabId);
+  });
+}
+_registerDebuggerDetach();
+chrome.permissions?.onAdded?.addListener?.(() => _registerDebuggerDetach());
 
 // C-8: `debugger` is an OPTIONAL permission now. Combined with <all_urls> and
 // MAIN-world injection it was close to the maximum-scrutiny configuration for Chrome
@@ -349,8 +430,7 @@ async function _evaluateConsoleInTab(tabId, code, context) {
     return {
       type: 'error',
       error: {
-        message: 'Console execution needs the optional "debugger" permission. Enable it in XRAY Settings, then run this again.',
-        needsPermission: 'debugger',
+        message: 'XRAY could not use its "debugger" permission. Reload XRAY at chrome://extensions, then run this again.',
       },
     };
   }
@@ -404,7 +484,7 @@ async function _evaluateConsoleInTab(tabId, code, context) {
 }
 
 const AI_TIMEOUT_MS = 45000;
-const MAX_AI_PROMPT_CHARS = 60000;
+const MAX_AI_PROMPT_CHARS = 40000;
 
 async function _callAnthropic(settings, prompt) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -521,7 +601,7 @@ function _callCustomProvider(settings, prompt) {
 // a key-disclosure bug rather than a nuisance.
 //
 // The service worker now reads the key from chrome.storage.local itself. The panel
-// sends a prompt and nothing else, and anything it does send about credentials is
+// sends a prompt and its noncredential expected destination. Any credentials sent are
 // ignored: a content script is not a trusted source for them.
 const AI_SETTINGS_STORAGE_KEY = 'xray_ai_settings';
 
@@ -535,30 +615,54 @@ async function _loadAiSettings() {
   }
 }
 
-async function _runAiExplain(prompt) {
+function _normalizeAiDestination(settings) {
+  const provider = settings.provider === 'openai' || settings.provider === 'custom' ? settings.provider : 'anthropic';
+  return {
+    provider,
+    model: String(settings.model || (provider === 'openai' ? 'gpt-4o-mini' : provider === 'anthropic' ? 'claude-fable-5' : '')),
+    baseUrl: provider === 'custom' ? _resolveCustomEndpoint(settings.baseUrl) : provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://api.anthropic.com/v1/messages',
+    authHeader: provider !== 'anthropic' ? String(settings.authHeader || 'authorization').trim().toLowerCase() || 'authorization' : 'x-api-key',
+    authPrefix: provider !== 'anthropic' ? settings.authPrefix == null ? 'Bearer ' : String(settings.authPrefix) : '',
+  };
+}
+
+async function _runAiExplain(prompt, expectedDestination) {
   const settings = await _loadAiSettings();
   if (!settings || typeof settings.apiKey !== 'string' || !settings.apiKey) {
     return { ok: false, error: 'Add an API key in Settings, AI to enable explanations.' };
   }
-  const safePrompt = String(prompt || '').slice(0, MAX_AI_PROMPT_CHARS);
+  if (typeof prompt !== 'string' || !prompt || prompt.length > MAX_AI_PROMPT_CHARS) {
+    return { ok: false, error: 'Prepare a preview within 40,000 characters before analyzing.' };
+  }
   const provider = settings.provider === 'openai' || settings.provider === 'custom' ? settings.provider : 'anthropic';
   if (provider === 'custom' && !settings.baseUrl) {
     return { ok: false, error: 'Custom provider needs an endpoint URL.' };
   }
   try {
+    const destination = _normalizeAiDestination(settings);
+    if (!expectedDestination || typeof expectedDestination !== 'object'
+        || !['anthropic', 'openai', 'custom'].includes(expectedDestination.provider)
+        || !['model', 'baseUrl', 'authHeader', 'authPrefix'].every(field => typeof expectedDestination[field] === 'string')
+        || JSON.stringify(_normalizeAiDestination(expectedDestination)) !== JSON.stringify(destination)) {
+      return { ok: false, error: 'AI destination changed. Review the new preview and select Analyze again.' };
+    }
     const call =
       provider === 'custom'
-        ? _callCustomProvider(settings, safePrompt)
+        ? _callCustomProvider(settings, prompt)
         : provider === 'openai'
-          ? _callOpenAI(settings, safePrompt)
-          : _callAnthropic(settings, safePrompt);
-    const text = await Promise.race([
-      call,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`AI request timed out after ${AI_TIMEOUT_MS / 1000}s`)), AI_TIMEOUT_MS)),
-    ]);
-    return { ok: true, text };
-  } catch (err) {
-    return { ok: false, error: err?.message || String(err) };
+          ? _callOpenAI(settings, prompt)
+          : _callAnthropic(settings, prompt);
+    let timer;
+    try {
+      const text = await Promise.race([
+        call,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), AI_TIMEOUT_MS); }),
+      ]);
+      return { ok: true, text };
+    } finally { clearTimeout(timer); }
+  } catch {
+    // Provider/authentication failures can echo credentials or captured payloads.
+    return { ok: false, error: 'AI request failed. Check the provider configuration and try again explicitly.' };
   }
 }
 
@@ -662,39 +766,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'xray:capture') {
     const tabId = sender?.tab?.id;
-    if (Number.isInteger(tabId) && msg.entry) {
-      const port = _devtoolsPortsByTab.get(tabId);
-      if (port) {
-        try { port.postMessage({ type: 'xray:capture', entry: msg.entry }); } catch {}
-      }
-    }
+    if (Number.isInteger(tabId) && msg.entry) _relayCapture(tabId, { type: 'xray:capture', entry: msg.entry }, 1, sendResponse);
+    else sendResponse({ ok: false, delivery: 'relay-failed', count: 1 });
+    return true;
   }
 
   if (msg.type === 'xray:capture-batch') {
     const tabId = sender?.tab?.id;
-    if (Number.isInteger(tabId) && Array.isArray(msg.entries)) {
-      const port = _devtoolsPortsByTab.get(tabId);
-      if (port) {
-        try { port.postMessage({ type: 'xray:capture-batch', entries: msg.entries }); } catch {}
-      }
-    }
+    if (Number.isInteger(tabId) && Array.isArray(msg.entries)) _relayCapture(tabId, { type: 'xray:capture-batch', entries: msg.entries }, msg.entries.length, sendResponse);
+    else sendResponse({ ok: false, delivery: 'relay-failed', count: 1 });
+    return true;
   }
 
   if (msg.type === 'xray:capture-update') {
     const tabId = sender?.tab?.id;
-    if (Number.isInteger(tabId) && msg.update) {
-      const port = _devtoolsPortsByTab.get(tabId);
-      if (port) {
-        try { port.postMessage({ type: 'xray:capture-update', update: msg.update }); } catch {}
-      }
-    }
+    if (Number.isInteger(tabId) && msg.update) _relayCapture(tabId, { type: 'xray:capture-update', update: msg.update }, 1, sendResponse);
+    else sendResponse({ ok: false, delivery: 'relay-failed', count: 1 });
+    return true;
   }
 
   if (msg.type === 'xray:ai-explain') {
     // msg.settings is deliberately NOT read: the key comes from storage, not the page.
-    _runAiExplain(msg.prompt)
+    _runAiExplain(msg.prompt, msg.expectedDestination)
       .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+      .catch(() => sendResponse({ ok: false, error: 'AI request failed. Check the provider configuration.' }));
     return true;
   }
 

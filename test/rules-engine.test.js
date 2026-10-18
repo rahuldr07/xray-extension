@@ -3,14 +3,14 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { read } = require('./helpers/source');
+const { read, readConsoleSources } = require('./helpers/source');
 
 test('rules model bounds runtime payloads and only ships enabled matchers', () => {
   const rules = read('src/panel/models/rules.ts');
   assert.match(rules, /export function normalizeRule/);
   assert.match(rules, /export function serializeRulesForRuntime/);
   // only enabled rules with a non-empty URL matcher reach the interceptor
-  assert.match(rules, /rule\.enabled && rule\.match\.url\.trim\(\)/);
+  assert.match(rules, /rule\.enabled && !ruleMatcherError\(rule\)/);
   // status is clamped to the same range the runtime accepts — _sanitizeRule
   // rewrites anything below 200, so the UI must not pretend 1xx is allowed
   assert.match(rules, /clampNumber\(action\.status, 200, 200, 599\)/);
@@ -31,7 +31,7 @@ test('long-running surfaces stay bounded: session size, rule writes, HUD subscri
   const store = read('src/panel/store.ts');
   const hudMain = read('src/panel/hud-main.tsx');
   const paneDivider = read('src/panel/components/common/PaneDivider.tsx');
-  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+  const consoleWorkspace = readConsoleSources();
 
   // every heavy field is trimmed, not just responseRaw — a decrypted-body
   // session used to serialize past the chrome.storage quota and fail silently
@@ -52,8 +52,9 @@ test('long-running surfaces stay bounded: session size, rule writes, HUD subscri
   assert.match(hudMain, /unsubscribeHostTheme = usePanelStore\.subscribe\(schedule\);/);
 
   // the divider applies the newest pointer position, not the frame's first one
-  assert.match(paneDivider, /state\.latest = event\.clientX;\s*\n\s*if \(raf\.current\) return;/);
-  assert.match(paneDivider, /onLiveChange\(clamp\(current\.width \+ \(current\.latest - current\.startX\)\)\)/);
+  // (coord() reads clientX, or clientY for the row divider added in the S20 split)
+  assert.match(paneDivider, /state\.latest = coord\(event\);\s*\n\s*if \(raf\.current\) return;/);
+  assert.match(paneDivider, /onLiveChange\(clamp\(current\.width \+ \(current\.latest - current\.startX\) \* current\.scale\)\)/);
 
   // a plain payload shaped { name, message, stack } keeps its JSON tree
   assert.match(consoleWorkspace, /const looksLikeStack = \(stack: string\): boolean =>/);
@@ -73,5 +74,5 @@ test('rules have a starter preset library and portable export/import', () => {
   assert.match(rulesUi, /RULE_PRESETS\.map/);
   assert.match(rulesUi, /serializeRuleSet\(rules\)/);
   assert.match(rulesUi, /parseRuleSet\(importText\)/);
-  assert.match(rulesUi, /setRules\(\[\.\.\.rules, \.\.\.parsed\]\)/);
+  assert.match(rulesUi, /importRuleDrafts\(parsed\)/);
 });

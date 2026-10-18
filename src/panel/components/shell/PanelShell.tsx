@@ -2,7 +2,7 @@ import React from 'react';
 import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
 import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue } from '../../models/panelSettings';
-import { buildSessionSummary } from '../../models/sessionSummary';
+import { buildSessionIndex } from '../../models/sessionIndex';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { formatBytes } from '../../utils';
 import { XRAY_BUILD, XRAY_VERSION } from '../../version';
@@ -16,12 +16,13 @@ const modeIconProps = { size: 16, stroke: 1.8 } as const;
 // Keyboard nudge and the largest a drag/nudge may reach (also capped at 96vw so
 // the panel can never fully cover a small page).
 const RESIZE_KEY_STEP = 24;
-function maxPanelWidth(): number {
-  const vwCap = typeof window !== 'undefined' ? Math.round(window.innerWidth * 0.96) : PANEL_WIDTH_MAX;
+function maxPanelWidth(viewportWidth: number): number {
+  const vwCap = viewportWidth > 0 ? Math.round(viewportWidth * 0.96) : PANEL_WIDTH_MAX;
   return Math.min(PANEL_WIDTH_MAX, vwCap);
 }
-function clampPanelWidth(width: number): number {
-  return Math.max(PANEL_WIDTH_MIN, Math.min(maxPanelWidth(), Math.round(width)));
+function clampPanelWidth(width: number, viewportWidth: number): number {
+  const max = maxPanelWidth(viewportWidth);
+  return Math.max(Math.min(PANEL_WIDTH_MIN, max), Math.min(max, Math.round(width)));
 }
 
 export function PanelShell({ children, mode }: { children: React.ReactNode; mode: XrayAppMode }): React.ReactElement {
@@ -34,17 +35,26 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   const updateSettings = usePanelStore((state) => state.updateSettings);
   const setExportOpen = usePanelStore((state) => state.setExportOpen);
   const setSettingsOpen = usePanelStore((state) => state.setSettingsOpen);
+  const openSettings = usePanelStore((state) => state.openSettings);
+  const runtimeHealth = usePanelStore((state) => state.runtimeHealth);
   const showToast = usePanelStore((state) => state.showToast);
-  const toastMessage = usePanelStore((state) => state.toastMessage);
-  const clearToast = usePanelStore((state) => state.clearToast);
   const setOpen = usePanelStore((state) => state.setOpen);
-  const { apiCount, logCount, errorCount, totalBytes } = buildSessionSummary(entries);
+  // The previous derivation was buildSessionSummary(entries). Keep the shell
+  // summary on the identity-stable index shared with list and search consumers.
+  const sessionIndex = React.useMemo(() => buildSessionIndex(entries), [entries]);
+  const { apiCount, logCount, errorCount, totalBytes } = sessionIndex;
 
   // The docked side panel (mode 'hud', not the fullscreen devtools/window views)
   // is the only surface that resizes and docks. In the floating HUD these controls
   // are hidden by hud.css, which only loads there.
   const dockable = mode === 'hud';
   const dockSide = settings.dockSide;
+  const [viewportWidth, setViewportWidth] = React.useState(() => typeof window === 'undefined' ? 0 : window.innerWidth);
+  React.useEffect(() => {
+    const updateViewportWidth = (): void => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', updateViewportWidth);
+    return () => window.removeEventListener('resize', updateViewportWidth);
+  }, []);
   // Live width during a resize drag overrides the persisted width; committed on release.
   const [dragWidth, setDragWidth] = React.useState<number | null>(null);
   // `startWidth` stays fixed for the whole drag — the width is always
@@ -53,7 +63,9 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   // the most recent computed width so release can commit it.
   const resize = React.useRef<{ startX: number; startWidth: number; latest: number } | null>(null);
   const resizeRaf = React.useRef(0);
-  const appliedWidth = dragWidth ?? settings.panelWidth;
+  // CSS caps the rendered panel at 96vw. Resolve that same cap here so the
+  // persisted preference can remain wider than a temporarily narrow viewport.
+  const appliedWidth = dragWidth ?? clampPanelWidth(settings.panelWidth, viewportWidth);
 
   React.useEffect(() => () => { if (resizeRaf.current) cancelAnimationFrame(resizeRaf.current); }, []);
 
@@ -61,8 +73,9 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    resize.current = { startX: event.clientX, startWidth: settings.panelWidth, latest: settings.panelWidth };
-    setDragWidth(settings.panelWidth);
+    const renderedWidth = event.currentTarget.parentElement?.getBoundingClientRect().width ?? clampPanelWidth(settings.panelWidth, viewportWidth);
+    resize.current = { startX: event.clientX, startWidth: renderedWidth, latest: renderedWidth };
+    setDragWidth(renderedWidth);
   }
   function onResizePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
     const state = resize.current;
@@ -70,7 +83,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     // Total delta from the drag start; the sign flips with the dock side
     // (dragging toward the page shrinks a right-docked panel).
     const delta = dockSide === 'right' ? state.startX - event.clientX : event.clientX - state.startX;
-    state.latest = clampPanelWidth(state.startWidth + delta);
+    state.latest = clampPanelWidth(state.startWidth + delta, viewportWidth);
     // Coalesce to one width update per frame so the drag stays smooth.
     if (resizeRaf.current) return;
     resizeRaf.current = requestAnimationFrame(() => {
@@ -85,19 +98,26 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     if (resizeRaf.current) { cancelAnimationFrame(resizeRaf.current); resizeRaf.current = 0; }
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
     setDragWidth(null);
-    if (state.latest !== settings.panelWidth) updateSettings({ panelWidth: state.latest });
+    // A click-release on an overflowed saved width should not replace the
+    // user's preference with the viewport-clamped rendering. A real drag does.
+    if (state.latest !== state.startWidth && state.latest !== settings.panelWidth) updateSettings({ panelWidth: state.latest });
   }
   function onResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === 'Home') {
+      event.preventDefault();
+      updateSettings({ panelWidth: clampPanelWidth(DEFAULT_PANEL_SETTINGS.panelWidth, viewportWidth) });
+      return;
+    }
     const grow = dockSide === 'right' ? 'ArrowLeft' : 'ArrowRight';
     const shrink = dockSide === 'right' ? 'ArrowRight' : 'ArrowLeft';
     if (event.key === grow || event.key === shrink) {
       event.preventDefault();
       const step = event.key === grow ? RESIZE_KEY_STEP : -RESIZE_KEY_STEP;
-      updateSettings({ panelWidth: clampPanelWidth(settings.panelWidth + step) });
+      updateSettings({ panelWidth: clampPanelWidth(appliedWidth + step, viewportWidth) });
     }
   }
   function resetWidth(): void {
-    updateSettings({ panelWidth: clampPanelWidth(DEFAULT_PANEL_SETTINGS.panelWidth) });
+    updateSettings({ panelWidth: clampPanelWidth(DEFAULT_PANEL_SETTINGS.panelWidth, viewportWidth) });
   }
   function toggleDock(): void {
     updateSettings({ dockSide: dockSide === 'right' ? 'left' : 'right' });
@@ -107,13 +127,6 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
     if (api?.hide) api.hide();
     else setOpen(false);
   }
-
-  const [toastPaused, setToastPaused] = React.useState(false);
-  React.useEffect(() => {
-    if (!toastMessage || toastPaused) return;
-    const timer = window.setTimeout(clearToast, 2800);
-    return () => window.clearTimeout(timer);
-  }, [toastMessage, toastPaused, clearToast]);
 
   // Shared with the command palette, which offers the same three surfaces so they stay
   // reachable on a panel too narrow to show this switcher.
@@ -179,8 +192,8 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           aria-orientation="vertical"
           aria-label="Resize panel - drag, or use arrow keys"
           aria-valuenow={appliedWidth}
-          aria-valuemin={PANEL_WIDTH_MIN}
-          aria-valuemax={maxPanelWidth()}
+          aria-valuemin={Math.min(PANEL_WIDTH_MIN, maxPanelWidth(viewportWidth))}
+          aria-valuemax={maxPanelWidth(viewportWidth)}
           tabIndex={0}
           onPointerDown={onResizePointerDown}
           onPointerMove={onResizePointerMove}
@@ -189,7 +202,16 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           onKeyDown={onResizeKeyDown}
           onDoubleClick={resetWidth}
           title="Drag to resize · double-click to reset"
-        />
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute', top: '50%', left: '50%', width: 3, height: 44,
+              transform: 'translate(-50%, -50%)', borderRadius: 999,
+              background: 'var(--xray-hint)', opacity: 0.75, pointerEvents: 'none',
+            }}
+          />
+        </div>
       )}
       <header className="xray-topbar">
         <div className="xray-brand xray-drag-handle">
@@ -203,7 +225,14 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           */}
           <span>XRAY</span>
           <span className="xray-brand-ver" title={`XRAY ${XRAY_VERSION} · built ${XRAY_BUILD}`}>v{XRAY_VERSION}</span>
-          <span className={`xray-live-dot ${open ? 'on' : ''}`} />
+          <button
+            className={`xray-icon-btn xray-record-btn ${runtimeHealth.health === 'healthy' ? 'recording' : ''}`}
+            aria-label="Runtime diagnostics"
+            title={`Runtime ${runtimeHealth.health} · Capture route ${runtimeHealth.captureRouteState} · Worker ${runtimeHealth.workerState} · ${runtimeHealth.acceptedCount} accepted · ${runtimeHealth.droppedCount} dropped${runtimeHealth.lastErrorCode ? ` · ${runtimeHealth.lastErrorCode}` : ''}`}
+            onClick={() => openSettings('session')}
+          >
+            <span className={`xray-live-dot ${runtimeHealth.health === 'healthy' ? 'on' : ''}`} aria-hidden="true" />
+          </button>
         </div>
         {/*
           A real tablist. These were plain buttons, so the active tab was conveyed by a
@@ -275,26 +304,43 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
       <main className="xray-body" id="xray-tabpanel" role="tabpanel" aria-labelledby={`xray-tab-${activeTab}`}>
         {children}
       </main>
-      {/*
-        The live region is always mounted, and only its contents change. Injecting a
-        region together with its first message is unreliably announced - assistive tech
-        has to be observing the region before the text lands in it.
-      */}
-      <div className="xray-toast-region" role="status" aria-live="polite" aria-atomic="true">
-        {toastMessage && (
-          <button
-            className="xray-toast"
-            onClick={clearToast}
-            onMouseEnter={() => setToastPaused(true)}
-            onMouseLeave={() => setToastPaused(false)}
-            onFocus={() => setToastPaused(true)}
-            onBlur={() => setToastPaused(false)}
-            aria-label="Dismiss notification"
-          >
-            {toastMessage}
-          </button>
-        )}
-      </div>
+    </div>
+  );
+}
+
+// Mounted by App after modal siblings so a receipt remains actionable above a
+// backdrop. The region itself stays mounted for reliable polite announcements.
+export function ToastRegion(): React.ReactElement {
+  const toastMessage = usePanelStore((state) => state.toastMessage);
+  const clearToast = usePanelStore((state) => state.clearToast);
+  // Pause is tied to the message it was set on: a toast unmounted while hovered or
+  // focused never fires leave/blur, and must not keep later toasts from expiring.
+  const [pausedFor, setPausedFor] = React.useState<string | null>(null);
+  // Reset once the toast is gone, so an identical later message starts unpaused.
+  if (!toastMessage && pausedFor !== null) setPausedFor(null);
+  const toastPaused = Boolean(toastMessage) && pausedFor === toastMessage;
+
+  React.useEffect(() => {
+    if (!toastMessage || toastPaused) return;
+    const timer = window.setTimeout(clearToast, 2800);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage, toastPaused, clearToast]);
+
+  return (
+    <div className="xray-toast-region" role="status" aria-live="polite" aria-atomic="true">
+      {toastMessage && (
+        <button
+          className="xray-toast"
+          onClick={clearToast}
+          onMouseEnter={() => setPausedFor(toastMessage)}
+          onMouseLeave={() => setPausedFor(null)}
+          onFocus={() => setPausedFor(toastMessage)}
+          onBlur={() => setPausedFor(null)}
+          aria-label="Dismiss notification"
+        >
+          {toastMessage}
+        </button>
+      )}
     </div>
   );
 }

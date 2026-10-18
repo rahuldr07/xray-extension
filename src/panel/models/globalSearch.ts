@@ -1,4 +1,5 @@
 import type { XrayEntry } from '../types';
+import { buildSessionIndex, getIndexedSearchDocument, type SessionIndex } from './sessionIndex';
 import { entryRequest, entryResponse, safeStringify } from '../utils';
 
 export interface GlobalSearchMatch {
@@ -24,7 +25,36 @@ export interface GlobalSearchResult {
 export interface GlobalSearchOptions {
   regex?: boolean;
   caseSensitive?: boolean;
+  /** Restrict scanning to these stable field names. Omit to scan all fields. */
+  fields?: readonly GlobalSearchField[];
+  /** Reuse the identity-stable session index owned by the current panel render. */
+  index?: SessionIndex;
 }
+
+export type GlobalSearchField =
+  | 'method'
+  | 'url'
+  | 'status'
+  | 'requestHeaders'
+  | 'requestBody'
+  | 'responseHeaders'
+  | 'responseBody'
+  | 'message'
+  | 'headers'
+  | 'body'
+  | 'request'
+  | 'response'
+  | 'identity'
+  | 'all'
+  // Display labels are accepted for callers that persist the visible field name.
+  | 'Method'
+  | 'URL'
+  | 'Status'
+  | 'Request headers'
+  | 'Request body'
+  | 'Response headers'
+  | 'Response body'
+  | 'Message';
 
 const MAX_MATCHES = 200;
 const SNIPPET_RADIUS = 44;
@@ -33,23 +63,34 @@ const FIELD_SCAN_CHARS = 20_000;
 
 // The searchable fields of an entry, in priority order. The first one that matches
 // is what the result row reports, so URL/method come before bulky bodies.
-function entryFields(entry: XrayEntry): Array<[string, string]> {
+function entryFields(entry: XrayEntry, fields?: readonly GlobalSearchField[]): Array<[string, string]> {
   const out: Array<[string, string]> = [];
+  const selected = fields === undefined ? null : new Set(fields.map((field) => String(field).toLowerCase().replace(/ /g, '')));
+  const wants = (name: string): boolean => {
+    if (selected === null || selected.has('all')) return true;
+    const normalized = name.toLowerCase().replace(/ /g, '');
+    if (selected.has(normalized)) return true;
+    if (selected.has('headers') && normalized.endsWith('headers')) return true;
+    if (selected.has('body') && normalized.endsWith('body')) return true;
+    if (selected.has('request') && normalized.startsWith('request')) return true;
+    if (selected.has('response') && normalized.startsWith('response')) return true;
+    return selected.has('identity') && ['method', 'url', 'status'].includes(normalized);
+  };
   const push = (label: string, value: string | undefined | null): void => {
     if (value) out.push([label, value.length > FIELD_SCAN_CHARS ? value.slice(0, FIELD_SCAN_CHARS) : value]);
   };
   const stringify = (value: unknown): string => (typeof value === 'string' ? value : safeStringify(value, 0, FIELD_SCAN_CHARS));
 
-  push('Method', entry.method ? String(entry.method).toUpperCase() : '');
-  push('URL', String(entry.url || entry.urlPath || ''));
-  if (entry.status) push('Status', String(entry.status));
-  if (entry.requestHeaders && typeof entry.requestHeaders === 'object') push('Request headers', stringify(entry.requestHeaders));
+  if (wants('method')) push('Method', entry.method ? String(entry.method).toUpperCase() : '');
+  if (wants('url')) push('URL', String(entry.url || entry.urlPath || ''));
+  if (wants('status') && entry.status) push('Status', String(entry.status));
+  if (wants('requestHeaders') && entry.requestHeaders && typeof entry.requestHeaders === 'object') push('Request headers', stringify(entry.requestHeaders));
   const reqBody = entryRequest(entry);
-  if (reqBody != null) push('Request body', stringify(reqBody));
-  if (entry.responseHeaders && typeof entry.responseHeaders === 'object') push('Response headers', stringify(entry.responseHeaders));
+  if (wants('requestBody') && reqBody != null) push('Request body', stringify(reqBody));
+  if (wants('responseHeaders') && entry.responseHeaders && typeof entry.responseHeaders === 'object') push('Response headers', stringify(entry.responseHeaders));
   const resBody = entryResponse(entry);
-  if (resBody != null) push('Response body', stringify(resBody));
-  if (entry.message) push('Message', String(entry.message));
+  if (wants('responseBody') && resBody != null) push('Response body', stringify(resBody));
+  if (wants('message') && entry.message) push('Message', String(entry.message));
   return out;
 }
 
@@ -80,6 +121,7 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
     }
   }
   const needleLower = q.toLowerCase();
+  const index = opts.index ?? buildSessionIndex(entries);
 
   const matches: GlobalSearchMatch[] = [];
   // Tracks whether the cap stopped the scan with entries still unexamined. Deriving
@@ -89,7 +131,12 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
   for (let i = entries.length - 1; i >= 0; i--) {
     if (matches.length >= MAX_MATCHES) { stoppedEarly = true; break; }
     const entry = entries[i];
-    for (const [field, text] of entryFields(entry)) {
+    // The document cap limits retained derived data, not searchable entries.
+    // Misses use the same bounded field derivation transiently, without backfill.
+    const document = getIndexedSearchDocument(entry, index);
+    const fields = document ? document.fields : entryFields(entry, opts.fields);
+    for (const [field, text] of fields) {
+      if (!fieldIsSelected(field, opts.fields)) continue;
       const hit = locate(text, needleLower, q, re, caseSensitive);
       if (!hit) continue;
       const start = Math.max(0, hit.index - SNIPPET_RADIUS);
@@ -110,4 +157,17 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
     }
   }
   return { matches, error: null, truncated: stoppedEarly };
+}
+
+function fieldIsSelected(field: string, fields?: readonly GlobalSearchField[]): boolean {
+  if (fields === undefined) return true;
+  const selected = new Set(fields.map((value) => String(value).toLowerCase().replace(/ /g, '')));
+  if (selected.has('all')) return true;
+  const normalized = field.toLowerCase().replace(/ /g, '');
+  if (selected.has(normalized)) return true;
+  if (selected.has('headers') && normalized.endsWith('headers')) return true;
+  if (selected.has('body') && normalized.endsWith('body')) return true;
+  if (selected.has('request') && normalized.startsWith('request')) return true;
+  if (selected.has('response') && normalized.startsWith('response')) return true;
+  return selected.has('identity') && ['method', 'url', 'status'].includes(normalized);
 }

@@ -10,6 +10,84 @@ const DB_NAME = 'xray_db';
 const DB_VERSION = 1;
 let _db = null;
 
+const CACHE_ERROR_CODES = new Set(['cache-open-failed', 'cache-write-failed', 'cache-prune-failed', 'cache-clear-failed']);
+let _cacheHealth = { state: 'unknown', lastErrorCode: null, lastEventAt: null };
+
+function cacheHealthSnapshot() {
+  return { ..._cacheHealth };
+}
+
+function noteCacheHealth(state, errorCode = null) {
+  const safeCode = typeof errorCode === 'string' && CACHE_ERROR_CODES.has(errorCode) ? errorCode : null;
+  _cacheHealth = { state: state === 'healthy' || state === 'degraded' ? state : 'unknown', lastErrorCode: safeCode, lastEventAt: Date.now() };
+  try { self.postMessage({ id: '__health__', success: true, health: { cache: cacheHealthSnapshot() } }); } catch { /* worker is still loading */ }
+  return cacheHealthSnapshot();
+}
+
+function recoverCacheHealth() {
+  if (_cacheHealth.state !== 'healthy' || _cacheHealth.lastErrorCode !== null) noteCacheHealth('healthy');
+}
+
+function healthPayload() {
+  return _cacheHealth.state === 'unknown' ? {} : { health: { cache: cacheHealthSnapshot() } };
+}
+
+// Runtime receipts carry only aggregate counters and fixed reason codes. They are
+// intentionally separate from captured entries so no URL, header, or body can be
+// included by accident.
+const _captureReceipt = {
+  accepted: 0,
+  dropped: 0,
+  dropReasons: {},
+  validated: 0,
+  delivered: 0,
+  noConsumer: 0,
+  relayFailed: 0,
+  deliveryReasons: {},
+};
+
+function captureReceiptSnapshot() {
+  return {
+    accepted: _captureReceipt.accepted,
+    dropped: _captureReceipt.dropped,
+    dropReasons: { ..._captureReceipt.dropReasons },
+    validated: _captureReceipt.validated,
+    delivered: _captureReceipt.delivered,
+    noConsumer: _captureReceipt.noConsumer,
+    relayFailed: _captureReceipt.relayFailed,
+    deliveryReasons: { ..._captureReceipt.deliveryReasons },
+  };
+}
+
+function recordCaptureReceipt(payload = {}) {
+  const accepted = Number.isFinite(Number(payload.accepted))
+    ? Math.max(0, Math.min(500000, Math.floor(Number(payload.accepted)))) : 0;
+  const dropped = Number.isFinite(Number(payload.dropped))
+    ? Math.max(0, Math.min(500000, Math.floor(Number(payload.dropped)))) : 0;
+  _captureReceipt.accepted = Math.max(_captureReceipt.accepted, Math.min(500000, accepted));
+  _captureReceipt.dropped = Math.max(_captureReceipt.dropped, Math.min(500000, dropped));
+  if (payload.dropReasons && typeof payload.dropReasons === 'object' && !Array.isArray(payload.dropReasons)) {
+    for (const [reason, value] of Object.entries(payload.dropReasons).slice(0, 20)) {
+      if (!/^[a-z][a-z0-9-]{0,40}$/.test(reason)) continue;
+      const count = Number.isFinite(Number(value))
+        ? Math.max(0, Math.min(500000, Math.floor(Number(value)))) : 0;
+      _captureReceipt.dropReasons[reason] = Math.max(_captureReceipt.dropReasons[reason] || 0, Math.min(500000, count));
+    }
+  }
+  for (const field of ['validated', 'delivered', 'noConsumer', 'relayFailed']) {
+    const count = Number.isFinite(Number(payload[field])) ? Math.max(0, Math.min(500000, Math.floor(Number(payload[field])))) : 0;
+    _captureReceipt[field] = Math.max(_captureReceipt[field], count);
+  }
+  if (payload.deliveryReasons && typeof payload.deliveryReasons === 'object' && !Array.isArray(payload.deliveryReasons)) {
+    for (const [reason, value] of Object.entries(payload.deliveryReasons).slice(0, 10)) {
+      if (!/^[a-z][a-z0-9-]{0,40}$/.test(reason)) continue;
+      const count = Number.isFinite(Number(value)) ? Math.max(0, Math.min(500000, Math.floor(Number(value)))) : 0;
+      _captureReceipt.deliveryReasons[reason] = Math.max(_captureReceipt.deliveryReasons[reason] || 0, count);
+    }
+  }
+  return captureReceiptSnapshot();
+}
+
 // C-11: this store used to grow without bound. Every entry, bodies included, was
 // written and NOTHING was ever deleted: no retention policy, no size cap, and no
 // way to clear it from the UI. On a tool that runs on every URL and keeps response
@@ -34,15 +112,23 @@ function _isPageOriginWorker() {
 }
 
 async function openDB() {
-  if (_db) return _db;
+  if (_db) {
+    recoverCacheHealth();
+    return _db;
+  }
   if (_isPageOriginWorker()) {
     return Promise.reject(new Error('xray: refusing to open IndexedDB on a page-origin worker'));
   }
   
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    
-    req.onerror = () => reject(req.error);
+    const fail = () => {
+      noteCacheHealth('degraded', 'cache-open-failed');
+      reject(new Error('cache-open-failed'));
+    };
+    let req;
+    try { req = indexedDB.open(DB_NAME, DB_VERSION); }
+    catch { fail(); return; }
+    req.onerror = fail;
     
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
@@ -70,8 +156,9 @@ async function openDB() {
     };
     
     req.onsuccess = () => {
-      _db = req.result;
-      resolve(_db);
+       _db = req.result;
+       noteCacheHealth('healthy');
+       resolve(_db);
     };
   });
 }
@@ -105,20 +192,30 @@ function getFromMemoryCache(id) {
 // Deletes oldest-first via the timestamp index until the store is back under the cap.
 function pruneStoredEntries(db) {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('entries', 'readwrite');
+    const fail = () => {
+      noteCacheHealth('degraded', 'cache-prune-failed');
+      reject(new Error('cache-prune-failed'));
+    };
+    let tx;
+    try { tx = db.transaction('entries', 'readwrite'); }
+    catch { fail(); return; }
+    let removed = 0;
+    tx.onerror = fail;
+    tx.onabort = fail;
+    tx.oncomplete = () => { recoverCacheHealth(); resolve(removed); };
     const store = tx.objectStore('entries');
     const countReq = store.count();
-    countReq.onerror = () => reject(countReq.error);
+    countReq.onerror = fail;
     countReq.onsuccess = () => {
       let excess = countReq.result - IDB_MAX_ENTRIES;
-      if (excess <= 0) { resolve(0); return; }
-      const removed = excess;
+      if (excess <= 0) return;
       const cursorReq = store.index('timestamp').openCursor();
-      cursorReq.onerror = () => reject(cursorReq.error);
+      cursorReq.onerror = fail;
       cursorReq.onsuccess = (event) => {
         const cursor = event.target.result;
-        if (!cursor || excess <= 0) { resolve(removed); return; }
+        if (!cursor || excess <= 0) return;
         cursor.delete();
+        removed += 1;
         excess -= 1;
         cursor.continue();
       };
@@ -132,8 +229,8 @@ function clearStoredEntries(db) {
     const tx = db.transaction(['entries', 'searchIndex'], 'readwrite');
     tx.objectStore('entries').clear();
     tx.objectStore('searchIndex').clear();
-    tx.oncomplete = () => resolve({ cleared: true });
-    tx.onerror = () => reject(tx.error);
+     tx.oncomplete = () => { noteCacheHealth('healthy'); resolve({ cleared: true }); };
+     tx.onerror = () => { noteCacheHealth('degraded', 'cache-clear-failed'); reject(new Error('cache-clear-failed')); };
   });
 }
 
@@ -154,7 +251,7 @@ function tokenizeEntry(entry) {
       try {
         const parsed = new URL(entry.url);
         parsed.pathname.split('/').filter(Boolean).forEach(seg => tokens.add(seg.toLowerCase()));
-      } catch {}
+      } catch { /* malformed URLs still contribute their raw token */ }
     }
     
     // Method
@@ -647,8 +744,13 @@ self.onmessage = async function(e) {
     
     switch (action) {
       case 'init':
-        await openDB();
-        result = { ready: true };
+        try {
+          await openDB();
+          result = { ready: true };
+        } catch (error) {
+          if (error?.message !== 'cache-open-failed') throw error;
+          result = { ready: true, cache: 'degraded-in-memory' };
+        }
         break;
         
       case 'addEntry': {
@@ -659,17 +761,32 @@ self.onmessage = async function(e) {
         addToMemoryCache(entry);
         // Store in IndexedDB (async, don't wait)
         openDB().then(db => {
-          const tx = db.transaction('entries', 'readwrite');
-          tx.objectStore('entries').put(entry);
-          _writesSincePrune += 1;
-          if (_writesSincePrune >= PRUNE_EVERY) {
-            _writesSincePrune = 0;
-            pruneStoredEntries(db).catch(() => {});
+          try {
+            const tx = db.transaction('entries', 'readwrite');
+            tx.onerror = () => { noteCacheHealth('degraded', 'cache-write-failed'); };
+            tx.onabort = () => { noteCacheHealth('degraded', 'cache-write-failed'); };
+            tx.oncomplete = () => { recoverCacheHealth(); };
+            tx.objectStore('entries').put(entry);
+            _writesSincePrune += 1;
+            if (_writesSincePrune >= PRUNE_EVERY) {
+              _writesSincePrune = 0;
+              pruneStoredEntries(db).catch(() => { noteCacheHealth('degraded', 'cache-prune-failed'); });
+            }
+          } catch {
+            noteCacheHealth('degraded', 'cache-write-failed');
           }
-        }).catch(() => {});
+        }).catch((error) => { noteCacheHealth('degraded', error?.message === 'cache-open-failed' ? 'cache-open-failed' : 'cache-write-failed'); });
         result = { added: true };
         break;
       }
+
+      case 'captureReceipt':
+        result = recordCaptureReceipt(payload);
+        break;
+
+      case 'getCaptureReceipt':
+        result = captureReceiptSnapshot();
+        break;
       
       case 'search': {
         const { query, entries } = payload;
@@ -739,10 +856,12 @@ self.onmessage = async function(e) {
         throw new Error(`Unknown action: ${action}`);
     }
     
-    self.postMessage({ id, success: true, result });
+     self.postMessage({ id, success: true, result, ...healthPayload() });
     
   } catch (error) {
-    self.postMessage({ id, success: false, error: error.message });
+    const safeError = typeof error?.message === 'string' && (error.message === 'cache-open-failed' || error.message === 'cache-clear-failed' || error.message.startsWith('xray:') || error.message.startsWith('Unknown action:'))
+      ? error.message : `worker-${action}-failed`;
+    self.postMessage({ id, success: false, error: safeError, ...healthPayload() });
   }
 };
 

@@ -201,9 +201,11 @@ test('resolveThemeColors returns a hex for every token', () => {
 
 test('resolveThemeColors picks light status hues for a bright background', () => {
   const dark = resolveThemeColors({ ...DEFAULT_CUSTOM_THEME, bg: '#0f1117' });
-  const light = resolveThemeColors({ ...DEFAULT_CUSTOM_THEME, bg: '#ffffff' });
+  // A coherent light theme (dark text): status colours start from the light table and
+  // are stepped toward the text colour until readable, so assert readability, not a hex.
+  const light = resolveThemeColors({ bg: '#ffffff', surface: '#ffffff', text: '#1c1b19', accent: '#1452db' });
   assert.equal(dark.green, '#a6e3a1');
-  assert.equal(light.green, '#0f8a4f');
+  assert.ok(contrastRatio(light.green, '#ffffff') >= 4.5, `light green ${light.green}`);
   assert.notEqual(dark.red, light.red);
 });
 

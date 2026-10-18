@@ -17,6 +17,78 @@ invisible in the preview and only appear in the real configuration — the focus
 
 Regenerate the screenshots with `npm run ui:shots`.
 
+## Phase 0 follow-up — 10/07/2026
+
+The original findings and measurements below are retained as historical evidence.
+**For the IDs in this table, these dated statuses supersede the original row's
+status.** The original summary counts and surface-parity matrix describe the
+initial audit snapshot, not a newly measured current backlog. This follow-up is
+not a full re-audit of all 128 findings.
+
+Baseline, exact verification commands, workload definitions, performance results,
+and coverage limitations: [phase-0-baseline.md](phase-0-baseline.md).
+
+| Finding IDs | Current status | Revalidated behavior / remaining scope |
+| --- | --- | --- |
+| S-2, A-18 | Partly FIXED | Modal initialization focuses an input rather than the Close button; command/search autoFocus and lower-dialog focus ownership pass real React browser checks. Search-field padding/ring remains outside these checks. |
+| S-4, M-2 | Partly FIXED | Tab wraps inside the owning closed shadow root, and surviving dialogs retain/receive focus. Exact opener restoration and every production-surface combination are not fully certified by the current fixtures. |
+| S-5 | Partly FIXED | One Escape closes only the visually topmost registered dialog. Multiple mounted `aria-modal` dialogs and stacked backdrop dimming remain possible. |
+| M-3 | **FIXED** | Explain participates in topmost-modal Escape handling; a single keypress does not also close the underlying drawer/panel. The complete seven-dialog fixture passes in document and closed-shadow roots. |
+| N-1 | **FIXED** | At 420 × 700, the real API component/CSS fixture scrolls the drawer body, keeps a non-compressed response, and reaches the footer. The 1600px fixture preserves the wide layout. Control density (N-3) remains open. |
+| N-2 | **FIXED** | Captured-but-filtered-out traffic shows “No matching API requests”, not onboarding. Clear filters restores the request row and leaves captured entries intact. |
+| M-9 | **FIXED** | The filtered-empty/onboarding collision is fixed (N-2); Settings reset no longer resurrects onboarding (spec S4, see "Settings, Export and Themes"). |
+| M-16 | Partly FIXED | Initial focus prefers a field over Close. Long/invisible focus-stop sequences in Theme Studio remain open. |
+
+Evidence: `npm run test:e2e` (13/13), `test/e2e/modal-stack.e2e.mjs`,
+`test/e2e/api-layout.e2e.mjs`, and the regular regression suite (528/528).
+The browser fixtures use actual component/model code, but do not instantiate
+every shipped surface; closures above are limited to the stated behavior.
+
+## UI layout refresh — 12/10/2026
+
+Same rules as the Phase 0 table: **for the IDs below, these dated statuses supersede the
+original row's status** (and any Phase 0 status for the same ID). This is not a re-audit
+of all 128 findings. Each status was checked against the current UI (after-shots in
+`output/ui-refresh/after/`, 1600/1100/760/420) and the named tests. Spec:
+[2026-10-12-ui-layout-refresh-design.md](superpowers/specs/2026-10-12-ui-layout-refresh-design.md).
+
+| Finding IDs | Current status | Revalidated behavior / remaining scope |
+| --- | --- | --- |
+| S-15 | **FIXED** | Header tab labels render in their real case ("Console", "API", "Logs", "Rules", "Insights"). Below ~680px container width the labels give way to icons. `responsive-motion-css` "S1" pins `.xray-tab` as not uppercase. |
+| N-5 | **FIXED** | `.xray-panel h3` no longer forces uppercase, so request paths show their real case in the detail header and list (S1 test; `1600-api.png`). |
+| N-6 | **FIXED** | A long JSON value wraps inside the value and the key never shreds (`api-layout` "JSON keys never shred; long values wrap inside the value (S21)"). |
+| N-3 | Partly FIXED | Detail chrome is now a single header (Metadata, Copy, Export, Console, More actions) plus one tab row (Response · Request · Headers · Timing) with the lens segmented control on the right. The bottom action bar and its second copies are gone. Control count was not re-measured against the original 32. |
+| N-10 | **FIXED** | The five summary cards became a one-line summary, and search, quick chips and the filters toggle share one row. Row 1 starts roughly 200px below the panel top at 1600. This was read off `1600-api.png`, not measured in a fixture; the original was 393–506px. |
+| N-11 | Partly FIXED | Quick filters stay visible on the toolbar row, and the summary's error and slow counts apply the active filters (`api-layout` "summary is one line whose error and slow counts apply the filters (S16)"). Advanced filters (method, type, sort) hidden behind the collapsed "Filters & sort" toggle are signalled only by its tooltip ("N active") and the enabled Clear filters button, with no visible badge. |
+| N-18 | **FIXED** | Log rows are a fixed four-track grid (level, time, message, pin), 32px tall, with no overlapping tracks at 1600/760/420 (`logs-layout` "unselected Logs: … four non-overlapping tracks"). |
+| N-19 | Partly FIXED | Insights stats, API summary, log time and modal hint/meta text moved from `--xray-hint` to `--xray-subtext`, and controls no longer force uppercase. Small uppercase column headers and eyebrows (e.g. METHOD / REQUEST / STATUS / TIMING, section titles) remain by design (spec item 1). Their contrast was not re-measured. |
+| C-12 | Partly FIXED | Insights opens with one overview strip (no five zero cards), then Findings, then breakdown cards aligned with the strip. Repeated endpoints has an empty-state line. Slowest requests and Status mix still render an empty card with no traffic. |
+| C-14 | **FIXED** | The request context (`res = GET /path · 200 ▾ ↗`, combobox "Console request context" plus "Inspect in API") stays one line above the prompt at 420 (`420-console.png`; `console-context-layout`). |
+| C-18 | **FIXED** | Preset labels render in their real case: the Presets disclosure renders `rules.ts` labels such as `Throttle all (+2s)` as `.xray-menu-item` buttons, and that rule has no `text-transform`. The S1 test pins `.xray-rule-summary` and chips as not uppercase. |
+| C-24 | **FIXED** | Snippets live in a menu next to Run with a real Rename button per row (no double-click), and no permanent strip. Rename, Escape-cancel and focus return are keyboard-tested (`console-context-layout` "… Snippets menu renames by keyboard"). |
+| M-11 | Partly FIXED | Export formats are a grouped chip list that wraps, so every group (including Tests and Session) is reachable at 420 (`420-export.png`). Import moved from the footer into the Session group. It still merges into the live session with no preview or confirmation. |
+| M-18 | Partly FIXED | The confirmation dialog has no hard-coded subtitle; it shows title, message, Cancel (initial focus) and the action. The naming consistency and stacked backdrops parts of the finding were not revalidated. |
+
+Evidence: `npm test` 763/763, `npm run test:e2e` 380/380 (including api-layout,
+logs-layout, findings, console-context-layout, comparison and response-first in
+document and closed-shadow roots), and `npx eslint .` 0 errors.
+
+## Console redesign — 12/10/2026
+
+Same rules as the tables above: **for the IDs below, these dated statuses supersede the original
+row's status** (and any earlier dated status). Not a re-audit. Spec:
+[2026-10-12-console-redesign-design.md](superpowers/specs/2026-10-12-console-redesign-design.md).
+
+| Finding IDs | Current status | Revalidated behavior / remaining scope |
+| --- | --- | --- |
+| C-15 | **FIXED** | Both helpers the cheatsheet advertised now resolve: `_.countBy(rows, key \| fn)` exists in the runtime's `_` (same key-or-function rule as `_.groupBy`), and `pin()` is gone from `$help` and the runtime — pinning is the request context picker's `a`…`f` (spec P2), which `$help` documents. `console-helpers-pure` "$help only advertises _ helpers the runtime has (audit C-15)" fails if a listed `_.` helper is missing or `pin(` returns. |
+
+Evidence: `npm test` (including `test/unit/runtime/console-helpers-pure.test.mjs`).
+
+Console autocomplete batch 1–4 (spec [2026-10-13-console-autocomplete-design.md](superpowers/specs/2026-10-13-console-autocomplete-design.md)): array/string members, argument values from captured traffic, Ctrl+Space browse, active-argument hint + live count.
+
+---
+
 **Status.** `FIXED` — closed on this branch, with a regression test naming the old
 behaviour. `OPEN` — recorded, not yet fixed. Severity is user impact: **P0** broken or
 unusable, **P1** significantly hurts the task, **P2** polish.
@@ -33,6 +105,18 @@ unusable, **P1** significantly hurts the task, **P2** polish.
 
 Counts include the same defect where two auditors found it from different angles; those
 rows cross-reference each other.
+
+## Settings, Export and Themes — 13/10/2026
+
+Same rules as the tables above: **for the IDs below, these dated statuses supersede the original
+row's status.** Not a re-audit. Spec:
+[2026-10-13-settings-export-themes-design.md](superpowers/specs/2026-10-13-settings-export-themes-design.md).
+
+| Finding IDs | Current status | Revalidated behavior / remaining scope |
+| --- | --- | --- |
+| M-17 | **FIXED** | The Decrypt tab is gone from Settings (spec S5); the settings nav no longer carries a section with no control. |
+| X-19 | **FIXED** | The options page uses the panel's theme names (spec S8). |
+| M-9 | **FIXED** | Reset no longer restores onboarding for a long-time user (spec S4). |
 
 ---
 
@@ -143,7 +227,7 @@ impossible to regress.
 | M-6  | P1  | **Copy always reports success**, including when the clipboard write failed. `copyText` swallows every error behind `?.` and an empty catch, and five call sites toast "copied" unconditionally. `navigator.clipboard` is undefined on `http://` origins — where this extension injects — so Copy does nothing, says it worked, and the user pastes whatever was there before.                                                   | `utils.ts:180-184`                                         | OPEN                                       |
 | M-7  | P1  | Explain's only remedy button, **"Open AI settings", opens Settings on General**, where the tallest element is the Danger Zone — though the store already exposes `openSettings(section)`. The same footer advertises a configured provider while the body says there is no key.                                                                                                                                                 | `ExplainModal.tsx:45-48,59`                                | OPEN                                       |
 | M-8  | P1  | **Toasts render underneath the modal backdrop** (`elementFromPoint` at the toast's own centre returns `.xray-modal-backdrop`), and they are the _sole_ feedback channel for Copy, Download, send-to-Console, send-to-Snippet, import success **and every import error string**.                                                                                                                                                 | `styles.css:2436`; `App.tsx:37-46`                         | OPEN                                       |
-| M-9  | P1  | FirstRun hijacks the "no matching filter" empty state. Duplicate of N-2, plus: `resetSettings()` restores `firstRunDismissed: false`, so "Reset all settings" **resurrects onboarding for a long-time user**, and nothing in the nine Settings tabs can bring it back deliberately.                                                                                                                                             | `EntriesWorkspace.tsx:298-300`; `panelSettings.ts:102`     | OPEN                                       |
+| M-9  | P1  | FirstRun hijacks the "no matching filter" empty state. Duplicate of N-2, plus: `resetSettings()` restores `firstRunDismissed: false`, so "Reset all settings" **resurrects onboarding for a long-time user**, and nothing in the nine Settings tabs can bring it back deliberately.                                                                                                                                             | `EntriesWorkspace.tsx:298-300`; `panelSettings.ts:102`     | **FIXED** (S4)                             |
 | M-10 | P1  | The Replay editor **hides the headers it will actually send** (redacted rows are dropped) and validates nothing: URL cleared to `""` and body set to `{ not json` still fires Send and closes the modal, for a request the interceptor's guard rejects. A backdrop click after editing discards everything with no warning. FirstRun promises "Auth survives" with no caveat — it does not survive a host change.               | `ReplayModal.tsx:12-18,64-76,99`                           | OPEN                                       |
 | M-11 | P1  | At ≤760px the Export rail hides **386px of formats off-screen** with no scrollbar, fade or arrows — the entire Tests and Session groups are unreachable, along with the mode chips. Separately, **Import is a session-mutating action parked in an Export modal's footer**, merging into the live session with no preview and no confirmation even with `confirmDestructiveActions` on.                                         | `styles.css:2833-2848`; `ExportModal.tsx:102-103`          | OPEN                                       |
 | M-12 | P1  | The accent swatches are a **dead control under a custom theme**: `buildCustomThemeVars` is spread last and also emits `--xray-accent`, so clicking a swatch moves the active ring while the value never changes.                                                                                                                                                                                                                | `App.tsx:29-34`; `SettingsModal.tsx:349`                   | OPEN                                       |
@@ -151,7 +235,7 @@ impossible to regress.
 | M-14 | P2  | **A large block of "premium finish" rules can never match the modals**, because they are scoped `.xray-panel …` while `App.tsx` renders every modal as a _sibling_. Dead rules include the primary-button gradient, `.xray-json` (so the export code block loses its background, border and radius), `.xray-select` and `.xray-modal-card`. Native `<select>`s therefore keep the UA focus ring — near-black on a dark surface. | `styles.css:3196-3335`; `App.tsx:37-46`                    | OPEN                                       |
 | M-15 | P2  | The gear **permanently reopens whichever section was last requested**, discarding where the user actually was: open Appearance from the header, navigate to Capture, Escape, click the gear → Appearance. For the rest of the session the gear is a shortcut to Appearance.                                                                                                                                                     | `store.ts:528`; `SettingsModal.tsx:167-170`                | OPEN                                       |
 | M-16 | P2  | **Every modal opens with focus on its own Close button**, so the first Enter or Space closes it. On Appearance with a custom theme the trap has 114 focusable stops — 48 of them token buttons at `opacity: 0` until hover — between that button and the footer.                                                                                                                                                                | `ModalShell.tsx:28-29,78`                                  | OPEN                                       |
-| M-17 | P2  | The Decrypt tab is a permanent nav slot with **no control at all** — decryption is a source-code stub the integrator edits, so there is nothing for a user to configure — and its second line of copy belongs on the AI tab.                                                                                                                                                                                                    | `SettingsModal.tsx:52,363-369`                             | OPEN                                       |
+| M-17 | P2  | The Decrypt tab is a permanent nav slot with **no control at all** — decryption is a source-code stub the integrator edits, so there is nothing for a user to configure — and its second line of copy belongs on the AI tab.                                                                                                                                                                                                    | `SettingsModal.tsx:52,363-369`                             | **FIXED** (S5)                             |
 | M-18 | P2  | The confirmation dialog **contradicts itself** — a hardcoded subtitle "Confirm this action before XRAY changes the current session" sits directly above "Captured requests are not deleted." One action has **four different names** across the row, title, button and toast, and the message leaks implementation vocabulary ("from the React UI session"). Two backdrops stack, dimming the layer below to ~92%.              | `ConfirmationModal.tsx:18,25`; `SettingsModal.tsx:181,388` | OPEN                                       |
 | M-19 | P2  | Theme Studio is a full feature crammed into a **458px column** (`scrollHeight` 2,270 in a 706px box): the toolbar wraps onto three rows, the "Start from" chips onto four, and 15 of 16 token cards look like they have no actions because their buttons are `opacity: 0` until hover. Its live preview bar — the one surface whose job is showing the theme truthfully — is painted with a literal `white`.                    | `styles.css:4520,4528,4751-4757`                           | Literal `white` in topbar FIXED; rest OPEN |
 | M-20 | P2  | The standalone options page carries **8 of ~25 settings**, uses the opposite save model (batched behind a button, with no dirty indicator), offers a dead-end `Custom (Theme Studio)` option, and uses a different toggle design — while its header claims preferences "are shared with" every other surface.                                                                                                                   | `settings/settings.js:57,81-104`                           | OPEN                                       |
@@ -212,7 +296,7 @@ the real painted backdrop.
 | X-16 | P1  | **The options page's Capture toggles never reach a live page.** Turning off "Intercept fetch() requests" on the extension's official options page has no effect on any open tab, and the page gives no hint of that.                                                                                                                                    | `settings/settings.js:81-97`             | OPEN      |
 | X-17 | P1  | **The two obvious entry points open two different surfaces**, and the manifest copy names neither: the toolbar icon toggles the HUD, Ctrl+Shift+X toggles the docked panel, `default_title` is just "XRAY", and the command description says "Toggle XRAY panel" — which is what the _other_ control does.                                              | `manifest.json`; `background.js:565,573` | OPEN      |
 | X-18 | P1  | **Clicking the toolbar icon on a page without content scripts does nothing at all** — no window, no badge, no toast. There is no `default_popup`, so there is not even an empty panel to explain why. For a first-run store user whose first click lands on the new-tab page, the extension is simply inert.                                            | `background.js:66-78`                    | OPEN      |
-| X-19 | P1  | **Three of the options page's eight controls have no effect on the page they live on**: accent, font and density render as blue/JetBrains/default whatever is set, because `--xray-font` and `--xray-radius` are hardcoded literals and every accent role is wired to `--xray-blue`.                                                                    | `settings/settings.html:28-31`           | OPEN      |
+| X-19 | P1  | **Three of the options page's eight controls have no effect on the page they live on**: accent, font and density render as blue/JetBrains/default whatever is set, because `--xray-font` and `--xray-radius` are hardcoded literals and every accent role is wired to `--xray-blue`.                                                                    | `settings/settings.html:28-31`           | **FIXED** (S8; names only) |
 | X-20 | P1  | **The HUD advertises three keyboard shortcuts it does not have** — its own Settings → Shortcuts pane lists Ctrl+K, Ctrl+Shift+F and Esc, all verified dead. When a docked panel also exists, Ctrl+K over the HUD opens the _panel's_ palette, in a different shadow root against a different store.                                                     | `hud-main.tsx:78-83`                     | OPEN      |
 | X-21 | P2  | The DevTools panel **adds nothing over the docked panel** — identical tabs, top bar, mode switcher, settings and export, with no `inspectedWindow` usage — and its own "Open in DevTools" button renders as active and still fires "Press F12, then open the XRAY tab" when clicked, inside DevTools.                                                   | `devtools-panel.js:7-15`                 | OPEN      |
 | X-22 | P2  | Icons are **opaque squares with no alpha channel** (`icon16.png` is 125 bytes, colour type 2, no `tRNS`); at 16px the hexagon's hole and centre dot merge into a blob, and the tile reads as a hard black square in a light toolbar. The brand mark is also inconsistent — a hexagon in the icons and in two files' text, `IconTerminal2` in the panel. | `icons/*.png`; `PanelShell.tsx:199`      | OPEN      |

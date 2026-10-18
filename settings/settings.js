@@ -80,10 +80,14 @@
 
   saveBtn.addEventListener('click', async () => {
     const latest = await loadPreferences();
+    const latestSettings = latest.settings || {};
+    const accent = pick(accentSelect.value, accentOptions, DEFAULT_SETTINGS.accent);
+    // Same contract as the panel: an accent the user picked survives later theme changes.
+    const accentChanged = accent !== (latestSettings.accent ?? DEFAULT_SETTINGS.accent);
     const merged = Object.assign({}, latest, {
-      settings: Object.assign({}, latest.settings || {}, {
+      settings: Object.assign({}, latestSettings, accentChanged ? { accentChosen: true } : {}, {
         theme: pick(themeSelect.value, themeOptions, DEFAULT_SETTINGS.theme),
-        accent: pick(accentSelect.value, accentOptions, DEFAULT_SETTINGS.accent),
+        accent,
         font: pick(fontSelect.value, FONTS, DEFAULT_SETTINGS.font),
         density: pick(densitySelect.value, DENSITIES, DEFAULT_SETTINGS.density),
         maxEntries: clamp(maxEntriesInput.value, DEFAULT_SETTINGS.maxEntries, 50, 5000),

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconBookmark, IconCopy, IconDownload, IconFileExport, IconFileImport, IconSend } from '@tabler/icons-react';
 import { selectedEntry, usePanelStore } from '../../store';
-import { exportGroups, exportMeta, exportText, filenameForExport, mimeForExport, type ExportFormat } from '../../models/export';
+import { buildShareSafeExport, exportGroups, exportMeta, exportText, exportUnavailableReason, filenameForExport, isShareSafeFormat, mimeForExport, previewText, sessionFilename, type ExportFormat } from '../../models/export';
 import { parseImport } from '../../models/import';
 import { copyText, downloadText } from '../../utils';
 import { ModalShell } from '../common/ModalShell';
@@ -26,9 +26,16 @@ export function ExportModal(): React.ReactElement | null {
   const [mode, setMode] = useState<ExportMode>('session');
   const [format, setFormat] = useState<ExportFormat>('curl');
   const selectedForExport = mode === 'selected' ? selected : null;
-  const text = useMemo(() => exportText(selectedForExport, entries, format), [entries, format, selectedForExport]);
+  const shareSafeExport = useMemo(() => isShareSafeFormat(format) ? buildShareSafeExport(entries, format) : null, [entries, format]);
+  const text = useMemo(() => shareSafeExport?.text ?? exportText(selectedForExport, entries, format), [entries, format, selectedForExport, shareSafeExport]);
   const meta = exportMeta[format];
-  const filename = filenameForExport(selectedForExport, format);
+  // Session names carry the local time, so downloadCurrent() recomputes at click time.
+  const exportFilename = (): string => isSessionFormat(format)
+    ? sessionFilename(isShareSafeFormat(format) ? 'share-safe' : 'session', meta.extension)
+    : filenameForExport(selectedForExport, format);
+  const filename = exportFilename();
+  const preview = useMemo(() => previewText(text), [text]);
+  const privacyLabel = isShareSafeFormat(format) ? 'Share-safe' : isSessionFormat(format) ? 'Local/private' : 'Selected request · may contain credentials';
 
   useEffect(() => {
     if (!open) return;
@@ -45,13 +52,21 @@ export function ExportModal(): React.ReactElement | null {
   }
 
   async function copyCurrent(): Promise<void> {
-    await copyText(text);
-    showToast(`${meta.title} copied.`);
+    try {
+      await copyText(text);
+      showToast(`${meta.title} copied.`);
+    } catch {
+      showToast('Could not copy. Select the preview to copy manually or check clipboard permissions.');
+    }
   }
 
   function downloadCurrent(): void {
-    downloadText(filename, text, mimeForExport(format));
-    showToast(`${meta.title} downloaded.`);
+    try {
+      downloadText(exportFilename(), text, mimeForExport(format));
+      showToast('Download started.');
+    } catch {
+      showToast('Could not start download. Try copying the preview instead.');
+    }
   }
 
   function sendToConsole(): void {
@@ -77,12 +92,20 @@ export function ExportModal(): React.ReactElement | null {
         showToast(result.error || 'No entries found in file.');
         return;
       }
-      restoreEntries(result.entries);
-      setOpen(false);
-      showToast(`Imported ${result.entries.length} ${result.format === 'har' ? 'HAR' : 'session'} entries.`);
+      const receipt = restoreEntries(result.entries);
+      if (receipt.accepted) setOpen(false);
+      showToast(`${receipt.accepted ? `Imported ${receipt.accepted}` : 'No new'} ${result.format === 'har' ? 'HAR' : 'session'} entries. ${receipt.duplicates} duplicates; ${receipt.omitted} omitted by retention limit.`);
     } catch {
       showToast('Could not read the selected file.');
     }
+  }
+
+  // Each mode shows only its own formats; the other mode's are not rendered at all.
+  const visibleGroups = exportGroups.filter((group) => (mode === 'session') === group.formats.every(isSessionFormat));
+  function formatState(item: ExportFormat): { disabled: boolean; reason: string | undefined; unavailable: string | null } {
+    const unavailable = mode === 'selected' ? exportUnavailableReason(selected, item) : null;
+    const disabled = !selected && !isSessionFormat(item) ? true : !!unavailable;
+    return { disabled, unavailable, reason: unavailable ?? (!selected && !isSessionFormat(item) ? 'Select a request first' : undefined) };
   }
 
   const subtitle = mode === 'selected' && selected
@@ -98,9 +121,7 @@ export function ExportModal(): React.ReactElement | null {
       onClose={() => setOpen(false)}
       footer={(
         <>
-          <span className="xray-muted">{text.length.toLocaleString()} chars</span>
-          <input ref={fileInputRef} type="file" accept=".har,.json,application/json" style={{ display: 'none' }} onChange={(event) => void handleImportFile(event)} />
-          <button className="xray-btn" onClick={() => fileInputRef.current?.click()}><IconFileImport {...iconProps} />Import HAR / session</button>
+          <span className="xray-modal-foot-meta" title={filename}>{filename} · {text.length.toLocaleString()} chars</span>
           <span className="xray-spacer" />
           {mode === 'selected' && (
             <>
@@ -115,35 +136,53 @@ export function ExportModal(): React.ReactElement | null {
     >
       <div className="xray-export-body">
           <nav className="xray-export-rail" aria-label="Export formats">
-            <div className="xray-export-mode">
-              <button className={`xray-chip ${mode === 'selected' ? 'active' : ''}`} disabled={!selected} title={selected ? 'Use selected request' : 'Select an API request first'} onClick={() => switchMode('selected')}>Selected</button>
-              <button className={`xray-chip ${mode === 'session' ? 'active' : ''}`} onClick={() => switchMode('session')}>Session</button>
+            <div className="xray-export-mode" role="group" aria-label="Export scope">
+              <button className={`xray-chip ${mode === 'selected' ? 'active' : ''}`} aria-pressed={mode === 'selected'} disabled={!selected} title={selected ? 'Use selected request' : 'Select an API request first'} onClick={() => switchMode('selected')}>Selected</button>
+              <button className={`xray-chip ${mode === 'session' ? 'active' : ''}`} aria-pressed={mode === 'session'} onClick={() => switchMode('session')}>Session</button>
             </div>
-            {exportGroups.map((group) => (
-              <div key={group.label} className="xray-export-group">
+            <select
+              className="xray-select xray-export-select"
+              aria-label="Export format"
+              value={format}
+              onChange={(event) => setFormat(event.currentTarget.value as ExportFormat)}
+            >
+              {visibleGroups.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.formats.map((item) => {
+                    const state = formatState(item);
+                    return <option key={item} value={item} disabled={state.disabled}>{exportMeta[item].title} .{exportMeta[item].extension}{state.reason ? ` (${state.reason})` : ''}</option>;
+                  })}
+                </optgroup>
+              ))}
+            </select>
+            {visibleGroups.map((group) => (
+              <div key={group.label} className="xray-export-group" role="group" aria-label={group.label}>
                 <div className="xray-export-group-label">{group.label}</div>
-                {group.formats.map((item) => {
-                  const disabled = mode === 'session' ? !isSessionFormat(item) : isSessionFormat(item) || !selected;
-                  const disabledReason = !selected && !isSessionFormat(item)
-                    ? 'Select a request first'
-                    : mode === 'session' && !isSessionFormat(item)
-                      ? 'Switch to Selected mode'
-                      : isSessionFormat(item) && mode === 'selected'
-                        ? 'Switch to Session mode'
-                        : undefined;
-                  return (
-                    <button
-                      key={item}
-                      disabled={disabled}
-                      className={`xray-export-format ${format === item ? 'active' : ''}`}
-                      title={disabledReason}
-                      onClick={() => setFormat(item)}
-                    >
-                      <span>{exportMeta[item].title}</span>
-                      <small>{exportMeta[item].extension}</small>
-                    </button>
-                  );
-                })}
+                <div className="xray-export-group-items">
+                  {group.formats.map((item) => {
+                    const state = formatState(item);
+                    return (
+                      <button
+                        key={item}
+                        disabled={state.disabled}
+                        aria-pressed={format === item}
+                        className={`xray-export-format ${format === item ? 'active' : ''}`}
+                        title={state.reason}
+                        aria-description={state.unavailable ?? undefined}
+                        onClick={() => setFormat(item)}
+                      >
+                        <span>{exportMeta[item].title}</span>
+                        <small>{exportMeta[item].extension}</small>
+                      </button>
+                    );
+                  })}
+                  {group.label === 'Session' && (
+                    <>
+                      <input ref={fileInputRef} type="file" accept=".har,.json,application/json" style={{ display: 'none' }} onChange={(event) => void handleImportFile(event)} />
+                      <button className="xray-export-format xray-export-import" title="Choose a HAR or XRAY session file to restore into this panel" onClick={() => fileInputRef.current?.click()}><IconFileImport {...iconProps} /><span>Import HAR / session</span></button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </nav>
@@ -152,10 +191,15 @@ export function ExportModal(): React.ReactElement | null {
               <div>
                 <h3>{meta.title}</h3>
                 <p>{meta.desc}</p>
+                <p className="xray-export-privacy">
+                  {privacyLabel}
+                  {shareSafeExport && (
+                    <> · {shareSafeExport.redactedCount} redacted · {shareSafeExport.omittedCount} omitted{format === 'session-har-safe' && shareSafeExport.omittedEntryCount ? ` · ${shareSafeExport.omittedEntryCount} entries omitted from HTTP HAR` : ''}</>
+                  )}
+                </p>
               </div>
-              <span className="xray-count-pill">{filename}</span>
             </header>
-            <pre className="xray-json xray-export-code">{text}</pre>
+            <pre className="xray-json xray-export-code">{preview}</pre>
           </section>
       </div>
     </ModalShell>

@@ -215,6 +215,14 @@
         return acc;
       }, {})
       : {},
+    // Same key/function rule as groupBy, counting instead of collecting.
+    countBy: (arr, key) => Array.isArray(arr)
+      ? arr.reduce((acc, item) => {
+        const group = typeof key === 'function' ? key(item) : item?.[key];
+        acc[group] = (acc[group] || 0) + 1;
+        return acc;
+      }, {})
+      : {},
     uniq: (arr) => [...new Set(Array.isArray(arr) ? arr : [])],
     sortBy: (arr, key) => Array.isArray(arr)
       ? [...arr].sort((a, b) => {
@@ -247,7 +255,7 @@
       return `Copied ${text.length} chars`;
     };
 
-    return {
+    const runtime = {
       $r: current,
       $res: response,
       $req: request,
@@ -307,7 +315,20 @@
       $help: HELP_TEXT,
       help: HELP_TEXT,
     };
+    // Pinned requests `a`…`f` arrive as `{ id, body }` and resolve to the parsed body,
+    // exactly like `res`. Only the six letters are accepted, so a pin can never
+    // replace a helper.
+    const pins = context.pins && typeof context.pins === 'object' ? context.pins : {};
+    for (const name of Object.keys(pins)) {
+      const pin = pins[name];
+      if (!PIN_NAME.test(name) || !pin || typeof pin !== 'object') continue;
+      if (Object.prototype.hasOwnProperty.call(runtime, name)) continue;
+      runtime[name] = parseBody(pin.body);
+    }
+    return runtime;
   }
+
+  const PIN_NAME = /^[a-f]$/;
 
   const HELP_TEXT = [
     'XRAY console helpers — the prompt evaluates against the selected request.',
@@ -336,7 +357,11 @@
     '',
     'Utilities',
     '  copy(x)               copy a value to the clipboard',
-    '  pin("name")           pin the selected entry as a variable',
+    '',
+    'Pinned requests',
+    "  a … f                 pinned requests' parsed response bodies",
+    '                        (pin via the context picker or request More actions;',
+    '                        a letter is reused after its pin is removed)',
     '',
     'Multiline: Shift+Enter. History: ArrowUp / ArrowDown.',
   ].join('\n');

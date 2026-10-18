@@ -53,22 +53,30 @@ export function usePaneSplit(options: {
   return { containerRef, paneRef, value, max, min: minList, splitStyle, setLive };
 }
 
-// Reusable draggable column divider between two panes. Clones the interaction
-// model of the panel-edge resize handle: pointer drag with capture, arrow-key
-// nudge, double-click reset, and separator semantics for assistive tech.
-// `value` must be the effective current width in px (parents resolve their
-// own "auto" default before rendering).
-export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, onCommit, onReset }: {
+// Reusable draggable divider between two panes. Clones the interaction model of
+// the panel-edge resize handle: pointer drag with capture, arrow-key nudge,
+// Home/End, double-click reset, and separator semantics for assistive tech.
+// `value` must be the effective current size (parents resolve their own "auto"
+// default before rendering). The default divider sits between COLUMNS and
+// drags along x in px; `orientation="horizontal"` sits between ROWS and drags
+// along y. `unitsPerPx` converts pointer pixels into the value's unit (e.g. a
+// percent of the container height); it defaults to 1 (px).
+export function PaneDivider({ label, value, min, max, step = 24, orientation = 'vertical', unitsPerPx, valueText, onLiveChange, onCommit, onReset }: {
   label: string;
   value: number;
   min: number;
   max: number;
   step?: number;
+  orientation?: 'vertical' | 'horizontal';
+  unitsPerPx?: () => number;
+  valueText?: (value: number) => string;
   onLiveChange(next: number): void;
   onCommit(next: number): void;
   onReset(): void;
 }): React.ReactElement {
-  const drag = React.useRef<{ startX: number; width: number; latest: number } | null>(null);
+  const horizontal = orientation === 'horizontal';
+  const coord = (event: React.PointerEvent): number => (horizontal ? event.clientY : event.clientX);
+  const drag = React.useRef<{ startX: number; width: number; latest: number; scale: number } | null>(null);
   const raf = React.useRef(0);
   const [dragging, setDragging] = React.useState(false);
   const clamp = (width: number): number => Math.max(min, Math.min(max, Math.round(width)));
@@ -79,7 +87,7 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { startX: event.clientX, width: value, latest: event.clientX };
+    drag.current = { startX: coord(event), width: value, latest: coord(event), scale: unitsPerPx?.() ?? 1 };
     setDragging(true);
     onLiveChange(value);
   }
@@ -93,12 +101,12 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
     // Record the newest position BEFORE the frame guard, so the queued frame
     // applies where the cursor is now rather than where it was on the first
     // move of the frame (matching PanelShell's edge-resize handler).
-    state.latest = event.clientX;
+    state.latest = coord(event);
     if (raf.current) return;
     raf.current = requestAnimationFrame(() => {
       raf.current = 0;
       const current = drag.current;
-      if (current) onLiveChange(clamp(current.width + (current.latest - current.startX)));
+      if (current) onLiveChange(clamp(current.width + (current.latest - current.startX) * current.scale));
     });
   }
 
@@ -109,24 +117,30 @@ export function PaneDivider({ label, value, min, max, step = 24, onLiveChange, o
     if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
     setDragging(false);
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
-    onCommit(clamp(state.width + (event.clientX - state.startX)));
+    onCommit(clamp(state.width + (coord(event) - state.startX) * state.scale));
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const [decrease, increase] = horizontal ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight'];
+    let next: number;
+    if (event.key === 'Home') next = min;
+    else if (event.key === 'End') next = max;
+    else if (event.key === decrease || event.key === increase) next = value + (event.key === increase ? step : -step);
+    else return;
     event.preventDefault();
-    onCommit(clamp(value + (event.key === 'ArrowRight' ? step : -step)));
+    onCommit(clamp(next));
   }
 
   return (
     <div
-      className={`xray-pane-divider ${dragging ? 'dragging' : ''}`}
+      className={`xray-pane-divider ${horizontal ? 'xray-pane-divider-rows' : ''} ${dragging ? 'dragging' : ''}`}
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={orientation}
       aria-label={`${label} - drag, or use arrow keys`}
       aria-valuenow={value}
       aria-valuemin={min}
       aria-valuemax={max}
+      aria-valuetext={valueText?.(value)}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

@@ -155,8 +155,13 @@ export function statusClass(status?: number): 'ok' | 'warn' | 'error' | '' {
   return '';
 }
 
-export function eventEntry(event: ConsoleEvent): XrayEntry | null {
-  return event.type === 'network' && event.args?.[0] && typeof event.args[0] === 'object'
+export function eventEntry(event: ConsoleEvent, entries?: readonly XrayEntry[]): XrayEntry | null {
+  if (event.type !== 'network') return null;
+  // Network events retain a legacy args snapshot for compatibility, but the API
+  // ledger is authoritative after response/status/timing patches. When the live
+  // entries are available, resolve by id and never render the stale snapshot.
+  if (event.entryId && entries) return entries.find((entry) => entry.id === event.entryId) || null;
+  return event.args?.[0] && typeof event.args[0] === 'object'
     ? event.args[0] as XrayEntry
     : null;
 }
@@ -169,37 +174,69 @@ function shellQuote(value: unknown): string {
   return `'${String(value ?? '').replace(/'/g, "'\\''")}'`;
 }
 
+// Fallbacks below mirror generateCurl / generateFetch / buildMock in
+// shared/console-helpers.js exactly (a unit test pins parity), so a surface that did
+// not load the shared script (or loaded it late) exports the same text.
+function requestBodyText(entry: XrayEntry): string | null {
+  const method = entry.method || 'GET';
+  if (!entry.requestBody || method === 'GET' || method === 'HEAD') return null;
+  return typeof entry.requestBody === 'string' ? entry.requestBody : JSON.stringify(entry.requestBody);
+}
+
 export function buildCurl(entry: XrayEntry | null): string {
   if (window.XRAY_ConsoleHelpers?.generateCurl) return window.XRAY_ConsoleHelpers.generateCurl(entry);
-  if (!entry) return '// Select an API request first';
-  return `curl ${shellQuote(entry.url || '')} -X ${shellQuote((entry.method || 'GET').toUpperCase())}`;
+  if (!entry) return '// No request selected';
+  let command = `curl ${shellQuote(entry.url || '')} \\\n  -X ${shellQuote(entry.method || 'GET')}`;
+  for (const [key, value] of Object.entries(entry.requestHeaders || {})) {
+    command += ` \\\n  -H ${shellQuote(`${String(key)}: ${String(value)}`)}`;
+  }
+  const body = requestBodyText(entry);
+  if (body != null) command += ` \\\n  --data-raw ${shellQuote(body)}`;
+  return command;
 }
 
 export function buildFetch(entry: XrayEntry | null): string {
   if (window.XRAY_ConsoleHelpers?.generateFetch) return window.XRAY_ConsoleHelpers.generateFetch(entry);
-  if (!entry) return '// Select an API request first';
-  return `fetch(${JSON.stringify(entry.url || '')})`;
+  if (!entry) return '// No request selected';
+  const options: Record<string, unknown> = { method: entry.method || 'GET', headers: entry.requestHeaders || {} };
+  const body = requestBodyText(entry);
+  if (body != null) options.body = body;
+  return `fetch(${JSON.stringify(entry.url || '')}, ${JSON.stringify(options, null, 2)})`;
 }
 
-export function buildMockPayload(entry: XrayEntry | null): string {
-  const mock = window.XRAY_ConsoleHelpers?.buildMock?.(entry) || entryResponse(entry);
-  return safeStringify(mock, 2, 120_000);
+export function buildMockPayload(entry: XrayEntry | null, limit = Infinity): string {
+  let mock: unknown;
+  if (window.XRAY_ConsoleHelpers?.buildMock) mock = window.XRAY_ConsoleHelpers.buildMock(entry);
+  else if (!entry || entry.type !== 'api') mock = '// Select an API request first';
+  else {
+    mock = {
+      url: entry.url || '',
+      method: (entry.method || 'GET').toUpperCase(),
+      status: Number(entry.status) || 200,
+      response: parseBody(entry.responseDecrypted || entry.responseRaw),
+    };
+  }
+  return safeStringify(mock, 2, limit);
 }
 
 export async function copyText(text: string): Promise<void> {
-  try {
-    await navigator.clipboard?.writeText?.(text);
-  } catch {}
+  if (typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') {
+    throw new Error('Clipboard is unavailable.');
+  }
+  await navigator.clipboard.writeText(text);
 }
 
 export function downloadText(filename: string, text: string, mime = 'text/plain;charset=utf-8'): void {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function schema(value: unknown): unknown {

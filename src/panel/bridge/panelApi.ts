@@ -23,7 +23,11 @@ function setOpenState(open: boolean): void {
 function focusPanelInput(deps: PanelApiDeps): void {
   window.setTimeout(() => {
     const root = deps.getSearchRoot();
-    const target = root.querySelector<HTMLElement>('.xray-prompt input, .xray-input, button, [tabindex]:not([tabindex="-1"])');
+    // The selected tab is the panel's one roving tab stop: a sensible landing spot that
+    // is not an unrelated header control (the runtime-diagnostics button used to be the
+    // first button in document order and received the focus ring on every open).
+    const target = root.querySelector<HTMLElement>('.xray-tab[aria-selected="true"]')
+      ?? root.querySelector<HTMLElement>('.xray-prompt input, .xray-input, button, [tabindex]:not([tabindex="-1"])');
     target?.focus?.();
   }, 0);
 }

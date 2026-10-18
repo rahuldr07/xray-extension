@@ -16,6 +16,8 @@ const {
   exportText,
   filenameForExport,
   mimeForExport,
+  buildShareSafeSession,
+  buildShareSafeExport,
 } = E;
 const { parseImport } = I;
 
@@ -94,8 +96,15 @@ test('exportText: entry-scoped formats refuse a log entry or a null selection, s
 test('exportText curl/fetch use the local fallback when XRAY_ConsoleHelpers is absent', () => {
   const entry = richEntry();
   // Single-quoted: a double-quoted shell word still evaluates $(...) and backticks.
-  assert.equal(exportText(entry, [entry], 'curl'), "curl 'https://api.example.com/v1/orders?page=2' -X 'POST'");
-  assert.equal(exportText(entry, [entry], 'fetch'), 'fetch("https://api.example.com/v1/orders?page=2")');
+  // E3: the fallback now equals shared generateCurl/generateFetch (method, headers, body).
+  const curl = exportText(entry, [entry], 'curl');
+  assert.match(curl, /^curl 'https:\/\/api\.example\.com\/v1\/orders\?page=2' \\\n {2}-X 'POST'/);
+  assert.match(curl, /-H 'content-type: application\/json'/);
+  assert.match(curl, /--data-raw '/);
+  const fetchText = exportText(entry, [entry], 'fetch');
+  assert.match(fetchText, /^fetch\("https:\/\/api\.example\.com\/v1\/orders\?page=2", \{/);
+  assert.match(fetchText, /"method": "POST"/);
+  assert.match(fetchText, /"body":/);
 });
 
 test('exportText schema / typescript / zod all describe the same inferred shape', () => {
@@ -136,9 +145,11 @@ test('exportText raw prefers the decrypted body and passes strings through untou
   assert.equal(exportText(text, [text], 'raw'), 'plain text body');
 });
 
-test('exportText mock falls back to the parsed response body', () => {
+test('exportText mock matches the shared buildMock shape', () => {
   const entry = richEntry();
-  assert.deepEqual(JSON.parse(exportText(entry, [entry], 'mock')), { id: 7, items: [{ sku: 'A1', qty: 2 }], ok: true });
+  const mock = JSON.parse(exportText(entry, [entry], 'mock'));
+  assert.deepEqual(mock.response, { id: 7, items: [{ sku: 'A1', qty: 2 }], ok: true });
+  assert.equal(mock.status, 201);
 });
 
 test('buildAxios emits a valid options object', () => {
@@ -161,7 +172,8 @@ test('exportText jest / msw / playwright embed the captured status, url and body
   const entry = richEntry();
   for (const format of ['jest', 'msw', 'playwright']) {
     const text = exportText(entry, [entry], format);
-    assert.ok(text.includes('https://api.example.com/v1/orders?page=2'), `${format} must carry the url`);
+    // E7: MSW matches on path, so its handler URL drops the query string.
+    assert.ok(text.includes(format === 'msw' ? 'https://api.example.com/v1/orders"' : 'https://api.example.com/v1/orders?page=2'), `${format} must carry the url`);
     assert.ok(text.includes('201'), `${format} must carry the status`);
   }
   assert.match(exportText(entry, [entry], 'msw'), /http\.post\(/);
@@ -441,4 +453,115 @@ test('FIXED: a body-less response exports as an empty HAR body, not the string "
     assert.equal(content.text, '');
     assert.equal(content.size, 0);
   }
+});
+
+// Share-safe exports must never fall back to a raw captured value.
+const privateEntries = () => [
+  apiEntry({ id: 'http', method: 'POST', url: 'https://private-user:private-pass@api.example.com/orders?qs=private-query#private-fragment',
+    urlPath: '/orders?qs=private-path-query',
+    requestHeaders: { Authorization: 'Bearer private-auth', Cookie: 'sid=private-cookie', 'X-Custom-Credential': 'private-custom', 'Content-Type': 'application/json' },
+    responseHeaders: { 'Set-Cookie': 'private-set-cookie', Location: 'https://x.test/?qs=private-location' },
+    requestBody: JSON.stringify({ sku: 'A1', qty: 2, nested: { api_key: 'private-key', password: 'private-password', link: '/next?qs=private-nested-query' } }),
+    responseRaw: JSON.stringify({ ok: true, token: 'private-response-token', ok2: true }),
+    // E4: diagnostic names are only dropped as TOP-LEVEL entry fields, never inside bodies.
+    error: { message: 'private-provider-error' }, providerConfig: { endpoint: 'private-provider-config' },
+    responseDecrypted: null, runtime: { lastError: 'private-runtime' }, parseToken: 'private-parse-token', jwtLenses: [{ payload: 'private-jwt' }],
+  }),
+  apiEntry({ id: 'ws', source: 'ws', method: 'WS', url: 'wss://x.test/socket?qs=private-ws-query',
+    wsFrames: [{ dir: 'in', ts: 1, size: 20, preview: 'private-unstructured-frame' }], responseRaw: 'private-stream-body' }),
+  apiEntry({ id: 'sse', source: 'sse', method: 'SSE', url: 'https://x.test/events',
+    wsFrames: [{ dir: 'in', ts: 2, size: 20, preview: '{"event":"tick","secret":"private-sse-secret"}' }] }),
+  logEntry({ id: 'log', message: 'provider failed: private-unstructured-error', args: [{ ok: true, password: 'private-log-password' }] }),
+];
+
+test('share-safe projection detaches ordinary fields and removes credentials, query values, raw text and diagnostics', () => {
+  assert.equal(typeof buildShareSafeSession, 'function');
+  const input = privateEntries();
+  const before = JSON.stringify(input);
+  const result = buildShareSafeSession(input);
+  const text = JSON.stringify(result);
+  assert.doesNotMatch(text, /private-/);
+  assert.deepEqual(Object.keys(result).sort(), ['entries', 'omittedCount', 'redactedCount']);
+  assert.equal(result.entries.length, 4);
+  assert.equal(result.entries[0].requestBody.sku, 'A1');
+  assert.equal(result.entries[0].requestBody.qty, 2);
+  assert.equal(result.entries[0].response.ok, true);
+  assert.equal(result.entries[0].requestHeaders['Content-Type'], 'application/json');
+  assert.equal(result.entries[0].requestHeaders.Authorization, '[REDACTED]');
+  assert.ok(!('responseRaw' in result.entries[0]));
+  assert.ok(!('runtime' in result.entries[0]));
+  assert.ok(!('parseToken' in result.entries[0]));
+  assert.ok(!('jwtLenses' in result.entries[0]));
+  assert.equal(result.entries[1].wsFrames[0].dir, 'in');
+  assert.equal(JSON.parse(result.entries[2].wsFrames[0].preview).event, 'tick');
+  assert.ok(result.redactedCount > 0);
+  assert.ok(result.omittedCount > 0);
+  result.entries[0].requestBody.sku = 'changed';
+  assert.equal(JSON.stringify(input), before, 'projection must not mutate or retain input objects');
+});
+
+test('share-safe projection bounds hostile bodies, keys, frames, entries and never invokes accessors or toJSON', () => {
+  let reads = 0;
+  const hostile = { ok: true, toJSON() { reads++; throw Error('private-toJSON'); } };
+  Object.defineProperty(hostile, 'getter', { enumerable: true, get() { reads++; throw Error('private-getter'); } });
+  const cycle = {}; cycle.self = cycle;
+  const source = apiEntry({ requestBody: hostile, responseRaw: cycle, wsFrames: Array.from({ length: 80 }, () => ({ dir: 'in', ts: 1, size: 30, preview: 'private-frame' })) });
+  Object.defineProperty(source, 'error', { enumerable: true, get() { reads++; throw Error('private-entry-getter'); } });
+  const cases = [source, apiEntry({ responseRaw: 'private-oversized'.repeat(30_000) }), apiEntry({ responseRaw: { ['private-key'.repeat(100)]: 'private-value' } }), apiEntry({ responseRaw: Array(10_000).fill('private-array') })];
+  const result = buildShareSafeSession(cases);
+  assert.equal(reads, 0);
+  assert.doesNotMatch(JSON.stringify(result), /private-/);
+  assert.ok(result.entries[0].wsFrames.length <= 50);
+  assert.ok(JSON.stringify(result).length < 100_000);
+  assert.ok(result.omittedCount > 0);
+  const bulk = buildShareSafeSession(Array.from({ length: 600 }, (_, i) => apiEntry({ id: `bulk-${i}` })));
+  assert.equal(bulk.entries.length, 500);
+  assert.ok(bulk.omittedCount >= 100);
+});
+
+test('share-safe JSON and HTTP HAR use the projection with aggregate receipts and generic filenames', () => {
+  const input = privateEntries();
+  for (const format of ['session-json-safe', 'session-har-safe']) {
+    assert.ok(exportFormats.includes(format));
+    const result = buildShareSafeExport(input, format);
+    assert.equal(exportText(input[0], input, format), result.text);
+    assert.doesNotMatch(result.text, /private-/);
+    assert.equal(mimeForExport(format), 'application/json;charset=utf-8');
+    assert.doesNotMatch(filenameForExport(input[0], format), /private|orders/);
+    assert.ok(result.redactedCount > 0);
+    assert.ok(result.omittedCount > 0);
+    const imported = parseImport(result.text);
+    assert.equal(imported.entries.length, format === 'session-json-safe' ? 4 : 1);
+    if (format === 'session-har-safe') {
+      assert.equal(result.omittedEntryCount, 3, 'two streams and one log cannot be represented in HTTP HAR');
+      const har = JSON.parse(result.text);
+      assert.equal(har.log.entries.length, 1);
+      assert.equal(har.log.entries[0].request.method, 'POST');
+      assert.equal(JSON.parse(har.log.entries[0].response.content.text).ok, true);
+    }
+  }
+  assert.match(exportText(null, input, 'session-json'), /private-auth/, 'local JSON stays full fidelity');
+  assert.equal(JSON.parse(exportText(null, input, 'session-har')).log.entries.length, 1, 'E5: local HAR skips WebSocket/SSE entries like share-safe');
+});
+
+test('HTTP-only share-safe HAR recognizes stream protocol, source, method and event-stream content type', () => {
+  const entries = [apiEntry(), ...[
+    { source: 'ws' }, { source: 'sse' }, { method: 'WS' }, { method: 'SSE' }, { url: 'wss://example.test/x' },
+    { contentType: 'text/event-stream' }, { responseHeaders: { 'Content-Type': 'text/event-stream; charset=utf-8' } },
+  ].map(fields => apiEntry(fields))];
+  const result = buildShareSafeExport(entries, 'session-har-safe');
+  assert.equal(result.omittedEntryCount, 7);
+  assert.equal(JSON.parse(result.text).log.entries.length, 1);
+});
+
+test('share-safe projection redacts password, key and auth synonyms without over-redacting lookalikes', () => {
+  const body = { user: 'a', pass: 'private-pass', pwd: 'private-pwd', accessKey: 'private-ak', client_key: 'private-ck', auth: 'private-auth', otp: 'private-otp', 'x-csrf-token': 'private-csrf', passcode: 'private-code', author: 'Ann', passenger: 'Bob', compass: 'N' };
+  const result = buildShareSafeSession([apiEntry({ method: 'post', requestBody: body })]);
+  const text = JSON.stringify(result);
+  assert.doesNotMatch(text, /private-/);
+  const out = result.entries[0].requestBody;
+  assert.equal(out.author, 'Ann');
+  assert.equal(out.passenger, 'Bob');
+  assert.equal(out.compass, 'N');
+  assert.equal(result.entries[0].method, 'POST', 'lowercase methods are normalized, not rewritten to GET');
 });

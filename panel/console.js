@@ -96,7 +96,41 @@ window.XRAY_Console = (() => {
   // with full bodies cost megabytes per Run. Helpers only need full data for
   // the current entry and its same-endpoint neighbours (res/req/prev/next/
   // diff); the rest travels as slim projections for $all()/$errors()/$slow().
-  function _contextPayload() {
+  // Saved variables (`temp1`, `$_`) can each be a large result. Only ship the ones
+  // the code actually names; an identifier token is enough (over-inclusion from a
+  // string literal or comment is harmless). Without `code` (runtime preview) the
+  // whole scope is included.
+  function _referencedNames(code) {
+    return typeof code === 'string' ? new Set(code.match(/[$A-Za-z_][\w$]*/g) || []) : null;
+  }
+
+  function _referencedScope(code) {
+    const names = _referencedNames(code);
+    if (!names) return _scope;
+    const scope = {};
+    for (const name of Object.keys(_scope)) {
+      if (names.has(name)) scope[name] = _scope[name];
+    }
+    return scope;
+  }
+
+  // Pinned requests (`a`…`f`) travel only when the code names them (same identifier
+  // rule as the scope), and only as `{ id, body }` — never the full entry with its
+  // headers, cookies or token lenses. The panel store owns the pins and re-sends them
+  // whenever a pinned entry is patched or evicted, so what is held here is current;
+  // an evicted pin is already gone, never substituted.
+  function _referencedPins(code) {
+    const names = _referencedNames(code);
+    const pins = {};
+    for (const name of Object.keys(_pins)) {
+      if (names && !names.has(name)) continue;
+      const entry = _pins[name];
+      pins[name] = { id: entry.id, body: entry.responseDecrypted || entry.responseRaw || null };
+    }
+    return pins;
+  }
+
+  function _contextPayload(code) {
     const all = _entries();
     const current = _currentEntry;
     const windowed = all.slice(-MAX_CONTEXT_ENTRIES);
@@ -119,8 +153,8 @@ window.XRAY_Console = (() => {
     return {
       currentEntry: current,
       entries,
-      scope: _scope,
-      pins: _pins,
+      scope: _referencedScope(code),
+      pins: _referencedPins(code),
     };
   }
 
@@ -129,7 +163,7 @@ window.XRAY_Console = (() => {
     if (!trimmed) return { type: 'empty' };
     init();
     _saveHistory(trimmed);
-    const context = _contextPayload();
+    const context = _contextPayload(trimmed);
     const privileged = await _executePrivileged(trimmed, context);
     if (privileged) return privileged;
     // C-1: the MAIN-world fallback used to run here. It posted the entire console
@@ -192,16 +226,22 @@ window.XRAY_Console = (() => {
     return _scope[name];
   }
 
-  function pin(name, entry = _currentEntry) {
-    if (!entry) return 'No request selected';
-    if (!/^[A-Za-z_$][\w$]*$/.test(name || '')) return 'Usage: pin("name")';
-    _pins[name] = entry;
-    return `Pinned as ${name}`;
+  // The panel store owns pins (session-only, `a`…`f`); it replaces them wholesale.
+  function setPins(pins) {
+    _pins = {};
+    for (const [name, entry] of Object.entries(pins || {})) {
+      if (/^[a-f]$/.test(name) && entry && typeof entry === 'object') _pins[name] = entry;
+    }
   }
 
   function clearScope() {
     _scope = {};
     _pins = {};
+  }
+
+  // Saved variables only (temp1…, $_); pins are request references and survive.
+  function clearVariables() {
+    _scope = {};
   }
 
   function getScope() {
@@ -219,8 +259,9 @@ window.XRAY_Console = (() => {
     getHistory,
     setVar,
     getVar,
-    pin,
+    setPins,
     clearScope,
+    clearVariables,
     getScope,
   };
 })();

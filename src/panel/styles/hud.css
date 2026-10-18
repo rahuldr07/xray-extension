@@ -6,7 +6,7 @@
   border: 1px solid var(--xray-surface2);
   border-radius: var(--xray-radius, 10px);
   background: var(--xray-bg);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, .38);
+  box-shadow: 0 18px 60px var(--xray-shadow);
 }
 
 #xray-hud-root,

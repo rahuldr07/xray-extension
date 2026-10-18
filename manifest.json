@@ -1,16 +1,14 @@
 {
   "manifest_version": 3,
   "name": "XRAY \u2014 API Operations Console",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Capture, understand, and bend API traffic: fetch/XHR/WebSocket/GraphQL capture, mock rules, replay, schema-drift detection, JWT decoding, and BYOK AI explanations.",
   "permissions": [
     "storage",
     "scripting",
     "activeTab",
     "clipboardWrite",
-    "windows"
-  ],
-  "optional_permissions": [
+    "windows",
     "debugger"
   ],
   "host_permissions": [

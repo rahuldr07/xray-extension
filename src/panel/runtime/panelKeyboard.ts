@@ -1,6 +1,28 @@
 import { usePanelStore } from '../store';
+import { closeTopmostDialog } from '../components/common/ModalShell';
 
 let installed = false;
+
+// Non-modal layers that own Escape below the modal stack and above the panel itself
+// (the Console inspector). Each handler closes its layer and returns true, or returns
+// false to pass. Menus need no entry: they claim Escape earlier, in window capture.
+const escapeLayers: Array<() => boolean> = [];
+
+/** Register an Escape layer; returns the unregister function. Last registered closes first. */
+export function pushEscapeLayer(handler: () => boolean): () => void {
+  escapeLayers.push(handler);
+  return () => {
+    const index = escapeLayers.lastIndexOf(handler);
+    if (index >= 0) escapeLayers.splice(index, 1);
+  };
+}
+
+function closeEscapeLayer(): boolean {
+  for (let i = escapeLayers.length - 1; i >= 0; i--) {
+    if (escapeLayers[i]()) return true;
+  }
+  return false;
+}
 
 export interface PanelKeyboardOptions {
   /**
@@ -60,8 +82,8 @@ function isEditingText(root: Document | ShadowRoot): boolean {
  *
  * This lives here rather than in main.tsx because the pop-out window mounts through
  * window-main.tsx, which never called main.tsx's copy — so Ctrl+K and Ctrl+Shift+F were
- * simply dead in the pop-out. Escape appeared to work there only because ModalShell
- * installs its own handler, which covers modals but none of the layers below.
+ * simply dead in the pop-out. ModalShell registers its close callback, but this
+ * handler owns Escape for both the rendered modal stack and the layers below.
  */
 export function installPanelKeyboard({ dismissible, getRoot }: PanelKeyboardOptions): void {
   // init() is re-entrant, and the pop-out re-renders on theme changes; a second
@@ -92,15 +114,23 @@ export function installPanelKeyboard({ dismissible, getRoot }: PanelKeyboardOpti
         usePanelStore.getState().setGlobalSearchOpen(true);
       }
       if (key === 'escape') {
+        if (closeTopmostDialog(getRoot?.() ?? document)) return;
+        // State fallback for a requested modal whose React commit has not run yet.
         if (store.pendingConfirmation) store.closeConfirmation();
         else if (store.exportOpen) store.setExportOpen(false);
         else if (store.commandOpen) store.setCommandOpen(false);
         else if (store.globalSearchOpen) store.setGlobalSearchOpen(false);
         else if (store.settingsOpen) store.setSettingsOpen(false);
         else if (store.replayEditorEntry) store.closeReplayEditor();
+        else if (store.explainEntry) store.closeExplain();
+        else if (store.findingSynthesisIds) store.closeFindingSynthesis();
+        else if (store.compareOpen) store.closeComparison();
+        // A registered layer (the Console inspector) closes before drawers and the panel.
+        else if (closeEscapeLayer()) return;
         // The detail drawer closes before the panel itself does (and this is the
         // only Escape layer that also works in devtools/window mode).
         else if (store.apiDetailOpen && store.activeTab === 'api') store.setApiDetailOpen(false);
+        else if (store.logDetailOpen && store.activeTab === 'logs' && store.entries.some((entry) => entry.id === store.selectedId && entry.type === 'log')) store.setLogDetailOpen(false);
         // Nothing layered on top: Escape dismisses the docked side panel itself.
         // Devtools and pop-out views persist — they aren't dismissible this way.
         //

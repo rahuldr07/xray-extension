@@ -3,14 +3,14 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { read } = require('./helpers/source');
+const { read, readConsoleSources } = require('./helpers/source');
 
 test('React detail parity logic is typed outside the component tree', () => {
   const app = read('src/panel/App.tsx');
   const detailModel = read('src/panel/models/detail.ts');
   const requestDetail = read('src/panel/components/detail/RequestDetail.tsx');
   const entriesWorkspace = read('src/panel/components/api/EntriesWorkspace.tsx');
-  const consoleWorkspace = read('src/panel/components/console/ConsoleWorkspace.tsx');
+  const consoleWorkspace = readConsoleSources();
   const jsonView = read('src/panel/components/detail/JsonView.tsx');
   const emptyState = read('src/panel/components/common/EmptyState.tsx');
 
@@ -25,13 +25,15 @@ test('React detail parity logic is typed outside the component tree', () => {
   assert.match(detailModel, /Object\.keys\(row\)\.slice\(0, 20\)/);
   assert.match(detailModel, /export function vizSummary/);
   assert.match(detailModel, /schema\(value\)/);
-  assert.match(requestDetail, /detailValue\(entry, detailTab\)/);
+  assert.match(requestDetail, /detailValue\(entry,/);
   assert.match(requestDetail, /gridRows\(value\)/);
   assert.match(requestDetail, /buildVizSpec\(value\)/);
   assert.match(jsonView, /safeStringify\(value\)/);
   assert.match(emptyState, /export function EmptyState/);
   assert.match(entriesWorkspace, /import \{ RequestDetail \}/);
-  assert.match(consoleWorkspace, /import \{ RequestDetail \}/);
+  // Request detail renders in API only; Console no longer owns a request ledger.
+  assert.doesNotMatch(consoleWorkspace, /import \{ RequestDetail \}/);
+  assert.match(consoleWorkspace, /aria-label="Console request context"/);
   assert.doesNotMatch(app, /function buildTypeScriptShape/);
   assert.doesNotMatch(app, /function RequestDetail/);
   assert.doesNotMatch(app, /function JsonView/);
@@ -46,6 +48,7 @@ test('React export parity logic is isolated and keeps old export formats', () =>
   for (const format of ['json', 'curl', 'fetch', 'axios', 'schema', 'mock', 'typescript', 'zod', 'jest', 'msw', 'playwright', 'session-json', 'session-csv', 'session-har']) {
     assert.match(exportModel, new RegExp("'" + format + "'"));
   }
+  for (const format of ['session-json-safe', 'session-har-safe']) assert.match(exportModel, new RegExp("'" + format + "'"));
   // Playwright API test generation dispatches through exportText like the others
   assert.match(exportModel, /function buildPlaywright/);
   assert.match(exportModel, /buildPlaywright\(entry\)/);
@@ -63,19 +66,26 @@ test('React export parity logic is isolated and keeps old export formats', () =>
   assert.match(exportModel, /buildFetch\(entry\)/);
   assert.match(exportModel, /buildAxios\(entry\)/);
   assert.match(exportModel, /schema\(entryResponse\(entry\)\)/);
-  assert.match(exportModel, /buildMock\?\.\(entry\)/);
-  assert.match(exportModel, /safeStringify\(entry \? \{ entry, response: entryResponse\(entry\) \} : \{ entries \}/);
+  assert.match(exportModel, /buildMockPayload\(entry\)/);
+  assert.match(exportModel, /safeStringify\(\{ entry: rest, response: entryResponse\(entry\) \}/);
   assert.match(exportModel, /buildSessionCsv\(entries\)/);
   assert.match(exportModel, /buildSessionHar\(entries\)/);
   assert.match(exportModal, /exportText\(selectedForExport, entries, format\)/);
-  assert.match(exportModal, /exportGroups\.map/);
+  assert.match(exportModal, /exportGroups\.filter/);
   assert.match(exportModal, /exportMeta\[format\]/);
   assert.match(exportModal, /filenameForExport\(selectedForExport, format\)/);
   assert.match(exportModal, /copyText\(text\)/);
   assert.match(exportModel, /export function mimeForExport/);
-  assert.match(exportModal, /downloadText\(filename, text, mimeForExport\(format\)\)/);
+  assert.match(exportModal, /downloadText\(exportFilename\(\), text, mimeForExport\(format\)\)/);
   assert.match(exportModal, /mode === 'selected'/);
   assert.match(exportModal, /mode === 'session'/);
+  assert.match(exportModal, /Share-safe/);
+  assert.match(exportModal, /Local\/private/);
+  assert.match(exportModal, /redactedCount/);
+  assert.match(exportModal, /omittedCount/);
+  assert.match(exportModal, /omittedEntryCount/);
+  assert.match(exportModal, /shareSafeExport/);
+  assert.match(exportModal, /format === 'session-har-safe' && shareSafeExport\.omittedEntryCount/);
   assert.match(exportModal, /insertConsoleCommand\(text\)/);
   assert.match(exportModal, /saveSnippet/);
   assert.match(exportModal, /showToast/);
@@ -96,7 +106,7 @@ test('React response detail has native contextual operations, not a separate cop
   for (const label of ['Schema', 'Table', 'Visualize', 'Compare Previous', 'Mock', 'Copy cURL', 'Copy fetch', 'Send to Console', 'Save Snippet', 'Export', 'Related Errors', 'Similar Calls']) {
     assert.match(operations, new RegExp(label));
   }
-  assert.match(detail, /insertConsoleCommand\('res'\)/);
+  assert.match(detail, /insertConsoleCommand\(/);
   assert.match(detail, /saveSnippet\(/);
   assert.match(detail, /copyActiveValue/);
   assert.match(detail, /setExportOpen\(true\)/);
@@ -111,9 +121,8 @@ test('React response detail renders native smart operations and bounded schema d
 
   // reads the fresh array via getState so streaming commits don't re-run the
   // operations pipeline while the drawer is open
-  assert.match(detail, /getResponseOperations\(entry, usePanelStore\.getState\(\)\.entries\)/);
-  assert.match(detail, /xray-smart-ops/);
-  assert.match(detail, /xray-operation-groups/);
+  assert.match(detail, /getResponseOperations\(entry, usePanelStore\.getState\(\)\.entries, slowThresholdMs\)/);
+  assert.match(detail, /Recommended actions/);
   assert.match(detail, /runOperation/);
   assert.match(detail, /setDetailView\(operation\.view\)/);
   assert.match(detail, /insertConsoleCommand\(operation\.command\)/);
@@ -123,8 +132,8 @@ test('React response detail renders native smart operations and bounded schema d
   assert.match(detail, /operation\.command \?\? operation\.lazyCommand\?\.\(\)/);
   assert.match(operations, /lazyCommand: \(\) => safeStringify\(response, 2, 500_000\)/);
   assert.match(detail, /setExportOpen\(true\)/);
-  assert.match(detail, /detailView === 'schema'/);
-  assert.match(detail, /detailView === 'diff'/);
+  assert.match(detail, /bodyView === 'schema'/);
+  assert.match(detail, /bodyView === 'diff'/);
   assert.match(operations, /view:\s*'schema'/);
   assert.match(operations, /view:\s*'diff'/);
   assert.doesNotMatch(detail, /dangerouslySetInnerHTML|innerHTML/);

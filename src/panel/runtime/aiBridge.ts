@@ -1,6 +1,7 @@
 import type { AiSettings, XrayEntry } from '../types';
 import { entryPath } from '../models/entries';
-import { entryRequest, entryResponse, safeStringify } from '../utils';
+import { aiDestination, prepareAiContext } from '../models/aiContext';
+import type { AiDestination } from '../models/aiContext';
 
 export interface AiResult {
   ok: boolean;
@@ -8,36 +9,12 @@ export interface AiResult {
   error?: string;
 }
 
-// Build a compact, privacy-conscious prompt describing the request. Sensitive
-// headers are already redacted upstream by the interceptor.
+// Compatibility helper uses the same conservative, body-free local projection.
 export function buildExplainPrompt(entry: XrayEntry, related: XrayEntry[]): string {
-  const context = {
-    method: entry.method,
-    url: entry.url || entry.urlPath,
-    status: entry.status,
-    durationMs: Math.round(Number(entry.duration) || 0),
-    graphql: entry.graphql || undefined,
-    requestHeaders: entry.requestHeaders,
-    requestBody: entryRequest(entry),
-    response: entryResponse(entry),
-    recentSameEndpoint: related.slice(0, 4).map((item) => ({
-      status: item.status,
-      durationMs: Math.round(Number(item.duration) || 0),
-      timestamp: item.timestamp,
-    })),
-  };
-  return [
-    'You are an API debugging assistant embedded in a browser devtools extension.',
-    'Analyze this captured HTTP request and its response. Be concise and specific.',
-    'Explain: (1) what this call does, (2) whether it succeeded or failed and why,',
-    '(3) anything notable in the payload or timing, and (4) one concrete next step for the developer.',
-    '',
-    'Captured request:',
-    safeStringify(context, 2, 40_000),
-  ].join('\n');
+  return prepareAiContext(entry, related, { headers: false, requestBody: false, responseBody: false }, aiDestination({ provider: 'anthropic', model: '', baseUrl: '', authHeader: '', authPrefix: '' })).prompt;
 }
 
-export async function requestAiExplanation(settings: AiSettings, prompt: string): Promise<AiResult> {
+export async function requestAiExplanation(settings: AiSettings, prompt: string, expectedDestination: AiDestination): Promise<AiResult> {
   if (!settings.apiKey) {
     return { ok: false, error: 'Add an API key in Settings → AI to enable explanations.' };
   }
@@ -51,19 +28,19 @@ export async function requestAiExplanation(settings: AiSettings, prompt: string)
   }
   return new Promise<AiResult>((resolve) => {
     try {
-      // C-12: the prompt only. The API key stays in chrome.storage.local, where the
+      // C-12: prompt and noncredential destination only. The key stays in storage; the
       // service worker reads it directly, instead of travelling through
       // isolated-world memory on every page just to be handed straight back.
-      sendMessage({ type: 'xray:ai-explain', prompt }, (response) => {
+      sendMessage({ type: 'xray:ai-explain', prompt, expectedDestination: aiDestination(expectedDestination) }, (response) => {
         const err = runtime.lastError;
         if (err) {
-          resolve({ ok: false, error: err.message || 'AI request failed' });
+          resolve({ ok: false, error: 'AI runtime request failed. Try again explicitly.' });
           return;
         }
         resolve((response as AiResult) || { ok: false, error: 'No response from AI provider.' });
       });
-    } catch (error) {
-      resolve({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    } catch {
+      resolve({ ok: false, error: 'AI runtime request failed. Try again explicitly.' });
     }
   });
 }

@@ -57,12 +57,83 @@
     return entry;
   }
 
+  // C1: until the first capture config arrives the interceptor does not know which
+  // transports the user switched off, so completed captures wait in a bounded buffer
+  // (oldest dropped) instead of reaching the panel. The first config flushes only the
+  // enabled transports; with no config within PENDING_FLUSH_MS the defaults (all on)
+  // apply, which is the behaviour for users who never changed a toggle.
+  const MAX_PENDING_CAPTURES = 50;
+  const PENDING_FLUSH_MS = 3000;
+  const MAX_SUPPRESSED_IDS = 200;
+  let _configured = false;
+  let _pending = [];
+  let _pendingTimer = null;
+  const _suppressedIds = new Set();
+
+  function _transportKey(entry) {
+    const source = entry && entry.source;
+    if (source === 'xhr') return 'captureXhr';
+    if (source === 'ws' || source === 'sse') return 'captureWs';
+    return 'captureFetch';
+  }
+
+  // True while a capture for this transport would be kept (or held for the config).
+  function _captureOn(key) {
+    return !_configured || _config[key] === true;
+  }
+
+  function _suppress(id) {
+    if (typeof id !== 'string') return;
+    _suppressedIds.add(id);
+    if (_suppressedIds.size > MAX_SUPPRESSED_IDS) _suppressedIds.delete(_suppressedIds.values().next().value);
+  }
+
+  function _post(entry, update) {
+    try {
+      window.postMessage(update
+        ? { __xray_capture__: true, token: _bridgeToken, update: true, entry: _scrubEntry(entry) }
+        : { __xray_capture__: true, token: _bridgeToken, entry: _scrubEntry(entry) }, '*');
+    } catch { /* never throw into the page */ }
+  }
+
+  function _endPendingWindow() {
+    if (_pendingTimer) { clearTimeout(_pendingTimer); _pendingTimer = null; }
+    const held = _pending;
+    _pending = [];
+    _configured = true;
+    const flushedIds = new Set();
+    for (const item of held) {
+      if (item.update) {
+        if (flushedIds.has(item.entry.id)) _post(item.entry, true);
+        continue;
+      }
+      if (_config[_transportKey(item.entry)] === true) {
+        flushedIds.add(item.entry.id);
+        _post(item.entry, false);
+      } else {
+        _suppress(item.entry.id);
+      }
+    }
+  }
+
+  _pendingTimer = setTimeout(() => { _pendingTimer = null; if (!_configured) _endPendingWindow(); }, PENDING_FLUSH_MS);
+
+  function _hold(entry, update) {
+    _pending.push({ entry, update });
+    if (_pending.length > MAX_PENDING_CAPTURES) _pending.shift();
+  }
+
+  // The capture guard only skips emitting: rules and the real request are unaffected.
   function _emit(entry) {
-    window.postMessage({ __xray_capture__: true, token: _bridgeToken, entry: _scrubEntry(entry) }, '*');
+    if (!_configured) { _hold(entry, false); return; }
+    if (!_config[_transportKey(entry)]) { _suppress(entry && entry.id); return; }
+    _post(entry, false);
   }
 
   function _emitUpdate(entry) {
-    window.postMessage({ __xray_capture__: true, token: _bridgeToken, update: true, entry: _scrubEntry(entry) }, '*');
+    if (!_configured) { _hold(entry, true); return; }
+    if (entry && _suppressedIds.has(entry.id)) return;
+    _post(entry, true);
   }
 
   // ── config bridge (capture toggles + traffic rules from the panel) ─────────
@@ -125,6 +196,11 @@
     if (typeof config.captureWs === 'boolean') _config.captureWs = config.captureWs;
     if (Array.isArray(config.rules)) {
       _config.rules = config.rules.slice(0, MAX_RULES).map(_sanitizeRule).filter(Boolean);
+    }
+    // A rules-only config says nothing about the toggles, so it must not end the
+    // pending window (the toggles could still be off); a toggle-bearing one does.
+    if (!_configured && ['captureFetch', 'captureXhr', 'captureWs'].some((key) => typeof config[key] === 'boolean')) {
+      _endPendingWindow();
     }
   });
 
@@ -483,13 +559,40 @@
   // re-wrapped fetch after document_start read the raw restored Authorization value
   // on every replay. Calling our own wrapper keeps replays captured and diffed while
   // taking the page's wrapper out of the path.
+  // Capture is off for fetch: skip every capture-side cost, but still honour rules.
+  async function _ruleOnlyFetch(args) {
+    if (!_config.rules.length) return _origFetch.apply(this, args);
+    let url = '', method = 'GET';
+    try {
+      const req = args[0];
+      const init = args[1] || {};
+      if (req instanceof Request) {
+        url = req.url;
+        method = (init.method || req.method || 'GET').toUpperCase();
+      } else {
+        url = _resolveUrl(String(req));
+        method = (init.method || 'GET').toUpperCase();
+      }
+    } catch { return _origFetch.apply(this, args); }
+    const rule = _matchRule(method, url);
+    if (rule && rule.action.type === 'fail') throw new TypeError(`Failed to fetch (XRAY rule "${rule.id}")`);
+    if (rule && rule.action.type === 'mock') {
+      if (rule.action.delayMs) await _sleep(rule.action.delayMs);
+      const status = rule.action.status;
+      const headers = Object.assign({ 'content-type': 'application/json' }, rule.action.headers);
+      return new Response(status === 204 || status === 205 || status === 304 ? null : (rule.action.body || ''), { status, headers });
+    }
+    if (rule && rule.action.type === 'delay' && rule.action.delayMs) await _sleep(rule.action.delayMs);
+    return _origFetch.apply(this, args);
+  }
+
   const _xrayFetch = async function (...args) {
     // Consume the replay mark before the capture guard: if fetch capture is
     // off, the mark must still be cleared or it would tag the next captured
     // request as a replay.
     const replayMark = _replayMark;
     _replayMark = null;
-    if (!_config.captureFetch) return _origFetch.apply(this, args);
+    if (!_captureOn('captureFetch')) return _ruleOnlyFetch.call(this, args);
     const id    = _uid();
     const start = Date.now();
     const initiator = _initiatorStack();
@@ -624,10 +727,10 @@
 
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     _clearMockShadow(this);
-    if (!_config.captureXhr) return _origXHROpen.apply(this, [method, url, ...rest]);
+    // Always tracked: rules need the method/URL even when capture is off.
     this.__xr = {
       id: _uid(), method: (method || 'GET').toUpperCase(), url: _resolveUrl(String(url)),
-      reqHeaders: {}, start: 0, initiator: _initiatorStack(),
+      reqHeaders: {}, start: 0, initiator: _captureOn('captureXhr') ? _initiatorStack() : null,
       sync: rest.length > 0 && rest[0] === false,
     };
     return _origXHROpen.apply(this, [method, url, ...rest]);
@@ -645,6 +748,7 @@
 
   function _simulateXhrResponse(xhr, xr, rule, baseEntry) {
     const fail = rule.action.type === 'fail';
+    // baseEntry is null when capture is off: simulate the response, report nothing.
     const body = fail ? '' : rule.action.body || '';
     const status = fail ? 0 : rule.action.status;
     const headers = fail ? {} : Object.assign({ 'content-type': 'application/json' }, rule.action.headers);
@@ -673,13 +777,15 @@
         xhr.__xrMockShadow = true;
       } catch {}
 
-      _emit(_mockEntry(Object.assign(baseEntry, {
-        duration: Date.now() - xr.start,
-        size: body.length,
-        responseHeaders: headers,
-        responseRaw: _limitText(body, MAX_CAPTURE_TEXT_CHARS),
-        responseDecrypted: null, decryptStatus: 'none', parseToken: null,
-      }), rule));
+      if (baseEntry) {
+        _emit(_mockEntry(Object.assign(baseEntry, {
+          duration: Date.now() - xr.start,
+          size: body.length,
+          responseHeaders: headers,
+          responseRaw: _limitText(body, MAX_CAPTURE_TEXT_CHARS),
+          responseDecrypted: null, decryptStatus: 'none', parseToken: null,
+        }), rule));
+      }
 
       try {
         xhr.dispatchEvent(new Event('readystatechange'));
@@ -691,10 +797,26 @@
   }
 
   XMLHttpRequest.prototype.send = function (body) {
-    if (!_config.captureXhr) return _origXHRSend.apply(this, arguments);
     if (!this.__xr) return _origXHRSend.apply(this, arguments);
     const xr = this.__xr;
     xr.start = Date.now();
+    if (!_captureOn('captureXhr')) {
+      // Capture is off: skip bodies, secrets and the loadend reporter, keep rules.
+      const quietRule = xr.sync ? null : _matchRule(xr.method, xr.url);
+      if (quietRule && (quietRule.action.type === 'mock' || quietRule.action.type === 'fail')) {
+        _simulateXhrResponse(this, xr, quietRule, null);
+        return;
+      }
+      if (quietRule && quietRule.action.type === 'delay' && quietRule.action.delayMs) {
+        const quietArgs = arguments;
+        setTimeout(() => {
+          if (this.readyState !== 1) return;
+          try { _origXHRSend.apply(this, quietArgs); } catch { /* page-owned xhr state */ }
+        }, quietRule.action.delayMs);
+        return;
+      }
+      return _origXHRSend.apply(this, arguments);
+    }
     _rememberSecrets(xr.id, xr.url, xr.rawSecrets);
 
     let reqBody = null;
@@ -816,6 +938,7 @@
       timer = null;
       if (!dirty) return;
       dirty = false;
+      if (_configured && !_config.captureWs) return; // toggled off mid-socket: stop reporting
       _emitUpdate({
         id: entry.id,
         status: entry.status,

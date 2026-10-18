@@ -16,8 +16,97 @@
   // drop out of web_accessible_resources as well.
 
   let _panelReady = false;
+  let _panelInitPromise = null;
   let _workerReady = false;
   let _bridgeToken = null;
+  const _captureReceiptState = {
+    accepted: 0,
+    dropped: 0,
+    dropReasons: {},
+    validated: 0,
+    delivered: 0,
+    noConsumer: 0,
+    relayFailed: 0,
+    deliveryReasons: {},
+    lastEventAt: null,
+  };
+  const _captureReceiptListeners = new Set();
+
+  function _captureReceiptSnapshot() {
+    return {
+      accepted: _captureReceiptState.accepted,
+      dropped: _captureReceiptState.dropped,
+      dropReasons: { ..._captureReceiptState.dropReasons },
+      validated: _captureReceiptState.validated,
+      delivered: _captureReceiptState.delivered,
+      noConsumer: _captureReceiptState.noConsumer,
+      relayFailed: _captureReceiptState.relayFailed,
+      deliveryReasons: { ..._captureReceiptState.deliveryReasons },
+      lastEventAt: _captureReceiptState.lastEventAt,
+    };
+  }
+
+  function _publishCaptureReceipt() {
+    const receipt = _captureReceiptSnapshot();
+    _captureReceiptListeners.forEach((listener) => {
+      try { listener(receipt); } catch { /* receipt observers are diagnostic only */ }
+    });
+    window.XRAY_Panel?.noteCaptureReceipt?.(receipt);
+    // Aggregate-only bridge for diagnostics/e2e. No entry fields cross this message.
+    window.postMessage({ __xray_capture_receipt__: true, receipt }, '*');
+    window.XRAY_Worker?.captureReceipt?.(receipt).catch?.(() => {});
+  }
+
+  function _recordCaptureAccepted(count = 1) {
+    _captureReceiptState.accepted = Math.min(500000,
+      _captureReceiptState.accepted + Math.max(0, Math.min(500, count)));
+    _captureReceiptState.validated = Math.min(500000,
+      _captureReceiptState.validated + Math.max(0, Math.min(500, count)));
+    _captureReceiptState.lastEventAt = Date.now();
+    _publishCaptureReceipt();
+  }
+
+  function _recordDelivery(outcome, count = 1) {
+    const bounded = Math.max(0, Math.min(500, Number(count) || 0));
+    if (!bounded) return;
+    const key = outcome === 'delivered' || outcome === 'no-consumer' || outcome === 'relay-failed' ? outcome : 'relay-failed';
+    const field = key === 'delivered' ? 'delivered' : key === 'no-consumer' ? 'noConsumer' : 'relayFailed';
+    _captureReceiptState[field] = Math.min(500000, _captureReceiptState[field] + bounded);
+    _captureReceiptState.deliveryReasons[key] = Math.min(500000,
+      (_captureReceiptState.deliveryReasons[key] || 0) + bounded);
+    _captureReceiptState.lastEventAt = Date.now();
+    _publishCaptureReceipt();
+  }
+
+  // Bad-token drops come from page-controlled messages: count them, but publish at
+  // most once per window so a postMessage flood cannot drive the panel store.
+  let _dropPublishTimer = null;
+  function _publishCaptureReceiptSoon() {
+    if (_dropPublishTimer) return;
+    _dropPublishTimer = setTimeout(() => {
+      _dropPublishTimer = null;
+      _publishCaptureReceipt();
+    }, 250);
+  }
+
+  function _recordCaptureDrop(reason, count = 1) {
+    const bounded = Math.max(0, Math.min(500, count));
+    _captureReceiptState.dropped = Math.min(500000, _captureReceiptState.dropped + bounded);
+    _captureReceiptState.dropReasons[reason] = Math.min(500000,
+      (_captureReceiptState.dropReasons[reason] || 0) + bounded);
+    _captureReceiptState.lastEventAt = Date.now();
+    if (reason === 'bridge-token') _publishCaptureReceiptSoon();
+    else _publishCaptureReceipt();
+  }
+
+  window.XRAY_CaptureReceipt = {
+    get: _captureReceiptSnapshot,
+    subscribe(listener) {
+      if (typeof listener !== 'function') return () => {};
+      _captureReceiptListeners.add(listener);
+      return () => _captureReceiptListeners.delete(listener);
+    },
+  };
   const XRAY_FOCUS_TRAP_EVENTS = [
     'keydown', 'keyup', 'keypress', 'beforeinput', 'input',
     'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick',
@@ -78,16 +167,26 @@
     });
   });
 
-  async function _initPanel() {
-    if (_panelReady) return;
+  // Memoized so every caller awaits the same init: a second capture message must not
+  // validate (and drop its updates as unknown) before the first one registered.
+  function _initPanel() {
+    if (!_panelInitPromise) _panelInitPromise = _runPanelInit();
+    return _panelInitPromise;
+  }
+
+  async function _runPanelInit() {
     _panelReady = true;
     
     // Initialize worker (non-blocking)
     if (window.XRAY_Worker?.init) {
+      window.XRAY_Worker.onHealth?.((receipt) => {
+        _workerReady = window.XRAY_Worker.isReady?.() === true;
+        window.XRAY_Panel?.noteWorkerHealth?.(receipt);
+      });
       window.XRAY_Worker.init().then(() => {
-        _workerReady = true;
+        _workerReady = window.XRAY_Worker.isReady?.() === true;
       }).catch(() => {
-        // Worker failed, continue without it
+        _workerReady = false;
       });
     }
     
@@ -95,21 +194,30 @@
   }
 
   function _relayToDevtools(entry) {
-    chrome.runtime.sendMessage({ type: 'xray:capture', entry }, () => {
-      void chrome.runtime.lastError;
-    });
+    _sendRelay({ type: 'xray:capture', entry }, 1);
   }
 
   function _relayUpdateToDevtools(update) {
-    chrome.runtime.sendMessage({ type: 'xray:capture-update', update }, () => {
-      void chrome.runtime.lastError;
-    });
+    _sendRelay({ type: 'xray:capture-update', update }, 1);
   }
 
   function _relayBatchToDevtools(entries) {
-    chrome.runtime.sendMessage({ type: 'xray:capture-batch', entries }, () => {
-      void chrome.runtime.lastError;
-    });
+    _sendRelay({ type: 'xray:capture-batch', entries }, entries.length);
+  }
+
+  function _sendRelay(message, count) {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        const browserError = chrome.runtime.lastError;
+        if (browserError || !response || response.delivery === 'relay-failed') {
+          _recordDelivery('relay-failed', count);
+        } else {
+          _recordDelivery(response.delivery === 'no-consumer' ? 'no-consumer' : 'delivered', count);
+        }
+      });
+    } catch {
+      _recordDelivery('relay-failed', count);
+    }
   }
 
   // C-3: everything arriving from the MAIN world is UNTRUSTED INPUT, whatever gate it
@@ -238,6 +346,44 @@
     return entry;
   }
 
+  // C1: tell the page interceptor the saved capture toggles and traffic rules as soon
+  // as the bridge token is known, without waiting for the panel to mount. Until it
+  // hears from us (or the panel, or 3 s pass) the interceptor holds early captures
+  // back. Any failure is silent: the interceptor's own timeout covers it.
+  function _postStoredCaptureConfig() {
+    const store = window.XRAY_Store;
+    if (!store || typeof store.get !== 'function') return;
+    const token = _bridgeToken;
+    Promise.all([
+      store.get('react_panel_preferences', null, true),
+      store.get('traffic_rules', [], true),
+    ]).then(([preferences, storedRules]) => {
+      if (!token || token !== _bridgeToken) return;
+      const settings = preferences && typeof preferences === 'object' && preferences.settings && typeof preferences.settings === 'object'
+        ? preferences.settings : {};
+      const flag = (value) => (typeof value === 'boolean' ? value : true);
+      const rules = (Array.isArray(storedRules) ? storedRules : [])
+        .filter((rule) => rule && rule.enabled !== false && rule.match && typeof rule.match.url === 'string' && rule.match.url.trim())
+        .map((rule) => ({
+          id: rule.id,
+          enabled: true,
+          match: { url: rule.match.url.trim(), method: rule.match.method },
+          action: rule.action,
+        }));
+      window.postMessage({
+        __xray_config__: true,
+        source: 'xray-relay',
+        token,
+        config: {
+          captureFetch: flag(settings.captureFetch),
+          captureXhr: flag(settings.captureXhr),
+          captureWs: flag(settings.captureWs),
+          rules,
+        },
+      }, '*');
+    }).catch(() => {});
+  }
+
   window.addEventListener('message', async (e) => {
     if (e.source !== window) return;
     // First write wins: the interceptor posts the handshake at document_start,
@@ -246,17 +392,25 @@
     if (!_bridgeToken && e.data?.__xray_bridge_ready__ && typeof e.data.token === 'string') {
       _bridgeToken = e.data.token;
       window.__XRAY_bridgeToken = _bridgeToken;
+      _postStoredCaptureConfig();
       return;
     }
     if (!e.data?.__xray_capture__) return;
-    if (!_bridgeToken || e.data.token !== _bridgeToken) return;
+    if (!_bridgeToken || e.data.token !== _bridgeToken) {
+      _recordCaptureDrop('bridge-token');
+      return;
+    }
 
     await _initPanel();
 
     // Handle in-place entry updates (WebSocket/SSE frames, deferred timing)
     if (e.data.update && e.data.entry) {
       const updated = _resolveDecrypt(_validateEntry(e.data.entry, { isUpdate: true }));
-      if (!updated) return;
+      if (!updated) {
+        _recordCaptureDrop('invalid-update');
+        return;
+      }
+      _recordCaptureAccepted();
       window.XRAY_Panel?.update?.(updated);
       _relayUpdateToDevtools(updated);
       return;
@@ -265,11 +419,17 @@
     // Handle batched entries (from console-capture.js): one store commit and
     // one devtools IPC per batch instead of one of each per message.
     if (e.data.batch && Array.isArray(e.data.entries)) {
+      const sourceEntries = e.data.entries;
+      const overLimit = Math.max(0, sourceEntries.length - MAX_BATCH_ENTRIES);
       const entries = e.data.entries.slice(0, MAX_BATCH_ENTRIES)
         .map((raw) => _validateEntry(raw))
         .filter(Boolean)
         .map(_resolveDecrypt);
+      const invalid = Math.max(0, Math.min(MAX_BATCH_ENTRIES, sourceEntries.length - overLimit - entries.length));
+      if (overLimit) _recordCaptureDrop('batch-limit', overLimit);
+      if (invalid) _recordCaptureDrop('invalid-entry', invalid);
       if (!entries.length) return;
+      _recordCaptureAccepted(entries.length);
       if (window.XRAY_Panel?.addAll) window.XRAY_Panel.addAll(entries);
       else entries.forEach((entry) => window.XRAY_Panel?.add?.(entry));
       _relayBatchToDevtools(entries);
@@ -283,7 +443,11 @@
     
     // Handle single entry (from interceptor.js)
     const entry = _resolveDecrypt(_validateEntry(e.data.entry));
-    if (!entry) return;
+    if (!entry) {
+      _recordCaptureDrop('invalid-entry');
+      return;
+    }
+    _recordCaptureAccepted();
     
     window.XRAY_Panel?.add?.(entry);
     _relayToDevtools(entry);

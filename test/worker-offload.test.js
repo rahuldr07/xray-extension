@@ -5,14 +5,13 @@ const test = require('node:test');
 
 const { read } = require('./helpers/source');
 
-test('worker client falls back to a blob wrapper when extension worker URL is blocked', () => {
+test('worker client uses packaged workers on extension surfaces and respects page CSP', () => {
   const workerClient = read('shared/worker-client.js');
 
-  assert.match(workerClient, /function _createWorker\(workerUrl\)/);
   assert.match(workerClient, /new Worker\(workerUrl\)/);
-  assert.match(workerClient, /new Blob/);
-  assert.match(workerClient, /importScripts/);
-  assert.match(workerClient, /new Worker\(blobUrl\)/);
+  assert.doesNotMatch(workerClient, /new Blob|importScripts|new Worker\(blobUrl\)/);
+  assert.match(workerClient, /worker-origin-unavailable/);
+  assert.match(workerClient, /worker-policy-blocked/);
 });
 
 test('worker core owns expensive schema, diff, grid, and detail analysis operations', () => {
@@ -38,4 +37,13 @@ test('worker core owns expensive schema, diff, grid, and detail analysis operati
   // the structural diff renders added/removed/changed paths with a baseline jump
   assert.match(detail, /structuralDiff/);
   assert.match(detail, /Jump to baseline/);
+});
+
+test('Request Detail uses a validated worker diff and keeps the bounded synchronous fallback', () => {
+  const detail = read('src/panel/components/detail/RequestDetail.tsx');
+
+  assert.match(detail, /workerAnalysis\?\.diff/);
+  assert.match(detail, /normalizeWorkerDiff|validatedWorkerDiff/);
+  assert.match(detail, /workerDiff=/);
+  assert.match(detail, /workerDiff \?\? structuralDiff/);
 });

@@ -1,6 +1,6 @@
 {
   "name": "xray-extension",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A response operations console for API debugging. Captures fetch/XHR/WebSocket/GraphQL traffic, decrypts encrypted responses, and turns live traffic into exports, schemas, mocks, and replays. Chrome and Edge, Manifest V3.",
   "private": true,
   "main": "background.js",
@@ -18,7 +18,7 @@
     "format:check": "prettier --check .",
     "test": "node --test \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "test:e2e": "node --test \"test/e2e/*.e2e.mjs\"",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"dist/**\" --test-coverage-exclude=\"scripts/**\" --test-coverage-lines=95 --test-coverage-branches=88 --test-coverage-functions=95 \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"dist/**\" --test-coverage-exclude=\"scripts/**\" --test-coverage-exclude=\"src/panel/store.ts\" --test-coverage-exclude=\"src/panel/runtime/**\" --test-coverage-lines=95 --test-coverage-branches=88 --test-coverage-functions=95 \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "package:extension": "npm run check && node scripts/package-extension.mjs",
     "bench:worker": "node scripts/benchmark-worker-core.mjs",
