@@ -23,17 +23,34 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { EmptyState } from '../common/EmptyState';
+import { ErrorBoundary } from '../common/ErrorBoundary';
+import { visibleText } from '../common/VisibleText';
 import { usePanelStore } from '../../store';
 import type { DetailView, WsFrame, XrayEntry } from '../../types';
-import { detailValue, gridRows, structuralDiff, timingPhases, type DiffLine } from '../../models/detail';
+import { diffNodes, nodeText, objectMembers, schemaFromNode, tableFromNode, timingPhases } from '../../models/detail';
 import { bodyViews, isBodyView, resolveDetailFacet, type DetailFacet } from '../../models/detailNavigation';
-import { buildVizSpec, formatVizValue } from '../../models/viz';
+import { buildVizSpecFromNode, vizValueText } from '../../models/viz';
 import { duration, entryGroupPath, entryPath } from '../../models/entries';
 import { extractJwts } from '../../models/lenses';
 import { getResponseOperations, type ResponseOperation } from '../../models/operations';
 import { isReplayableEntry } from '../../models/replayability';
-import { buildCurl, buildFetch, buildMockPayload, copyText, entryResponse, formatBytes, formatTime, methodClass, preview, safeStringify, schema, statusClass } from '../../utils';
-import { JsonView } from './JsonView';
+import {
+  DEFER_PARSE_CHARS,
+  bodyDoc,
+  bodyNode,
+  bodyRawValue,
+  entryBody,
+  isJsonContentType,
+  looksLikeJson,
+  parsesAsJson,
+  truncationNotice,
+  type BodySide,
+  type CapturedBody,
+} from '../../models/capturedBody';
+import { describeJsonError, printJson, type JsonDoc, type JsonNode } from '../../models/jsonText';
+import { buildCurl, buildFetch, buildMockPayload, copyText, entryRequest, entryResponse, exportBodyText, formatBytes, formatTime, isoTimestamp, methodClass, safeStringify, statusClass } from '../../utils';
+import { JsonNodeTree, JsonView } from './JsonView';
+import { RawText, type RawMark, type RawTextHandle } from './RawText';
 import { focusFirstItem, handleMenuKeyDown, useMenuDismiss } from '../common/menuBehavior';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
@@ -65,14 +82,6 @@ function jwtSourceLabel(source: string): string {
   if (source.startsWith('responseHeaders')) return 'Response header';
   if (source.startsWith('requestBody')) return 'Request body';
   return 'Response body';
-}
-
-interface WorkerDetailAnalysis {
-  schema?: unknown;
-  diff?: unknown;
-  grid?: ReturnType<typeof gridRows>;
-  durationMs?: number;
-  engine?: string;
 }
 
 export function RequestDetail({ entry, compact = false, onClose }: { entry: XrayEntry; compact?: boolean; onClose?: () => void }): React.ReactElement {
@@ -126,10 +135,23 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
   // content while waiting for an effect. The effect makes the fallback durable.
   const responseTab = facetAvailable(requestedFacet) ? requestedFacet : 'response';
   const bodyView = isBodyView(detailView) ? detailView : 'tree';
+  // The facet's body as captured (J2–J6): what Raw shows verbatim and the Tree parses. A big body
+  // parses off the render path; until then its views say "Parsing…".
+  const bodySide: BodySide = (compact ? detailTab === 'request' : responseTab === 'request') ? 'request' : 'response';
+  const bodyFacet = compact || responseTab === 'response' || responseTab === 'request';
+  // Compact (no facet or view switch) shows the body's Tree through the same path.
+  const shownView = compact ? 'tree' : bodyView;
+  const body = bodyFacet ? entryBody(entry, bodySide) : null;
+  const responseReady = usePreparedBody(entry, 'response');
+  const requestReady = usePreparedBody(bodySide === 'request' ? entry : null, 'request');
+  const bodyReady = bodySide === 'request' ? requestReady : responseReady;
+  const doc = React.useMemo(() => (body && bodyReady ? bodyDoc(body) : null), [body, bodyReady]);
+  const [rawPretty, setRawPretty] = React.useState(false);
   const driftFrom = React.useMemo(
     () => entry.driftFromId ? usePanelStore.getState().entries.find((candidate) => candidate.id === entry.driftFromId) || null : null,
     [entry.driftFromId, entriesLength],
   );
+  // What Copy and Copy raw give on a facet that is not a body (body facets copy from the body itself).
   const activeValue = React.useMemo(() => {
     if (responseTab === 'headers') return headerSummary(entry);
     if (responseTab === 'cookies') return cookies;
@@ -137,9 +159,15 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
     if (responseTab === 'frames') return entry.wsFrames || [];
     if (responseTab === 'initiator') return entry.initiator || [];
     if (responseTab === 'tokens') return jwts;
-    return detailValue(entry, compact ? detailTab : responseTab === 'request' ? 'request' : 'response');
-  }, [compact, cookies, detailTab, entry, jwts, responseTab]);
-  const operations = React.useMemo(() => getResponseOperations(entry, usePanelStore.getState().entries, slowThresholdMs), [entry, entriesLength, slowThresholdMs]);
+    return undefined;
+  }, [cookies, entry, jwts, responseTab]);
+  // Table, Schema, Diff and Visualize read the body's nodes — the same model, the same code, on every
+  // surface (spec J3, J11): the DevTools worker no longer computes its own table, schema or diff.
+  const node = React.useMemo(() => (body && bodyReady ? bodyNode(body) : null), [body, bodyReady]);
+  const operations = React.useMemo(
+    () => (responseReady ? getResponseOperations(entry, usePanelStore.getState().entries, slowThresholdMs) : []),
+    [entry, entriesLength, responseReady, slowThresholdMs],
+  );
   const secondaryOperations = React.useMemo(() => {
     // View operations have a direct facet/body-mode entry point. Console/Export
     // already live in the common row. Preserve all other applicable operations.
@@ -171,12 +199,11 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
     () => driftFrom ?? previousSameEndpoint(entry, usePanelStore.getState().entries),
     [driftFrom, entry, entriesLength],
   );
-  const previousValue = React.useMemo(() => previous ? detailValue(previous, responseTab === 'request' ? 'request' : 'response') : null, [previous, responseTab]);
-  // Tagged with the inputs it was computed for, so a previous entry's diff/schema
-  // is never shown during the render before the clearing effect runs.
-  const [workerResult, setWorkerResult] = React.useState<{ active: unknown; previous: unknown; analysis: WorkerDetailAnalysis } | null>(null);
-  const workerAnalysis = workerResult && workerResult.active === activeValue && workerResult.previous === previousValue ? workerResult.analysis : null;
-  const workerDiff = React.useMemo(() => normalizeWorkerDiff(workerAnalysis?.diff), [workerAnalysis?.diff]);
+  const previousReady = usePreparedBody(previous, bodySide);
+  const previousBody = previous ? entryBody(previous, bodySide) : null;
+  const previousNode = React.useMemo(() => (previousBody && previousReady ? bodyNode(previousBody) : null), [previousBody, previousReady]);
+  // A cut previous body (JSON or not) is not what was sent: Diff never compares against its prefix.
+  const previousCut = !!previousBody?.truncation;
 
   React.useEffect(() => {
     if (isBodyView(detailView)) rememberedBodyView.current = detailView;
@@ -229,18 +256,6 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
     handleMenuKeyDown(event, menuRef.current, moreRef.current, moreTriggerRef.current, () => setMoreOpen(false));
   }
 
-  React.useEffect(() => {
-    let cancelled = false;
-    setWorkerResult(null);
-    if (!window.XRAY_Worker?.detailAnalysis) return;
-    window.XRAY_Worker.detailAnalysis(activeValue, previousValue)
-      .then((analysis) => {
-        if (!cancelled && analysis && typeof analysis === 'object') setWorkerResult({ active: activeValue, previous: previousValue, analysis: analysis as WorkerDetailAnalysis });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [activeValue, previousValue]);
-
   function selectResponseTab(tab: DetailFacet): void {
     if (tab !== 'response' && tab !== 'request' && tab !== 'headers' && tab !== 'timing') {
       setConditional({ facet: tab, tab: detailTab, view: detailView });
@@ -277,15 +292,23 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
   }
 
   async function copyActiveValue(): Promise<void> {
-    let value = activeValue;
-    const body = responseTab === 'request' || responseTab === 'response';
-    if (body && bodyView === 'schema') value = workerAnalysis?.schema ?? schema(activeValue);
-    if (body && bodyView === 'grid') value = (workerAnalysis?.grid ?? gridRows(activeValue)).objects;
-    if (body && bodyView === 'diff') value = previousValue == null ? [] : structuralDiff(previousValue, activeValue);
-    if (body && bodyView === 'viz') value = buildVizSpec(activeValue);
-    const text = typeof value === 'string' ? value : safeStringify(value, 2, 500_000);
+    const isBody = responseTab === 'request' || responseTab === 'response';
     const label = responseTabs.find((tab) => tab.id === responseTab)?.label || 'Content';
-    await copyWithReceipt(text, `${label}${body && bodyView !== 'tree' && bodyView !== 'raw' ? ` ${viewLabels[bodyView]}` : ''} copied${isTruncated(text) ? ' as a truncated preview' : ''}.`, showToast);
+    // Tree and Raw copy the body as captured (Raw: the pretty text while Pretty is on) — never a
+    // re-serialized value, which would round 9007199254740993 and reorder keys. So does a view that
+    // cannot show this body (a truncated JSON body, a body still parsing): never a fake "string"
+    // schema, [] or undefined.
+    const blocked = isBody && !!body && bodyView !== 'tree' && bodyView !== 'raw' &&
+      bodyBlock(body, bodyView === 'diff' ? bodyReady && (!previous || previousReady) : bodyReady) !== null;
+    if (isBody && body && (bodyView === 'tree' || bodyView === 'raw' || blocked)) {
+      const text = bodyCopyText(body, doc, bodyView === 'raw' && rawPretty && bodyReady);
+      const cut = body.truncation ? ` (truncated: the first ${body.text.length.toLocaleString('en-US')} characters)` : '';
+      await copyWithReceipt(text, `${label} copied${cut}.`, showToast);
+      return;
+    }
+    // Table, Schema, Diff and Visualize copy what they show, printed from the nodes (exact lexemes).
+    const text = isBody ? bodyViewCopyText(bodyView, node, previousNode, previousCut) : typeof activeValue === 'string' ? activeValue : safeStringify(activeValue, 2, 500_000);
+    await copyWithReceipt(text, `${label}${isBody ? ` ${viewLabels[bodyView]}` : ''} copied${isTruncated(text) ? ' as a truncated preview' : ''}.`, showToast);
   }
 
   async function runOperation(operation: ResponseOperation): Promise<void> {
@@ -339,10 +362,11 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
 
   function createMock(): void {
     setMoreOpen(false);
-    const value = entryResponse(entry);
-    const serialized = typeof value === 'string' ? value : safeStringify(value, 2, 100_000);
+    // The rule serves the captured response text exactly (spec J10): lexemes and key order as received.
+    const captured = entryBody(entry, 'response');
+    const serialized = exportBodyText(captured, 2);
     const body = serialized.length > 100_000 ? serialized.slice(0, 100_000) : serialized;
-    const truncated = serialized.length > 100_000 || isTruncated(body);
+    const truncated = serialized.length > 100_000 || !!captured.truncation;
     const receipt = usePanelStore.getState().addRule({
       label: `${entry.method || 'GET'} ${entryPath(entry)}`,
       match: { url: String(entry.urlPath || entry.url || ''), method: String(entry.method || '') },
@@ -451,72 +475,324 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
           </div>}
         </>
       )}
-      <div className="xray-detail-content">
-        {!compact && responseTab === 'frames' && <FramesView frames={entry.wsFrames || []} state={entry.wsState} />}
-        {!compact && responseTab === 'initiator' && <InitiatorView entry={entry} />}
-        {!compact && responseTab === 'tokens' && <TokensView jwts={jwts} />}
-        {!compact && responseTab === 'headers' && <HeadersView entry={entry} />}
-        {!compact && responseTab === 'timing' && <WaterfallView entry={entry} />}
-        {!compact && responseTab === 'cookies' && <JsonView value={cookies} />}
-        {(compact || responseTab === 'response' || responseTab === 'request') && (
-          <>
-            {!compact && (activeValue == null || activeValue === '') ? <EmptyState label={hasFrames && responseTab === 'response' ? 'Streaming entry' : `No ${responseTab} body captured`} hint={hasFrames && responseTab === 'response' ? 'Open Frames to inspect the stream messages.' : 'The capture contains no body for this facet.'} /> : <>
-              {(compact || bodyView === 'tree') && <TreeContent compact={compact} entry={entry} detailTab={detailTab} responseTab={responseTab} activeValue={activeValue} hasFrames={hasFrames} />}
-              {!compact && bodyView === 'grid' && <GridView value={activeValue} workerGrid={workerAnalysis?.grid} />}
-              {!compact && bodyView === 'raw' && <RawView value={activeValue} />}
-              {!compact && bodyView === 'schema' && <SchemaView value={activeValue} workerSchema={workerAnalysis?.schema} />}
-              {!compact && bodyView === 'diff' && <DiffView current={activeValue} previous={previousValue} workerDiff={workerDiff} baselineId={driftFrom?.id || null} baselineIsDrift={!!driftFrom} />}
-              {!compact && bodyView === 'viz' && <VizView value={activeValue} />}
-            </>}
-          </>
-        )}
+      <div className={`xray-detail-content${bodyFacet && (shownView === 'tree' || shownView === 'raw') ? ' has-pane' : ''}`}>
+        {/* J12: a pane that fails to render keeps the facets and views above it usable. */}
+        <ErrorBoundary resetKeys={[entry.id, responseTab, bodyView]} raw={() => (body ? bodyRawValue(body) : activeValue)}>
+          {!compact && responseTab === 'frames' && <FramesView frames={entry.wsFrames || []} state={entry.wsState} />}
+          {!compact && responseTab === 'initiator' && <InitiatorView entry={entry} />}
+          {!compact && responseTab === 'tokens' && <TokensView jwts={jwts} />}
+          {!compact && responseTab === 'headers' && <HeadersView entry={entry} />}
+          {!compact && responseTab === 'timing' && <WaterfallView entry={entry} />}
+          {!compact && responseTab === 'cookies' && <JsonView value={cookies} />}
+          {bodyFacet && body && <BodyNotices body={body} />}
+          {bodyFacet && body && (
+            body.kind === 'none' ? <EmptyState label={hasFrames && responseTab === 'response' ? 'Streaming entry' : `No ${compact ? bodySide : responseTab} body captured`} hint={hasFrames && responseTab === 'response' ? 'Open Frames to inspect the stream messages.' : 'The capture contains no body for this facet.'} />
+              : body.kind === 'text' && body.text === '' && !body.truncation ? <EmptyState label={`Empty ${compact ? bodySide : responseTab} body`} hint="The body was captured and has no characters." />
+                : <>
+                  {shownView === 'tree' && <BodyTreeView body={body} doc={doc} ready={bodyReady} onShowRaw={() => selectDetailView('raw')} />}
+                  {shownView === 'raw' && <RawView body={body} doc={doc} ready={bodyReady} pretty={rawPretty} onPretty={setRawPretty} />}
+                  {shownView === 'grid' && (bodyBlock(body, bodyReady) ? <BlockedBody body={body} view="Table" onShowRaw={() => selectDetailView('raw')} /> : <TableView node={node} />)}
+                  {shownView === 'schema' && (bodyBlock(body, bodyReady) ? <BlockedBody body={body} view="Schema" onShowRaw={() => selectDetailView('raw')} /> : <SchemaView node={node} />)}
+                  {shownView === 'diff' && (bodyBlock(body, bodyReady && (!previous || previousReady)) ? <BlockedBody body={body} view="Diff" onShowRaw={() => selectDetailView('raw')} /> : <DiffView current={node} previous={previousNode} previousTruncated={previousCut} baselineId={driftFrom?.id || null} baselineIsDrift={!!driftFrom} />)}
+                  {shownView === 'viz' && (bodyBlock(body, bodyReady) ? <BlockedBody body={body} view="Visualize" onShowRaw={() => selectDetailView('raw')} /> : <VizView node={node} />)}
+                </>
+          )}
+        </ErrorBoundary>
       </div>
+    </div>
+  );
+}
+
+// ── Body preparation: a big body parses off the render path (spec §1, J1) ──────────────────────
+
+const preparedBodies = new WeakMap<object, Set<BodySide>>();
+
+/** Runs `task` when the main thread is idle (within 100 ms); returns its cancel. */
+function whenIdle(task: () => void): () => void {
+  // Taken now, so the cancel undoes this very request whatever happens to the globals meanwhile.
+  const request = window.requestIdleCallback;
+  const cancel = window.cancelIdleCallback;
+  if (typeof request === 'function' && typeof cancel === 'function') {
+    const id = request.call(window, task, { timeout: 100 });
+    return () => cancel.call(window, id);
+  }
+  const id = window.setTimeout(task, 0);
+  return () => window.clearTimeout(id);
+}
+
+/**
+ * Whether the entry's body on `side` is ready to show: always for a body under DEFER_PARSE_CHARS
+ * (it parses during render in a few milliseconds); for a bigger JSON body, once two idle tasks have
+ * parsed it (the doc every view shares) and derived its plain value (entryResponse/entryRequest), so
+ * selecting a 5 MB response never blocks input for the whole parse.
+ */
+function usePreparedBody(entry: XrayEntry | null, side: BodySide): boolean {
+  const body = entry ? entryBody(entry, side) : null;
+  const pending = !!entry && !!body && body.text.length > DEFER_PARSE_CHARS && parsesAsJson(body) && !preparedBodies.get(entry)?.has(side);
+  const [, setPrepared] = React.useState(0);
+  React.useEffect(() => {
+    if (!pending || !entry || !body) return undefined;
+    let cancelled = false;
+    let cancelValue: (() => void) | null = null;
+    const cancelParse = whenIdle(() => {
+      bodyDoc(body);
+      if (cancelled) return;
+      cancelValue = whenIdle(() => {
+        if (side === 'request') entryRequest(entry);
+        else entryResponse(entry);
+        const sides = preparedBodies.get(entry) ?? new Set<BodySide>();
+        sides.add(side);
+        preparedBodies.set(entry, sides);
+        if (!cancelled) setPrepared((count) => count + 1);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelParse();
+      cancelValue?.();
+    };
+  }, [pending, entry, body, side]);
+  return !pending;
+}
+
+/** A truncated body that is JSON (by type or look): its prefix is not the JSON that was sent. */
+function isTruncatedJson(body: CapturedBody): boolean {
+  return !!body.truncation && (isJsonContentType(body.contentType) || looksLikeJson(body.text));
+}
+
+/** What Copy gives for the Tree and Raw views: the captured text, the pretty text, a value as JSON. */
+function bodyCopyText(body: CapturedBody, doc: JsonDoc | null, pretty: boolean): string {
+  if (body.kind === 'value') return safeStringify(body.value, 2, Infinity);
+  if (body.kind === 'binary') return binaryText(body);
+  if (pretty && doc && doc.ok) return prettyText(doc);
+  return body.text;
+}
+
+const textNode = (value: string): JsonNode => ({ t: 'str', value });
+
+const DIFF_PREVIOUS_TRUNCATED = 'Diff unavailable: the previous body was truncated';
+const DIFF_NO_PREVIOUS = 'No previous matching response';
+const TABLE_EMPTY = 'No object rows found';
+
+/** `{ "<key>": …, "notices": [ … ] }`, printed with every number as written. */
+function withNotices(key: string, items: JsonNode[], notices: readonly string[]): string {
+  return printJson({ t: 'obj', entries: [
+    { key, value: { t: 'arr', items } },
+    { key: 'notices', value: { t: 'arr', items: notices.map(textNode) } },
+  ] }, { indent: 2 });
+}
+
+/**
+ * What Copy gives in Table, Schema, Diff and Visualize: what the view shows, printed from the body's
+ * nodes so every number keeps its lexeme — the rows and columns the Table shows with its cap notice,
+ * the schema, the differences with the notices that qualify them (or the view's empty state), the chart.
+ */
+function bodyViewCopyText(view: DetailView, node: JsonNode | null, previous: JsonNode | null, previousTruncated: boolean): string {
+  if (view === 'grid') {
+    const table = tableFromNode(node);
+    const rows: JsonNode[] = table.rows.map((row) => {
+      const members = objectMembers(row);
+      return { t: 'obj', entries: table.columns.flatMap((key) => {
+        const value = members.get(key);
+        return value ? [{ key, value }] : [];
+      }) };
+    });
+    return withNotices('rows', rows, table.notice ? [table.notice] : rows.length ? [] : [TABLE_EMPTY]);
+  }
+  if (view === 'schema') return safeStringify(schemaFromNode(node), 2, Infinity);
+  if (view === 'viz') return safeStringify(buildVizSpecFromNode(node), 2, Infinity);
+  const { lines, notices } = previousTruncated ? { lines: [], notices: [DIFF_PREVIOUS_TRUNCATED] }
+    : previous ? diffNodes(previous, node) : { lines: [], notices: [DIFF_NO_PREVIOUS] };
+  const differences: JsonNode[] = lines.map((line) => ({
+    t: 'obj',
+    entries: [
+      { key: 'path', value: textNode(line.path) },
+      { key: 'kind', value: textNode(line.kind) },
+      ...(line.before ? [{ key: 'before', value: line.before }] : []),
+      ...(line.after ? [{ key: 'after', value: line.after }] : []),
+    ],
+  }));
+  return withNotices('differences', differences, notices);
+}
+
+/** Pretty text up to this size is printed during render; a bigger body in an idle task. */
+const PRETTY_SYNC_CHARS = 200_000;
+
+/** printJson(root, {indent: 2}); NDJSON prints each document and joins them with newlines. */
+function prettyText(doc: JsonDoc): string {
+  if (!doc.root) return '';
+  if (doc.kind === 'ndjson' && doc.root.t === 'arr') return doc.root.items.map((item) => printJson(item, { indent: 2 })).join('\n');
+  return printJson(doc.root, { indent: 2 });
+}
+
+function binaryText(body: CapturedBody): string {
+  const binary = body.binary;
+  if (!binary) return '';
+  if ('stream' in binary) return 'Streamed body (ReadableStream): not captured';
+  return `Binary body: ${binary.size.toLocaleString('en-US')} bytes, not UTF-8 text. First 64 bytes (base64): ${binary.base64Prefix}`;
+}
+
+/**
+ * Said once, above every body view (and above "No … body captured"): a truncated capture, a degraded
+ * capture (entry.captureDegraded: part of the entry was lost), a re-serialized XHR json response, a
+ * decrypted response.
+ */
+function BodyNotices({ body }: { body: CapturedBody }): React.ReactElement | null {
+  const notices: Array<{ tone: 'info' | 'warning'; text: string }> = [];
+  const cut = truncationNotice(body);
+  if (cut) notices.push({ tone: 'warning', text: cut });
+  if (body.degraded) notices.push({ tone: 'warning', text: 'Part of this entry could not be captured, so this body may be missing or incomplete.' });
+  if (body.reserialized) notices.push({ tone: 'info', text: 'Rebuilt from the parsed response (XHR responseType "json"), not the text received.' });
+  if (body.decrypted) notices.push({ tone: 'info', text: 'Showing the decrypted response.' });
+  if (!notices.length) return null;
+  return (
+    <div className="xray-body-notices">
+      {notices.map((notice) => <p key={notice.text} className={`xray-body-notice ${notice.tone}`} role="note">{notice.text}</p>)}
+    </div>
+  );
+}
+
+/**
+ * Why Tree, Table, Schema, Diff and Visualize cannot show a body yet: a cut JSON body is not the JSON
+ * that was sent (never a fake "string" schema), and a big body is still parsing. Null: they can.
+ */
+function bodyBlock(body: CapturedBody, ready: boolean): 'truncated' | 'parsing' | null {
+  if (isTruncatedJson(body)) return 'truncated';
+  if (!ready) return 'parsing';
+  return null;
+}
+
+function BlockedBody({ body, view, onShowRaw }: { body: CapturedBody; view: string; onShowRaw: () => void }): React.ReactElement {
+  if (!isTruncatedJson(body)) return <p className="xray-body-status" role="status">Parsing {formatBytes(body.text.length)}…</p>;
+  return (
+    <EmptyState
+      label={`${view} unavailable for a truncated body`}
+      hint={`The capture kept the first ${body.text.length.toLocaleString('en-US')} characters, which is not the complete JSON. Raw shows them.`}
+      action={<button type="button" className="xray-chip" onClick={onShowRaw}>Show Raw</button>}
+    />
+  );
+}
+
+function BinaryBody({ body }: { body: CapturedBody }): React.ReactElement {
+  const binary = body.binary;
+  if (binary && 'stream' in binary) {
+    return <EmptyState label="Streamed body" hint="The body was a ReadableStream; reading it would consume the page's stream, so it was not captured." />;
+  }
+  return (
+    <div className="xray-card xray-binary-body">
+      <h3>Binary body · {(binary?.size ?? 0).toLocaleString('en-US')} bytes</h3>
+      <p className="xray-muted">Not UTF-8 text, so it is described rather than shown. First 64 bytes, base64:</p>
+      <code className="xray-binary-prefix">{binary?.base64Prefix || '(empty)'}</code>
+    </div>
+  );
+}
+
+function treeLabel(body: CapturedBody): string {
+  return `${body.side === 'request' ? 'Request' : 'Response'} JSON`;
+}
+
+function docNotes(doc: JsonDoc): React.ReactNode {
+  const notes: string[] = [];
+  if (doc.kind === 'ndjson' && doc.root?.t === 'arr') notes.push(`NDJSON · ${doc.root.items.length.toLocaleString('en-US')} ${doc.root.items.length === 1 ? 'document' : 'documents'}`);
+  if (doc.duplicates) notes.push(`${doc.duplicates.toLocaleString('en-US')} duplicate ${doc.duplicates === 1 ? 'key' : 'keys'}`);
+  if (doc.inexactNumbers) notes.push(`${doc.inexactNumbers.toLocaleString('en-US')} ${doc.inexactNumbers === 1 ? 'number' : 'numbers'} inexact in JS`);
+  if (doc.prefix) notes.push(`XSSI guard ${doc.prefix} removed`);
+  if (!notes.length) return null;
+  return notes.map((note) => <span key={note} className="xray-json-note">{note}</span>);
+}
+
+/** The Tree for a body: the lossless parse, FormData/URL-encoded fields, a value, or the text itself. */
+function BodyTreeView({ body, doc, ready, onShowRaw }: { body: CapturedBody; doc: JsonDoc | null; ready: boolean; onShowRaw: () => void }): React.ReactElement {
+  if (body.kind === 'value') return <div className="xray-body-scroll"><JsonView value={body.value} /></div>;
+  if (body.kind === 'binary') return <BinaryBody body={body} />;
+  if (body.format === 'formdata' || body.format === 'urlencoded') {
+    return (
+      <div className="xray-body-pane">
+        {body.format === 'formdata' && <p className="xray-body-notice info" role="note">FormData fields in the order sent; a file is described by its name, size and type. The multipart body itself is not captured.</p>}
+        <JsonNodeTree root={bodyNode(body) as JsonNode} label={body.format === 'formdata' ? 'FormData fields' : 'URL-encoded parameters'} />
+      </div>
+    );
+  }
+  if (bodyBlock(body, ready)) return <BlockedBody body={body} view="Tree" onShowRaw={onShowRaw} />;
+  if (doc && doc.root && (doc.ok || doc.kind === 'ndjson')) {
+    return (
+      <div className="xray-body-pane">
+        {!doc.ok && <p className="xray-body-notice warning" role="note">Not every line is valid JSON: {describeJsonError(doc.error)}. The tree shows the lines that parsed; Raw marks the error.</p>}
+        <JsonNodeTree root={doc.root} label={treeLabel(body)} notes={docNotes(doc)} />
+      </div>
+    );
+  }
+  if (doc && !doc.ok && looksLikeJson(body.text)) {
+    return (
+      <div className="xray-body-pane">
+        <p className="xray-body-notice warning" role="note">Not valid JSON: {describeJsonError(doc.error)}. <button type="button" className="xray-link-btn" onClick={onShowRaw}>Show in Raw</button></p>
+        <RawText text={body.text} label={`${body.side === 'request' ? 'Request' : 'Response'} text`} />
+      </div>
+    );
+  }
+  // Not JSON (HTML, plain text…): the text as it is.
+  return <RawText text={body.text} gutter={false} label={`${body.side === 'request' ? 'Request' : 'Response'} text`} />;
+}
+
+/**
+ * Raw: the body as captured, verbatim (J2) — windowed, never cut below the capture cap. Pretty shows
+ * printJson(root, {indent: 2}) (every lexeme, key order and duplicate kept). Invalid JSON is marked at
+ * its line and column. A body that is not text says what it is.
+ */
+function RawView({ body, doc, ready, pretty, onPretty }: {
+  body: CapturedBody;
+  doc: JsonDoc | null;
+  ready: boolean;
+  pretty: boolean;
+  onPretty: (pretty: boolean) => void;
+}): React.ReactElement {
+  const handle = React.useRef<RawTextHandle>(null);
+  const canPretty = ready && !!doc && doc.ok;
+  const wantPretty = pretty && canPretty;
+  // A big body is printed in an idle task (showing the text as captured meanwhile), so the click
+  // that turns Pretty on is not one long task.
+  const big = body.text.length > PRETTY_SYNC_CHARS;
+  const syncPretty = React.useMemo(() => (wantPretty && doc && !big ? prettyText(doc) : null), [wantPretty, doc, big]);
+  const [idlePretty, setIdlePretty] = React.useState<{ doc: JsonDoc; text: string } | null>(null);
+  React.useEffect(() => {
+    if (!wantPretty || !doc || !big || idlePretty?.doc === doc) return undefined;
+    return whenIdle(() => setIdlePretty({ doc, text: prettyText(doc) }));
+  }, [wantPretty, doc, big, idlePretty]);
+  const prettyShown = syncPretty ?? (wantPretty && idlePretty?.doc === doc ? idlePretty.text : null);
+  const formatting = wantPretty && prettyShown === null;
+  const showPretty = prettyShown !== null;
+  const valueShown = React.useMemo(() => (body.kind === 'value' ? safeStringify(body.value, 2, Infinity) : null), [body]);
+  if (body.kind === 'binary') return <BinaryBody body={body} />;
+  const mark: RawMark | null = !showPretty && doc && !doc.ok ? { offset: doc.error.pos, message: describeJsonError(doc.error) } : null;
+  const facet = body.side === 'request' ? 'Request' : 'Response';
+  return (
+    <div className="xray-body-pane">
+      <div className="xray-raw-toolbar" role="group" aria-label="Raw view">
+        <button
+          type="button"
+          className="xray-json-tree-btn"
+          aria-pressed={wantPretty}
+          disabled={!canPretty}
+          title={canPretty ? 'Indent the JSON, keeping every number, string and key as written' : ready ? 'Pretty needs a complete, valid JSON body' : 'Parsing…'}
+          onClick={() => onPretty(!pretty)}
+        >
+          Pretty
+        </button>
+        {mark && <span className="xray-raw-error">Invalid JSON: {mark.message}</span>}
+        {mark && <button type="button" className="xray-json-tree-btn" onClick={() => handle.current?.reveal(mark.offset)}>Go to error</button>}
+        {!ready && <span className="xray-json-note" role="status">Parsing…</span>}
+        {formatting && <span className="xray-json-note" role="status">Formatting…</span>}
+        {showPretty && doc?.prefix && <span className="xray-json-note">XSSI guard {doc.prefix} not shown</span>}
+        {body.kind === 'value' && <span className="xray-json-note">Not captured as text: the value as JSON.</span>}
+        {body.format === 'formdata' && <span className="xray-json-note">FormData fields as name=value lines; the multipart body itself is not captured.</span>}
+      </div>
+      <RawText text={prettyShown ?? valueShown ?? body.text} mark={mark} label={`${facet} body`} handle={handle} />
     </div>
   );
 }
 
 function isTruncated(text: string): boolean {
   return /\n\.\.\. truncated \d+ chars$/.test(text);
-}
-
-// Worker messages are an untrusted transport boundary. Accept only the bounded
-// structural metadata and scalar previews; never render workerAnalysis.diff's
-// raw previous/current payload snapshots.
-function normalizeWorkerDiff(value: unknown): DiffLine[] | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const rows = (value as { structuralDiff?: unknown }).structuralDiff;
-  // The producer returns at most 500 rows. Validate the entire bounded message,
-  // even the rows beyond the existing 200-line display cap.
-  if (!Array.isArray(rows) || rows.length > 500) return null;
-  const lines: DiffLine[] = [];
-  for (const row of rows) {
-    if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
-    const candidate = row as { type?: unknown; path?: unknown; from?: unknown; to?: unknown; value?: unknown };
-    if ((candidate.type !== 'added' && candidate.type !== 'removed' && candidate.type !== 'changed')
-      || typeof candidate.path !== 'string' || candidate.path.length > 500) return null;
-    const required = candidate.type === 'changed' ? ['from', 'to'] : ['value'];
-    // Undefined is a valid structured-cloned value; absence or an accessor is not.
-    if (!required.every(key => {
-      const descriptor = Object.getOwnPropertyDescriptor(row, key);
-      return descriptor && 'value' in descriptor;
-    })) return null;
-    if (lines.length >= 200) continue;
-    const line: DiffLine = { path: candidate.path, kind: candidate.type };
-    if (candidate.type === 'added') line.after = boundedWorkerValue(candidate.value);
-    else if (candidate.type === 'removed') line.before = boundedWorkerValue(candidate.value);
-    else {
-      line.before = boundedWorkerValue(candidate.from);
-      line.after = boundedWorkerValue(candidate.to);
-    }
-    lines.push(line);
-  }
-  return lines;
-}
-
-function boundedWorkerValue(value: unknown): unknown {
-  if (typeof value === 'string') return value.length > 2_000 ? `${value.slice(0, 2_000)}…` : value;
-  if (value === null || typeof value === 'number' || typeof value === 'boolean' || value === undefined) return value;
-  return preview(value, 2_000);
 }
 
 async function copyWithReceipt(text: string, receipt: string, showToast: (message: string) => void): Promise<void> {
@@ -550,7 +826,8 @@ function headerSummary(entry: XrayEntry): unknown {
 
 function timelineSummary(entry: XrayEntry): unknown {
   return {
-    startedAt: entry.timestamp ? new Date(entry.timestamp).toISOString() : null,
+    // toISOString throws outside the Date range; an imported or HUD entry can carry anything.
+    startedAt: isoTimestamp(entry.timestamp),
     durationMs: Math.round(duration(entry)),
     status: entry.status || null,
     size: Number(entry.size) || 0,
@@ -584,32 +861,8 @@ function previousSameEndpoint(entry: XrayEntry, entries: XrayEntry[]): XrayEntry
     .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))[0] || null;
 }
 
-function TreeContent({ compact, entry, detailTab, responseTab, activeValue, hasFrames }: {
-  compact: boolean;
-  entry: XrayEntry;
-  detailTab: string;
-  responseTab: DetailFacet;
-  activeValue: unknown;
-  hasFrames: boolean;
-}): React.ReactElement {
-  if (compact) return <JsonView value={detailValue(entry, detailTab as never)} />;
-  if (responseTab === 'headers') return <HeadersView entry={entry} />;
-  // Non-JSON bodies (HTML, plain text) read as text, not as one giant
-  // JSON-escaped string literal.
-  if (typeof activeValue === 'string') return <pre className="xray-json xray-json-text">{activeValue}</pre>;
-  if (activeValue == null && hasFrames && responseTab === 'response') {
-    return <EmptyState label="Streaming entry" hint="This is a WebSocket/SSE stream - open the Frames tab to inspect the messages." />;
-  }
-  return <JsonView value={activeValue} />;
-}
-
-function RawView({ value }: { value: unknown }): React.ReactElement {
-  const text = React.useMemo(() => (typeof value === 'string' ? value : safeStringify(value)), [value]);
-  return <pre className="xray-json">{text}</pre>;
-}
-
-function SchemaView({ value, workerSchema }: { value: unknown; workerSchema?: unknown }): React.ReactElement {
-  const inferred = React.useMemo(() => workerSchema ?? schema(value), [workerSchema, value]);
+function SchemaView({ node }: { node: JsonNode | null }): React.ReactElement {
+  const inferred = React.useMemo(() => schemaFromNode(node), [node]);
   return <JsonView value={inferred} />;
 }
 
@@ -657,19 +910,23 @@ function HeadersView({ entry }: { entry: XrayEntry }): React.ReactElement {
   );
 }
 
-function GridView({ value, workerGrid }: { value: unknown; workerGrid?: ReturnType<typeof gridRows> }): React.ReactElement {
-  const { objects, columns } = workerGrid || gridRows(value);
-  if (!objects.length) return <EmptyState label="No object rows found" />;
+/** The Table: the body's object rows, cells by lexeme; says "Showing R of N rows · C of K columns" when capped. */
+function TableView({ node }: { node: JsonNode | null }): React.ReactElement {
+  const table = React.useMemo(() => tableFromNode(node), [node]);
+  if (!table.rows.length) return <EmptyState label={TABLE_EMPTY} />;
   return (
-    <table className="xray-table">
-      <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
-      <tbody>{objects.map((row, index) => <tr key={index}>{columns.map((column) => <td key={column}>{preview(row[column], 160)}</td>)}</tr>)}</tbody>
-    </table>
+    <div className="xray-table-view">
+      {table.notice && <p className="xray-body-notice info xray-table-notice" role="note">{table.notice}</p>}
+      <table className="xray-table">
+        <thead><tr>{table.columns.map((column) => <th key={column}>{visibleText(column)}</th>)}</tr></thead>
+        <tbody>{table.cells.map((cells, index) => <tr key={index}>{cells.map((cell, column) => <td key={table.columns[column]}>{visibleText(cell)}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
   );
 }
 
-function VizView({ value }: { value: unknown }): React.ReactElement {
-  const spec = React.useMemo(() => buildVizSpec(value), [value]);
+function VizView({ node }: { node: JsonNode | null }): React.ReactElement {
+  const spec = React.useMemo(() => buildVizSpecFromNode(node), [node]);
   if (spec.kind === 'none' || !spec.bars.length) {
     return <EmptyState label={spec.title} />;
   }
@@ -682,12 +939,12 @@ function VizView({ value }: { value: unknown }): React.ReactElement {
       </div>
       <div className="xray-viz-bars">
         {spec.bars.map((bar, index) => (
-          <div className="xray-viz-row" key={index} title={`${bar.label}: ${formatVizValue(bar.value)}`}>
+          <div className="xray-viz-row" key={index} title={`${bar.label}: ${vizValueText(bar)}`}>
             <span className="xray-viz-label">{bar.label}</span>
             <span className="xray-viz-track">
               <span className={`xray-viz-fill ${bar.negative ? 'negative' : ''}`} style={{ width: `${Math.max(2, (Math.abs(bar.value) / denom) * 100)}%` }} />
             </span>
-            <span className="xray-viz-value">{formatVizValue(bar.value)}</span>
+            <span className="xray-viz-value">{vizValueText(bar)}</span>
           </div>
         ))}
       </div>
@@ -729,6 +986,12 @@ function WaterfallView({ entry }: { entry: XrayEntry }): React.ReactElement {
   );
 }
 
+/** A frame cut at capture says so beside its size (spec J16: the cut is metadata, never an in-band "…"). */
+function frameCutText(cut: NonNullable<WsFrame['truncated']>): string {
+  const kept = Number(cut.keptChars).toLocaleString('en-US');
+  return typeof cut.totalChars === 'number' ? `first ${kept} of ${cut.totalChars.toLocaleString('en-US')} characters` : `first ${kept} characters`;
+}
+
 function FramesView({ frames, state }: { frames: WsFrame[]; state?: string }): React.ReactElement {
   if (!frames.length) {
     return <EmptyState label={state === 'connecting' ? 'Waiting for stream frames…' : 'No frames captured'} />;
@@ -748,6 +1011,7 @@ function FramesView({ frames, state }: { frames: WsFrame[]; state?: string }): R
             <span className={`xray-frame-dir ${frame.dir}`}>{frame.dir === 'in' ? '↓ in' : '↑ out'}</span>
             <span className="xray-frame-time">{formatTime(frame.ts)}</span>
             <span className="xray-frame-size">{formatBytes(frame.size)}</span>
+            {frame.truncated && <span className="xray-frame-cut xray-muted">{frameCutText(frame.truncated)}</span>}
             <code className="xray-frame-preview">{frame.preview}</code>
           </div>
         ))}
@@ -818,38 +1082,52 @@ function TokensView({ jwts }: { jwts: ReturnType<typeof extractJwts> }): React.R
   );
 }
 
-const DiffView = React.memo(function DiffView({ current, previous, workerDiff, baselineId, baselineIsDrift }: {
-  current: unknown;
-  previous: unknown;
-  workerDiff?: DiffLine[] | null;
+/**
+ * Diff against the drift baseline or the previous call: diffNodes (lexemes, never a silent stop). A
+ * notice says when a depth, array or line limit hid detail; "No structural differences" only when the
+ * comparison was complete.
+ */
+const DiffView = React.memo(function DiffView({ current, previous, previousTruncated, baselineId, baselineIsDrift }: {
+  current: JsonNode | null;
+  previous: JsonNode | null;
+  previousTruncated: boolean;
   baselineId: string | null;
   baselineIsDrift: boolean;
 }): React.ReactElement {
   const selectEntry = usePanelStore((state) => state.selectEntry);
-  const lines = React.useMemo(() => (previous == null ? [] : workerDiff ?? structuralDiff(previous, current)), [current, previous, workerDiff]);
-  if (previous == null) {
-    return <EmptyState label="No previous matching response" hint="A second call to this endpoint (or a recorded drift baseline) is needed to diff against." />;
+  const result = React.useMemo(() => (previous && !previousTruncated ? diffNodes(previous, current) : null), [current, previous, previousTruncated]);
+  const jump = baselineId && <button className="xray-chip" onClick={() => selectEntry(baselineId)}>Jump to baseline</button>;
+  if (previousTruncated) {
+    return <EmptyState label={DIFF_PREVIOUS_TRUNCATED} hint="Its capture kept only a prefix, which is not the JSON that was sent; Diff compares complete bodies." action={jump || undefined} />;
   }
+  if (!result) {
+    return <EmptyState label={DIFF_NO_PREVIOUS} hint="A second call to this endpoint (or a recorded drift baseline) is needed to diff against." />;
+  }
+  const { lines, notices } = result;
+  const against = baselineIsDrift ? 'the drift baseline' : 'the previous call';
   return (
     <div className="xray-diff">
       <div className="xray-diff-head">
         <span className="xray-muted">
           {lines.length
-            ? `${lines.length} difference${lines.length === 1 ? '' : 's'} vs ${baselineIsDrift ? 'the drift baseline' : 'the previous call'}`
-            : 'No structural differences'}
+            ? `${lines.length} difference${lines.length === 1 ? '' : 's'} vs ${against}`
+            : notices.length ? `No differences listed vs ${against}` : 'No structural differences'}
         </span>
-        {baselineId && (
-          <button className="xray-chip" onClick={() => selectEntry(baselineId)}>Jump to baseline</button>
-        )}
+        {jump}
       </div>
+      {notices.length > 0 && (
+        <div className="xray-body-notices">
+          {notices.map((notice) => <p key={notice} className="xray-body-notice warning" role="note">{visibleText(notice)}</p>)}
+        </div>
+      )}
       {lines.length > 0 && (
         <div className="xray-diff-lines">
           {lines.map((line, index) => (
             <div key={index} className={`xray-diff-line ${line.kind}`}>
               <span className="xray-diff-kind">{line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : '±'}</span>
-              <code className="xray-diff-path">{line.path || '(root)'}</code>
-              {line.kind !== 'added' && <code className="xray-diff-before">{preview(line.before, 90)}</code>}
-              {line.kind !== 'removed' && <code className="xray-diff-after">{preview(line.after, 90)}</code>}
+              <code className="xray-diff-path">{line.path ? visibleText(line.path) : '(root)'}</code>
+              {line.kind !== 'added' && <code className="xray-diff-before">{line.before ? visibleText(nodeText(line.before, 90)) : ''}</code>}
+              {line.kind !== 'removed' && <code className="xray-diff-after">{line.after ? visibleText(nodeText(line.after, 90)) : ''}</code>}
             </div>
           ))}
         </div>

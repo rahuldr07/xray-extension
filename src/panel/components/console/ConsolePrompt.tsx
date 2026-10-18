@@ -8,8 +8,9 @@ import {
 import { evaluateConsoleCommand, usePanelStore } from '../../store';
 import { rememberConsoleResult } from '../../runtime/consoleBridge';
 import { entryRequest, entryResponse, preview } from '../../utils';
+import { resultText } from '../../models/consoleResults';
+import { logPlain } from '../../models/logValue';
 import { SnippetsMenu } from './SnippetsMenu';
-import { unwrap } from './ResultView';
 import { ConsoleEditor } from './ConsoleEditor';
 import { summarizeCaptured } from '../../models/consoleAssist';
 import { RequestContextLine, usePinnedRoots } from './RequestContextLine';
@@ -22,6 +23,24 @@ const CANCEL_AFTER_MS = 2000;
 const SAVED_VARIABLE = /^(?:temp\d+|\$_)$/;
 const NO_ROOTS: Record<string, unknown> = {};
 
+// A saved variable holds the typed model (spec J8); suggestions read it as the page will hold
+// it — the shared reviver's BigInt, Map, Date… (else the plain projection). Cached per value.
+const rootValues = new WeakMap<object, unknown>();
+
+function rootValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  if (rootValues.has(value)) return rootValues.get(value);
+  let root: unknown;
+  try {
+    const revive = window.XRAY_ConsoleHelpers?.reviveValue;
+    root = revive ? revive(value) : logPlain(value);
+  } catch {
+    root = undefined;
+  }
+  rootValues.set(value, root);
+  return root;
+}
+
 /**
  * Saved variables straight from the console scope (stored values, never evaluated).
  * Read on every render: the scope changes outside the store (a run's `$_`, Save as variable).
@@ -30,7 +49,7 @@ function savedVariables(): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   try {
     const scope = window.XRAY_Console?.getScope?.() ?? {};
-    for (const name of Object.keys(scope)) if (SAVED_VARIABLE.test(name)) out[name] = scope[name];
+    for (const name of Object.keys(scope)) if (SAVED_VARIABLE.test(name)) out[name] = rootValue(scope[name]);
   } catch {
     // No console scope: no saved variables to offer.
   }
@@ -204,23 +223,31 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
         if (!codeOverride) setConsoleDraft(code);
         setAnnouncement(`Error: ${message}`);
       } else {
-        // The value, not a table() render marker around it: this is the stream's
-        // searchable text and the screen-reader announcement.
-        const value = unwrap(result.result).value;
-        const message = preview(value, 260);
+        // The typed value (spec J8). Its text is the stream's searchable message and the
+        // screen-reader announcement: values as the Logs write them, never envelopes.
+        const value = result.result;
+        // A value that cannot be read (only a hand-built one can) still reaches its cell,
+        // whose error boundary shows it (J12); its message falls back to the old preview.
+        let message: string;
+        try {
+          message = resultText(value, 260);
+        } catch {
+          message = preview(value, 260);
+        }
         addConsoleEvent({
           id: 'res_' + commandId,
           type: 'result',
           level: 'info',
           timestamp: Date.now(),
           message,
-          data: result.result,
+          data: value,
           commandId,
           truncated: !!result.truncated,
           durationMs,
           resultType: result.type,
+          ...(result.render === 'table' ? { resultRender: 'table' as const } : {}),
         });
-        // `$_` holds the value, not a table() render marker around it.
+        // `$_` holds the typed value; the next run revives it in the page.
         rememberConsoleResult(value);
         setAnnouncement(`Result: ${message.slice(0, 140)}`);
       }

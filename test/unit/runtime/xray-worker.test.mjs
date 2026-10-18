@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 
-import { dispatch, hostify, loadIsolatedWorld, loadWorker, readSource, repoRoot } from './vm-load.mjs';
+import { dispatch, hostify, loadIsolatedWorld, loadWorker, repoRoot } from './vm-load.mjs';
 
 const W = loadWorker();
 
@@ -27,347 +27,75 @@ test('worker: posts a ready handshake and installs an onmessage handler at load'
   assert.deepEqual(fresh.idbOpenCalls, []);
 });
 
-// ───────────────────────────────────────────────────────────── tokenizeEntry
+// ─────────────────────────────────────────── token index / search (removed)
 
-test('tokenizeEntry: api entries yield lowercased url, path segments, method, status and keys', () => {
-  const tokens = W.tokenizeEntry({
-    type: 'api',
-    url: 'https://API.test/V1/Users?x=1',
-    method: 'Get',
-    status: 200,
-    responseDecrypted: { Data: { Inner: { TooDeep: 1 } } },
-    requestBody: { Q: 1 },
-  });
-  assert.deepEqual(hostify(tokens), [
-    'https://api.test/v1/users?x=1', 'v1', 'users', 'get', '200', 'data', 'inner', 'q',
-  ]);
-  assert.ok(!tokens.includes('toodeep'), 'extractKeys stops at depth 2');
-});
-
-test('tokenizeEntry: falsy status and method contribute nothing', () => {
-  // A request that never completed has status 0; `if (entry.status)` drops it,
-  // so "0" is not searchable. Same for an empty method.
-  assert.deepEqual(hostify(W.tokenizeEntry({ type: 'api', status: 0, method: '' })), []);
-  assert.deepEqual(hostify(W.tokenizeEntry({ type: 'api', status: 204 })), ['204']);
-});
-
-test('tokenizeEntry: an unparseable url still contributes its raw lowercased form', () => {
-  assert.deepEqual(hostify(W.tokenizeEntry({ type: 'api', url: 'NOT a url' })), ['not a url']);
-});
-
-test('tokenizeEntry: log entries index the level plus words longer than two chars', () => {
-  const tokens = W.tokenizeEntry({ type: 'log', logLevel: 'warn', logData: 'Hello Big to World' });
-  assert.deepEqual(hostify(tokens), ['warn', 'hello', 'big', 'world']);
-  assert.ok(!tokens.includes('to'), 'two-character words are filtered out');
-});
-
-test('tokenizeEntry: entry types other than api/log are not indexed at all', () => {
-  // WebSocket and GraphQL frames are captured by content/interceptor.js but
-  // tokenize to nothing here, so they can never match a search query.
-  assert.deepEqual(hostify(W.tokenizeEntry({ type: 'ws', url: 'wss://a.test/socket' })), []);
-  assert.deepEqual(hostify(W.tokenizeEntry({ type: 'graphql', url: 'https://a.test/gql' })), []);
-});
-
-test('tokenizeEntry: extractKeys caps at 50 keys per object level', () => {
-  const wide = {};
-  for (let i = 0; i < 60; i++) wide[`k${i}`] = i;
-  const tokens = W.tokenizeEntry({ type: 'api', responseDecrypted: wide });
-  assert.ok(tokens.includes('k49'));
-  assert.ok(!tokens.includes('k50'), 'keys past the 50th are dropped from the index');
-});
-
-// ───────────────────────────────────────────────────────────── searchEntries
-
-const searchFixture = [
-  { type: 'api', url: 'https://a.test/users', method: 'GET', status: 200 },
-  { type: 'api', url: 'https://a.test/orders', method: 'POST', status: 500 },
-];
-
-test('searchEntries: blank queries return the input array untouched', () => {
-  assert.equal(W.searchEntries('', searchFixture), searchFixture);
-  assert.equal(W.searchEntries('   ', searchFixture), searchFixture);
-  assert.equal(W.searchEntries(null, searchFixture), searchFixture);
-});
-
-test('searchEntries: case-insensitive substring match, AND across whitespace-split terms', () => {
-  assert.equal(W.searchEntries('users', searchFixture).length, 1);
-  assert.equal(W.searchEntries('USERS', searchFixture).length, 1);
-  assert.equal(W.searchEntries('user', searchFixture).length, 1, 'terms match as substrings of a token');
-  assert.equal(W.searchEntries('users get', searchFixture).length, 1, 'every term must match');
-  assert.equal(W.searchEntries('users post', searchFixture).length, 0);
-  assert.equal(W.searchEntries('500', searchFixture).length, 1);
-});
-
-test('searchEntries: a precomputed _searchTokens cache wins over the live entry', () => {
-  // addEntry stamps _searchTokens once; searchEntries never revalidates it, so a
-  // stale cache silently decides the result. This pins that behaviour.
-  const stale = [{ type: 'api', url: 'https://a.test/current', _searchTokens: ['legacy-token'] }];
-  assert.equal(W.searchEntries('legacy', stale).length, 1);
-  assert.equal(W.searchEntries('current', stale).length, 0, 'the live url is not consulted');
-});
-
-// ───────────────────────────────────────────────────────────── computeStats
-
-test('computeStats: counts keys, arrays, string bytes and observed depth', () => {
-  assert.deepEqual(hostify(W.computeStats({ a: 'xx', b: [1, 2, 3] })), {
-    keyCount: 2, arrayCount: 1, stringLength: 2, maxStringLen: 2, depth: 2,
-  });
-  assert.deepEqual(hostify(W.computeStats('bare string')), {
-    keyCount: 0, arrayCount: 0, stringLength: 11, maxStringLen: 11, depth: 0,
-  });
-  assert.deepEqual(hostify(W.computeStats(null)), {
-    keyCount: 0, arrayCount: 0, stringLength: 0, maxStringLen: 0, depth: 0,
-  });
-});
-
-test('computeStats: depth is capped, and wide containers are sampled not counted', () => {
-  let deep = 'leaf';
-  for (let i = 0; i < 30; i++) deep = { nested: deep };
-  assert.equal(W.computeStats(deep).depth, 10, 'the walk refuses to descend past maxDepth (10)');
-  assert.equal(W.computeStats(deep, 3).depth, 3, 'maxDepth is configurable');
-
-  const wide = {};
-  for (let i = 0; i < 150; i++) wide[`k${i}`] = 'v';
-  const stats = W.computeStats(wide);
-  assert.equal(stats.keyCount, 150, 'keyCount sees every key');
-  assert.equal(stats.stringLength, 100, 'but only the first 100 values are walked');
-});
-
-test('computeStats: a cyclic object terminates because of the depth cap', () => {
-  // This is the contrast case for the two functions below: computeStats has a
-  // depth guard, so postMessage-delivered cycles are contained here.
-  const cyclic = { a: 1 };
-  cyclic.self = cyclic;
-  const stats = W.computeStats(cyclic);
-  assert.equal(stats.depth, 10);
-  assert.equal(stats.keyCount, 22, '2 keys at each of the 11 visited levels');
-});
-
-// ───────────────────────────────────────────────────────────── computeDiff
-
-test('computeDiff: reports changed / added / removed with dotted paths', () => {
-  const diffs = W.computeDiff({ a: 1, b: 2, gone: true }, { a: 1, b: 3, fresh: 'x' });
-  assert.deepEqual(hostify(diffs), [
-    { type: 'changed', path: 'b', from: 2, to: 3 },
-    { type: 'removed', path: 'gone', value: true },
-    { type: 'added', path: 'fresh', value: 'x' },
-  ]);
-});
-
-test('computeDiff: nested paths, array indices and length changes', () => {
-  assert.deepEqual(hostify(W.computeDiff({ u: { name: 'a' } }, { u: { name: 'b' } })), [
-    { type: 'changed', path: 'u.name', from: 'a', to: 'b' },
-  ]);
-  assert.deepEqual(hostify(W.computeDiff([1, 2], [1, 9, 3])), [
-    { type: 'changed', path: '[1]', from: 2, to: 9 },
-    { type: 'added', path: '[2]', value: 3 },
-  ]);
-  assert.deepEqual(hostify(W.computeDiff([1, 2], [1])), [
-    { type: 'removed', path: '[1]', value: 2 },
-  ]);
-});
-
-test('computeDiff: a type change is one "changed" record, not a recursive walk', () => {
-  assert.deepEqual(hostify(W.computeDiff({ v: { deep: 1 } }, { v: 'now a string' })), [
-    { type: 'changed', path: 'v', from: { deep: 1 }, to: 'now a string' },
-  ]);
-  assert.deepEqual(hostify(W.computeDiff({ v: [1] }, { v: { 0: 1 } })), [
-    { type: 'changed', path: 'v', from: [1], to: { 0: 1 } },
-  ], 'array vs object is a type change even with identical contents');
-  assert.deepEqual(hostify(W.computeDiff(null, {})), [
-    { type: 'changed', path: '', from: null, to: {} },
-  ]);
-  assert.deepEqual(hostify(W.computeDiff({ a: 1 }, { a: 1 })), [], 'identical inputs produce no records');
-});
-
-test('FIXED computeDiff bounds cyclic input instead of blowing the stack', () => {
-  // Was (workers/xray-worker.js:234): no depth cap and no visited tracking, so a
-  // cyclic payload — reachable, because postMessage's structured-clone transport
-  // carries cycles — recursed to RangeError and lost the whole diff.
-  const a = { id: 1 };
-  a.self = a;
-  const b = { id: 2 };
-  b.self = b;
-
-  const diffs = W.computeDiff(a, b);
-  assert.deepEqual(hostify(diffs), [{ type: 'changed', path: 'id', from: 1, to: 2 }],
-    'the real difference is reported and the shared cycle is not');
-
-  // Two objects that are only a cycle diff to nothing at all.
-  const p1 = {}; p1.self = p1;
-  const p2 = {}; p2.self = p2;
-  assert.deepEqual(hostify(W.computeDiff(p1, p2)), [], 'identical cycles are not a difference');
-});
-
-test('FIXED computeDiff emits a serialisable marker for a cycle on one side only', () => {
-  // The recursion only continues when both sides have the key, so an asymmetric
-  // cycle escaped as a raw `value`. Structured clone carried it, but every export
-  // path in this repo JSON-stringifies the diff, and that threw.
-  const a = { id: 1 };
-  a.self = a;
-  const diffs = W.computeDiff(a, { id: 1 });
-  assert.equal(diffs.length, 1);
-  assert.equal(diffs[0].type, 'removed');
-  assert.equal(diffs[0].path, 'self');
-  assert.deepEqual(hostify(diffs[0].value), { id: 1, self: '[Circular]' },
-    'the cycle becomes a marker rather than the raw object');
-  assert.doesNotThrow(() => JSON.stringify(hostify(diffs)), 'so consumers can serialise it');
-});
-
-test('computeDiff: a cyclic payload now returns a successful reply through onmessage', async () => {
+test('the worker keeps no token index or search (JSON fidelity Task 6 ruling)', async () => {
+  // content.js fed every capture to addEntry so the worker could tokenize it for a `search`
+  // action nothing called; the panel searches its own session index. The index and the search are
+  // gone, and with the final fix (M7) addEntry and its entry cache too.
+  for (const name of ['tokenizeEntry', 'extractKeys', 'extractLogKeys', 'searchEntries']) {
+    assert.equal(typeof W[name], 'undefined', `${name} is gone`);
+  }
   const worker = loadWorker();
-  const a = {};
-  a.self = a;
-  const b = {};
-  b.self = b;
-  const reply = await dispatch(worker, 'computeDiff', { a, b }, 'diff-cyclic');
-  assert.equal(reply.success, true, 'was {success:false} with a RangeError message');
-  assert.deepEqual(hostify(reply.result), []);
-  assert.equal(typeof worker.self.onmessage, 'function', 'and the worker is still alive');
+  assert.deepEqual(hostify(await dispatch(worker, 'search', { query: 'users', entries: [] }, 'gone')),
+    { id: 'gone', success: false, error: 'Unknown action: search' });
 });
 
+// ─────────────────────────────────────────── table / schema / diff (removed)
 
-// ───────────────────────────────────────────────────────────── inferSchema
-
-test('inferSchema: maps values to type names, sampling arrays by their first element', () => {
-  assert.deepEqual(hostify(W.inferSchema({ a: [{ b: 1 }], c: null, d: 's', e: true })), {
-    a: [{ b: 'number' }], c: 'null', d: 'string', e: 'boolean',
-  });
-  assert.equal(W.inferSchema([]), 'array', 'an empty array has no element to sample');
-  assert.equal(W.inferSchema(undefined), 'undefined');
-  assert.deepEqual(hostify(W.inferSchema([{ a: 1 }, { totallyDifferent: 1 }])), [{ a: 'number' }],
-    'only element 0 is inspected, so heterogeneous arrays are misreported');
+test('the worker keeps no table, schema or diff of its own (JSON fidelity spec J11)', async () => {
+  // DevTools used to get these from the worker while every other surface ran the panel's models:
+  // the worker picked the FIRST array ({"errors":[],"data":[…]} showed no rows), typed to depth 10
+  // instead of 5, diffed to depth 50 instead of 6, and received integers past 2^53 already rounded.
+  // The panel's node models (src/panel/models/detail.ts, viz.ts) now serve every surface.
+  for (const name of ['computeDiff', 'inferSchema', 'gridRows', 'detailAnalysis', 'cycleSafe', 'diffValue']) {
+    assert.equal(typeof W[name], 'undefined', `${name} is gone`);
+  }
+  const worker = loadWorker();
+  for (const action of ['computeDiff', 'inferSchema', 'detailAnalysis']) {
+    assert.deepEqual(hostify(await dispatch(worker, action, { a: 1, b: 2, data: 1, current: 1 }, action)),
+      { id: action, success: false, error: `Unknown action: ${action}` });
+  }
 });
 
-test('inferSchema: depth and key-count caps are marked in the output', () => {
-  assert.deepEqual(hostify(W.inferSchema({ a: { b: { c: { d: 1 } } } }, 0, 2)), {
-    a: { b: { c: '[Max depth]' } },
-  });
+// ───────────────────────────────────────────────────────────── CSV (console helpers)
 
-  const wide = {};
-  for (let i = 0; i < 205; i++) wide[`k${i}`] = 1;
-  const schema = W.inferSchema(wide);
-  assert.equal(Object.keys(schema).length, 201, '200 sampled keys plus the marker');
-  assert.equal(schema['...'], '+5 more keys');
+// The extension's one CSV writer is toCSV in shared/console-helpers.js (the console csv() / toCSV()
+// builtins); the worker's own exportCSV writer had no caller and went with the final fix (M7). Its
+// escaping rules are pinned here on toCSV's cells.
+const csvCell = (value) => {
+  const csv = loadIsolatedWorld('shared/console-helpers.js').window.XRAY_ConsoleHelpers.toCSV([{ v: value }]);
+  return csv.slice(csv.indexOf('\n') + 1); // after the header row; a cell may hold a line break
+};
+
+test('toCSV cells: quoted only when needed, embedded quotes doubled, non-strings JSON-encoded', () => {
+  assert.equal(csvCell('plain'), 'plain');
+  assert.equal(csvCell('a,b'), '"a,b"');
+  assert.equal(csvCell('say "hi"'), '"say ""hi"""');
+  assert.equal(csvCell('line1\nline2'), '"line1\nline2"');
+  assert.equal(csvCell(null), '');
+  assert.equal(csvCell(0), '0');
+  assert.equal(csvCell(false), 'false');
+  assert.equal(csvCell({ o: 1 }), '"{""o"":1}"', 'JSON.stringify, not String()');
+  assert.equal(csvCell([1, 2]), '"[1,2]"', 'an array keeps its structure inside one cell');
 });
 
-test('inferSchema: a cyclic object is bounded by maxDepth rather than throwing', () => {
-  const cyclic = { a: 1 };
-  cyclic.self = cyclic;
-  let node = W.inferSchema(cyclic);
-  let levels = 0;
-  while (typeof node === 'object' && node.self) { node = node.self; levels++; }
-  assert.equal(levels, 11, 'the guard is `depth > maxDepth`, so level 11 is the first to be cut');
-  assert.equal(node, '[Max depth]');
-});
-
-// ───────────────────────────────────────────────────────────── gridRows
-
-test('gridRows: unions the keys of object rows and caps rows at 200 / columns at 20', () => {
-  assert.deepEqual(hostify(W.gridRows([{ a: 1 }, { b: 2 }, 'scalar', [1]])), {
-    objects: [{ a: 1 }, { b: 2 }], columns: ['a', 'b'],
-  });
-
-  const many = Array.from({ length: 250 }, (_, i) => ({ [`c${i}`]: i }));
-  const grid = W.gridRows(many);
-  assert.equal(grid.objects.length, 200);
-  assert.equal(grid.columns.length, 200, 'the 20-key cap is PER ROW, not on the column union');
-
-  const wideRow = {};
-  for (let i = 0; i < 30; i++) wideRow[`k${i}`] = i;
-  assert.equal(W.gridRows([wideRow]).columns.length, 20);
-});
-
-test('gridRows: finds the first array-valued property of an envelope object', () => {
-  assert.deepEqual(hostify(W.gridRows({ meta: { page: 1 }, items: [{ a: 1 }] })), {
-    objects: [{ a: 1 }], columns: ['a'],
-  });
-  assert.deepEqual(hostify(W.gridRows({ a: 1 })), { objects: [{ a: 1 }], columns: ['a'] },
-    'an envelope with no array is treated as a single row');
-  assert.deepEqual(hostify(W.gridRows(5)), { objects: [], columns: [] });
-  assert.deepEqual(hostify(W.gridRows(null)), { objects: [], columns: [] });
-});
-
-// ───────────────────────────────────────────────────────────── detailAnalysis
-
-test('detailAnalysis: bundles schema/grid/viz/stats and omits diff when there is no previous', () => {
-  const result = W.detailAnalysis({ items: [{ id: 1 }] });
-  assert.equal(result.diff, null);
-  assert.equal(result.engine, 'worker-js');
-  assert.deepEqual(hostify(result.schema), { items: [{ id: 'number' }] });
-  assert.deepEqual(hostify(result.grid), { objects: [{ id: 1 }], columns: ['id'] });
-  assert.deepEqual(hostify(result.viz.rows), 1, 'a non-array root counts as one row');
-  assert.equal(typeof result.durationMs, 'number');
-});
-
-test('detailAnalysis: with a previous value it emits both schemas and a capped structural diff', () => {
-  const result = W.detailAnalysis({ a: 2 }, { a: 1 });
-  assert.deepEqual(hostify(result.diff.structuralDiff), [{ type: 'changed', path: 'a', from: 1, to: 2 }]);
-  assert.deepEqual(hostify(result.diff.previousSchema), { a: 'number' });
-
-  const big = Array.from({ length: 700 }, (_, i) => i);
-  const capped = W.detailAnalysis(big, big.map((n) => n + 1));
-  assert.equal(capped.diff.structuralDiff.length, 500, 'structuralDiff is sliced to 500 records');
-  assert.equal(capped.viz.rows, 700, 'but viz.rows still reports the true length');
-});
-
-test('detailAnalysis: a cyclic previous value is bounded, not fatal', () => {
-  const a = { v: 1 };
-  a.self = a;
-  const b = { v: 2 };
-  b.self = b;
-  const result = W.detailAnalysis(a, b);
-  assert.deepEqual(hostify(result.diff.structuralDiff), [{ type: 'changed', path: 'v', from: 2, to: 1 }],
-    'was: RangeError out of the whole analysis');
-});
-
-// ───────────────────────────────────────────────────────────── escapeCSV / exports
-
-test('escapeCSV: quotes only when needed, doubles embedded quotes, JSON-encodes non-strings', () => {
-  // Was: unconditional quoting and String() for non-strings. Both now match toCSV
-  // in shared/console-helpers.js, so the same value produces the same bytes
-  // whichever of the extension's two CSV writers wrote the file.
-  assert.equal(W.escapeCSV('plain'), 'plain');
-  assert.equal(W.escapeCSV('a,b'), '"a,b"');
-  assert.equal(W.escapeCSV('say "hi"'), '"say ""hi"""');
-  assert.equal(W.escapeCSV('line1\nline2'), '"line1\nline2"');
-  assert.equal(W.escapeCSV(null), '');
-  assert.equal(W.escapeCSV(undefined), '');
-  assert.equal(W.escapeCSV(0), '0');
-  assert.equal(W.escapeCSV(false), 'false');
-  assert.equal(W.escapeCSV({ o: 1 }), '"{""o"":1}"', 'JSON.stringify, not String()');
-  assert.equal(W.escapeCSV([1, 2]), '"[1,2]"', 'an array keeps its structure inside one cell');
-});
-
-test('FIXED escapeCSV neutralises CSV formula injection', () => {
+test('toCSV neutralises CSV formula injection', () => {
   // A response value starting with = + - or @ is evaluated as a formula by Excel /
   // Sheets / LibreOffice on open. RFC4180 quoting is NOT a defence: the spreadsheet
   // strips the quotes before evaluating. A leading apostrophe is what stops it.
-  assert.equal(W.escapeCSV('=1+1'), "'=1+1");
-  assert.equal(W.escapeCSV('+SUM(A1)'), "'+SUM(A1)");
-  assert.equal(W.escapeCSV('@SUM(A1)'), "'@SUM(A1)");
-  assert.equal(W.escapeCSV("=cmd|'/c calc'!A1"), "'=cmd|'/c calc'!A1");
-  assert.equal(W.escapeCSV('=HYPERLINK("http://evil.test")'), String.raw`"'=HYPERLINK(""http://evil.test"")"`);
+  assert.equal(csvCell('=1+1'), "'=1+1");
+  assert.equal(csvCell('+SUM(A1)'), "'+SUM(A1)");
+  assert.equal(csvCell('@SUM(A1)'), "'@SUM(A1)");
+  assert.equal(csvCell("=cmd|'/c calc'!A1"), "'=cmd|'/c calc'!A1");
+  assert.equal(csvCell('=HYPERLINK("http://evil.test")'), String.raw`"'=HYPERLINK(""http://evil.test"")"`);
 
   // Plain numbers keep their type — neutralising them would turn every negative
   // duration into text.
-  assert.equal(W.escapeCSV(-5), '-5');
-  assert.equal(W.escapeCSV('-12.5'), '-12.5');
-  assert.equal(W.escapeCSV('-1e3'), '-1e3');
-  assert.equal(W.escapeCSV('-2+3'), "'-2+3", 'an expression that merely starts like a number is not one');
-});
-
-test('escapeCSV and shared/console-helpers.js toCSV now agree cell for cell', () => {
-  // These are the extension's two CSV writers: the worker one backs the panel's
-  // "Export CSV", the helper one backs the console csv() / toCSV() builtins. They
-  // used to disagree on quoting policy AND on non-string handling, so the same
-  // value round-tripped to two different files.
-  const helpers = loadIsolatedWorld('shared/console-helpers.js').window.XRAY_ConsoleHelpers;
-  const cell = (value) => helpers.toCSV([{ v: value }]).split('\n')[1];
-
-  for (const value of ['plain', 'a,b', 'say "hi"', '=1+1', '-2+3', '@x', 0, false, -5, { o: 1 }, [1, 2], null]) {
-    assert.equal(W.escapeCSV(value), cell(value), JSON.stringify(value) + ' agrees across both writers');
-  }
+  assert.equal(csvCell(-5), '-5');
+  assert.equal(csvCell('-12.5'), '-12.5');
+  assert.equal(csvCell('-1e3'), '-1e3');
+  assert.equal(csvCell('-2+3'), "'-2+3", 'an expression that merely starts like a number is not one');
 });
 
 test('FIXED shared/console-helpers.js toCSV escapes its header row', () => {
@@ -386,143 +114,6 @@ test('FIXED shared/console-helpers.js toCSV takes columns from every row', () =>
   assert.equal(helpers.toCSV([{ a: 1 }, { a: 2, b: 'kept' }]), 'a,b\n1,\n2,kept');
   assert.equal(helpers.toCSV([{}, { a: 1 }]), 'a\n\n1', 'an empty first row no longer erases the table');
   assert.equal(helpers.toCSV([{}, {}]), '', 'genuinely keyless input is still empty');
-});
-
-test('exportToCSV: fixed header, api entries only, ISO timestamps', () => {
-  const csv = W.exportToCSV([
-    { type: 'api', timestamp: 0, method: 'GET', url: 'https://a.test/x,y', status: 200, duration: 5, size: 10 },
-    { type: 'log', logLevel: 'error' },
-  ]);
-  // Cells are quoted only when they need it now, matching the console helper.
-  assert.deepEqual(csv.split('\n'), [
-    'timestamp,method,url,status,duration,size',
-    '1970-01-01T00:00:00.000Z,GET,"https://a.test/x,y",200,5,10',
-  ]);
-  assert.equal(W.exportToCSV([]), '');
-  assert.equal(W.exportToCSV([{ type: 'log' }]), '', 'a log-only capture exports an empty string, not a header');
-});
-
-test('exportToCSV: missing values become empty cells', () => {
-  assert.equal(
-    W.exportToCSV([{ type: 'api', timestamp: 0 }]),
-    'timestamp,method,url,status,duration,size\n1970-01-01T00:00:00.000Z,,,,,',
-    'every missing field degrades to an empty cell',
-  );
-});
-
-test('FIXED exportToCSV survives an entry with no valid timestamp', () => {
-  // Was: `new Date(entry.timestamp).toISOString()` unguarded, so Invalid Date threw
-  // RangeError and a SINGLE bad entry — an imported HAR with a string date, or an
-  // entry the interceptor never stamped — discarded the whole export, good rows
-  // included. Every other column already had a fallback; now this one does too.
-  const header = 'timestamp,method,url,status,duration,size';
-  assert.equal(W.exportToCSV([{ type: 'api' }]), header + '\n,,,,,');
-  assert.equal(W.exportToCSV([{ type: 'api', timestamp: 'not-a-date' }]), header + '\n,,,,,');
-
-  const mixed = W.exportToCSV([{ type: 'api', timestamp: 0 }, { type: 'api', timestamp: NaN }]);
-  assert.deepEqual(mixed.split('\n'), [header, '1970-01-01T00:00:00.000Z,,,,,', ',,,,,'],
-    'the good entry survives alongside the malformed one');
-
-  // exportToHAR had the identical unguarded call and the same fix.
-  const har = W.exportToHAR([{ type: 'api' }]);
-  assert.equal(har.log.entries[0].startedDateTime, '', 'an unknown time is empty, not invented');
-
-  assert.equal(W.exportToCSV(null), '', 'a non-array entries list is empty, not a TypeError');
-  assert.equal(W.exportToHAR(null).log.entries.length, 0);
-});
-
-test('exportToHAR: emits a 1.2 log with header pairs and omits postData when absent', () => {
-  const har = hostify(W.exportToHAR([
-    {
-      type: 'api', timestamp: 0, method: 'GET', url: 'https://a.test/x', status: 200,
-      duration: 3, size: 9, requestHeaders: { a: 'b' }, responseHeaders: { c: 'd' }, responseRaw: '{}',
-    },
-    { type: 'log' },
-  ]));
-  assert.equal(har.log.version, '1.2');
-  assert.deepEqual(har.log.creator, { name: 'XRAY Extension', version: '1.0.0' });
-  assert.equal(har.log.entries.length, 1, 'log entries are excluded');
-
-  const [entry] = har.log.entries;
-  assert.equal(entry.startedDateTime, '1970-01-01T00:00:00.000Z');
-  assert.deepEqual(entry.request.headers, [{ name: 'a', value: 'b' }]);
-  assert.deepEqual(entry.response.headers, [{ name: 'c', value: 'd' }]);
-  assert.equal(entry.request.postData, undefined, 'no request body means no postData');
-  assert.deepEqual(entry.timings, { wait: 3, receive: 0 });
-});
-
-test('exportToHAR: defaults every missing field rather than throwing', () => {
-  const har = W.exportToHAR([{ type: 'api', timestamp: 0, requestBody: { q: 1 } }]);
-  const [entry] = har.log.entries;
-  assert.equal(entry.request.method, 'GET');
-  assert.equal(entry.request.url, '');
-  assert.equal(entry.response.status, 0);
-  assert.deepEqual(hostify(entry.request.postData), { mimeType: 'application/json', text: '{"q":1}' });
-  assert.equal(entry.response.content.text, '', 'responseRaw is the only body source; decrypted bodies are lost');
-});
-
-// ───────────────────────────────────────────────────────────── analyzeEntries
-
-test('analyzeEntries: request/log split, status bands, averages and the slowest entry', () => {
-  const result = hostify(W.analyzeEntries([
-    { type: 'api', id: '1', method: 'GET', urlPath: '/a', status: 200, duration: 10 },
-    { type: 'api', id: '2', method: 'GET', urlPath: '/a', status: 404, duration: 50, url: 'https://a.test/a' },
-    { type: 'api', id: '3', method: 'GET', urlPath: '/b', status: 503, duration: 5 },
-    { type: 'log', logLevel: 'error' },
-    { type: 'log', logLevel: 'trace' },
-  ]));
-
-  assert.equal(result.totalRequests, 3);
-  assert.equal(result.totalLogs, 2);
-  assert.equal(result.avgDuration, 22, 'rounded mean of 10/50/5');
-  assert.deepEqual(result.slowestEntry, { id: '2', url: 'https://a.test/a', duration: 50 });
-  assert.deepEqual(result.statusCounts, { success: 1, clientError: 1, serverError: 1 });
-  assert.deepEqual(result.logLevels, { log: 0, warn: 0, error: 1 }, 'unknown levels like "trace" are dropped');
-  assert.deepEqual(result.topEndpoints, [{ endpoint: 'GET /a', count: 2 }, { endpoint: 'GET /b', count: 1 }]);
-});
-
-test('analyzeEntries: 3xx counts as success and a 0/failed request counts as nothing', () => {
-  const result = W.analyzeEntries([
-    { type: 'api', status: 301 }, { type: 'api', status: 399 }, { type: 'api', status: 0 },
-  ]);
-  assert.deepEqual(hostify(result.statusCounts), { success: 2, clientError: 0, serverError: 0 });
-  assert.equal(result.totalRequests, 3, 'the failed request is still counted in the total');
-});
-
-test('FIXED analyzeEntries: avgDuration divides by the timed requests only', () => {
-  // Was (workers/xray-worker.js:462): totalDuration accumulated only entries with a
-  // truthy duration while the divisor was apiEntries.length, so any in-flight or
-  // zero-duration request dragged the reported average down.
-  const result = W.analyzeEntries([
-    { type: 'api', duration: 100 }, { type: 'api' }, { type: 'api', duration: 0 },
-  ]);
-  assert.equal(result.avgDuration, 100, 'the mean of the timed requests, not 33');
-  assert.equal(result.totalRequests, 3, 'while the request count still counts them all');
-
-  assert.equal(W.analyzeEntries([{ type: 'api' }]).avgDuration, 0, 'nothing timed reports 0');
-  assert.equal(W.analyzeEntries([
-    { type: 'api', duration: 100 }, { type: 'api', duration: 200 },
-  ]).avgDuration, 150);
-});
-
-test('analyzeEntries: an empty capture produces a fully-zeroed report', () => {
-  assert.deepEqual(hostify(W.analyzeEntries([])), {
-    totalRequests: 0, totalLogs: 0, avgDuration: 0, slowestEntry: null,
-    statusCounts: { success: 0, clientError: 0, serverError: 0 },
-    logLevels: { log: 0, warn: 0, error: 0 },
-    topEndpoints: [],
-  });
-});
-
-test('analyzeEntries: topEndpoints is capped at ten, sorted by descending count', () => {
-  const entries = [];
-  for (let i = 0; i < 15; i++) {
-    for (let n = 0; n <= i; n++) entries.push({ type: 'api', method: 'GET', urlPath: `/e${i}` });
-  }
-  const top = W.analyzeEntries(entries).topEndpoints;
-  assert.equal(top.length, 10);
-  assert.equal(top[0].endpoint, 'GET /e14');
-  assert.equal(top[0].count, 15);
 });
 
 // ───────────────────────────────────────────────────────────── safeClone
@@ -627,34 +218,11 @@ test('safeClone: an object referenced twice as a sibling is cloned once, not cal
 
 test('onmessage: dispatches each action and echoes the request id', async () => {
   const worker = loadWorker();
-  const entries = [{ type: 'api', id: 'e1', url: 'https://a.test/users', method: 'GET', status: 200, timestamp: 0 }];
-
-  assert.deepEqual(hostify(await dispatch(worker, 'search', { query: 'users', entries }, 's1')),
-    { id: 's1', success: true, result: entries });
-  assert.deepEqual(hostify((await dispatch(worker, 'computeStats', { data: { a: 1 } }, 's2')).result),
-    { keyCount: 1, arrayCount: 0, stringLength: 0, maxStringLen: 0, depth: 1 });
-  assert.deepEqual(hostify((await dispatch(worker, 'computeDiff', { a: { x: 1 }, b: { x: 2 } }, 's3')).result),
-    [{ type: 'changed', path: 'x', from: 1, to: 2 }]);
-  assert.deepEqual(hostify((await dispatch(worker, 'inferSchema', { data: { a: 1 } }, 's4')).result), { a: 'number' });
-  assert.match((await dispatch(worker, 'exportCSV', { entries }, 's5')).result, /^timestamp,method,url/);
-  assert.equal((await dispatch(worker, 'exportHAR', { entries }, 's6')).result.log.version, '1.2');
-  assert.equal((await dispatch(worker, 'analyze', { entries }, 's7')).result.totalRequests, 1);
-  assert.deepEqual(hostify((await dispatch(worker, 'clone', { data: { a: 1 } }, 's8')).result), { a: 1 });
-  assert.equal((await dispatch(worker, 'detailAnalysis', { current: { a: 1 } }, 's9')).result.engine, 'worker-js');
-});
-
-test('onmessage: addEntry stamps search tokens, populates the cache, and never awaits IndexedDB', async () => {
-  const worker = loadWorker();
-  const entry = { id: 'e1', type: 'api', url: 'https://a.test/users', method: 'GET', status: 200 };
-
-  const reply = await dispatch(worker, 'addEntry', { entry }, 'a1');
-  assert.deepEqual(hostify(reply), { id: 'a1', success: true, result: { added: true } });
-  assert.deepEqual(hostify(entry._searchTokens), ['https://a.test/users', 'users', 'get', '200']);
-  assert.equal(worker.idbOpenCalls.length, 1, 'the write is fired and forgotten');
-
-  const cached = await dispatch(worker, 'getFromCache', { id: 'e1' }, 'a2');
-  assert.equal(cached.result, entry, 'the cache holds the live object, not a copy');
-  assert.equal((await dispatch(worker, 'getFromCache', { id: 'nope' }, 'a3')).result, null);
+  assert.deepEqual(hostify(await dispatch(worker, 'init', {}, 's1')), { id: 's1', success: true, result: { ready: true } });
+  assert.deepEqual(hostify((await dispatch(worker, 'clone', { data: { a: 1 } }, 's2')).result), { a: 1 });
+  assert.equal((await dispatch(worker, 'captureReceipt', { accepted: 2 }, 's3')).result.accepted, 2);
+  assert.equal((await dispatch(worker, 'getCaptureReceipt', {}, 's4')).result.accepted, 2);
+  assert.deepEqual(worker.posted.slice(1).map((message) => message.id), ['s1', 's2', 's3', 's4']);
 });
 
 test('onmessage: an unknown action is reported as a failure, not silence', async () => {
@@ -665,53 +233,11 @@ test('onmessage: an unknown action is reported as a failure, not silence', async
 
 test('onmessage: a thrown handler error is reported with only its message', async () => {
   const worker = loadWorker();
-  // addEntry dereferences payload.entry, so a null payload throws inside the switch.
-  // (exportCSV used to be the vehicle here, but it now guards a non-array input.)
-  const reply = await dispatch(worker, 'addEntry', null, 'e1');
+  // clone dereferences payload.data, so a null payload throws inside the switch.
+  const reply = await dispatch(worker, 'clone', null, 'e1');
   assert.equal(reply.success, false);
   assert.equal(typeof reply.error, 'string');
   assert.equal('stack' in reply, false, 'stacks are not leaked back to the panel');
-});
-
-// ───────────────────────────────────────────────────────────── C-11 storage bounds
-
-test('C-11 a page-origin worker refuses to open IndexedDB at all', async () => {
-  // shared/worker-client.js falls back to building the worker from a blob: URL when
-  // the direct construction throws, and a blob worker inherits the CREATING
-  // DOCUMENT'S origin. On that path IndexedDB is the visited site's own database,
-  // readable by page script, so captured traffic from every origin the user browsed
-  // would be written into whatever site they happened to be on.
-  //
-  // The guard keys on the worker's ACTUAL origin rather than on which code path
-  // built it, so it holds whichever way Chrome resolves the direct path too.
-  const pageWorker = loadWorker({ origin: 'https:' });
-  const reply = await dispatch(pageWorker, 'init', {}, 'p1');
-  assert.equal(reply.success, false);
-  assert.match(reply.error, /page-origin worker/);
-  assert.equal(pageWorker.idbOpenCalls.length, 0, 'indexedDB.open is never even called');
-
-  // An extension-origin worker is unaffected.
-  const extWorker = loadWorker();
-  dispatch(extWorker, 'init', {}, 'e1');
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(extWorker.idbOpenCalls.length, 1, 'the extension-origin path still opens the DB');
-});
-
-test('C-11 the entry store is bounded and can be cleared', () => {
-  // Was: every entry, bodies included, written with no retention policy, no size
-  // cap, and no way to clear it from the UI.
-  assert.match(W.pruneStoredEntries.toString(), /IDB_MAX_ENTRIES/);
-  assert.match(W.pruneStoredEntries.toString(), /index\('timestamp'\)/, 'oldest-first');
-  assert.match(W.pruneStoredEntries.toString(), /cursor\.delete\(\)/);
-  assert.equal(typeof W.clearStoredEntries, 'function', 'and a clear exists to back a UI control');
-
-  const source = readSource('workers/xray-worker.js');
-  assert.match(source, /const IDB_MAX_ENTRIES = \d+;/);
-  assert.match(source, /case 'clearStored'/);
-  assert.match(source, /case 'pruneStored'/);
-  // Pruning walks a cursor, so it must not run on every single write.
-  assert.match(source, /_writesSincePrune \+= 1;/);
-  assert.match(source, /if \(_writesSincePrune >= PRUNE_EVERY\)/);
 });
 
 test('capture receipt aggregation exposes only bounded counters and reason codes', async () => {
@@ -734,43 +260,12 @@ test('capture receipt aggregation exposes only bounded counters and reason codes
   assert.equal('body' in storedReceipt, false);
 });
 
-test('IndexedDB cache failures return bounded cache health without raw errors or entry fields', async () => {
-  const worker = loadWorker({ indexedDBOpen: () => {
-    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
-    queueMicrotask(() => request.onerror?.());
-    return request;
-  } });
-  const reply = await dispatch(worker, 'init', {}, 'cache-failure');
-  assert.equal(reply.success, true);
-  assert.deepEqual(hostify(reply.result), { ready: true, cache: 'degraded-in-memory' });
-  const cache = hostify(reply.health.cache);
-  assert.equal(cache.state, 'degraded');
-  assert.equal(cache.lastErrorCode, 'cache-open-failed');
-  assert.equal(typeof cache.lastEventAt, 'number');
-  assert.doesNotMatch(JSON.stringify(reply), /secret|https?:\/\/|headers|body|url/i);
-});
-
-test('cache-open failure leaves the worker ready in bounded in-memory mode', async () => {
-  const worker = loadWorker({ indexedDBOpen: () => {
-    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
-    queueMicrotask(() => request.onerror?.());
-    return request;
-  } });
-  const reply = await dispatch(worker, 'init', {}, 'optional-cache-init');
-  assert.equal(reply.success, true);
-  assert.deepEqual(hostify(reply.result), { ready: true, cache: 'degraded-in-memory' });
-  const health = hostify(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache);
-  assert.equal(health.state, 'degraded');
-  assert.equal(health.lastErrorCode, 'cache-open-failed');
-  assert.doesNotMatch(JSON.stringify(health), /secret|https?:\/\/|headers|body|url/i);
-});
-
-test('real worker cache denial never restarts the client and analysis remains usable', async t => {
+test('the client over a real worker core is ready and healthy; receipts and clone round-trip', async t => {
   let creations = 0;
   class InMemoryWorker {
     constructor() {
       creations += 1;
-      this.core = loadWorker({ indexedDBOpen() { throw new Error('raw-private-cache-denial'); } });
+      this.core = loadWorker();
       this.core.self.postMessage = message => queueMicrotask(() => this.onmessage?.({ data: message }));
       queueMicrotask(() => this.onmessage?.({ data: this.core.posted[0] }));
     }
@@ -787,113 +282,10 @@ test('real worker cache denial never restarts the client and analysis remains us
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(creations, 1);
   assert.equal(client.isReady(), true);
-  assert.equal(client.getHealth().cache.lastErrorCode, 'cache-open-failed');
-  assert.equal(client.getHealth().state, 'degraded');
-  assert.equal((await client.computeStats({ a: 1 })).keyCount, 1);
-  assert.equal((await client.addEntry({ id: 'memory-only', type: 'log' })).added, true);
-  assert.equal((await client.getFromCache('memory-only')).id, 'memory-only');
-  assert.doesNotMatch(JSON.stringify(client.getHealth()), /raw-private/);
-});
-
-test('successful cache reuse emits a sanitized recovery receipt after a prior failure', async () => {
-  let opens = 0;
-  const store = {
-    put() {},
-    count() { return { onsuccess: null, onerror: null }; },
-    clear() {},
-    index() { return { openCursor() { return { onsuccess: null, onerror: null }; } }; },
-  };
-  const db = {
-    objectStoreNames: { contains: () => true },
-    transaction() {
-      const tx = { objectStore: () => store, oncomplete: null, onerror: null, onabort: null };
-      queueMicrotask(() => tx.oncomplete?.());
-      return tx;
-    },
-  };
-  const worker = loadWorker({ indexedDBOpen: () => {
-    opens += 1;
-    const request = { onerror: null, onsuccess: null, onupgradeneeded: null };
-    queueMicrotask(() => {
-      if (opens === 1) request.onerror?.();
-      else { request.result = db; request.onsuccess?.(); }
-    });
-    return request;
-  } });
-  await dispatch(worker, 'init', {}, 'first-open');
-  assert.equal(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache.lastErrorCode, 'cache-open-failed');
-  const add = await dispatch(worker, 'addEntry', { entry: { id: 'recover', type: 'api', url: 'https://safe.test' } }, 'recovery-write');
-  assert.equal(add.success, true);
-  await new Promise(resolve => setTimeout(resolve, 0));
-  const health = hostify(worker.posted.filter(message => message.id === '__health__').at(-1).health.cache);
-  assert.equal(health.state, 'healthy');
-  assert.equal(health.lastErrorCode, null);
-  assert.doesNotMatch(JSON.stringify(health), /secret|https?:\/\/|headers|body|url/i);
-});
-
-test('synchronous cache open denial is optional and never leaks the database error', async () => {
-  const worker = loadWorker({ indexedDBOpen() { throw new Error('raw-private-database-error'); } });
-  const reply = await dispatch(worker, 'init', {}, 'sync-cache-init');
-  assert.equal(reply.success, true);
-  assert.equal(reply.health.cache.lastErrorCode, 'cache-open-failed');
-  assert.doesNotMatch(JSON.stringify(reply), /raw-private/);
-  assert.equal((await dispatch(worker, 'computeStats', { data: { a: 1 } })).result.keyCount, 1);
-});
-
-test('cache write failure recovers on completed transaction and cached database reuse', async () => {
-  const transactions = [];
-  const db = { transaction() {
-    const tx = { objectStore: () => ({ put() {} }) };
-    transactions.push(tx);
-    return tx;
-  } };
-  const worker = loadWorker({ indexedDBOpen() {
-    const request = { result: db };
-    queueMicrotask(() => request.onsuccess());
-    return request;
-  } });
-  await dispatch(worker, 'init', {});
-  await dispatch(worker, 'addEntry', { entry: { id: 'write-one', type: 'log' } });
-  transactions[0].onerror();
-  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, 'cache-write-failed');
-  await worker.openDB();
-  assert.equal(worker.cacheHealthSnapshot().state, 'healthy', 'successful reuse clears degraded health');
-  await dispatch(worker, 'addEntry', { entry: { id: 'write-two', type: 'log' } });
-  // A different in-flight transaction fails after open reuse, before this commit.
-  transactions[0].onabort();
-  assert.equal(worker.cacheHealthSnapshot().state, 'degraded');
-  transactions[1].oncomplete();
-  const receipt = worker.posted.at(-1).health.cache;
-  assert.equal(receipt.state, 'healthy');
-  assert.equal(receipt.lastErrorCode, null);
-  assert.deepEqual(Object.keys(receipt).sort(), ['lastErrorCode', 'lastEventAt', 'state']);
-});
-
-test('prune reports transaction abort then recovers only after a later commit', async () => {
-  const transactions = [];
-  const db = { transaction() {
-    const count = { result: 0 };
-    const tx = { count, objectStore: () => ({ count: () => count }) };
-    transactions.push(tx);
-    return tx;
-  } };
-  const worker = loadWorker();
-  const failed = worker.pruneStoredEntries(db);
-  const rejected = assert.rejects(failed, /cache-prune-failed/);
-  transactions[0].onabort?.();
-  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, 'cache-prune-failed');
-  await rejected;
-  const recovery = worker.pruneStoredEntries(db);
-  let settled = false;
-  recovery.then(() => { settled = true; });
-  transactions[1].count.onsuccess();
-  await Promise.resolve();
-  assert.equal(settled, false, 'cursor/count success is not transaction commit');
-  assert.equal(worker.cacheHealthSnapshot().state, 'degraded');
-  transactions[1].oncomplete();
-  assert.equal(await recovery, 0);
-  assert.equal(worker.cacheHealthSnapshot().state, 'healthy');
-  assert.equal(worker.cacheHealthSnapshot().lastErrorCode, null);
+  assert.equal(client.getHealth().state, 'healthy');
+  assert.equal(client.getHealth().lastErrorCode, null);
+  assert.deepEqual(hostify(await client.clone({ a: [1, { b: 2 }] })), { a: [1, { b: 2 }] });
+  assert.equal((await client.captureReceipt({ accepted: 4, dropped: 1 })).accepted, 4);
 });
 
 test('capture receipt keeps cumulative accepted/dropped totals beyond 500', async () => {
@@ -904,4 +296,38 @@ test('capture receipt keeps cumulative accepted/dropped totals beyond 500', asyn
   assert.equal(receipt.accepted, 1_200);
   assert.equal(receipt.dropped, 900);
   assert.equal(receipt.dropReasons['invalid-entry'], 900);
+});
+
+// ───────────────────────────────────────────── dead operations (final fix M7)
+
+test('Final fix M7: the worker keeps no entry cache, IndexedDB, exports or analysis (nothing called them)', async () => {
+  for (const name of ['computeStats', 'exportToCSV', 'exportToHAR', 'analyzeEntries', 'escapeCSV', 'addToMemoryCache', 'getFromMemoryCache',
+    'openDB', 'pruneStoredEntries', 'clearStoredEntries', 'noteCacheHealth']) {
+    assert.equal(typeof W[name], 'undefined', `${name} is gone`);
+  }
+  const worker = loadWorker();
+  for (const action of ['addEntry', 'getFromCache', 'computeStats', 'exportCSV', 'exportHAR', 'analyze', 'clearStored', 'pruneStored']) {
+    assert.deepEqual(hostify(await dispatch(worker, action, { entries: [], entry: { id: 'x' }, data: {}, id: 'x' }, action)),
+      { id: action, success: false, error: `Unknown action: ${action}` });
+  }
+});
+
+test('Final fix M7: init opens no IndexedDB and deletes the database an earlier version kept, on the extension origin only', { timeout: 5_000 }, async () => {
+  const extension = loadWorker();
+  assert.deepEqual(hostify(await dispatch(extension, 'init', {}, 'i1')), { id: 'i1', success: true, result: { ready: true } });
+  assert.deepEqual(hostify(extension.idbOpenCalls), []);
+  assert.deepEqual(hostify(extension.idbDeleteCalls), ['xray_db'], 'captured traffic an older version cached is not left on disk');
+  // A page-origin worker would see the visited site's own databases: it touches none.
+  const page = loadWorker({ origin: 'https:' });
+  assert.equal((await dispatch(page, 'init', {}, 'p1')).success, true);
+  assert.deepEqual(hostify(page.idbOpenCalls), []);
+  assert.deepEqual(hostify(page.idbDeleteCalls), []);
+});
+
+test('Final fix M7: the client offers what is used — health, receipts, clone — and no removed operation', () => {
+  const client = loadIsolatedWorld('shared/worker-client.js').window.XRAY_Worker;
+  for (const name of ['addEntry', 'computeStats', 'exportCSV', 'exportHAR', 'analyze', 'getFromCache']) assert.equal(client[name], undefined, name);
+  for (const name of ['init', 'isReady', 'whenReady', 'onHealth', 'subscribeHealth', 'getHealth', 'captureReceipt', 'clone', 'terminate']) {
+    assert.equal(typeof client[name], 'function', name);
+  }
 });

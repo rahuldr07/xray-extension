@@ -70,8 +70,8 @@ test('strict script-src fallback leaves content-page workers unavailable without
       blobs: window.__blobAttempts,
       violations: window.__workerViolations,
       pending: client.__testing.pendingCount(),
-      detail: await client.detailAnalysis({ private: 'captured payload' }),
-      search: await client.search('match', [{ id: 'match' }, { id: 'other' }]),
+      // An operation on the unavailable worker resolves with its stub instead of waiting.
+      stats: await client.captureReceipt({ accepted: 1, dropped: 0, note: 'captured payload' }),
     };
   });
   assert.deepEqual(errors, []);
@@ -82,8 +82,7 @@ test('strict script-src fallback leaves content-page workers unavailable without
   assert.equal(result.attempts, 0);
   assert.equal(result.blobs, 0);
   assert.equal(result.pending, 0);
-  assert.equal(result.detail, null);
-  assert.deepEqual(result.search, [{ id: 'match' }]);
+  assert.deepEqual(result.stats, { accepted: 0, dropped: 0, dropReasons: {} });
   assert.deepEqual(result.violations, []);
   assert.equal(workerRequests, 0);
   assert.equal(JSON.stringify(result.health).includes('captured payload'), false);

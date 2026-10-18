@@ -10,11 +10,14 @@
 // closed with a generic failure receipt rather than leak it to the page.
 
 type StorageErrorCode = 'storage-unavailable' | 'storage-read-failed' | 'storage-write-failed';
+/** Why a write failed, when shared/store.js could tell: a full quota (spec J9's save notice). */
+export type StorageFailureReason = 'quota';
 
-function storageFailure(code: StorageErrorCode, caught?: unknown): Error & { code: StorageErrorCode } {
+function storageFailure(code: StorageErrorCode, caught?: unknown): Error & { code: StorageErrorCode; reason?: StorageFailureReason } {
   const safeCode = typeof caught === 'object' && caught !== null && 'code' in caught && caught.code === 'storage-unavailable'
     ? 'storage-unavailable' : code;
-  return Object.assign(new Error(safeCode), { code: safeCode });
+  const quota = safeCode === 'storage-write-failed' && typeof caught === 'object' && caught !== null && 'reason' in caught && caught.reason === 'quota';
+  return Object.assign(new Error(safeCode), { code: safeCode }, quota ? { reason: 'quota' as const } : {});
 }
 
 export async function getStoredValue<T>(key: string, fallback: T): Promise<T> {

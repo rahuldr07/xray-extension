@@ -1,5 +1,5 @@
-import type { DetailTab, DetailView, RequestTiming, XrayEntry } from '../types';
-import { entryRequest, entryResponse, schema } from '../utils';
+import type { DetailView, RequestTiming, XrayEntry } from '../types';
+import { printJson, type JsonArrayNode, type JsonNode, type JsonObjectNode } from './jsonText';
 
 function duration(entry: XrayEntry): number {
   return Math.max(0, Number(entry.duration) || 0);
@@ -32,126 +32,268 @@ export function timingPhases(entry: XrayEntry): { phases: TimingPhase[]; totalMs
   return { phases: [{ label: 'Total', ms: total, className: 'total' }], totalMs: total, real: false };
 }
 
-export interface GridData {
-  objects: Array<Record<string, unknown>>;
-  columns: string[];
-}
+// ── One node model for Table, Schema, Diff and Visualize (spec §2 J3, §8 J11) ─────────────────────
+// Every surface — the docked panel, the HUD, the pop-out and DevTools — reads a body through these
+// functions from the lossless parser's nodes (capturedBody.bodyNode). The DevTools worker used to keep
+// its own copies, which picked the first array, typed to another depth and diffed to another depth.
 
-export interface VizSummary {
-  inferredType: unknown;
-  rows: number;
-}
-
-export function detailValue(entry: XrayEntry, detailTab: DetailTab): unknown {
-  if (detailTab === 'request') return entryRequest(entry);
-  if (detailTab === 'headers') {
-    return {
-      requestHeaders: entry.requestHeaders || {},
-      responseHeaders: entry.responseHeaders || {},
-    };
-  }
-  return entryResponse(entry);
-}
-
-/** Comparable key for diffing values of any shape. */
-function stableKey(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? 'undefined';
-  } catch {
-    return String(value);
-  }
+/**
+ * An object's members as JSON.parse reads them: a repeated key keeps its first position and its last
+ * value. A Map, so `__proto__` and `constructor` are keys like any other.
+ */
+export function objectMembers(node: JsonObjectNode): Map<string, JsonNode> {
+  const members = new Map<string, JsonNode>();
+  for (const entry of node.entries) members.set(entry.key, entry.value);
+  return members;
 }
 
 /**
- * The array property most worth rendering: the largest non-empty one.
+ * The array a payload is "really" about: the value itself when it is an array, otherwise its largest
+ * non-empty array member (the first array when every one is empty), otherwise null.
  *
- * Picking the FIRST array meant `{errors: [], data: [...25 rows]}` rendered an empty
- * Table and "No numeric fields to chart" — a verdict on a property neither view had
- * looked at. GraphQL, JSON:API and `{warnings: [], items: [...]}` all put an empty
- * array first, so this was the common case rather than the exotic one.
+ * Picking the FIRST array meant `{errors: [], data: [...25 rows]}` rendered an empty Table and "No
+ * numeric fields to chart" — a verdict on a property neither view had looked at. GraphQL, JSON:API and
+ * `{warnings: [], items: [...]}` all put an empty array first. Table and Visualize share this choice.
  */
-export function largestArrayProperty(value: Record<string, unknown>): unknown[] | null {
-  const arrays = Object.values(value).filter(Array.isArray) as unknown[][];
-  if (!arrays.length) return null;
-  const nonEmpty = arrays.filter((array) => array.length);
-  if (!nonEmpty.length) return arrays[0];
-  return nonEmpty.reduce((best, array) => (array.length > best.length ? array : best));
+export function rowArrayNode(node: JsonNode | null): JsonArrayNode | null {
+  if (!node) return null;
+  if (node.t === 'arr') return node;
+  if (node.t !== 'obj') return null;
+  let first: JsonArrayNode | null = null;
+  let best: JsonArrayNode | null = null;
+  for (const value of objectMembers(node).values()) {
+    if (value.t !== 'arr') continue;
+    first ??= value;
+    if (value.items.length > 0 && (best === null || value.items.length > best.items.length)) best = value;
+  }
+  return best ?? first;
 }
 
-export function gridRows(value: unknown): GridData {
-  const rows = Array.isArray(value)
-    ? value
-    : value && typeof value === 'object'
-      ? largestArrayProperty(value as Record<string, unknown>) || [value]
-      : [];
-  const objects = (rows as unknown[])
-    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
-    .slice(0, 200) as Array<Record<string, unknown>>;
-  const columns = Array.from(objects.reduce((set, row) => {
-    Object.keys(row).slice(0, 20).forEach((key) => set.add(key));
-    return set;
-  }, new Set<string>()));
-  return { objects, columns };
+/**
+ * One line of text for a node: a string as itself, a number by its lexeme (9007199254740993, -0, 1.0
+ * and 5e-324 as written), anything else as compact lossless JSON; cut at `limit` characters with "...".
+ */
+export function nodeText(node: JsonNode, limit = Infinity): string {
+  const text = node.t === 'str' ? node.value : node.t === 'num' ? node.raw : printJson(node);
+  return text.length > limit ? text.slice(0, limit) + '...' : text;
 }
 
-export function vizSummary(value: unknown): VizSummary {
+const count = (value: number): string => value.toLocaleString('en-US');
+
+// ── Table ──────────────────────────────────────────────────────────────────────────────────────
+
+export const TABLE_MAX_ROWS = 200;
+/** Each shown row contributes at most its first this many keys as columns. */
+export const TABLE_MAX_ROW_KEYS = 20;
+const TABLE_CELL_CHARS = 160;
+
+export interface TableData {
+  /** The union of each shown row's first TABLE_MAX_ROW_KEYS keys, in first-seen order. */
+  columns: string[];
+  /** The object rows shown (at most TABLE_MAX_ROWS). */
+  rows: JsonObjectNode[];
+  /** Text per shown row and column: nodeText (lexemes), '' for a key the row does not have. */
+  cells: string[][];
+  /** Object rows in the chosen array (N). */
+  totalRows: number;
+  /** Distinct keys across all of those rows (K). */
+  totalColumns: number;
+  /** "Showing R of N rows · C of K columns" whenever a cap hides rows or columns; else null. */
+  notice: string | null;
+}
+
+/**
+ * The Table for a body: the object rows of its row array (rowArrayNode), or the object itself when it
+ * has no array member. Items that are not objects are not rows.
+ */
+export function tableFromNode(node: JsonNode | null): TableData {
+  const array = rowArrayNode(node);
+  const items: JsonNode[] = array ? array.items : node && node.t === 'obj' ? [node] : [];
+  const objects = items.filter((item): item is JsonObjectNode => item.t === 'obj');
+  const rows = objects.slice(0, TABLE_MAX_ROWS);
+  const columnSet = new Set<string>();
+  const rowMembers = rows.map((row) => {
+    const members = objectMembers(row);
+    let taken = 0;
+    for (const key of members.keys()) {
+      if (taken++ >= TABLE_MAX_ROW_KEYS) break;
+      columnSet.add(key);
+    }
+    return members;
+  });
+  const allKeys = new Set<string>(columnSet);
+  for (const row of objects) for (const entry of row.entries) allKeys.add(entry.key);
+  const columns = Array.from(columnSet);
+  const cells = rowMembers.map((members) => columns.map((column) => {
+    const value = members.get(column);
+    return value ? nodeText(value, TABLE_CELL_CHARS) : '';
+  }));
+  const capped = objects.length > rows.length || allKeys.size > columns.length;
   return {
-    inferredType: schema(value),
-    rows: Array.isArray(value) ? value.length : value && typeof value === 'object' ? 1 : 0,
+    columns,
+    rows,
+    cells,
+    totalRows: objects.length,
+    totalColumns: allKeys.size,
+    notice: capped ? `Showing ${count(rows.length)} of ${count(objects.length)} rows · ${count(columns.length)} of ${count(allKeys.size)} columns` : null,
   };
 }
 
-export interface DiffLine {
+// ── Schema ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Levels typed before the schema says "any" — the console helpers' schema() limit, so both agree. */
+export const SCHEMA_MAX_DEPTH = 5;
+
+/**
+ * The Schema view's type summary, from nodes: 42 → "number", true → "boolean", null → "null",
+ * "hi" → "string", [] → "array", an array → [its first item's schema], an object → its members'
+ * schemas (each defined as an own property, so `__proto__` stays a key). Same shape and depth as
+ * schema() in shared/console-helpers.js; a missing body reads as null.
+ */
+export function schemaFromNode(node: JsonNode | null, depth = 0): unknown {
+  if (depth > SCHEMA_MAX_DEPTH) return 'any';
+  if (!node || node.t === 'null') return 'null';
+  if (node.t === 'arr') return node.items.length ? [schemaFromNode(node.items[0], depth + 1)] : 'array';
+  if (node.t === 'obj') {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of objectMembers(node)) {
+      Object.defineProperty(out, key, { value: schemaFromNode(value, depth + 1), writable: true, enumerable: true, configurable: true });
+    }
+    return out;
+  }
+  return node.t === 'num' ? 'number' : node.t === 'str' ? 'string' : 'boolean';
+}
+
+// ── Diff ───────────────────────────────────────────────────────────────────────────────────────
+
+/** Containers deeper than this are compared whole: a difference below is one change, with a notice. */
+export const DIFF_MAX_DEPTH = 8;
+export const DIFF_MAX_LINES = 200;
+/** Array items compared one by one; the rest is compared whole and summarized as `path[…]`. */
+export const DIFF_ARRAY_WINDOW = 50;
+
+export interface NodeDiffLine {
   path: string;
   kind: 'added' | 'removed' | 'changed';
-  before?: unknown;
-  after?: unknown;
+  before?: JsonNode;
+  after?: JsonNode;
 }
 
-// Path-level structural diff for the Diff view: added/removed/changed leaves,
-// depth- and line-capped so a huge payload can't stall the panel.
-export function structuralDiff(previous: unknown, current: unknown, maxLines = 200): DiffLine[] {
-  const lines: DiffLine[] = [];
-  const walk = (prev: unknown, curr: unknown, path: string, depth: number): void => {
-    if (lines.length >= maxLines || depth > 6) return;
-    if (prev === undefined && curr !== undefined) { lines.push({ path, kind: 'added', after: curr }); return; }
-    if (prev !== undefined && curr === undefined) { lines.push({ path, kind: 'removed', before: prev }); return; }
-    const prevIsObj = prev !== null && typeof prev === 'object';
-    const currIsObj = curr !== null && typeof curr === 'object';
-    if (!prevIsObj || !currIsObj) {
-      if (!Object.is(prev, curr)) lines.push({ path, kind: 'changed', before: prev, after: curr });
-      return;
-    }
-    if (Array.isArray(prev) !== Array.isArray(curr)) {
-      lines.push({ path, kind: 'changed', before: prev, after: curr });
-      return;
-    }
-    if (Array.isArray(prev) && Array.isArray(curr)) {
-      const length = Math.max(prev.length, curr.length);
-      for (let index = 0; index < Math.min(length, 50); index += 1) {
-        walk(prev[index], curr[index], `${path}[${index}]`, depth + 1);
-      }
-      // The walk above stops at index 50, so the tail needs its own verdict. Firing on
-      // length alone (the previous behaviour) reported "1 difference" between two
-      // BYTE-IDENTICAL 60-element arrays, which made the Diff view useless on any
-      // paginated list — the case it exists for. Gating on differing lengths instead
-      // was the older bug: two 60-element arrays differing only past index 50 produced
-      // an empty diff. So actually compare the tail.
-      if (length > 50 && lines.length < maxLines) {
-        const tailDiffers =
-          prev.length !== curr.length ||
-          prev.slice(50).some((value, index) => stableKey(value) !== stableKey(curr[50 + index]));
-        if (tailDiffers) {
-          lines.push({ path: `${path}[…]`, kind: 'changed', before: `${prev.length} items`, after: `${curr.length} items` });
-        }
-      }
-      return;
-    }
-    const keys = new Set([...Object.keys(prev as object), ...Object.keys(curr as object)]);
-    for (const key of keys) {
-      walk((prev as Record<string, unknown>)[key], (curr as Record<string, unknown>)[key], path ? `${path}.${key}` : key, depth + 1);
-    }
+export interface NodeDiff {
+  lines: NodeDiffLine[];
+  /** Why the diff is not the whole story: a depth, array or line limit hid detail. Empty when complete. */
+  notices: string[];
+}
+
+type DiffTask =
+  | { tail?: undefined; previous: JsonNode | null; current: JsonNode | null; path: string; depth: number }
+  | { tail: true; previous: JsonArrayNode; current: JsonArrayNode; path: string };
+
+/**
+ * Path-level structural diff of two bodies (null: absent): added, removed and changed members. Numbers
+ * compare by lexeme (9007199254740992 ≠ 9007199254740993, 1.0 ≠ 1, 0 ≠ -0), strings by their decoded
+ * text, objects by key regardless of order (a repeated key as JSON.parse reads it). Bounded by depth,
+ * by an array window and by `maxLines`, and every bound that hides a difference adds a notice — an
+ * empty result with no notices means the two bodies are equal. Iterative.
+ */
+export function diffNodes(previous: JsonNode | null, current: JsonNode | null, maxLines = DIFF_MAX_LINES): NodeDiff {
+  const lines: NodeDiffLine[] = [];
+  const notices: string[] = [];
+  const note = (text: string): void => {
+    if (!notices.includes(text)) notices.push(text);
   };
-  walk(previous, current, '', 0);
-  return lines;
+  let stopped = false;
+  const add = (line: NodeDiffLine): boolean => {
+    if (lines.length >= maxLines) {
+      stopped = true;
+      note(`Showing the first ${count(maxLines)} differences; the diff stopped there.`);
+      return false;
+    }
+    lines.push(line);
+    return true;
+  };
+  const tasks: DiffTask[] = [{ previous, current, path: '', depth: 0 }];
+  while (tasks.length > 0 && !stopped) {
+    const task = tasks.pop() as DiffTask;
+    if (task.tail) {
+      const before = task.previous.items;
+      const after = task.current.items;
+      let differs = before.length !== after.length;
+      for (let index = DIFF_ARRAY_WINDOW; !differs && index < before.length; index++) differs = !nodesEqual(before[index], after[index]);
+      if (differs && add({ path: `${task.path}[…]`, kind: 'changed', before: itemCount(before.length), after: itemCount(after.length) })) {
+        note(`Compared the first ${DIFF_ARRAY_WINDOW} items of ${task.path || '(root)'} one by one; later differences are summarized as ${task.path}[…].`);
+      }
+      continue;
+    }
+    const { previous: before, current: after, path, depth } = task;
+    if (!before && !after) continue;
+    if (!before) {
+      add({ path, kind: 'added', after: after as JsonNode });
+      continue;
+    }
+    if (!after) {
+      add({ path, kind: 'removed', before });
+      continue;
+    }
+    const sameContainer = (before.t === 'obj' && after.t === 'obj') || (before.t === 'arr' && after.t === 'arr');
+    if (!sameContainer) {
+      if (!nodesEqual(before, after)) add({ path, kind: 'changed', before, after });
+      continue;
+    }
+    if (depth > DIFF_MAX_DEPTH) {
+      if (!nodesEqual(before, after) && add({ path, kind: 'changed', before, after })) {
+        note(`Compared ${DIFF_MAX_DEPTH} levels deep: ${path} differs below that depth and is shown as one change.`);
+      }
+      continue;
+    }
+    if (before.t === 'arr' && after.t === 'arr') {
+      const length = Math.max(before.items.length, after.items.length);
+      if (length > DIFF_ARRAY_WINDOW) tasks.push({ tail: true, previous: before, current: after, path });
+      for (let index = Math.min(length, DIFF_ARRAY_WINDOW) - 1; index >= 0; index--) {
+        tasks.push({ previous: before.items[index] ?? null, current: after.items[index] ?? null, path: `${path}[${index}]`, depth: depth + 1 });
+      }
+      continue;
+    }
+    const beforeMembers = objectMembers(before as JsonObjectNode);
+    const afterMembers = objectMembers(after as JsonObjectNode);
+    const keys = Array.from(new Set([...beforeMembers.keys(), ...afterMembers.keys()]));
+    for (let index = keys.length - 1; index >= 0; index--) {
+      const key = keys[index];
+      tasks.push({ previous: beforeMembers.get(key) ?? null, current: afterMembers.get(key) ?? null, path: path ? `${path}.${key}` : key, depth: depth + 1 });
+    }
+  }
+  return { lines, notices };
+}
+
+function itemCount(length: number): JsonNode {
+  return { t: 'str', value: `${length} items` };
+}
+
+/** Deep equality with diffNodes' rules (lexemes, decoded strings, members by key). Iterative. */
+export function nodesEqual(a: JsonNode, b: JsonNode): boolean {
+  const pending: Array<[JsonNode, JsonNode]> = [[a, b]];
+  while (pending.length > 0) {
+    const [x, y] = pending.pop() as [JsonNode, JsonNode];
+    if (x === y) continue;
+    if (x.t !== y.t) return false;
+    if (x.t === 'arr') {
+      const other = (y as JsonArrayNode).items;
+      if (x.items.length !== other.length) return false;
+      for (let index = 0; index < other.length; index++) pending.push([x.items[index], other[index]]);
+    } else if (x.t === 'obj') {
+      const mine = objectMembers(x);
+      const theirs = objectMembers(y as JsonObjectNode);
+      if (mine.size !== theirs.size) return false;
+      for (const [key, value] of mine) {
+        const other = theirs.get(key);
+        if (!other) return false;
+        pending.push([value, other]);
+      }
+    } else if (x.t === 'num') {
+      if (x.raw !== (y as typeof x).raw) return false;
+    } else if (x.t === 'str' || x.t === 'bool') {
+      if (x.value !== (y as typeof x).value) return false;
+    }
+  }
+  return true;
 }

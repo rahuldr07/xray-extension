@@ -24,7 +24,9 @@ const { outputFiles } = await build({
         'users.filter(u => u.active)': {type:'array',result:[{id:1}]},
         'res.data.length': {type:'error',error:{message:"Cannot read properties of undefined (reading 'length')"}},
       };
-      const ERROR_ARG = {__type__:'Error',name:'TypeError',message:'x is undefined',
+      // A captured Error in a page log's arguments, in the typed log model (spec J7): only
+      // this envelope is an Error, never an object that merely carries __type__.
+      const ERROR_ARG = {$xray:'error',name:'TypeError',message:'x is undefined',
         stack:'TypeError: x is undefined\\n    at render (https://example.test/static/main.js:30:12)\\n    at boot (https://example.test/static/vendor.js:9:1)'};
       let seq = 0;
       const log = (message, level = 'log', extra = {}) => ({id:'log-' + (++seq), type:'log', level, timestamp:1000 + seq, message, ...extra});

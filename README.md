@@ -332,7 +332,7 @@ xray-extension/
     worker-client.js            # worker client with fallback
   panel/
     console.js                  # console engine (the only retained vanilla panel script)
-  workers/xray-worker.js        # off-main-thread schema/diff/grid/detail analysis + IndexedDB
+  workers/xray-worker.js        # off-main-thread capture receipts and a non-blocking clone
   preview/ui-preview.html       # local React preview harness
   test/security-regressions.test.js
 ```

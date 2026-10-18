@@ -1,8 +1,12 @@
 import type { XrayEntry, XrayEntry as PanelEntry } from '../types';
-import { buildCurl, buildFetch, buildMockPayload, entryRequest, entryResponse, safeStringify, schema } from '../utils';
+import { bodyExportNode, buildCurl, buildFetch, buildMockPayload, entryRequest, entryResponse, exportBodyText, formCode, formExport, formHeaders, partialNotes, plainNode, safeStringify, schema } from '../utils';
 import { XRAY_VERSION } from '../version';
-import { isSensitiveName, MAX_PLAN_BODY, snapshotExperimentValue } from './experiments';
+import { bodyDoc, requestBody as capturedRequest, responseBody as capturedResponse } from './capturedBody';
+import { isSensitiveName, MAX_PLAN_BODY, snapshotExperimentNode, snapshotExperimentValue } from './experiments';
 import { boundedItems, ownValue } from './investigations';
+import { parseJson, printJson, toValue, type JsonEntry, type JsonNode, type JsonObjectNode } from './jsonText';
+import { isTypedLog, logPlain } from './logValue';
+import { replayBody } from './replayBody';
 
 export type ExportFormat =
   | 'curl'
@@ -116,11 +120,42 @@ export function isShareSafeFormat(format: ExportFormat): format is ShareSafeForm
   return format === 'session-json-safe' || format === 'session-har-safe';
 }
 
+/** [[name, value], …] with string names: the shape of captured FormData pairs. */
+function isFormPairs(value: unknown[]): boolean {
+  return value.length > 0 && value.every((pair) => Array.isArray(pair) && pair.length === 2 && typeof pair[0] === 'string');
+}
+
+/** A projected body: the plain value buildShareSafeSession hands out, and the nodes the export prints. */
+interface SafeBody {
+  value: unknown;
+  node: JsonNode;
+}
+
+/** One entry's projected bodies as nodes, by field, for the lossless print (spec J10). */
+interface SafeEntryBodies {
+  requestBody?: JsonNode;
+  /** The request body is FormData fields (redacted pairs): the HAR writes them as params. */
+  requestForm?: boolean;
+  response?: JsonNode;
+  variables?: JsonNode;
+  args?: JsonNode[];
+  logData?: JsonNode;
+}
+
 /** Detached outbound projection. Local persistence/import never consumes this path.
  * Reuse the experiment snapshot's 20k-char / 1,000-node / depth-6 limits, then
  * remove export-specific diagnostics and query values. Never truncate raw text.
  */
 export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionProjection {
+  return projectShareSafe(entries).projection;
+}
+
+/**
+ * The share-safe projection plus each entry's bodies as nodes. A captured text is redacted over its
+ * lossless parse (spec J10) — the same budgets and rules as a value — so the export prints every
+ * lexeme and member order as captured; a body that exists only as a value keeps the value path.
+ */
+function projectShareSafe(entries: PanelEntry[]): { projection: ShareSafeSessionProjection; bodies: SafeEntryBodies[] } {
   let redactedCount = 0;
   let omittedCount = Math.max(0, entries.length - 500);
   function omit(): string { omittedCount++; return OMITTED; }
@@ -160,16 +195,68 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
     }
     return value;
   }
-  /** `diagnostics` drops diagnostic keys (log args/logData only, never bodies). */
-  function body(value: unknown, diagnostics = false): unknown {
-    if (value == null) return null;
-    if (typeof value === 'string') {
-      if (value.length > MAX_PLAN_BODY) return omit();
-      try { value = JSON.parse(value); } catch { return omit(); }
-      // JSON-encoded opaque text is still opaque text.
-      if (typeof value === 'string') return omit();
+  // The node form of clean(), over a snapshot of a lossless parse: strings and keys are cleaned the
+  // same way; numbers, booleans, null, duplicate keys and member order stay as parsed.
+  function cleanNode(node: JsonNode, diagnostics: boolean): JsonNode {
+    if (node.t === 'str') {
+      const cleaned = String(clean(node.value));
+      return cleaned === node.value ? node : { t: 'str', value: cleaned };
     }
-    return clean(snapshotExperimentValue(value).value, diagnostics);
+    if (node.t === 'arr') return { t: 'arr', items: node.items.map((item) => cleanNode(item, diagnostics)) };
+    if (node.t !== 'obj') return node;
+    const members: JsonEntry[] = [];
+    for (const member of node.entries) {
+      if (diagnostics && DIAGNOSTIC_FIELD.test(member.key)) { omit(); continue; }
+      const key = String(clean(member.key));
+      members.push({
+        key,
+        value: isSensitiveName(member.key) ? { t: 'str', value: redact() } : cleanNode(member.value, diagnostics),
+        ...(member.dup ? { dup: true } : {}),
+        ...(member.keyRaw !== undefined && key === member.key ? { keyRaw: member.keyRaw } : {}),
+      });
+    }
+    return { t: 'obj', entries: members };
+  }
+  const plain = (value: unknown): SafeBody => ({ value, node: plainNode(value) });
+  function omitted(): SafeBody {
+    const marker = omit();
+    return { value: marker, node: { t: 'str', value: marker } };
+  }
+  /** `diagnostics` drops diagnostic keys (log args/logData only, never bodies). */
+  function body(value: unknown, diagnostics = false): SafeBody {
+    if (value == null) return { value: null, node: { t: 'null' } };
+    if (typeof value === 'string') {
+      if (value.length > MAX_PLAN_BODY) return omitted();
+      const doc = parseJson(value);
+      // Text that is not one JSON document — or JSON-encoded opaque text — is still opaque text.
+      if (!doc.ok || doc.kind !== 'json' || doc.root.t === 'str') return omitted();
+      const node = cleanNode(snapshotExperimentNode(doc.root).node, diagnostics);
+      return { value: toValue(node), node };
+    }
+    return plain(clean(snapshotExperimentValue(value).value, diagnostics));
+  }
+  // A captured request body (spec J4) that is not text: FormData arrives as [name, value | file]
+  // pairs, and a value under a sensitive name is redacted like a sensitive object key (also for
+  // pair-shaped bodies without a kind). A binary descriptor keeps its size only, since its
+  // base64Prefix is the body's first bytes. A request saved before J4 is its parsed value.
+  function requestBody(value: unknown, kind: unknown): SafeBody & { form?: boolean } {
+    if (!value || typeof value !== 'object') return body(value);
+    const snapshot = snapshotExperimentValue(value).value;
+    if (Array.isArray(snapshot) && (kind === 'formdata' || isFormPairs(snapshot))) {
+      return { ...plain(snapshot.map((pair) => {
+        if (!Array.isArray(pair) || typeof pair[0] !== 'string') return clean(pair);
+        return [clean(pair[0]), isSensitiveName(pair[0]) ? redact() : clean(pair[1])];
+      })), form: true };
+    }
+    if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && ownValue(snapshot, 'binary') === true
+      && ownValue(snapshot, 'base64Prefix') !== undefined) {
+      omit();
+      const descriptor: Record<string, unknown> = Object.create(null);
+      descriptor.binary = true;
+      descriptor.size = number(ownValue(snapshot, 'size'));
+      return plain(descriptor);
+    }
+    return plain(clean(snapshot));
   }
   function headers(value: unknown): Record<string, unknown> {
     const snapshot = snapshotExperimentValue(value ?? {}).value;
@@ -202,6 +289,7 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
     return fallback;
   }
   const safeEntries: PanelEntry[] = [];
+  const safeBodies: SafeEntryBodies[] = [];
   for (const input of boundedItems(entries, 500, true)) {
     const type = ownValue(input, 'type');
     if (type !== 'api' && type !== 'log') { omit(); continue; }
@@ -210,6 +298,7 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
     // fields can escape by spreading an entry, even on a future schema addition.
     const included = new Set(['id', 'type', 'timestamp']);
     function field(name: string): unknown { included.add(name); return ownValue(input, name); }
+    const bodies: SafeEntryBodies = {};
     if (type === 'api') {
       entry.method = choice(upper(field('method')), ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'CONNECT', 'TRACE', 'WS', 'SSE'], 'GET');
       entry.source = choice(field('source'), ['fetch', 'xhr', 'ws', 'sse', 'import'], 'import');
@@ -223,20 +312,31 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
       if (contentType) entry.contentType = contentType;
       entry.requestHeaders = headers(field('requestHeaders'));
       entry.responseHeaders = headers(field('responseHeaders'));
-      entry.requestBody = body(field('requestBody'));
+      // The request body is the captured text (spec J10), never the parsed copy a saved session
+      // key-sorted. The kind and the text only steer the projection; neither is exported (both
+      // still count as omitted).
+      const kind = ownValue(input, 'requestBodyKind');
+      const sentText = ownValue(input, 'requestBodyText');
+      const requestValue = field('requestBody');
+      const request: SafeBody & { form?: boolean } = (kind === 'text' || kind === 'urlencoded') && typeof sentText === 'string' ? body(sentText) : requestBody(requestValue, kind);
+      entry.requestBody = request.value;
+      bodies.requestBody = request.node;
+      if (request.form) bodies.requestForm = true;
       // Normalize all response aliases into one sanitized field, with existing
       // decrypted/raw/response precedence. Never export the unused aliases.
       const decrypted = field('responseDecrypted');
       const raw = field('responseRaw');
-      const response = field('response');
-      entry.response = body(decrypted ?? raw ?? response);
+      const response = body(decrypted ?? raw ?? field('response'));
+      entry.response = response.value;
+      bodies.response = response.node;
       const frames = field('wsFrames');
       if (Array.isArray(frames)) {
         omittedCount += Math.max(0, frames.length - 50);
         entry.wsFrames = boundedItems(frames, 50, true).map(frame => ({
           dir: choice(ownValue(frame, 'dir'), ['in', 'out'], 'in') as 'in' | 'out',
           ts: number(ownValue(frame, 'ts')), size: number(ownValue(frame, 'size')),
-          preview: JSON.stringify(body(ownValue(frame, 'preview'))),
+          // The lossless printer (spec J16): a frame's integers and key order as received.
+          preview: printJson(body(ownValue(frame, 'preview')).node),
         }));
       }
       const wsState = field('wsState');
@@ -256,10 +356,12 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
       if (graphql && typeof graphql === 'object' && !Array.isArray(graphql)) {
         const operationType = ownValue(graphql, 'operationType');
         const operationName = ownValue(graphql, 'operationName');
+        const variables = ownValue(graphql, 'variables') !== undefined ? body(ownValue(graphql, 'variables')) : null;
+        if (variables) bodies.variables = variables.node;
         entry.graphql = {
           operationType: typeof operationType === 'string' ? String(clean(operationType)) : '',
           operationName: typeof operationName === 'string' ? String(clean(operationName)) : '',
-          ...(ownValue(graphql, 'variables') !== undefined ? { variables: body(ownValue(graphql, 'variables')) } : {}),
+          ...(variables ? { variables: variables.value } : {}),
         };
       }
     } else {
@@ -268,9 +370,23 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
       const args = field('args');
       if (Array.isArray(args)) {
         omittedCount += Math.max(0, args.length - 20);
-        entry.args = boundedItems(args, 20).map(arg => body(arg, true));
+        const safeArgs = boundedItems(args, 20).map(arg => body(arg, true));
+        entry.args = safeArgs.map((arg) => arg.value);
+        bodies.args = safeArgs.map((arg) => arg.node);
       }
-      if (field('logData') != null) entry.logData = body(ownValue(input, 'logData'), true);
+      // A typed log (spec J7) is flattened to plain JSON first: every typed value becomes its
+      // text and a class instance or Map an object keyed by its keys, so the key-based
+      // redaction below still sees each key (an envelope lists them inside arrays). An Error,
+      // at any depth, is its name alone (logPlain 'share'); what it drops is counted as omitted.
+      const logData = ownValue(input, 'logData');
+      const typedLog = isTypedLog({ logArgCount: ownValue(input, 'logArgCount') as number | undefined });
+      if (field('logData') != null) {
+        const dropped = { omitted: 0 };
+        const safeLog = body(typedLog ? logPlain(logData, 'share', dropped) : logData, true);
+        omittedCount += dropped.omitted;
+        entry.logData = safeLog.value;
+        bodies.logData = safeLog.node;
+      }
     }
     let keys = 0;
     for (const key in input as object) {
@@ -278,8 +394,50 @@ export function buildShareSafeSession(entries: PanelEntry[]): ShareSafeSessionPr
       if (Object.prototype.hasOwnProperty.call(input, key) && !included.has(key)) omit();
     }
     safeEntries.push(entry);
+    safeBodies.push(bodies);
   }
-  return { entries: safeEntries, redactedCount, omittedCount };
+  return { projection: { entries: safeEntries, redactedCount, omittedCount }, bodies: safeBodies };
+}
+
+function memberValue(node: JsonNode | undefined, key: string): JsonNode | undefined {
+  return node?.t === 'obj' ? node.entries.find((member) => member.key === key)?.value : undefined;
+}
+
+/** Sets `key` (replacing the first member of that name, else appending it). */
+function setMember(node: JsonObjectNode, key: string, value: JsonNode): void {
+  const member = node.entries.find((item) => item.key === key);
+  if (member) member.value = value;
+  else node.entries.push({ key, value });
+}
+
+/** A projected entry as nodes: its plain fields, its bodies as their redacted lossless nodes. */
+function safeEntryNode(entry: PanelEntry, bodies: SafeEntryBodies): JsonNode {
+  const node = plainNode(entry);
+  if (node.t !== 'obj') return node;
+  if (bodies.requestBody) setMember(node, 'requestBody', bodies.requestBody);
+  if (bodies.response) setMember(node, 'response', bodies.response);
+  if (bodies.logData) setMember(node, 'logData', bodies.logData);
+  const graphql = memberValue(node, 'graphql');
+  if (bodies.variables && graphql?.t === 'obj') setMember(graphql, 'variables', bodies.variables);
+  const args = memberValue(node, 'args');
+  if (bodies.args && args?.t === 'arr') args.items = bodies.args;
+  return node;
+}
+
+/**
+ * A projected entry with its bodies as text, for the HAR: printed losslessly; a marker string as itself.
+ * FormData stays its redacted fields, which the HAR writes as params (never a JSON text of them).
+ */
+function safeHarEntry(entry: PanelEntry, bodies: SafeEntryBodies): PanelEntry {
+  const text = (node: JsonNode | undefined): string | null => !node || node.t === 'null' ? null : node.t === 'str' ? node.value : printJson(node);
+  if (bodies.requestForm) return { ...entry, requestBodyKind: 'formdata', responseRaw: text(bodies.response) };
+  const request = text(bodies.requestBody);
+  return {
+    ...entry,
+    requestBodyKind: request === null ? 'none' : 'text',
+    ...(request === null ? {} : { requestBodyText: request }),
+    responseRaw: text(bodies.response),
+  };
 }
 
 export function isHttpEntry(entry: unknown): boolean {
@@ -305,11 +463,16 @@ export function buildShareSafeExport(entries: PanelEntry[], format: ShareSafeFor
   const retained = boundedItems(entries, 500, true) as PanelEntry[];
   const included = format === 'session-har-safe' ? retained.filter(isHttpEntry) : retained;
   const omittedEntryCount = entries.length - included.length;
-  const projection = buildShareSafeSession(included);
+  const { projection, bodies } = projectShareSafe(included);
   const omittedCount = projection.omittedCount + omittedEntryCount;
+  // Bodies print from their redacted nodes (spec J10): integers, lexemes and member order as captured.
   const text = format === 'session-har-safe'
-    ? buildSessionHar(projection.entries)
-    : JSON.stringify({ ...projection, omittedCount }, null, 2);
+    ? buildSessionHar(projection.entries.map((entry, index) => safeHarEntry(entry, bodies[index])))
+    : printJson({ t: 'obj', entries: [
+      { key: 'entries', value: { t: 'arr', items: projection.entries.map((entry, index) => safeEntryNode(entry, bodies[index])) } },
+      { key: 'redactedCount', value: plainNode(projection.redactedCount) },
+      { key: 'omittedCount', value: plainNode(omittedCount) },
+    ] }, { indent: 2 });
   return { text, redactedCount: projection.redactedCount, omittedCount, omittedEntryCount };
 }
 
@@ -326,10 +489,12 @@ function headerObject(entry: XrayEntry | null): Record<string, unknown> {
   return asRecord(entry?.requestHeaders);
 }
 
+/** The response Content-Type header (any case), else the entry's contentType, else application/json. */
 function responseContentType(entry: XrayEntry | null): string {
-  const headers = asRecord(entry?.responseHeaders);
-  const value = headers['content-type'] ?? headers['Content-Type'] ?? entry?.contentType ?? 'application/json';
-  return String(value);
+  for (const [name, value] of Object.entries(asRecord(entry?.responseHeaders))) {
+    if (name.toLowerCase() === 'content-type' && value != null && String(value).trim()) return String(value);
+  }
+  return String(entry?.contentType ?? 'application/json');
 }
 
 export function buildTypeScriptShape(value: unknown, name = 'XrayResponse'): string {
@@ -373,16 +538,36 @@ function omittedBody(chars: number): string {
   return `/* body omitted: ${Math.max(1, Math.round(chars / 1024))} KB — see the JSON export */ null`;
 }
 
-/** A JSON expression for a body inside generated code; huge bodies become a marker + null. */
-function embedJson(value: unknown): string {
-  const text = safeStringify(value, 2, Infinity);
+/**
+ * A JSON expression for a body inside generated code, printed from its lossless parse (spec J10):
+ * every lexeme and member order as captured. Huge bodies become a marker + null.
+ */
+function embedJson(node: JsonNode): string {
+  const text = printJson(node, { indent: 2 });
   return text.length > MAX_EMBED_BODY ? omittedBody(text.length) : text;
 }
 
-/** A JS string literal for a body's text; huge bodies become a marker + null. */
-function embedText(value: unknown): string {
-  const text = typeof value === 'string' ? value : safeStringify(value, 0, Infinity);
+/** A JS string literal for a body's captured text; huge bodies become a marker + null. */
+function embedText(text: string): string {
   return text.length > MAX_EMBED_BODY ? omittedBody(text.length) : JSON.stringify(text);
+}
+
+/**
+ * The request body generated code sends (spec J10): the request text as captured, false, null and ""
+ * included. A binary descriptor keeps its captured shape; a FormData is rebuilt from its fields
+ * (formExport) before this is asked.
+ */
+function requestCodeBody(entry: XrayEntry): unknown {
+  const request = capturedRequest(entry);
+  if (request.kind === 'binary' || request.format === 'formdata') return entryRequest(entry);
+  return replayBody(entry).text;
+}
+
+/** Options as JSON with one more member whose value is code (the `form` the export builds). */
+function optionsWithCode(options: Record<string, unknown>, key: string, code: string): string {
+  const base = safeStringify(options, 2, Infinity);
+  const member = `${JSON.stringify(key)}: ${code}`;
+  return base === '{}' ? `{\n  ${member}\n}` : base.replace(/\n\}$/, `,\n  ${member}\n}`);
 }
 
 /** Stringify an options object, attaching `body` under `key` unless it is oversize. */
@@ -398,7 +583,14 @@ function stringifyWithBody(options: Record<string, unknown>, key: string, body: 
 export function buildAxios(entry: XrayEntry | null): string {
   if (!entry) return '// Select an API request first';
   const method = String(entry.method || 'GET').toLowerCase();
-  const body = entryRequest(entry);
+  const form = formExport(entry);
+  if (form) {
+    // Axios writes the multipart Content-Type (and its boundary) for a FormData.
+    const options = { method, url: String(entry.url || ''), headers: formHeaders(entry) };
+    const config = form.sent ? optionsWithCode(options, 'data', 'form') : safeStringify(options, 2, Infinity);
+    return `${partialNotes(form.notes)}import axios from 'axios';\n\n${form.sent ? `${formCode(form.fields)}\n` : ''}const response = await axios(${config});\nconst data = response.data;`;
+  }
+  const body = requestCodeBody(entry);
   const options = { method, url: String(entry.url || ''), headers: headerObject(entry) };
   return `import axios from 'axios';\n\nconst response = await axios(${stringifyWithBody(options, 'data', body)});\nconst data = response.data;`;
 }
@@ -439,9 +631,9 @@ function isoOrEmpty(value: unknown, fallback = ''): string {
   return new Date(ms).toISOString();
 }
 
+/** content.text is the response text exactly as captured (spec J10); a value without text is printed. */
 function harContent(entry: XrayEntry): { size: number; mimeType: string; text: string } {
-  const body = entryResponse(entry);
-  const text = body == null ? '' : typeof body === 'string' ? body : safeStringify(body, 2, Infinity);
+  const text = exportBodyText(capturedResponse(entry), 2);
   // Measure the string actually emitted: `size` was computed from the compact form
   // while `text` is written pretty-printed, so the two disagreed on every real body.
   return { size: Number(entry.size) || text.length, mimeType: responseContentType(entry), text };
@@ -460,11 +652,57 @@ function requestContentType(entry: XrayEntry): string {
   return 'application/octet-stream';
 }
 
-/** postData is the request body exactly as captured (not a re-serialised parse). */
-function harPostData(entry: XrayEntry): { bodySize: number; postData?: { mimeType: string; text: string } } {
-  const raw = entry.requestBody;
-  if (raw == null || raw === '') return { bodySize: 0 };
-  const text = typeof raw === 'string' ? raw : safeStringify(raw, 0, Infinity);
+interface HarParam {
+  name: string;
+  value?: string;
+  fileName?: string;
+  contentType?: string;
+}
+
+type HarPostData = { mimeType: string; text: string } | { mimeType: string; params: HarParam[]; comment?: string };
+
+/**
+ * A FormData as HAR 1.2 params, in order (final fix I2): a text field by name and value, a file by its
+ * name and type (its bytes were never captured). Never `text` — the multipart bytes were not captured
+ * either, and params and text exclude each other. The comment says what is missing.
+ */
+function harFormData(entry: XrayEntry): HarPostData {
+  const pairs: unknown = entry.requestBody;
+  const params: HarParam[] = [];
+  for (const pair of Array.isArray(pairs) ? pairs as unknown[] : []) {
+    if (!Array.isArray(pair) || pair.length < 2) continue;
+    const name = String(pair[0]);
+    const value: unknown = pair[1];
+    if (value && typeof value === 'object') {
+      const file = value as { file?: unknown; type?: unknown };
+      params.push({ name, fileName: String(file.file ?? ''), ...(file.type ? { contentType: String(file.type) } : {}) });
+    } else {
+      params.push({ name, value: String(value ?? '') });
+    }
+  }
+  const missing: string[] = [];
+  if (!Array.isArray(pairs)) missing.push('The form fields were not kept with this entry.');
+  if (entry.requestTruncated) missing.push('The form was cut at capture; later fields are missing.');
+  if (params.some((param) => param.fileName !== undefined)) missing.push('Files were not captured.');
+  return { mimeType: 'multipart/form-data', params, ...(missing.length ? { comment: missing.join(' ') } : {}) };
+}
+
+/**
+ * postData.text is the request text exactly as captured (spec J10), an empty text included; FormData
+ * is its fields as params (harFormData); a binary descriptor and a request saved before J4 as its value
+ * are written as before.
+ */
+function harPostData(entry: XrayEntry): { bodySize: number; postData?: HarPostData } {
+  const method = entry.method || 'GET';
+  if (entry.requestBodyKind === 'formdata' && method !== 'GET' && method !== 'HEAD') return { bodySize: -1, postData: harFormData(entry) };
+  const request = capturedRequest(entry);
+  let text: string | null = null;
+  if (request.kind === 'text' && request.format !== 'formdata') text = request.text;
+  else if (request.kind !== 'none') {
+    const raw = entry.requestBody;
+    if (raw != null && raw !== '') text = typeof raw === 'string' ? raw : safeStringify(raw, 0, Infinity);
+  }
+  if (text === null) return { bodySize: 0 };
   return { bodySize: text.length, postData: { mimeType: requestContentType(entry), text } };
 }
 
@@ -512,8 +750,8 @@ export function buildSessionHar(entries: XrayEntry[]): string {
 
 function buildJest(entry: XrayEntry | null): string {
   if (!entry) return '// Select an API request first';
-  const data = entryResponse(entry);
-  return `global.fetch = jest.fn();\n\ndescribe(${JSON.stringify(String(entry.urlPath || entry.url || 'captured request'))}, () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: ${Number(entry.status) < 400},\n      status: ${Number(entry.status) || 200},\n      headers: { get: () => ${JSON.stringify(responseContentType(entry))} },\n      json: async () => (${embedJson(data)}),\n      text: async () => ${embedText(data)},\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('handles the captured response', async () => {\n    const response = await fetch(${JSON.stringify(String(entry.url || entry.urlPath || ''))});\n    expect(response.status).toBe(${Number(entry.status) || 200});\n  });\n});`;
+  const response = capturedResponse(entry);
+  return `global.fetch = jest.fn();\n\ndescribe(${JSON.stringify(String(entry.urlPath || entry.url || 'captured request'))}, () => {\n  beforeEach(() => {\n    (global.fetch as jest.Mock).mockResolvedValue({\n      ok: ${Number(entry.status) < 400},\n      status: ${Number(entry.status) || 200},\n      headers: { get: () => ${JSON.stringify(responseContentType(entry))} },\n      json: async () => (${embedJson(bodyExportNode(response))}),\n      text: async () => ${embedText(exportBodyText(response))},\n    });\n  });\n\n  afterEach(() => jest.clearAllMocks());\n\n  it('handles the captured response', async () => {\n    const response = await fetch(${JSON.stringify(String(entry.url || entry.urlPath || ''))});\n    expect(response.status).toBe(${Number(entry.status) || 200});\n  });\n});`;
 }
 
 /** MSW matches on path; a query string in the pattern never matches (MSW warns about it). */
@@ -526,11 +764,11 @@ function buildMsw(entry: XrayEntry | null): string {
   const unavailable = exportUnavailableReason(entry, 'msw');
   if (unavailable) return `// ${unavailable}`;
   const method = String(entry.method || 'GET').toLowerCase();
-  const data = entryResponse(entry);
+  const body = capturedResponse(entry);
   const isJson = responseContentType(entry).toLowerCase().includes('json');
   const response = isJson
-    ? `HttpResponse.json(${embedJson(data)}, { status: ${Number(entry.status) || 200} })`
-    : `new HttpResponse(${embedText(data)}, { status: ${Number(entry.status) || 200} })`;
+    ? `HttpResponse.json(${embedJson(bodyExportNode(body))}, { status: ${Number(entry.status) || 200} })`
+    : `new HttpResponse(${embedText(exportBodyText(body))}, { status: ${Number(entry.status) || 200} })`;
   return `import { http, HttpResponse } from 'msw';\n\nexport const handlers = [\n  http.${method}(${JSON.stringify(mswUrl(entry))}, async () => {\n    return ${response};\n  }),\n];`;
 }
 
@@ -540,16 +778,23 @@ function buildPlaywright(entry: XrayEntry | null): string {
   const url = String(entry.url || entry.urlPath || '');
   const status = Number(entry.status) || 200;
   const title = `${String(entry.method || 'GET').toUpperCase()} ${String(entry.urlPath || url || 'request')}`;
-  const headers = headerObject(entry);
-  const body = entryRequest(entry);
+  const form = formExport(entry);
+  const headers = form ? formHeaders(entry) : headerObject(entry);
   // Playwright's APIRequestContext has get/post/put/patch/delete/head convenience
   // methods; anything else goes through the generic request.fetch(url, { method }).
   const convenience = ['get', 'post', 'put', 'patch', 'delete', 'head'].includes(method);
   const options: Record<string, unknown> = {};
   if (!convenience) options.method = String(entry.method || 'GET').toUpperCase();
   if (Object.keys(headers).length) options.headers = headers;
-  const sendsBody = body != null && method !== 'get' && method !== 'head';
-  const optsArg = Object.keys(options).length || sendsBody ? `, ${stringifyWithBody(options, 'data', sendsBody ? body : null)}` : '';
+  let optsArg: string;
+  if (form) {
+    // A FormData passed as `multipart`: Playwright writes the Content-Type and its boundary.
+    optsArg = form.sent ? `, ${optionsWithCode(options, 'multipart', 'form')}` : Object.keys(options).length ? `, ${safeStringify(options, 2, Infinity)}` : '';
+  } else {
+    const body = requestCodeBody(entry);
+    const sendsBody = body != null && method !== 'get' && method !== 'head';
+    optsArg = Object.keys(options).length || sendsBody ? `, ${stringifyWithBody(options, 'data', sendsBody ? body : null)}` : '';
+  }
   const call = convenience
     ? `request.${method}(${JSON.stringify(url)}${optsArg})`
     : `request.fetch(${JSON.stringify(url)}${optsArg})`;
@@ -558,7 +803,8 @@ function buildPlaywright(entry: XrayEntry | null): string {
   const captured = entryResponse(entry);
   const hasBody = captured != null && captured !== '';
   const bodyLines = hasBody ? `\n  const body = await response.${isJson ? 'json' : 'text'}();\n  expect(body).toBeTruthy();` : '';
-  return `import { test, expect } from '@playwright/test';\n\ntest(${JSON.stringify(title)}, async ({ request }) => {\n  const response = await ${call};\n  expect(response.status()).toBe(${status});${bodyLines}\n});`;
+  const formLines = form?.sent ? formCode(form.fields, '  ') : '';
+  return `${form ? partialNotes(form.notes) : ''}import { test, expect } from '@playwright/test';\n\ntest(${JSON.stringify(title)}, async ({ request }) => {\n${formLines}  const response = await ${call};\n  expect(response.status()).toBe(${status});${bodyLines}\n});`;
 }
 
 export function filenameForExport(entry: XrayEntry | null, format: ExportFormat): string {
@@ -583,6 +829,20 @@ export function mimeForExport(format: ExportFormat): string {
   return 'text/typescript;charset=utf-8';
 }
 
+/**
+ * Schema, TypeScript and Zod infer types by recursion. The Export modal builds the text during render,
+ * so a value too deep for the stack (a RangeError) says so instead of unmounting the panel; the schema
+ * walk itself stops at a fixed depth (utils.ts schema), so this is the guard behind that guard.
+ */
+function typedExport(what: string, build: () => string): string {
+  try {
+    return build();
+  } catch (error) {
+    if (error instanceof RangeError) return `// The response is too deeply nested to export as ${what}.`;
+    throw error;
+  }
+}
+
 export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format: ExportFormat): string {
   if (isShareSafeFormat(format)) return buildShareSafeExport(entries, format).text;
   if (format === 'session-json') return safeStringify({ entries }, 2, Infinity);
@@ -594,10 +854,10 @@ export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format
   if (format === 'curl') return buildCurl(entry);
   if (format === 'fetch') return buildFetch(entry);
   if (format === 'axios') return buildAxios(entry);
-  if (format === 'schema') return safeStringify(schema(entryResponse(entry)), 2, Infinity);
+  if (format === 'schema') return typedExport('a schema', () => safeStringify(schema(entryResponse(entry)), 2, Infinity));
   if (format === 'mock') return buildMockPayload(entry);
-  if (format === 'typescript') return buildTypeScriptShape(entryResponse(entry));
-  if (format === 'zod') return buildZodSchema(entryResponse(entry));
+  if (format === 'typescript') return typedExport('TypeScript', () => buildTypeScriptShape(entryResponse(entry)));
+  if (format === 'zod') return typedExport('a Zod schema', () => buildZodSchema(entryResponse(entry)));
   if (format === 'jest') return buildJest(entry);
   if (format === 'msw') return buildMsw(entry);
   if (format === 'playwright') return buildPlaywright(entry);
@@ -605,7 +865,22 @@ export function exportText(entry: XrayEntry | null, entries: XrayEntry[], format
     const raw = entry.responseDecrypted ?? entry.responseRaw ?? entryResponse(entry);
     return typeof raw === 'string' ? raw : safeStringify(raw, 2, Infinity);
   }
-  // The parsed response is exported once, as `response`; the raw aliases would repeat it.
+  return selectedJson(entry);
+}
+
+/**
+ * Selected JSON: the entry's fields, its request body and its response embedded through printJson
+ * (spec J10) — every lexeme, duplicate key and member order as captured. The response is exported
+ * once, as `response`; the raw aliases would repeat it.
+ */
+function selectedJson(entry: XrayEntry): string {
   const { responseRaw: _raw, response: _alias, responseDecrypted: _dec, ...rest } = entry;
-  return safeStringify({ entry: rest, response: entryResponse(entry) }, 2, Infinity);
+  const entryNode = plainNode(rest);
+  const request = capturedRequest(entry);
+  const requestDoc = request.kind === 'text' && request.format === 'text' ? bodyDoc(request) : null;
+  if (entryNode.t === 'obj' && requestDoc?.ok) setMember(entryNode, 'requestBody', requestDoc.root);
+  return printJson({ t: 'obj', entries: [
+    { key: 'entry', value: entryNode },
+    { key: 'response', value: bodyExportNode(capturedResponse(entry)) },
+  ] }, { indent: 2 });
 }

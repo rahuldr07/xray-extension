@@ -1,5 +1,6 @@
 import type { ApiGroupingMode, ApiQuickFilter, ExperimentCheck, ExperimentPlan, SortField, SortOrder, XrayEntry } from '../types';
-import { createExperiment, evaluateExperiment, snapshotExperimentValue } from './experiments';
+import { createExperiment, evaluateExperiment, responseTextValue, snapshotExperimentValue } from './experiments';
+import { capturedPlanValue } from './replayBody';
 
 export const MAX_INVESTIGATIONS = 25;
 export const MAX_SCENARIOS = 20;
@@ -251,9 +252,8 @@ export function normalizeCheck(value: unknown): ExperimentCheck | null {
 function responseBaseline(entry: unknown): unknown {
   let value = ownValue(entry, 'responseDecrypted') ?? ownValue(entry, 'responseRaw');
   if (value === undefined || value === '') return '[UNAVAILABLE]';
-  if (ownValue(entry, 'responseDecrypted') == null && typeof value === 'string' && value.length <= 20_000) {
-    try { value = JSON.parse(value); } catch { /* Scalar text uses shared sanitization. */ }
-  }
+  // A JSON document is read losslessly (an integer past 2^53 kept exactly); other text is the text.
+  if (ownValue(entry, 'responseDecrypted') == null && typeof value === 'string' && value.length <= 20_000) value = responseTextValue(value);
   return snapshotExperimentValue(value).value;
 }
 
@@ -350,7 +350,9 @@ export function createScenario(investigation: SavedInvestigation, entry: XrayEnt
     method: ownValue(plan, 'method') ?? ownValue(entry, 'method'),
     url: requested === undefined ? url : requested,
     headers: ownValue(plan, 'headers') ?? ownValue(entry, 'requestHeaders'),
-    body: ownValue(plan, 'body') === undefined ? ownValue(entry, 'requestBody') : ownValue(plan, 'body'),
+    // The captured request read from its text (spec J10), as an experiment drafted from the entry plans it,
+    // so a run of this step replays the captured text.
+    body: ownValue(plan, 'body') === undefined ? capturedPlanValue(entry) : ownValue(plan, 'body'),
     mockRuleId: ownValue(plan, 'mockRuleId'),
     retargetAcknowledged: ownValue(plan, 'retargetAcknowledged'),
     timeoutMs: ownValue(plan, 'timeoutMs'),

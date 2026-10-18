@@ -16,12 +16,13 @@ test('React console executes through the existing hardened bridge and renders va
   // The prompt runs through the store, which re-sends this surface's selection and
   // pins to the shared engine before handing the code to the bridge (I2).
   assert.match(consoleWorkspace, /evaluateConsoleCommand\(code\)/);
-  assert.match(store, /syncConsolePins\(consolePinMap\(state\)\);\n {2}return executeConsoleCommand\(code\);/);
+  // …with the surface's lossless body reader, so res/req/pins reach the page exactly (spec J8).
+  assert.match(store, /syncConsolePins\(consolePinMap\(state\)\);\n {2}return executeConsoleCommand\(code, consoleBodyValue\);/);
   assert.match(consoleWorkspace, /navigateConsoleHistory\('up'\)/);
   assert.match(store, /setConsoleContext\(entry\)/);
   assert.match(consoleBridge, /export async function executeConsoleCommand/);
   assert.match(consoleBridge, /const bridge = window\.XRAY_Console/);
-  assert.match(consoleBridge, /return await bridge\.execute\(code\)/);
+  assert.match(consoleBridge, /return await bridge\.execute\(code, readBody \? \{ readBody \} : undefined\)/);
   assert.match(consoleBridge, /export function setConsoleContext/);
   assert.match(consoleBridge, /window\.XRAY_Console\?\.setContext\?\.\(entry\)/);
   assert.match(consoleBridge, /export function navigateConsoleHistory/);

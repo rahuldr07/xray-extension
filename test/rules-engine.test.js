@@ -33,13 +33,20 @@ test('long-running surfaces stay bounded: session size, rule writes, HUD subscri
   const paneDivider = read('src/panel/components/common/PaneDivider.tsx');
   const consoleWorkspace = readConsoleSources();
 
-  // every heavy field is trimmed, not just responseRaw — a decrypted-body
-  // session used to serialize past the chrome.storage quota and fail silently
-  for (const field of ['responseRaw', 'responseDecrypted', 'requestBody', 'logData']) {
-    assert.match(sessionStore, new RegExp(`copy\\.${field} = trimValue\\(entry\\.${field}\\)`));
-  }
-  assert.match(sessionStore, /entry\.args\.slice\(0, MAX_PERSISTED_ARGS\)\.map\(trimValue\)/);
-  assert.match(sessionStore, /const text = JSON\.stringify\(value\);/);
+  // every heavy field is bounded, not just responseRaw — a decrypted-body session used to
+  // serialize past the chrome.storage quota and fail silently. Since J9 one session budget,
+  // newest entries first, bounds them all: each is a slot that spends an entry's allowance
+  // (behaviour: test/unit/persistence.test.mjs).
+  assert.match(sessionStore, /nullOrSlot\('responseRaw', 'responseTruncated', entry\.responseRaw\)/);
+  assert.match(sessionStore, /nullOrSlot\('responseDecrypted', 'responseDecryptedTruncated', entry\.responseDecrypted\)/);
+  assert.match(sessionStore, /textSlot\(copy, 'requestBodyText', 'requestTruncated', entry\.requestBodyText/);
+  assert.match(sessionStore, /nullOrSlot\('requestBody', 'requestTruncated', entry\.requestBody\)/);
+  assert.match(sessionStore, /slots\.push\(logSlot\(copy, entry, keepStored\)\)/);
+  assert.match(sessionStore, /slots\.push\(framesSlot\(copy, entry\.wsFrames\)\)/);
+  assert.match(sessionStore, /bytes: keepStored \? Infinity : Math\.max\(remaining - fixed, floor\)/);
+  assert.match(sessionStore, /const fixed = jsonBytes\(JSON\.stringify\(copy\)\);/, 'every saved field counts');
+  assert.match(sessionStore, /entry\.args\.slice\(0, MAX_PERSISTED_ARGS\)/);
+  assert.match(sessionStore, /frames\.slice\(-MAX_PERSISTED_FRAMES\)/);
 
   // typing in a rule field coalesces the storage write and the page republish
   assert.match(store, /function persistRulesDebounced/);
@@ -56,9 +63,10 @@ test('long-running surfaces stay bounded: session size, rule writes, HUD subscri
   assert.match(paneDivider, /state\.latest = coord\(event\);\s*\n\s*if \(raf\.current\) return;/);
   assert.match(paneDivider, /onLiveChange\(clamp\(current\.width \+ \(current\.latest - current\.startX\) \* current\.scale\)\)/);
 
-  // a plain payload shaped { name, message, stack } keeps its JSON tree
-  assert.match(consoleWorkspace, /const looksLikeStack = \(stack: string\): boolean =>/);
-  assert.match(consoleWorkspace, /'name' in record &&\s*\n\s*looksLikeStack\(record\.stack\)/);
+  // a plain payload shaped { name, message, stack } keeps its JSON tree: command results are
+  // the typed model (spec J8), so only an Error envelope is an Error — no shape heuristic
+  assert.match(consoleWorkspace, /if \(event\.type === 'result'\) return logErrorInfo\(event\.data\);/);
+  assert.doesNotMatch(consoleWorkspace, /looksLikeStack|__type__ === 'Error'/);
 });
 
 test('rules have a starter preset library and portable export/import', () => {

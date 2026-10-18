@@ -14,36 +14,50 @@ test('worker client uses packaged workers on extension surfaces and respects pag
   assert.match(workerClient, /worker-policy-blocked/);
 });
 
-test('worker core owns expensive schema, diff, grid, and detail analysis operations', () => {
+test('Table, Schema and Diff have one implementation: the panel node models on every surface (JSON fidelity J11)', () => {
   const worker = read('workers/xray-worker.js');
   const workerClient = read('shared/worker-client.js');
   const detail = read('src/panel/components/detail/RequestDetail.tsx');
   const types = read('src/panel/types.ts');
 
-  assert.match(worker, /function inferSchema/);
-  assert.match(worker, /function detailAnalysis/);
-  assert.match(worker, /structuralDiff:\s*computeDiff\(previous, current\)\.slice\(0, 500\)/);
-  assert.match(worker, /engine:\s*'worker-js'/);
-  assert.match(worker, /case 'inferSchema'/);
-  assert.match(worker, /case 'detailAnalysis'/);
+  // The DevTools worker kept its own copies (first array, depth 10 schema, depth 50 diff, rounded
+  // integers past 2^53). They are gone from the worker, the client and the global type.
+  for (const name of ['inferSchema', 'detailAnalysis', 'computeDiff', 'gridRows']) {
+    assert.doesNotMatch(worker, new RegExp(`function ${name}\\b|case '${name}'`), `worker ${name}`);
+    assert.doesNotMatch(workerClient, new RegExp(`async ${name}\\(`), `client ${name}`);
+    assert.doesNotMatch(types, new RegExp(`${name}\\(`), `type ${name}`);
+  }
+  // RequestDetail never asks the worker; it reads the body's nodes through the shared models.
+  assert.doesNotMatch(detail, /XRAY_Worker/);
+  assert.match(detail, /bodyNode\(body\)/);
+  for (const model of ['tableFromNode(node)', 'schemaFromNode(node)', 'diffNodes(previous, current)', 'buildVizSpecFromNode(node)']) {
+    assert.ok(detail.includes(model), model);
+  }
+});
 
-  assert.match(workerClient, /async inferSchema\(data\)/);
-  assert.match(workerClient, /async detailAnalysis\(current, previous = null\)/);
-  assert.match(types, /detailAnalysis\(current: unknown, previous\?: unknown\): Promise<unknown>/);
+test('captures are not posted to the worker for a token index nothing searched (Task 6 ruling)', () => {
+  const content = read('content/content.js');
+  const worker = read('workers/xray-worker.js');
+  const workerClient = read('shared/worker-client.js');
 
-  assert.match(detail, /window\.XRAY_Worker\.detailAnalysis\(activeValue, previousValue\)/);
-  assert.match(detail, /workerSchema \?\? schema\(value\)/);
-  assert.match(detail, /workerGrid\?: ReturnType<typeof gridRows>/);
-  // the structural diff renders added/removed/changed paths with a baseline jump
-  assert.match(detail, /structuralDiff/);
+  assert.doesNotMatch(content, /XRAY_Worker\.addEntry/);
+  assert.match(content, /noteWorkerHealth/, 'worker health still reaches the panel');
+  for (const name of ['tokenizeEntry', 'extractKeys', 'extractLogKeys', 'searchEntries']) assert.doesNotMatch(worker, new RegExp(`function ${name}\\b`), name);
+  assert.doesNotMatch(worker, /case 'search'/);
+  assert.doesNotMatch(workerClient, /async search\(/);
+});
+
+test('Request Detail Diff states its limits and keeps the baseline jump', () => {
+  const detail = read('src/panel/components/detail/RequestDetail.tsx');
+
+  assert.match(detail, /const \{ lines, notices \} = result/);
+  assert.match(detail, /notices\.map\(/);
+  assert.match(detail, /No structural differences/);
   assert.match(detail, /Jump to baseline/);
 });
 
-test('Request Detail uses a validated worker diff and keeps the bounded synchronous fallback', () => {
-  const detail = read('src/panel/components/detail/RequestDetail.tsx');
-
-  assert.match(detail, /workerAnalysis\?\.diff/);
-  assert.match(detail, /normalizeWorkerDiff|validatedWorkerDiff/);
-  assert.match(detail, /workerDiff=/);
-  assert.match(detail, /workerDiff \?\? structuralDiff/);
+test('Final fix M7: the global XRAY_Worker type declares no removed operation', () => {
+  const types = read('src/panel/types.ts');
+  const block = types.slice(types.indexOf('XRAY_Worker?: {'), types.indexOf('};', types.indexOf('XRAY_Worker?: {')));
+  for (const name of ['addEntry', 'computeStats', 'exportCSV', 'exportHAR', 'analyze', 'getFromCache']) assert.doesNotMatch(block, new RegExp(`\\b${name}\\(`), name);
 });

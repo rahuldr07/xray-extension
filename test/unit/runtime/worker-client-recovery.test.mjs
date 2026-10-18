@@ -89,7 +89,8 @@ test('worker errors reject every pending request once and recreate one worker', 
   await init;
   assert.equal(client.isReady(), true);
 
-  const pending = client.computeStats({ value: 1 });
+  // Any request will do: the worker keeps receipts and clone since the final fix (M7).
+  const pending = client.captureReceipt({ accepted: 1 });
   const oldWorker = workers[0];
   oldWorker.fail();
   await assert.rejects(pending, /worker unavailable/i);
@@ -101,11 +102,11 @@ test('worker errors reject every pending request once and recreate one worker', 
   workers[1].emit({ id: '__ready__', success: true, result: {} });
   await client.whenReady();
   assert.equal(client.getHealth().lastErrorCode, 'worker-error');
-  const recovered = client.computeStats({ value: 2 });
-  workers[1].emit({ id: requestId(workers[1], 'computeStats'), success: true, result: { ok: true } });
+  const recovered = client.captureReceipt({ accepted: 2 });
+  workers[1].emit({ id: requestId(workers[1], 'captureReceipt'), success: true, result: { ok: true } });
   assert.deepEqual(await recovered, { ok: true });
 
-  oldWorker.emit({ id: requestId(oldWorker, 'computeStats'), success: true, result: { stale: true } });
+  oldWorker.emit({ id: requestId(oldWorker, 'captureReceipt'), success: true, result: { stale: true } });
   assert.equal(client.getHealth().state, 'healthy');
 });
 
@@ -131,7 +132,8 @@ test('missing worker is degraded and never falsely ready', async () => {
   await client.init();
   assert.equal(client.isReady(), false);
   assert.equal(client.getHealth().state, 'degraded');
-  assert.deepEqual(await client.search('x', [{ url: 'x' }]), [{ url: 'x' }]);
+  assert.equal(JSON.stringify(await client.captureReceipt({ accepted: 1 })), '{"accepted":0,"dropped":0,"dropReasons":{}}', 'requests answer without a worker');
+  assert.equal(typeof client.search, 'undefined', 'no search: the panel searches its own session index');
 });
 
 test('timed-out requests are removed and do not reject again after termination', async () => {
@@ -161,8 +163,7 @@ test('HTTP(S) content pages use fallback without creating extension or blob work
     assert.equal(attempts.length, 0);
     assert.equal(blobs.length, 0);
     assert.equal(client.__testing.pendingCount(), 0);
-    assert.equal(await client.detailAnalysis({ private: 'payload' }), null);
-    assert.deepEqual(await client.search('x', [{ url: 'x' }, { url: 'y' }]), [{ url: 'x' }]);
+    assert.equal(JSON.stringify(await client.captureReceipt({ accepted: 1, note: 'payload' })), '{"accepted":0,"dropped":0,"dropReasons":{}}');
     assert.deepEqual(logs, []);
   }
 });
@@ -189,7 +190,7 @@ test('asynchronous CSP denial settles initial readiness and rejects pending requ
   const { client, workers, blobs, logs } = loadClient();
   t.after(() => client.terminate());
   const ready = client.init();
-  const pending = client.detailAnalysis({ private: 'payload' });
+  const pending = client.captureReceipt({ accepted: 1, note: 'payload' });
   const rejected = assert.rejects(pending, /worker unavailable/i);
   workers[0].fail({ message: "Refused to create a worker at https://secret.example because it violates Content Security Policy: script-src 'self'" });
   await rejected;
@@ -200,7 +201,7 @@ test('asynchronous CSP denial settles initial readiness and rejects pending requ
   assert.equal(client.__testing.pendingCount(), 0);
   workers[0].emit({ id: '__ready__', success: true });
   assert.equal(client.isReady(), false);
-  assert.equal(await client.detailAnalysis({ private: 'payload' }), null);
+  assert.equal(JSON.stringify(await client.captureReceipt({ accepted: 1, note: 'payload' })), '{"accepted":0,"dropped":0,"dropReasons":{}}');
   assert.equal(blobs.length, 0);
   assert.deepEqual(logs, []);
   assert.equal(JSON.stringify(client.getHealth()).includes('secret.example'), false);
@@ -250,7 +251,7 @@ test('silent startup times out, retries once and settles all readiness waits', a
   assert.equal(client.isReady(), false);
 });
 
-test('extension pages use the packaged worker and preserve successful analysis results', async (t) => {
+test('extension pages use the packaged worker and preserve successful results', async (t) => {
   const { client, workers, attempts, blobs } = loadClient();
   t.after(() => client.terminate());
   const ready = client.init();
@@ -258,9 +259,9 @@ test('extension pages use the packaged worker and preserve successful analysis r
   assert.equal((await ready).state, 'healthy');
   assert.equal(client.isReady(), true);
   assert.deepEqual(attempts, ['chrome-extension://fixture/workers/xray-worker.js']);
-  const analysis = client.detailAnalysis({ a: 1 });
-  workers[0].emitResponse(requestId(workers[0], 'detailAnalysis'), { stats: { keyCount: 1 } });
-  assert.deepEqual(await analysis, { stats: { keyCount: 1 } });
+  const receipt = client.captureReceipt({ accepted: 1 });
+  workers[0].emitResponse(requestId(workers[0], 'captureReceipt'), { accepted: 1, dropped: 0 });
+  assert.deepEqual(await receipt, { accepted: 1, dropped: 0 });
   assert.equal(client.__testing.pendingCount(), 0);
   assert.equal(blobs.length, 0);
 });

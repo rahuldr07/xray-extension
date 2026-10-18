@@ -6,6 +6,7 @@ import { EntriesWorkspace } from './components/api/EntriesWorkspace';
 import { ConsoleWorkspace } from './components/console/ConsoleWorkspace';
 import { ExportModal } from './components/export/ExportModal';
 import { ConfirmationModal } from './components/common/ConfirmationModal';
+import { RootErrorBoundary } from './components/common/RootErrorBoundary';
 import { Insights } from './components/insights/Insights';
 import { Rules } from './components/rules/Rules';
 import { SettingsModal } from './components/settings/SettingsModal';
@@ -36,25 +37,29 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
     ...(settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {}),
   } as React.CSSProperties;
 
+  // The root boundary sits inside the theme scope, so its fallback keeps the theme's tokens. It
+  // covers the shell and every modal: one failing computation never leaves the user without a way out.
   return (
     <div className={`xray-theme-scope xray-theme-${settings.theme} xray-font-${settings.font}`} style={themeVars}>
-      <PanelShell mode={mode}>
-        {activeTab === 'console' && <ConsoleWorkspace />}
-        {activeTab === 'api' && <EntriesWorkspace mode="api" />}
-        {activeTab === 'logs' && <EntriesWorkspace mode="logs" />}
-        {activeTab === 'rules' && <Rules />}
-        {activeTab === 'insights' && <Insights />}
-      </PanelShell>
-      <ExportModal />
-      <SettingsModal />
-      <ReplayModal />
-      <ExplainModal />
-      <FindingSynthesisModal />
-      <CommandPalette />
-      <GlobalSearch />
-      <ConfirmationModal />
-      <ToastRegion />
-      <ThemeRefreshNotice />
+      <RootErrorBoundary mode={mode}>
+        <PanelShell mode={mode}>
+          {activeTab === 'console' && <ConsoleWorkspace />}
+          {activeTab === 'api' && <EntriesWorkspace mode="api" />}
+          {activeTab === 'logs' && <EntriesWorkspace mode="logs" />}
+          {activeTab === 'rules' && <Rules />}
+          {activeTab === 'insights' && <Insights />}
+        </PanelShell>
+        <ExportModal />
+        <SettingsModal />
+        <ReplayModal />
+        <ExplainModal />
+        <FindingSynthesisModal />
+        <CommandPalette />
+        <GlobalSearch />
+        <ConfirmationModal />
+        <ToastRegion />
+        <ThemeRefreshNotice />
+      </RootErrorBoundary>
     </div>
   );
 }

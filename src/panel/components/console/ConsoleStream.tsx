@@ -10,13 +10,15 @@ import {
 } from '@tabler/icons-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { EmptyState } from '../common/EmptyState';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { LogDetail } from '../detail/LogDetail';
 import { JsonView } from '../detail/JsonView';
 import { usePanelStore } from '../../store';
 import type { ConsoleEvent, XrayEntry } from '../../types';
 import { matchesConsoleFilter, pairConsoleEvents, pairedUnit, unitMatchesConsoleFilter, type ConsoleFilter } from '../../models/logLevels';
-import { BIG_ITEM_LIMIT, describeResult } from '../../models/consoleResults';
+import { describeResult, resultCopyText, resultText } from '../../models/consoleResults';
 import { formatTime, safeStringify, stripXrayRefs } from '../../utils';
+import { logArgsDisplay, logArgsText, logCopyValue, logDisplay, logHasDetail } from '../../models/logValue';
 import { ExampleCommands } from './ExampleCommands';
 import { ErrorBlock, extractConsoleError, type ConsoleError } from './consoleErrors';
 
@@ -32,13 +34,35 @@ const CONSOLE_SEARCH_MESSAGE_CHARS = 8_000;
 // haystack cap without clipping the tail of the args budget.
 const CONSOLE_SEARCH_STRUCTURED_CHARS = 5_999;
 
+// A page log's arguments are searched as the panel prints them (spec J7: typed values as
+// `10n`, `NaN`…, never the model's "$xray" envelopes).
+function argsSearchText(event: ConsoleEvent): string {
+  if (event.args === undefined) return '';
+  if (event.type !== 'log') return safeStringify(event.args, 0, CONSOLE_SEARCH_STRUCTURED_CHARS);
+  try {
+    return logArgsText(event.args, CONSOLE_SEARCH_STRUCTURED_CHARS);
+  } catch {
+    return safeStringify(event.args, 0, CONSOLE_SEARCH_STRUCTURED_CHARS);
+  }
+}
+
+// A command's value is the typed model (spec J8): it is searched as it reads, never as envelopes.
+function dataSearchText(event: ConsoleEvent): string {
+  if (event.data === undefined) return '';
+  if (typeof event.data === 'string') return event.data.slice(0, CONSOLE_SEARCH_STRUCTURED_CHARS);
+  if (event.type === 'result') {
+    try {
+      return resultText(event.data, CONSOLE_SEARCH_STRUCTURED_CHARS);
+    } catch {
+      return '';
+    }
+  }
+  return safeStringify(event.data, 0, CONSOLE_SEARCH_STRUCTURED_CHARS);
+}
+
 function consoleSearchHaystack(event: ConsoleEvent): string {
   const message = String(event.message || '').slice(0, CONSOLE_SEARCH_MESSAGE_CHARS);
-  const data = event.data === undefined ? '' : typeof event.data === 'string'
-    ? event.data.slice(0, CONSOLE_SEARCH_STRUCTURED_CHARS)
-    : safeStringify(event.data, 0, CONSOLE_SEARCH_STRUCTURED_CHARS);
-  const args = event.args === undefined ? '' : safeStringify(event.args, 0, CONSOLE_SEARCH_STRUCTURED_CHARS);
-  return `${message} ${data} ${args}`.slice(0, CONSOLE_SEARCH_MAX_CHARS).toLowerCase();
+  return `${message} ${dataSearchText(event)} ${argsSearchText(event)}`.slice(0, CONSOLE_SEARCH_MAX_CHARS).toLowerCase();
 }
 
 // A cell searches its command source (bounded like a message) plus its output's
@@ -138,14 +162,15 @@ export function ConsoleStream({ levelFilter, query, onClearFilter, onRerun, onOp
       if (!matchesConsoleFilter(event, levelFilter)) continue;
       if (trimmed && !consoleSearchHaystack(event).includes(trimmed)) continue;
       count += 1;
-      // S4: consecutive identical page logs (same level, message and source)
+      // S4: consecutive identical page logs (same level, message, arguments and source)
       // collapse into one row with a ×N badge — heartbeat/polling logs otherwise
-      // bury everything else.
+      // bury everything else. The repeat key (spec J7) keeps logs that only read the
+      // same apart: console.log([1,2,3]) and console.log(1,2,3), '1 2 3' and 1, 2, 3.
       const prev = out[out.length - 1];
       // Cheap checks first: the source (an Error stack parse) is only computed for
       // a candidate repeat, and the run's source is computed once and kept.
       if (prev && prev.kind === 'log' && event.type === 'log' && prev.event.type === 'log' &&
-        prev.event.level === event.level && prev.event.message === event.message) {
+        prev.event.level === event.level && prev.event.message === event.message && prev.event.repeatKey === event.repeatKey) {
         prev.source ??= logSource(prev.event);
         if (prev.source === logSource(event)) {
           prev.count += 1;
@@ -354,17 +379,35 @@ export function ConsoleStream({ levelFilter, query, onClearFilter, onRerun, onOp
   );
 }
 
-// The first logged object/array that is big by the C6 threshold, for Open in inspector.
-// The item count settles most cases without serializing; only small-but-maybe-heavy
-// values pay for describeResult's size check.
+// Copy raw: a page log's arguments as their plain projection (typed values as text, no
+// "$xray" envelopes); anything else as it is. A hand-built value that cannot be read keeps
+// its old form.
+function rawEventValue(event: ConsoleEvent): unknown {
+  if (event.type === 'log' && event.data === undefined && Array.isArray(event.args)) {
+    try {
+      return logCopyValue(event.args);
+    } catch {
+      return event.args;
+    }
+  }
+  if (event.type === 'result') return resultCopyText(event.data);
+  return event.data ?? event.args ?? event.message;
+}
+
+// The first logged object/array that is big by the C6 threshold, for Open in inspector. The
+// inspector reads the typed log model (spec J7/J8) like a command result does, so the argument
+// goes as it is: a Map stays a Map, and a listed object with a "$xray" key stays data.
 function bigLogValue(event: ConsoleEvent): unknown {
   if (event.type !== 'log' || !Array.isArray(event.args)) return undefined;
   for (const arg of event.args) {
     if (!arg || typeof arg !== 'object') continue;
-    const count = Array.isArray(arg) ? arg.length : Object.keys(arg).length;
-    if (count > BIG_ITEM_LIMIT) return stripXrayRefs(arg);
-    const value = stripXrayRefs(arg);
-    if (describeResult(value, '').big) return value;
+    let description;
+    try {
+      description = describeResult(arg, '');
+    } catch {
+      continue;
+    }
+    if ((description.kind === 'tree' || description.kind === 'table') && description.big) return arg;
   }
   return undefined;
 }
@@ -378,8 +421,10 @@ export const ConsoleRow = React.memo(function ConsoleRow({ event, count, onOpenI
   const toggleExpanded = usePanelStore((state) => state.toggleExpanded);
   const isExpanded = expandedId === event.id;
   const consoleError = useMemo(() => extractConsoleError(event), [event]);
-  const canExpand = event.type === 'result' || (consoleError ? !!consoleError.stack : false) ||
-    event.data !== undefined || !!event.args?.some((arg) => arg && typeof arg === 'object');
+  // A page log's typed scalar (`10n`, `undefined`) is an envelope object but has nothing
+  // more to show than its text.
+  const canExpand = event.type === 'result' || (consoleError ? !!(consoleError.stack || consoleError.cause) : false) ||
+    event.data !== undefined || !!event.args?.some((arg) => (event.type === 'log' ? logHasDetail(arg) : !!arg && typeof arg === 'object'));
   // Only carry a glyph where it means something — input (>), output (<), errors
   // and warnings. Plain page logs get a quiet dot, so the stream reads as text,
   // not a column of repeated terminal icons (Chrome/Firefox console model).
@@ -398,8 +443,21 @@ export const ConsoleRow = React.memo(function ConsoleRow({ event, count, onOpenI
   const logEntry: XrayEntry | null = isExpanded && event.type === 'log' && event.entryId && !consoleError
     ? usePanelStore.getState().entries.find((entry) => entry.id === event.entryId) || null
     : null;
+  // A page log whose entry is gone (evicted) shows its arguments typed, as LogDetail does.
   const expandedData = useMemo(
-    () => (isExpanded && !logEntry && !consoleError ? stripXrayRefs(event.data ?? event.args ?? event.message) : null),
+    () => {
+      if (!isExpanded || logEntry || consoleError) return null;
+      if (event.type === 'log' && Array.isArray(event.args) && event.data === undefined) {
+        try {
+          return logArgsDisplay(event.args);
+        } catch {
+          return event.args;
+        }
+      }
+      // A command result whose command is gone: its typed value, shown as values.
+      if (event.type === 'result') return logDisplay(event.data);
+      return stripXrayRefs(event.data ?? event.args ?? event.message);
+    },
     [isExpanded, logEntry, consoleError, event],
   );
 
@@ -446,13 +504,16 @@ export const ConsoleRow = React.memo(function ConsoleRow({ event, count, onOpenI
       </span>
       {isExpanded && (
         <div className="xray-detail">
-          {consoleError ? (
-            <ErrorBlock error={consoleError} />
-          ) : logEntry ? (
-            <LogDetail entry={logEntry} />
-          ) : (
-            <JsonView value={expandedData} />
-          )}
+          {/* J12: a value that fails to render costs only this row. */}
+          <ErrorBoundary resetKeys={[event]} raw={() => rawEventValue(event)}>
+            {consoleError ? (
+              <ErrorBlock error={consoleError} />
+            ) : logEntry ? (
+              <LogDetail entry={logEntry} />
+            ) : (
+              <JsonView value={expandedData} />
+            )}
+          </ErrorBoundary>
         </div>
       )}
     </div>

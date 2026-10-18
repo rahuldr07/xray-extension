@@ -5,8 +5,7 @@ import { ModalShell } from '../common/ModalShell';
 import { Notice } from '../common/Notice';
 import { ToggleField } from '../common/ToggleField';
 import { entryPath } from '../../models/entries';
-import { parseBody, safeStringify } from '../../utils';
-import type { XrayEntry } from '../../types';
+import { planValueOfText, replayBody } from '../../models/replayBody';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
@@ -30,11 +29,6 @@ function textToHeaders(text: string): Record<string, string> {
   return out;
 }
 
-function bodyToText(entry: XrayEntry): string {
-  if (entry.requestBody == null) return '';
-  return typeof entry.requestBody === 'string' ? entry.requestBody : safeStringify(entry.requestBody, 2, 100_000);
-}
-
 function originOf(value: string): string | null {
   try { return new URL(value).origin; } catch { return null; }
 }
@@ -48,7 +42,8 @@ export function ReplayModal(): React.ReactElement | null {
     method: String(entry.method || 'GET').toUpperCase(),
     url: String(entry.url || entry.urlPath || ''),
     headers: headersToText(entry.requestHeaders),
-    body: bodyToText(entry),
+    // The request text as captured (spec J10): no pretty re-print, no "… truncated" suffix.
+    body: replayBody(entry),
   } : null, [entry]);
 
   const [method, setMethod] = useState('GET');
@@ -62,7 +57,7 @@ export function ReplayModal(): React.ReactElement | null {
     setMethod(initial.method);
     setUrl(initial.url);
     setHeaders(initial.headers);
-    setBody(initial.body);
+    setBody(initial.body.text ?? '');
     setRetargetAcknowledged(false);
   }, [initial]);
 
@@ -74,16 +69,21 @@ export function ReplayModal(): React.ReactElement | null {
   const capturedOrigin = originOf(initial.url);
   const crossOrigin = editedOrigin !== null && capturedOrigin !== null && editedOrigin !== capturedOrigin;
 
+  // Unedited, the body goes out as captured — its text (a captured "" is still a body), or a FormData
+  // of text fields rebuilt from its fields; edited, exactly as typed, and an emptied editor sends no
+  // body. A captured body that cannot be sent as it was (cut at capture, files, binary, unread) is
+  // never sent silently: Send waits for an edit.
+  const edited = body !== (initial.body.text ?? '');
+  const blocked = !initial.body.exact && !edited;
+  const bodyToSend = edited ? (body === '' ? null : body) : initial.body.text;
+
   function send(): void {
-    if (!entry) return;
-    // parseBody keeps non-JSON text as a literal string (same rule the rest of
-    // the panel applies to bodies) and maps '' to null.
-    const parsedBody = parseBody(body);
+    if (!entry || blocked) return;
     replayEntry(entry, {
       method,
       url,
       requestHeaders: textToHeaders(headers),
-      requestBody: parsedBody,
+      ...(edited ? { requestBodyText: bodyToSend } : {}),
     });
     close();
   }
@@ -100,11 +100,14 @@ export function ReplayModal(): React.ReactElement | null {
           <span className="xray-modal-foot-meta">Replays run from the inspected page and are recaptured as new entries.</span>
           <span className="xray-spacer" />
           <button className="xray-btn" onClick={close}>Cancel</button>
-          <button className="xray-btn" onClick={() => {
-            const id = usePanelStore.getState().draftExperiment(entry, { method, url, headers: textToHeaders(headers), body: parseBody(body), retargetAcknowledged: crossOrigin && retargetAcknowledged });
+          <button className="xray-btn" disabled={blocked} onClick={() => {
+            // An unedited body is the captured one: the experiment replays the captured text. An edited one
+            // is planned as its value (persisted sanitized), an object or array losslessly parsed.
+            const body = bodyToSend === null ? null : planValueOfText(bodyToSend);
+            const id = usePanelStore.getState().draftExperiment(entry, { method, url, headers: textToHeaders(headers), ...(edited ? { body } : {}), retargetAcknowledged: crossOrigin && retargetAcknowledged });
             if (id) close();
           }}>Prepare experiment</button>
-          <button className="xray-btn primary" onClick={send}><IconSend {...iconProps} />Send replay</button>
+          <button className="xray-btn primary" disabled={blocked} onClick={send}><IconSend {...iconProps} />Send replay</button>
         </>
       )}
     >
@@ -128,6 +131,11 @@ export function ReplayModal(): React.ReactElement | null {
           <span>Body</span>
           <textarea className="xray-input xray-replay-bodyfield" spellCheck={false} value={body} onChange={(event) => setBody(event.currentTarget.value)} placeholder='{ "key": "value" }' />
         </label>
+        {!initial.body.exact && <Notice tone="warning">{initial.body.reason}{initial.body.editHint
+          ? (edited ? ' Your edited body will be sent.' : ' Edit the body to send it.')
+          : (edited ? ' Your edited body will be sent as text.' : '')}</Notice>}
+        {initial.body.form && <Notice tone="info">Replay rebuilds this FormData from its captured fields (the browser picks a new multipart boundary).{edited ? ' Your edited body will be sent as text instead.' : ' An edited body is sent as text instead.'}</Notice>}
+        {edited && <p className="xray-muted xray-replay-plan-note">Prepare experiment plans an edited body as its sanitized value: a run sends it re-printed (integers exact; 1.0 and 1E5 normalised), and an edit that only reformats the captured body sends the captured text.</p>}
         {crossOrigin && (
           <>
             <Notice tone="warning">This URL is on a different origin ({editedOrigin}) than the captured request ({capturedOrigin}).</Notice>

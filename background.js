@@ -4,7 +4,6 @@
 const _devtoolsPortsByTab = new Map();
 let popoutWindowId = null;
 const CONSOLE_EVAL_TIMEOUT_MS = 10000;
-const MAX_RESULT_CHARS = 200000;
 const VALID_CONSOLE_NAME = /^[A-Za-z_$][\w$]*$/;
 const RUNTIME_HELPER_NAMES = [
   '$r', '$res', '$req', '$headers', '$h', '$rh', '$url', '$params',
@@ -194,12 +193,41 @@ async function _loadConsoleHelperSource() {
   return _consoleHelperSource;
 }
 
+// Spec J8: the command context arrives from the panel as tagged JSON text
+// (panel/console.js _contextPayload). It is inlined as a JSON *string literal* and parsed
+// in the page by the inlined helper (reviveContext) — never interpolated as an object
+// literal, whose `"__proto__":` would set a prototype instead of a key. A caller that still
+// passes an object is stringified here (plain data, no tags).
+function _consoleContextText(context) {
+  if (typeof context === 'string') return context;
+  try {
+    return JSON.stringify(context ?? {}) ?? '{}';
+  } catch {
+    return '{}';
+  }
+}
+
+// Saved-variable and pin names to declare. Read from the same text the page will parse;
+// text that is not a JSON object declares none (the page then sees an empty context).
+function _consoleContextNames(text) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = null;
+  }
+  const keys = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : []);
+  return {
+    scope: keys(parsed?.scope),
+    // Pins are the single letters a-f; nothing else is declared from context.pins.
+    pins: keys(parsed?.pins).filter((name) => /^[a-f]$/.test(name)),
+  };
+}
+
 function _buildConsoleExpression(code, context, helperSource) {
   const trimmed = String(code || '').trim();
-  const contextJson = JSON.stringify(context || {});
-  const scopeNames = Object.keys(context?.scope || {});
-  // Pins are the single letters a-f; nothing else is declared from context.pins.
-  const pinNames = Object.keys(context?.pins || {}).filter((name) => /^[a-f]$/.test(name));
+  const contextText = _consoleContextText(context);
+  const { scope: scopeNames, pins: pinNames } = _consoleContextNames(contextText);
   const names = [...new Set([...RUNTIME_HELPER_NAMES, ...scopeNames, ...pinNames])]
     .filter((name) => VALID_CONSOLE_NAME.test(name));
   const declarations = names
@@ -208,8 +236,6 @@ function _buildConsoleExpression(code, context, helperSource) {
   const userBody = _consoleUserBody(trimmed);
 
   return `(async () => {
-    const MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
-    const __context = ${contextJson};
     // The helper module is an IIFE whose only global write is
     // \`window.XRAY_ConsoleHelpers\`. Shadowing \`window\` with a local object
     // captures that write here instead of reading — or touching — the page's global.
@@ -218,6 +244,9 @@ function _buildConsoleExpression(code, context, helperSource) {
       ${helperSource}
       return window.XRAY_ConsoleHelpers;
     })();
+    // Tagged JSON text in a string literal, revived by the helper: integers past 2^53 become
+    // BigInt, NaN/±Infinity/-0/undefined come back, "__proto__" stays a plain key.
+    const __context = __helpers?.reviveContext ? __helpers.reviveContext(${JSON.stringify(contextText)}) : {};
     const __runtime = __helpers?.createRuntime
       ? __helpers.createRuntime(__context || {}, (text) => {
           try { navigator.clipboard?.writeText?.(text); } catch {}
@@ -228,89 +257,13 @@ function _buildConsoleExpression(code, context, helperSource) {
     Object.assign(__runtime, __context?.scope || {});
     ${declarations}
 
-    function __resultType(value) {
-      if (value === undefined) return 'undefined';
-      if (value === null) return 'null';
-      if (Array.isArray(value)) return 'array';
-      return typeof value;
-    }
-
-    function __safeSerialize(value) {
-      const seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
-      let truncated = false;
-      function normalize(input, depth = 0) {
-        if (depth > 8) {
-          truncated = true;
-          return '[Max depth]';
-        }
-        if (input === null || input === undefined) return input;
-        const type = typeof input;
-        if (type === 'string') {
-          if (input.length > MAX_RESULT_CHARS) {
-            truncated = true;
-            return input.slice(0, MAX_RESULT_CHARS) + '... (' + input.length + ' chars)';
-          }
-          return input;
-        }
-        if (type === 'number' || type === 'boolean') return input;
-        if (type === 'bigint') return input.toString() + 'n';
-        if (type === 'symbol') return String(input);
-        if (type === 'function') return '[Function: ' + (input.name || 'anonymous') + ']';
-        if (input instanceof Error) {
-          return { __type__: 'Error', name: input.name, message: input.message, stack: input.stack };
-        }
-        if (input instanceof Date) return { __type__: 'Date', iso: input.toISOString() };
-        if (typeof Element !== 'undefined' && input instanceof Element) {
-          return '<' + input.tagName.toLowerCase() + (input.id ? '#' + input.id : '') + '>';
-        }
-        if (seen) {
-          if (seen.has(input)) return '[Circular]';
-          seen.add(input);
-        }
-        if (Array.isArray(input)) {
-          const limit = Math.min(input.length, 1000);
-          const out = input.slice(0, limit).map((item) => normalize(item, depth + 1));
-          if (input.length > limit) {
-            truncated = true;
-            out.push('... +' + (input.length - limit) + ' more');
-          }
-          return out;
-        }
-        const out = {};
-        const keys = Object.keys(input);
-        const limit = Math.min(keys.length, 500);
-        for (let i = 0; i < limit; i++) {
-          const key = keys[i];
-          try { out[key] = normalize(input[key], depth + 1); } catch { out[key] = '[Error reading property]'; }
-        }
-        if (keys.length > limit) {
-          truncated = true;
-          out['...'] = '+' + (keys.length - limit) + ' more keys';
-        }
-        return out;
-      }
-      const result = normalize(value);
-      // JSON.stringify(undefined) returns undefined, not a string — reading .length
-      // on it made every undefined result (e.g. a missing property) report a TypeError.
-      let json = '';
-      try { json = JSON.stringify(result) ?? ''; } catch {}
-      if (json.length > MAX_RESULT_CHARS) {
-        truncated = true;
-        return { result: json.slice(0, MAX_RESULT_CHARS) + '... (' + json.length + ' chars)', truncated };
-      }
-      return { result, truncated };
-    }
-
     try {
       const __raw = await (async () => {
         ${userBody}
       })();
-      const __serialized = __safeSerialize(__raw);
-      return {
-        type: __resultType(__raw),
-        result: __serialized.result,
-        truncated: !!__serialized.truncated,
-      };
+      // Typed JSON text (shared/console-helpers.js encodeResult): returnByValue carries a
+      // string, so no browser-side dictionary sorts its keys or drops what JSON cannot hold.
+      return __helpers.encodeResult(__raw);
     } catch (err) {
       return {
         type: 'error',

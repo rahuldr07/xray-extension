@@ -23,7 +23,7 @@ test('React preview models old API tab parity before live manifest switch', () =
   assert.match(entriesWorkspace, /toggleStatus/);
   assert.match(entriesWorkspace, /toggleType/);
   assert.match(entriesWorkspace, /setSort/);
-  assert.match(detailModel, /export function detailValue/);
+  assert.match(detailModel, /export function tableFromNode/);
   assert.match(exportModel, /export type ExportFormat/);
   assert.match(store, /expandedGroups:\s*new Set<string>\(\)/);
   assert.match(store, /pinnedIds:\s*new Set<string>\(\)/);

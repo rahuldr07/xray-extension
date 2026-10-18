@@ -101,6 +101,60 @@ The console has no MAIN-world leg any more. `XRAY_CONSOLE_SESSION`,
 context they carried (cross-origin captured URLs, full bodies, decoded JWT claims) was
 posted into the page with `targetOrigin: '*'`. Execution is privileged-path only.
 
+### Console log values: the typed log model (spec J7)
+
+`console-capture.js` encodes every console argument into one JSON-safe model, `content.js`
+rebuilds it field by field (bounded), and the store, the DevTools relay and Session JSON carry
+it unchanged; persistence bounds it again with the same checker in TypeScript
+(`models/logBound.ts`, spec J9); `src/panel/models/logValue.ts` documents the stable form and
+renders it.
+
+- A log entry has `logArgCount`; `logData` is the single argument when there is one, else
+  the list (`console.log([1,2,3])` and `console.log(1,2,3)` stay distinct).
+  `objectRefs[i]` is the "Load full object" handle of argument `objectRefArgs[i]`.
+- Plain JSON stays plain. Every other value is an envelope under the reserved key
+  `"$xray"`: `undefined`, `number` (NaN/±Infinity/-0), `bigint` (exact digits),
+  `function`, `symbol`, `date`, `dom`, `circular`, `unreadable`, `depth`, `string`,
+  `array` and `object` (truncation as metadata), `map`, `set`, `error` (with `cause`),
+  `typedarray`.
+- The encoder owns every bound: per console call a value budget (every argument, item,
+  entry value, Map key/value, Set value, typed-array value and cause counts one) and a
+  character budget (string values, keys, Error messages/stacks, Symbol descriptions,
+  BigInt digits); per value depth, items, string and key length. A cut is metadata
+  (`length`, `size`, `omitted`, a `string`/`depth` envelope); BigInt digits are all or
+  nothing (`unreadable`). `content.js` checks in the same units with limits at twice the
+  encoder's, so it passes legitimate output unchanged: the docked panel (validated) and
+  the HUD (which stores the page's batches as posted) hold the same model.
+- Unforgeable by construction rather than by a secret: the encoder lists any logged object
+  that has its own `"$xray"` key as an `object` envelope, so no logged value can produce
+  an envelope, and `content.js` turns any envelope that does not check out into one. A
+  per-session token was rejected: the page can read it, and persisted or exported sessions
+  would be unreadable after a reload. `"__type__"` and `"__xray_ref__"` are ordinary keys;
+  entries without `logArgCount` predate the model and are decoded from their old shapes.
+
+### Console command values (spec J8)
+
+Console results and the command context use the same typed model, as text both ways:
+
+- **Context in.** `panel/console.js` `_contextPayload` sends tagged JSON text: entries as
+  plain data; saved variables (`temp1`…, `$_`, already typed); and typed `values` for `res`,
+  `req`, `prev`, `next` and pin `value`s — the running surface's lossless parse
+  (`models/consoleResults.ts` `consoleBodyValue`: an integer past 2^53 is a `bigint`
+  envelope), only for the names the code uses; without a reader the page parses the raw
+  text as before. `background.js` inlines the text as a string literal; the inlined
+  `shared/console-helpers.js` `reviveContext` parses it in the page: BigInt,
+  NaN/±Infinity/-0/undefined, Map, Set, Date, Error come back, `"__proto__"` stays a key.
+- **Result out.** `encodeResult` serializes the value in the page into typed JSON text, in
+  the page's key order (CDP's `returnByValue` dictionary sorted keys and dropped what JSON
+  cannot hold; a string carries it intact). Cycles are found by ancestor stack, so a shared
+  value is not `[Circular]`. The old caps stay (depth 8, 1,000 items, 500 keys, 1,000
+  Map/Set entries, 200,000-char strings, ~200,000 chars in all, an Error's message and stack
+  included) and are metadata the panel states ("Showing 1,000 of 5,000 items"); Copy puts
+  only what was kept on the clipboard and its toast says so. `table()` returns its rows and
+  sets `render: 'table'` beside the value — no key of the value is an instruction. The engine
+  `JSON.parse`s the text; the panel keeps the typed value (`$_`, Save as variable send it
+  back typed) and renders it with the Logs' renderers (`models/logValue.ts`).
+
 ### ISOLATED / panel → service worker (`chrome.runtime.sendMessage`)
 
 `xray:capture`, `xray:capture-batch`, `xray:capture-update`, `xray:console-eval`,
@@ -115,7 +169,99 @@ pushes capture messages back over it.
 ### Service worker → page
 
 `chrome.debugger.attach(tabId, '1.3')` + `Runtime.evaluate`, used for console execution.
-Sessions are cached per tab and detached after 30 s idle.
+Sessions are cached per tab and detached after 30 s idle. The tab is always the sender's own
+(`xray:console-eval` pins `sender.tab.id`), so commands run from the in-page surfaces (docked
+panel, HUD). The pop-out loads no console engine (`panel/console.js`) and a DevTools panel page
+has no `sender.tab`, so a command there returns an error; their Console tab shows page logs.
+
+### The saved session (spec J9)
+
+Every surface saves the session to `chrome.storage.local` (`xray_session_envelope`, schema
+version 2) at most every 4 s, and restores it on load (`models/sessionStore.ts`,
+`models/sessionEnvelope.ts`):
+
+- Bodies are saved as the captured text, so every view re-parses it after a reload; a cut is
+  truncation metadata (`responseTruncated`, `requestTruncated`, `responseDecryptedTruncated`:
+  `keptChars` is the saved length, the capture's total is kept), never an in-band "…". Logs
+  are saved in the typed model, cut with its envelopes (`models/logBound.ts`); a log saved
+  before the model is moved into it. chrome.storage gives every object back with its keys
+  sorted, so a log's value is stored as its JSON text (`logDataJson`) and parsed back with the
+  lossless parser on restore, keys in the order logged. Other structured fields (headers,
+  FormData fields, JWT claims) come back key-sorted; the bodies the views read are text, so
+  those stay exact. A text request body is saved as its text alone — its parsed copy is derived
+  from the text by every reader, so it is not saved beside it (only FormData fields and a binary
+  descriptor are); a session saved with copies still restores them, and the next save drops them.
+  Every saved value is JSON-safe (a typed array becomes the binary descriptor capture uses; a
+  BigInt, NaN or ±Infinity outside the log model is written as JSON would, inside it as an
+  envelope).
+- One budget bounds the session (no `unlimitedStorage`; chrome.storage.local holds 10,485,760
+  bytes for everything XRAY stores): 6,000,000 bytes, every saved field counted as storage
+  counts it (a value's JSON in UTF-8, a text's escapes too), newest entries first. An entry's
+  other fields (headers, URL, timing, a log's message) are paid for first and never cut; then
+  its bodies, log and frames, the smaller first, each body up to the 250,000-character capture
+  cap. Once the budget is spent, older bodies, logs and frames are cut (the newest frames
+  kept) and every entry still keeps up to 2,048 bytes of them, so a full session holds the
+  budget plus, for each entry past it, its fixed fields and 2 KB (a body's own key and quotes
+  are not counted, ~100 bytes an entry). Saving a restored session changes nothing.
+- A session saved before J9 (version 1 or the bare `session_entries` array) is migrated once
+  on restore: the old in-band suffix and the store's "…" cut become metadata, and every entry
+  is flagged `legacySession`. No save ever cuts what it kept — it already fit storage: flagged
+  entries are saved whole (logs under content.js's own limits) and counted first, and new
+  entries share what they leave of the budget (none left: new bodies fall to the 2 KB floor)
+  until the legacy entries leave the session (maxEntries, the 500-entry window, Clear). A save
+  that then overflows the quota fails and shows the save notice; nothing is cut to make room.
+  Only imported entries (a file carries no version) are still read for the suffix at view
+  time. `imported` is set by the panel's import alone and `legacySession` by migration alone:
+  content.js carries neither across the bridge, the store drops both from live captures, and
+  an import drops `legacySession`.
+- A failed write shows "Couldn't save the session — <reason>" in a strip under the header,
+  once per failure streak (the diagnostics receipt stays); `shared/store.js` classifies a full
+  quota, and only that fixed reason leaves it.
+
+### Replay and exports (spec J10)
+
+The request text (`requestBodyText`) and the response text are what replay sends and exports
+embed; the parsed `requestBody` copy (rounded by JSON.parse, key-sorted by chrome.storage) is
+read only for an entry saved before J4, FormData fields and a binary descriptor.
+
+- Replay posts the captured text to the page and `interceptor.js` sends a string body as it is.
+  FormData whose captured fields are all text goes as `{ formdata: [[name, value], …] }` (at most
+  1,000 fields and 50,000 characters, both sides): the page rebuilds it with the `FormData`
+  constructor pinned at `document_start` — names, values and order kept, the captured multipart
+  Content-Type dropped so the browser sets the new boundary — and drops the replay if the fields
+  are not that. `models/replayBody.ts` says when the captured body is not the one sent — cut at
+  capture, FormData with files (never captured) or saved without its fields, bytes, a body the
+  capture could not read: Replay then refuses with the reason, and Edit & Replay shows it (inviting
+  an edit only where a text body makes sense). The editor holds the raw text; an edit is sent
+  exactly as typed (in place of a form: as text, without the multipart Content-Type). The
+  page-side replay listener never throws into the page: a request it cannot convert (a page
+  that broke a built-in the path uses) is dropped.
+- An experiment run sends what Replay would (the captured text or form) while its plan's sanitized
+  body is the baseline's own and it stays on the captured origin — fields the plan shows as
+  `[REDACTED]` go out with their real values; retargeted or edited, the sanitized plan body (the
+  persisted, redacted form; a form's fields as a form again) re-printed with its integers as
+  written — as the Experiments card shows it.
+- Selected JSON, Mock, Jest and MSW embed bodies through `printJson`, composed with the export's
+  metadata as nodes (`utils.ts` `plainNode`/`bodyExportNode`): lexemes, duplicate keys and member
+  order as captured. HAR writes the captured texts (`content.text`, `postData.text`) and
+  re-imports them verbatim. cURL, fetch, Axios and Playwright send the raw text.
+- A FormData is rebuilt from its captured fields, in order, without the captured multipart
+  Content-Type (each tool writes its own boundary): cURL with one `--form-string 'name=value'`
+  per text field (taken literally: `-F` would read a value starting with `@` or `<` from a local
+  file and cut one at `;type=`; a field with a line break is `$'…'`-quoted with CRLF breaks, as a
+  browser's FormData sends them), fetch / Axios / Playwright with `new FormData()` and one
+  `append` per field (`body`, `data`, `multipart`), HAR as `postData.params` (never `text`; XRAY's
+  import reads them back as the fields). A file was never captured: it is a `Partial:` note above
+  the code (and a HAR comment), as are fields not kept with a saved entry and a form cut at
+  capture.
+- Share-safe exports redact a captured text over its lossless parse
+  (`experiments.ts` `snapshotExperimentNode`, then the same cleaning as values) and print it.
+  A typed log's Error, at any depth (an argument, a member, another error's cause), is its name
+  alone (`logPlain` mode `'share'`): its message, stack, own properties (an HTTP client's
+  response data) and cause are left out and counted as omitted. The share-safe HAR writes a
+  FormData's redacted fields as `postData.params`.
+- In the page, a string request body is parsed whole only when its parse is used: within the
+  50,000-char capture cap, or a GraphQL candidate (`"query"` in the text) up to 1,000,000 chars.
 
 ### Pop-out window
 
@@ -178,14 +324,17 @@ Recorded here so it is visible rather than rediscovered. None of it is fixed.
 
 **Duplicated logic that will drift**
 
-- `background.js` embeds its result serializer as a *string template* — no linting, no
-  type checking, no test coverage. It used to be a second copy of the one in
-  `console-executor.js`; with that file deleted there is now only one, but it is still
-  a string rather than real source.
+- `background.js` builds the evaluated console expression as a *string template* — the
+  wrapper that declares the helper names and calls `reviveContext`/`encodeResult` is not
+  linted or type checked (`test/background-service-worker.test.js` runs it). The result
+  serializer is no longer part of it: `encodeResult` is real source in
+  `shared/console-helpers.js` (linted, unit-tested), inlined from that file (spec J8).
 - `background.js:9` `RUNTIME_HELPER_NAMES` hand-mirrors the keys `createRuntime` returns.
   Adding a helper silently makes it undefined on the privileged path only.
-- `inferSchema`/`computeDiff`/`escapeCSV` in the worker duplicate `schema`/`diff`/`toCSV`
-  in `console-helpers.js`, with different escaping rules and depth caps.
+- `escapeCSV` in the worker duplicates `toCSV` in `console-helpers.js` (kept identical by a
+  parity test). The worker's own `inferSchema`/`computeDiff`/`gridRows` are gone: Table,
+  Schema, Diff and Visualize run panel-side on every surface from the lossless parser's
+  nodes (JSON fidelity spec J11).
 - `operations.ts` and `entries.ts` use **different large-payload thresholds** (80 000 vs
   100 000 bytes), so an entry can be badged "large" in the list but not offered "Copy Full".
 
@@ -204,12 +353,18 @@ failure, so every later call returns a silent stub value instead of an error.
 
 **Correctness**
 
-- The worker's `safeClone` and `computeDiff` have **no cycle detection**; a cyclic structure
-  arriving over `postMessage` recurses until the worker dies.
-- Search is not actually indexed — `_searchTokens` is attached only to the worker's own
-  copy, so every keystroke re-walks every entry despite a comment claiming otherwise.
-- IndexedDB grows without bound: every entry is written, nothing is ever pruned, and there
-  is no clear control in the UI.
+- The worker's `safeClone` had **no cycle detection**; a cyclic structure arriving over
+  `postMessage` recursed until the worker died.
+- The worker's token search index (`_searchTokens`) was never read by the panel, which searches
+  its own session index; JSON fidelity Task 6 removed it, and content.js no longer posts every
+  capture to the worker's `addEntry`.
+- The worker's IndexedDB entry cache (capped, oldest-first pruning — threat model C-11) was
+  no longer written once content.js stopped posting captures to the worker (JSON fidelity
+  Task 6). The JSON-fidelity final fix (M7) removed it with the other operations nothing
+  called (`addEntry`, `getFromCache`, `computeStats`, `exportCSV`, `exportHAR`, `analyze`,
+  `clearStored`, `pruneStored`) and their client wrappers; the worker keeps `init`, capture
+  receipts and `clone`, and its `init` deletes the `xray_db` database an earlier version left
+  (extension origin only). The client still relays a worker's cache health if one reports it.
 - Traffic rules stop applying when capture is toggled off, because the capture guard returns
   before rule matching — with no UI indication.
 - `dist/panel-ui.js` (522 KB) is injected into the ISOLATED world at `document_start` on

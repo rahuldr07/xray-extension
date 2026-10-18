@@ -107,3 +107,18 @@ test('AI context redacts password and key synonyms in included bodies', () => {
   for (const secret of ['synthetic-pwd', 'synthetic-ak', 'synthetic-auth']) assert.ok(!prompt.includes(secret), secret);
   assert.ok(prompt.includes('Ann'));
 });
+
+test('Final fix M6: FormData is redacted field by field (by name, as share-safe does), never by a pattern over its text', () => {
+  const pairs = [['user', 'bob'], ['password', 'correct horse battery staple'], ['api_key', 'abc def'], ['X-Custom-Credential', 'custom secret'], ['avatar', { file: 'a.png', size: 4, type: 'image/png' }], ['note', 'hi there']];
+  const entry = apiEntry({ method: 'POST', url: 'https://x.test/login', requestHeaders: {}, requestBodyKind: 'formdata',
+    requestBodyText: 'user=bob\npassword=correct horse battery staple\napi_key=abc def\nX-Custom-Credential=custom secret\navatar=[file "a.png", image/png, 4 bytes]\nnote=hi there',
+    requestBody: pairs.map((pair) => [...pair]), responseRaw: 'ok' });
+  const { prompt } = ai.prepareAiContext(entry, [], { headers: false, requestBody: true, responseBody: false }, destination);
+  for (const secret of ['horse', 'battery', 'staple', 'abc', 'def', 'custom secret']) assert.ok(!prompt.includes(secret), `leaks ${secret}`);
+  assert.deepEqual(payload(prompt).requestBody, [['user', 'bob'], ['password', '[REDACTED]'], ['api_key', '[REDACTED]'], ['X-Custom-Credential', '[REDACTED]'],
+    ['avatar', { file: 'a.png', size: 4, type: 'image/png' }], ['note', 'hi there']]);
+  // A FormData whose fields were not kept with the entry has only its text: it is left out, not guessed at.
+  const unkept = ai.prepareAiContext({ ...entry, requestBody: undefined }, [], { headers: false, requestBody: true, responseBody: false }, destination);
+  assert.ok(!unkept.prompt.includes('horse'));
+  assert.match(String(payload(unkept.prompt).requestBody), /^\[Omitted: /);
+});

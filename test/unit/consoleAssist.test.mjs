@@ -414,3 +414,18 @@ test('final fix: key inserts escape control characters', () => {
   const t = sugC('$endpoint(`', { captured: { statuses: [], durations: [], endpoints: [{ path: '/a/${x}`', count: 1 }] } });
   assert.equal(eval(`\`${t.items[0].insert}`), '/a/${x}`');
 });
+
+// Spec J8: the page holds an integer past 2^53 as a BigInt (the panel's roots as a LosslessNumber).
+test('J8: a LosslessNumber root reads as a bigint with no members; BigInt errors get a hint', async () => {
+  const { LosslessNumber } = await import('../../src/panel/models/jsonText.ts');
+  const roots = { res: { id: new LosslessNumber('9007199254740993'), name: 'x' } };
+  assert.deepEqual(suggest('res.', 4, { roots, variables: [] }).items.map((i) => [i.label, i.detail]), [['id', 'bigint'], ['name', 'string']]);
+  assert.deepEqual(suggest('res.id.', 7, { roots, variables: [] }).items, [], 'no "raw" member: the page value is a BigInt');
+  assert.equal(resolvePath({ root: 'res', segments: ['id', 'raw'] }, roots).found, false);
+  const rows = suggest('res.', 4, { roots: { res: [{ id: new LosslessNumber('9007199254740993') }] }, variables: [] });
+  assert.equal(rows.items.find((i) => i.label === 'id').detail, '1/1 · bigint');
+  assert.ok(suggest('r', 1, { roots: { res: new LosslessNumber('9007199254740993') }, variables: [] }).items.some((i) => i.label === 'res'));
+  const hint = 'Integers past 2^53 are BigInt here (9007199254740993n): use copy(x) to copy them, Number(x) or String(x) to convert.';
+  assert.equal(errorHint('Do not know how to serialize a BigInt', 'JSON.stringify(res)', true), hint);
+  assert.equal(errorHint('Cannot mix BigInt and other types, use explicit conversions', 'res.id + 1', true), hint);
+});

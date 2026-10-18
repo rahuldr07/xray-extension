@@ -107,6 +107,24 @@ These are pinned. Breaking one fails the suite, and each exists for a reason:
 - **Captured data renders as text, never as HTML.** No `dangerouslySetInnerHTML`
   anywhere — ESLint enforces `react/no-danger` as an error, and tests assert its absence.
   Response bodies are attacker-controlled by definition.
+- **Copy in the API detail's Tree and Raw copies the captured text**, exactly as it went
+  over the wire (no rounding of big integers, no reordered keys); Raw's Pretty toggle gives
+  formatted JSON, and Copy follows it. A view that cannot show the body (truncated, still
+  parsing) copies the captured text too, never a placeholder value.
+- **No single value or computation unmounts the panel.** A view that cannot render a value
+  shows "This value couldn't be displayed." with Copy raw and Try again (spec J12); anything
+  that fails outside those views — the shell, a workspace, a modal — lands in the root
+  boundary (`RootErrorBoundary` in `App.tsx`), which keeps the panel's frame and offers
+  Reload panel (a remount, never a page reload) and Clear session (confirmed unless Settings
+  turned confirmations off). `crash-safety.e2e.mjs` and `deep-json.e2e.mjs` pin both, the
+  latter with a 100,000-deep response live and after a restore.
+- **Console results show values, never their encoding.** `10n`, `NaN`, `-0`, `undefined`,
+  `Map(2)` render as the Logs render them; a console cap is stated beside the badge
+  ("Showing 1,000 of 5,000 items"). The JSON view and Copy result give JSON: an integer
+  past 2^53 keeps its digits, `-0` its sign, and what JSON cannot hold (NaN, undefined) is
+  written as its text; a single typed value copies as its text (`9007199254740993n`). A value
+  a console cap cut copies what was kept (a cut string without an added "…") and the Copy
+  toast says so ("Copied 1,000 of 5,000 items.").
 
 ## 5. Motion and interaction
 

@@ -228,55 +228,11 @@ window.XRAY_Worker = (() => {
     },
     getHealth() { return _healthSnapshot(); },
 
-    async addEntry(entry) {
-      if (!_worker) return { added: false };
-      return _send('addEntry', { entry });
-    },
-    async search(query, entries) {
-      if (!_worker) {
-        if (!query?.trim()) return entries;
-        const q = query.trim().toLowerCase();
-        return entries.filter(e => JSON.stringify(e).toLowerCase().includes(q));
-      }
-      return _send('search', { query, entries });
-    },
-    async computeStats(data) {
-      if (!_worker) return { keyCount: 0, arrayCount: 0 };
-      return _send('computeStats', { data });
-    },
-    async computeDiff(a, b) {
-      if (!_worker) return [];
-      return _send('computeDiff', { a, b });
-    },
-    async inferSchema(data) {
-      if (!_worker) return null;
-      return _send('inferSchema', { data });
-    },
-    async detailAnalysis(current, previous = null) {
-      if (!_worker) return null;
-      return _send('detailAnalysis', { current, previous });
-    },
-    async exportCSV(entries) {
-      if (!_worker) return '';
-      return _send('exportCSV', { entries });
-    },
-    async exportHAR(entries) {
-      if (!_worker) return { log: { entries: [] } };
-      return _send('exportHAR', { entries });
-    },
-    async analyze(entries) {
-      if (!_worker) return {};
-      return _send('analyze', { entries });
-    },
     async clone(data) {
       if (!_worker) {
         try { return JSON.parse(JSON.stringify(data)); } catch { return null; }
       }
       return _send('clone', { data });
-    },
-    async getFromCache(id) {
-      if (!_worker) return null;
-      return _send('getFromCache', { id });
     },
      async captureReceipt(accepted, dropped, dropReasons = {}, delivery = {}) {
        if (!_worker) return { accepted: 0, dropped: 0, dropReasons: {} };

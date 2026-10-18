@@ -1,6 +1,16 @@
 import React from 'react';
 import { usePanelStore } from '../../store';
+import { planBodyNode } from '../../models/experiments';
+import { fromValue, printJson } from '../../models/jsonText';
 import type { ExperimentCheck, ExperimentRecord } from '../../types';
+
+/** The sanitized plan as shown: its headers and body, an integer past 2^53 as its digits (spec J10). */
+function planText(record: ExperimentRecord): string {
+  return printJson({ t: 'obj', entries: [
+    { key: 'headers', value: fromValue(record.plan.headers) },
+    { key: 'body', value: planBodyNode(record.plan.body ?? null) },
+  ] }, { indent: 2 });
+}
 
 export function ExperimentPanel(): React.ReactElement {
   const experiments = usePanelStore(state => state.experiments);
@@ -55,7 +65,9 @@ function ExperimentCard({ record }: { record: ExperimentRecord }): React.ReactEl
       <label><input type="checkbox" checked={response} disabled={!editable} onChange={event => setResponse(event.currentTarget.checked)} /> Expect a captured response</label>
       <label><input type="checkbox" checked={acknowledged} disabled={!editable} onChange={event => setAcknowledged(event.currentTarget.checked)} /> Acknowledge cross-origin retargeting (original secrets will not be restored)</label>
     </div>
-    <details><summary>Sanitized headers and body</summary><pre className="xray-json">{JSON.stringify({ headers: record.plan.headers, body: record.plan.body ?? null }, null, 2)}</pre></details>
+    <details><summary>Sanitized headers and body</summary><pre className="xray-json">{planText(record)}</pre>
+      <p className="xray-muted">While this body is the captured one, a run on the captured origin sends the captured request body as it was sent — fields shown as [REDACTED] go out with their real values. An edited or retargeted body is sent as shown here, re-printed: integers exact, 1.0 and 1E5 normalised.</p>
+    </details>
     {record.status === 'running' && <p role="status">Waiting for matching captured evidence. Submission does not confirm page application.{record.plan.mockRuleId && ' Trigger the matching request on the page.'}</p>}
     {record.errorReason && <p role="status">{record.errorCode}: {record.errorReason}</p>}
     {record.status === 'observed' && <div className="xray-experiment-results">

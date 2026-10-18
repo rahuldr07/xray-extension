@@ -118,6 +118,8 @@ row's status.** Not a re-audit. Spec:
 | X-19 | **FIXED** | The options page uses the panel's theme names (spec S8). |
 | M-9 | **FIXED** | Reset no longer restores onboarding for a long-time user (spec S4). |
 
+**JSON fidelity — 16/10/2026.** Bodies, logs and Console values now show, search, replay and export what went over the wire, tracked as their own findings #1–#29 ([audit](superpowers/specs/assets/2026-10-14-json-audit.md)) under spec [2026-10-14-json-fidelity-design.md](superpowers/specs/2026-10-14-json-fidelity-design.md).
+
 ---
 
 ## 1. Shell, navigation and overlays

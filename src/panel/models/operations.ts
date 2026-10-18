@@ -1,6 +1,7 @@
 import type { DetailView, XrayEntry } from '../types';
 import { duration, entryGroupPath, entryPath, isApi } from './entries';
 import { buildCurl, buildFetch, buildMockPayload, entryResponse, entrySchema, safeStringify } from '../utils';
+import { LosslessNumber } from './jsonText';
 
 export interface ResponseOperation {
   id: string;
@@ -16,8 +17,10 @@ export interface ResponseOperation {
   entryId?: string;
 }
 
+// A LosslessNumber (an integer past 2^53 kept as written) is a number with no members, as in
+// consoleAssist.ts: a body that is one such number offers no Schema, Table or Visualize.
 function isObjectLike(value: unknown): boolean {
-  return !!value && typeof value === 'object';
+  return !!value && typeof value === 'object' && !(value instanceof LosslessNumber);
 }
 
 function isEmptyResponse(value: unknown): boolean {

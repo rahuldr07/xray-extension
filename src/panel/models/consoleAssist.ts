@@ -1,3 +1,5 @@
+import { LosslessNumber } from './jsonText';
+
 export type PathSegment = string | number;
 export interface PlainPath { root: string; segments: PathSegment[] }
 
@@ -137,7 +139,8 @@ export function resolvePath(path: PlainPath, roots: Record<string, unknown>): { 
   if (!path || !roots || !Object.prototype.hasOwnProperty.call(roots, path.root)) return { found: false, value: undefined };
   let cur: unknown = roots[path.root];
   for (const seg of path.segments) {
-    if (cur === null || typeof cur !== 'object') return { found: false, value: undefined };
+    // A LosslessNumber is a BigInt in the page (spec J8): a number, with no members.
+    if (cur === null || typeof cur !== 'object' || cur instanceof LosslessNumber) return { found: false, value: undefined };
     if (Array.isArray(cur) && seg === 'length') { cur = cur.length; continue; }
     if (!Object.prototype.hasOwnProperty.call(cur, seg)) return { found: false, value: undefined };
     cur = (cur as Record<string | number, unknown>)[seg];
@@ -149,6 +152,8 @@ export function resolvePath(path: PlainPath, roots: Record<string, unknown>): { 
 
 function typeLabel(value: unknown): string {
   if (value === null) return 'null';
+  // The roots hold the panel's lossless parse; the page holds an integer past 2^53 as a BigInt.
+  if (value instanceof LosslessNumber) return 'bigint';
   if (Array.isArray(value)) return 'array';
   return typeof value;
 }
@@ -484,7 +489,7 @@ export function suggest(
       if (Array.isArray(target)) return { from, items: rank(arrayMembers(target, from), partial).slice(0, MAX_SUGGESTIONS), context: 'member' };
       if (typeof target === 'string') return { from, items: rank(stringMembers(target), partial).slice(0, MAX_SUGGESTIONS), context: 'member' };
     }
-    if (!hit.found || target === null || typeof target !== 'object' || Array.isArray(target)) return none;
+    if (!hit.found || target === null || typeof target !== 'object' || Array.isArray(target) || target instanceof LosslessNumber) return none;
     const props: Suggestion[] = [];
     for (const key of Object.keys(target)) {
       if (!bracket && !IDENT.test(key)) continue;
@@ -546,6 +551,9 @@ export function errorHint(message: string, command: string, hasRequest: boolean)
     return 'Check brackets and quotes. Shift+Enter adds a new line.';
   }
   if (!hasRequest && /(?:^|[^\w$.])(?:res|req)\b/.test(cmd)) return 'No request selected. Pick one above.';
+  if (/serialize a BigInt|mix BigInt and other types/i.test(msg)) {
+    return 'Integers past 2^53 are BigInt here (9007199254740993n): use copy(x) to copy them, Number(x) or String(x) to convert.';
+  }
   if (/Cannot read propert(?:y|ies) of (?:undefined|null)/i.test(msg) && /^\s*res\./.test(cmd)) {
     return 'res is the response body itself. Try Object.keys(res).';
   }
@@ -566,7 +574,7 @@ export function errorHint(message: string, command: string, hasRequest: boolean)
 /* --------------------------------- starters -------------------------------- */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof LosslessNumber);
 }
 
 function isObjectArray(value: unknown): value is Record<string, unknown>[] {

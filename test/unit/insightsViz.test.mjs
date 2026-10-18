@@ -4,7 +4,10 @@ import assert from 'node:assert/strict';
 import { insights as N, viz as V, entries as EN, apiEntry, logEntry } from './harness.mjs';
 
 const { buildInsightsSummary, repeatedEndpoints } = N;
-const { buildVizSpec, formatVizValue } = V;
+const { formatVizValue } = V;
+const { fromValue } = await import('../../src/panel/models/jsonText.ts');
+// Visualize reads nodes; the value wrapper only tests called went with the final fix (M7).
+const buildVizSpec = (value) => V.buildVizSpecFromNode(value === undefined ? null : fromValue(value));
 
 // ------------------------------------------------------------------ insights
 

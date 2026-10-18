@@ -1,7 +1,8 @@
 import type { RuntimeHealth, RuntimeHealthState, SessionEnvelope, SessionSource, XrayEntry } from '../types';
-import { deserializeSessionEntries, serializeSessionEntries } from './sessionStore';
+import { deserializeSessionEntries, serializeSessionEntries, upgradeLegacyEntry } from './sessionStore';
 
-export const SESSION_SCHEMA_VERSION = 1 as const;
+/** 2 (spec J9): bodies saved as text with truncation metadata, logs in the typed model. */
+export const SESSION_SCHEMA_VERSION = 2 as const;
 
 const RUNTIME_STATES: RuntimeHealthState[] = ['unknown', 'healthy', 'degraded', 'unavailable'];
 const MAX_METADATA_CHARS = 200;
@@ -108,6 +109,7 @@ function newSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Bounded entries in the stored form (sessionStore.ts): what a write sends to chrome.storage. */
 function boundedEntries(value: unknown): XrayEntry[] {
   return serializeSessionEntries(deserializeSessionEntries(value));
 }
@@ -130,6 +132,7 @@ function sessionOptions(options: SessionEnvelopeOptions = {}): Required<Pick<Ses
   return { ...options, now };
 }
 
+/** The envelope as written: entries bounded, in the stored form (sessionStore.ts). */
 export function createSessionEnvelope(options: SessionEnvelopeOptions = {}): SessionEnvelope {
   const normalized = sessionOptions(options);
   const createdAt = finiteTimestamp(normalized.createdAt, normalized.now as number);
@@ -160,15 +163,23 @@ export function migrateSessionEnvelope(value: unknown, options: SessionEnvelopeO
       : input && Array.isArray(input.session_entries)
         ? input.session_entries
         : [];
-  return createSessionEnvelope({
+  // A session saved before J9 (version 1, no version, or the bare array) carries its cuts in band;
+  // they become metadata once, here. A current (or newer) session is never read that way, so a body
+  // that really ends in "…" or "\n... truncated N chars" stays as it is. No save ever cuts what the old
+  // session kept: its entries are flagged legacySession (sessionStore.ts upgradeLegacyEntry).
+  const version = input?.schemaVersion;
+  const legacy = !(typeof version === 'number' && version >= SESSION_SCHEMA_VERSION);
+  const envelope = createSessionEnvelope({
     ...normalized,
     sessionId: input?.sessionId ?? normalized.sessionId,
     createdAt: input?.createdAt ?? normalized.createdAt,
     updatedAt: input?.updatedAt ?? normalized.updatedAt,
     source: input?.source ?? normalized.source,
-    entries: legacyEntries,
+    entries: legacy ? legacyEntries.map(upgradeLegacyEntry) : legacyEntries,
     runtime: input?.runtime ?? normalized.runtime,
   });
+  // Restored, the entries are the panel's: a log's stored JSON text is its typed value again.
+  return { ...envelope, entries: deserializeSessionEntries(envelope.entries) };
 }
 
 export function updateRuntimeHealth(current: RuntimeHealth, update: RuntimeHealthUpdate = {}): RuntimeHealth {

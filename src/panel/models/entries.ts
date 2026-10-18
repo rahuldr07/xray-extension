@@ -1,6 +1,7 @@
 import type { ApiGroupingMode, ApiQuickFilter, SortField, SortOrder, XrayEntry } from '../types';
 import { buildSessionIndex, getIndexedBodyFlags, getIndexedSearchDocument, LIST_SEARCH_CACHE_CHARS, type SessionIndex } from './sessionIndex';
-import { entryResponse, preview, safeStringify } from '../utils';
+import { entryResponse, safeStringify } from '../utils';
+import { logSearchText } from './logValue';
 
 export type ApiEntryFlag = 'error' | 'slow' | 'repeated' | 'large' | 'empty' | 'pinned' | 'drift' | 'graphql' | 'ws' | 'mocked' | 'replayed';
 
@@ -290,7 +291,8 @@ export function matchesEntry(entry: XrayEntry, query: string, index?: SessionInd
       getEntryContentType(entry),
       entry.logLevel,
       entry.message,
-      preview(entry.logData, 240),
+      // The log's arguments as the panel shows them (typed values as text, no markers).
+      logSearchText(entry, 240),
     ].join(' ').toLowerCase();
     if (haystack.length <= LIST_SEARCH_CACHE_CHARS) haystackCache.set(entry, haystack);
   }

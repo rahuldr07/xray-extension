@@ -114,23 +114,104 @@ window.XRAY_Console = (() => {
     return scope;
   }
 
+  // JSON text of a value, or null when it cannot be written (a BigInt, a cycle, too deep).
+  function _json(value) {
+    try {
+      const text = JSON.stringify(value);
+      return typeof text === 'string' ? text : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // A member whose JSON text is already written (a nested object, a typed value). A private
+  // class, so no value from the page or a saved variable can pose as one.
+  class WrittenJson {
+    constructor(text) {
+      this.text = text;
+    }
+  }
+
+  // A JSON object from [key, value] members, each written on its own: a member that cannot
+  // be written is left out instead of costing the whole object.
+  function _jsonObject(members) {
+    const parts = [];
+    for (const [key, value] of members) {
+      const text = value instanceof WrittenJson ? value.text : _json(value);
+      if (text !== null) parts.push(`${JSON.stringify(key)}:${text}`);
+    }
+    return new WrittenJson(`{${parts.join(',')}}`);
+  }
+
+  // The typed body the running surface reads (spec J8: its lossless parse, integers past 2^53
+  // as bigint envelopes), as JSON text — or null, and the page parses the raw text instead.
+  function _readValue(readBody, entry, side) {
+    if (!readBody || !entry) return null;
+    let text = null;
+    try {
+      text = _json(readBody(entry, side));
+    } catch {
+      text = null;
+    }
+    return text === null ? null : new WrittenJson(text);
+  }
+
+  // Which typed values the code needs; names as in shared/console-helpers.js createRuntime.
+  const VALUE_NAMES = {
+    res: ['res', 'response', '$res'],
+    req: ['req', 'request', '$req'],
+    prev: ['prev'],
+    next: ['next'],
+  };
+
   // Pinned requests (`a`…`f`) travel only when the code names them (same identifier
-  // rule as the scope), and only as `{ id, body }` — never the full entry with its
-  // headers, cookies or token lenses. The panel store owns the pins and re-sends them
+  // rule as the scope), and only as `{ id, value }` (the typed body, spec J8) or
+  // `{ id, body }` (its text, when no typed value can be read) — never the full entry with
+  // its headers, cookies or token lenses. The panel store owns the pins and re-sends them
   // whenever a pinned entry is patched or evicted, so what is held here is current;
   // an evicted pin is already gone, never substituted.
-  function _referencedPins(code) {
+  function _referencedPins(code, readBody) {
     const names = _referencedNames(code);
-    const pins = {};
+    const pins = [];
     for (const name of Object.keys(_pins)) {
       if (names && !names.has(name)) continue;
       const entry = _pins[name];
-      pins[name] = { id: entry.id, body: entry.responseDecrypted || entry.responseRaw || null };
+      const value = _readValue(readBody, entry, 'response');
+      pins.push([name, value === null
+        ? _jsonObject([['id', entry.id], ['body', entry.responseDecrypted || entry.responseRaw || null]])
+        : _jsonObject([['id', entry.id], ['value', value]])]);
     }
-    return pins;
+    return _jsonObject(pins);
   }
 
-  function _contextPayload(code) {
+  // res, req, prev and next as typed JSON text, for the names the code uses (all of them
+  // without code). prev/next are the same-endpoint neighbours in the list the page gets.
+  function _referencedValues(code, readBody, current, entries) {
+    if (!readBody || !current) return new WrittenJson('{}');
+    const names = _referencedNames(code);
+    const wanted = (key) => !names || VALUE_NAMES[key].some((name) => names.has(name));
+    const sibling = window.XRAY_ConsoleHelpers?.siblingEntry;
+    const sources = {
+      res: () => [current, 'response'],
+      req: () => [current, 'request'],
+      prev: () => [sibling ? sibling(entries, current, -1) : null, 'response'],
+      next: () => [sibling ? sibling(entries, current, 1) : null, 'response'],
+    };
+    const members = [];
+    for (const key of Object.keys(VALUE_NAMES)) {
+      if (!wanted(key)) continue;
+      const [entry, side] = sources[key]();
+      const value = _readValue(readBody, entry, side);
+      if (value !== null) members.push([key, value]);
+    }
+    return _jsonObject(members);
+  }
+
+  // The context as tagged JSON text (spec J8): entries are plain data; the saved variables
+  // (`scope`, already in the typed model), `values` and pin values are typed and revived in
+  // the page (shared/console-helpers.js reviveContext). Text, so nothing between here and
+  // the page reorders it, and the page parses it — never runs it.
+  function _contextPayload(code, readBody) {
     const all = _entries();
     const current = _currentEntry;
     const windowed = all.slice(-MAX_CONTEXT_ENTRIES);
@@ -150,22 +231,43 @@ window.XRAY_Console = (() => {
     }
     const entries = windowed.map((entry) => (entry && fullIds.has(entry.id) ? entry : _slimEntry(entry)));
     if (current && !entries.some((entry) => entry && entry.id === current.id)) entries.push(current);
-    return {
-      currentEntry: current,
-      entries,
-      scope: _referencedScope(code),
-      pins: _referencedPins(code),
-    };
+    const scope = _referencedScope(code);
+    return _jsonObject([
+      ['currentEntry', current],
+      ['entries', entries],
+      ['scope', _jsonObject(Object.keys(scope).map((name) => [name, scope[name]]))],
+      ['pins', _referencedPins(code, readBody)],
+      ['values', _referencedValues(code, readBody, current, entries)],
+    ]).text;
   }
 
-  async function execute(code) {
+  // The result arrives as typed JSON text (shared/console-helpers.js encodeResult); the
+  // panel holds the typed model (src/panel/models/logValue.ts renders it). `render` is the
+  // out-of-band table() flag. Errors and empty answers pass through.
+  function _reviveResult(response) {
+    if (!response || typeof response !== 'object' || typeof response.result !== 'string') return response;
+    let result;
+    try {
+      result = JSON.parse(response.result);
+    } catch {
+      return { type: 'error', error: { message: 'XRAY could not read the console result.' } };
+    }
+    const out = { type: String(response.type || typeof result), result, truncated: response.truncated === true };
+    if (response.render === 'table') out.render = 'table';
+    return out;
+  }
+
+  // `options.readBody(entry, side)` gives the typed body of an entry's 'response' or
+  // 'request' (the running surface's lossless parse); without it the page parses raw text.
+  async function execute(code, options) {
     const trimmed = (code || '').trim();
     if (!trimmed) return { type: 'empty' };
     init();
     _saveHistory(trimmed);
-    const context = _contextPayload(trimmed);
+    const readBody = typeof options?.readBody === 'function' ? options.readBody : null;
+    const context = _contextPayload(trimmed, readBody);
     const privileged = await _executePrivileged(trimmed, context);
-    if (privileged) return privileged;
+    if (privileged) return _reviveResult(privileged);
     // C-1: the MAIN-world fallback used to run here. It posted the entire console
     // context — cross-origin captured URLs, full bodies, decoded JWT claims — into
     // the page with targetOrigin '*'. Failing loudly is the correct trade: the
@@ -198,9 +300,9 @@ window.XRAY_Console = (() => {
 
   function getRuntimePreview() {
     const helpers = window.XRAY_ConsoleHelpers;
-    if (!helpers?.createRuntime) return {};
+    if (!helpers?.createRuntime || !helpers.reviveContext) return {};
     try {
-      return helpers.createRuntime(_contextPayload(), (text) => navigator.clipboard?.writeText?.(text));
+      return helpers.createRuntime(helpers.reviveContext(_contextPayload()), (text) => navigator.clipboard?.writeText?.(text));
     } catch {
       return {};
     }

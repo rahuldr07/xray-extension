@@ -28,6 +28,8 @@ const engine = window.XRAY_Console;
 const panel = await import('../../src/panel/store.ts');
 const hud = await import('../../src/panel/store.ts?surface=hud');
 
+const sentContext = () => JSON.parse(sent.at(-1).context);
+
 const entry = (id, body) => ({ id, type: 'api', timestamp: 1, method: 'GET', status: 200,
   url: `https://x.test/${id}`, urlPath: `/${id}`, responseRaw: JSON.stringify(body) });
 
@@ -52,15 +54,16 @@ test('each surface evaluates with its own pins and selection, whichever synced l
   assert.equal(engine.getScope().a.id, 'h1');
 
   await panel.evaluateConsoleCommand('a.who');
-  assert.deepEqual(sent.at(-1).context.pins, { a: { id: 'p1', body: JSON.stringify({ who: 'panel' }) } }, "the panel's run carries the panel's pin");
-  assert.equal(sent.at(-1).context.currentEntry.id, 'p1', "and the panel's selection");
+  // The context travels as tagged JSON text; a pin carries its typed body (spec J8).
+  assert.deepEqual(sentContext().pins, { a: { id: 'p1', value: { who: 'panel' } } }, "the panel's run carries the panel's pin");
+  assert.equal(sentContext().currentEntry.id, 'p1', "and the panel's selection");
 
   await hud.evaluateConsoleCommand('a.who');
-  assert.deepEqual(sent.at(-1).context.pins, { a: { id: 'h1', body: JSON.stringify({ who: 'hud' }) } }, "the HUD's run carries the HUD's pin");
-  assert.equal(sent.at(-1).context.currentEntry.id, 'h1');
+  assert.deepEqual(sentContext().pins, { a: { id: 'h1', value: { who: 'hud' } } }, "the HUD's run carries the HUD's pin");
+  assert.equal(sentContext().currentEntry.id, 'h1');
 
   await panel.evaluateConsoleCommand('a');
-  assert.equal(sent.at(-1).context.pins.a.id, 'p1', 'back to the panel: its pin again');
+  assert.equal(sentContext().pins.a.id, 'p1', 'back to the panel: its pin again');
 });
 
 test('a surface with no pins and no selection clears what the other surface left behind', async () => {
@@ -70,6 +73,6 @@ test('a surface with no pins and no selection clears what the other surface left
   engine.setContext(hud.usePanelStore.getState().entries[0]);
 
   await panel.evaluateConsoleCommand('a');
-  assert.deepEqual(sent.at(-1).context.pins, {}, 'no pin of the other surface travels');
-  assert.equal(sent.at(-1).context.currentEntry, null, 'no request context of the other surface');
+  assert.deepEqual(sentContext().pins, {}, 'no pin of the other surface travels');
+  assert.equal(sentContext().currentEntry, null, 'no request context of the other surface');
 });

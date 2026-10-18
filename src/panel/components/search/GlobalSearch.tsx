@@ -6,20 +6,22 @@ import { searchEntries } from '../../models/globalSearch';
 import type { GlobalSearchField, GlobalSearchMatch } from '../../models/globalSearch';
 import { entryPath } from '../../models/entries';
 import { methodClass, statusClass } from '../../utils';
+import { visibleText } from '../common/VisibleText';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
 // Renders a snippet with the matched slice highlighted, using the exact offsets
 // the search model returned (no re-matching, so regex highlights stay correct).
+// A bidi control in a snippet shows as its escape (spec J13), so it cannot reorder the result.
 function Snippet({ match }: { match: GlobalSearchMatch }): React.ReactElement {
   const { snippet, matchStart, matchLength } = match;
-  if (matchStart < 0 || matchStart >= snippet.length) return <span className="xray-gsearch-snippet">{snippet}</span>;
+  if (matchStart < 0 || matchStart >= snippet.length) return <span className="xray-gsearch-snippet">{visibleText(snippet)}</span>;
   const before = snippet.slice(0, matchStart);
   const hit = snippet.slice(matchStart, matchStart + matchLength);
   const after = snippet.slice(matchStart + matchLength);
   return (
     <span className="xray-gsearch-snippet">
-      {before}<mark>{hit}</mark>{after}
+      {visibleText(before)}<mark>{visibleText(hit)}</mark>{visibleText(after)}
     </span>
   );
 }

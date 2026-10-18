@@ -309,3 +309,19 @@ test('Edit & Replay preserves a redacted authorization placeholder and never dis
   assert.equal(state.messages[0].request.replayOf, 'redacted');
   assert.equal(JSON.stringify(state.messages).includes('secret'), false);
 });
+
+// JSON fidelity Task 9 (J10): plans are made from the lossless parse, so an integer past 2^53 is held
+// as the snapshot's bigint envelope — the card shows its digits, never the internal {"$xray": …} shape.
+for (const shadow of [false, true]) {
+  test(`J10 the experiment card shows a big-integer plan body as its digits (${shadow ? 'closed shadow' : 'document'})`, async t => {
+    const entry = { id: 'bigbase', type: 'api', method: 'POST', status: 200, url: 'https://example.test/api', urlPath: '/api', timestamp: 1,
+      responseRaw: '{"ok":true}', requestHeaders: {}, requestBodyKind: 'text', requestBodyText: '{"id":9007199254740993,"b":1}', requestBody: { b: 1, id: 9007199254740992 } };
+    const page = await fixture(t, { shadow, entry });
+    await click(page, 'More actions');
+    await click(page, 'Prepare experiment');
+    const state = await snap(page);
+    assert.equal(state.experiments.length, 1);
+    assert.match(state.text, /"id": 9007199254740993/);
+    assert.doesNotMatch(state.text, /\$xray|9007199254740992/);
+  });
+}

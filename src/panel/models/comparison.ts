@@ -1,10 +1,15 @@
 import type { XrayEntry } from '../types';
 import { entryRequest, entryResponse, safeStringify } from '../utils';
+import { requestBody, responseBody } from './capturedBody';
+import { LosslessNumber } from './jsonText';
 
 export interface ComparisonOptions {
   /** Maximum structural changes retained in any section. */
   maxDifferences?: number;
-  /** Maximum serialized body evidence considered by the comparison. */
+  /**
+   * A body longer than this many characters reads as truncated. Unset by default: a body is
+   * truncated when its capture or the saved session says so (metadata, spec J6/J9), whatever its length.
+   */
   maxBodyChars?: number;
   /** Maximum object/array depth walked for structural evidence. */
   maxDepth?: number;
@@ -54,7 +59,6 @@ export interface ComparisonResult {
 }
 
 const DEFAULT_MAX_DIFFERENCES = 200;
-const DEFAULT_MAX_BODY_CHARS = 20_000;
 const DEFAULT_MAX_DEPTH = 8;
 const REDACTED = '[redacted]';
 
@@ -63,8 +67,17 @@ function scalar<T>(left: T | undefined, right: T | undefined): ComparisonValue<T
   return { left, right, equal, changed: !equal };
 }
 
+/** An object or array to walk. A LosslessNumber (an integer past 2^53 kept as written) is a number. */
 function isObject(value: unknown): value is object {
-  return value !== null && typeof value === 'object';
+  return value !== null && typeof value === 'object' && !(value instanceof LosslessNumber);
+}
+
+/** Scalars: Object.is, and a LosslessNumber by its lexeme, so 9007199254740992 and …993 differ. */
+function sameScalar(left: unknown, right: unknown): boolean {
+  if (left instanceof LosslessNumber || right instanceof LosslessNumber) {
+    return left instanceof LosslessNumber && right instanceof LosslessNumber && left.raw === right.raw;
+  }
+  return Object.is(left, right);
 }
 
 function isRedacted(value: unknown): boolean {
@@ -150,7 +163,7 @@ function walk(left: unknown, right: unknown, path: string, depth: number, state:
   const leftIsObject = isObject(left);
   const rightIsObject = isObject(right);
   if (!leftIsObject || !rightIsObject) {
-    if (!Object.is(left, right)) state.differences.push({ path, kind: 'changed', before: printable(left), after: printable(right) });
+    if (!sameScalar(left, right)) state.differences.push({ path, kind: 'changed', before: printable(left), after: printable(right) });
     return;
   }
   if (depth >= state.maxDepth) {
@@ -217,10 +230,17 @@ function section(
 }
 
 function body(entry: XrayEntry, request: boolean, maxChars: number): { value: unknown; missing: boolean; truncated: boolean } {
-  const raw = request ? entry.requestBody : entry.responseDecrypted ?? entry.responseRaw ?? entry.response;
-  const missing = raw === undefined || raw === null || raw === '';
-  const serialized = raw == null ? '' : typeof raw === 'string' ? raw : safeStringify(raw, 0, maxChars + 1);
-  const truncated = serialized.length > maxChars || /\.\.\. truncated \d+ chars/.test(serialized);
+  // The body as captured (capturedBody.ts): a JSON `null` or `false` request body is a body (J4); a
+  // cut is metadata from capture or the saved session, or an imported entry's in-band suffix, read
+  // back there (J6, J9). The length alone says nothing: a saved session keeps long bodies whole.
+  const captured = request ? requestBody(entry) : responseBody(entry);
+  const missing = captured.kind === 'none' || (captured.kind === 'text' && captured.text === '');
+  let truncated = !!captured.truncation;
+  if (!truncated && Number.isFinite(maxChars)) {
+    const size = captured.kind === 'text' ? captured.text.length
+      : captured.kind === 'value' ? safeStringify(captured.value, 0, maxChars + 1).length : 0;
+    truncated = size > maxChars;
+  }
   return { value: request ? entryRequest(entry) : entryResponse(entry), missing, truncated };
 }
 
@@ -255,7 +275,7 @@ function identityFor(entry: XrayEntry, other: XrayEntry): ComparisonIdentity {
 
 export function compareEntries(left: XrayEntry, right: XrayEntry, options: ComparisonOptions = {}): ComparisonResult {
   const maxDifferences = Math.max(1, Math.floor(options.maxDifferences ?? DEFAULT_MAX_DIFFERENCES));
-  const maxBodyChars = Math.max(1, Math.floor(options.maxBodyChars ?? DEFAULT_MAX_BODY_CHARS));
+  const maxBodyChars = options.maxBodyChars === undefined ? Infinity : Math.max(1, Math.floor(options.maxBodyChars));
   const maxDepth = Math.max(1, Math.floor(options.maxDepth ?? DEFAULT_MAX_DEPTH));
   const sectionOptions = { maxDifferences, maxDepth };
   const leftRequest = body(left, true, maxBodyChars);

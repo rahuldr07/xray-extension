@@ -72,6 +72,11 @@ test('scrubbing is applied at the single emit boundary, not per call site', () =
   // Every capture path (fetch, XHR, WebSocket, SSE, deferred timing) funnels through
   // _emit / _emitUpdate, so covering the boundary covers them all by construction.
   assert.match(source, /function _scrubEntry\(entry\)/);
-  assert.match(source, /entry: _scrubEntry\(entry\)/);
-  assert.match(source, /update: true, entry: _scrubEntry\(entry\)/);
+  // _post scrubs once, before anything is posted; the degraded re-post (spec J5) is
+  // built from the scrubbed entry, so both paths carry only the scrubbed URL.
+  assert.match(source, /function _post\(entry, update\) \{\s*const scrubbed = _scrubEntry\(entry\);/);
+  assert.match(source, /_postCapture\(scrubbed, update\)/);
+  assert.match(source, /_cloneSafe\(scrubbed, 0\)/);
+  assert.equal((source.match(/_postCapture\(/g) || []).length, 3, '_postCapture is defined once and only called from _post');
+  assert.match(source, /update: true, entry \}/);
 });

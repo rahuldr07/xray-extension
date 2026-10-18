@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
-import { hostify, loadWorker } from '../unit/runtime/vm-load.mjs';
 
 // Real components, store and modal keyboard ownership; only extension boundaries
 // are stubbed. Removing the comparison actions/evidence must fail these tests.
@@ -39,7 +38,7 @@ const { outputFiles } = await build({
         </div></div>;
       }
       window.compareTest={
-        calls:{replay:0,console:0,rules:0,storage:0,bridge:0},errors:[],
+        calls:{replay:0,console:0,rules:0,storage:0,bridge:0},errors:[],workerCalls:0,
          setup(shadow) {
            const host=document.body.appendChild(document.createElement('div'));
            this.root=shadow ? host.attachShadow({mode:'closed'}) : document;
@@ -51,7 +50,8 @@ const { outputFiles } = await build({
           window.addEventListener('error',event=>this.errors.push(event.message));
           window.addEventListener('unhandledrejection',event=>this.errors.push(String(event.reason)));
            if (this.useWorkerDiff && !this.workerAbsent) {
-             window.XRAY_Worker={detailAnalysis:async()=>this.workerResult};
+             // A DevTools worker on the surface: the Diff must not ask it (JSON fidelity J11).
+             window.XRAY_Worker={detailAnalysis:async()=>{this.workerCalls++;return this.workerResult;}};
            }
            const detailEntries=this.useWorkerDiff ? [left,{...left,id:'baseline',responseRaw:'{"count":0}'},right,{id:'log',type:'log',message:'fixture'}] : [left,right,{id:'log',type:'log',message:'fixture'}];
            usePanelStore.setState({entries:detailEntries,selectedId:'left',
@@ -112,105 +112,65 @@ async function fixture(t, { shadow = false, width = 960, workerDiff = false, wor
   return page;
 }
 
-test('valid worker diff renders bounded structural lines and ignores raw worker snapshots', async t => {
-  const page = await fixture(t, { workerDiff: true });
-  await set(page, { detailView: 'diff', detailTab: 'response' });
-  await page.waitForTimeout(50);
-  const diff = page.locator('.xray-diff');
-  await diff.waitFor();
-  const text = await diff.textContent();
-  assert.match(text, /count/);
-  assert.match(text, /1/);
-  assert.match(text, /2/);
-  assert.doesNotMatch(text, /raw-worker-(?:previous|current)/);
-});
-
 const diffState = page => page.evaluate(() => {
   const root = window.compareTest.root;
   return {
     text: root.querySelector('.xray-diff')?.textContent,
+    notices: [...root.querySelectorAll('.xray-diff .xray-body-notice')].map(el => el.textContent),
     lines: [...root.querySelectorAll('.xray-diff-line')].map(line => ({
       kind: line.classList[1], path: line.querySelector('.xray-diff-path').textContent,
       before: line.querySelector('.xray-diff-before')?.textContent,
       after: line.querySelector('.xray-diff-after')?.textContent,
     })),
     errors: window.compareTest.errors,
+    workerCalls: window.compareTest.workerCalls,
   };
 });
 
+// The Diff view is the panel's own node diff on every surface (JSON fidelity spec J11): a DevTools
+// worker is never asked, so neither a valid nor a malformed worker answer can change what it shows.
 for (const shadow of [false, true]) {
-  test(`real worker producer diff maps all three row variants (${shadow ? 'closed shadow' : 'document'})`, async t => {
-    const producer = loadWorker();
-    const result = hostify(producer.detailAnalysis(
-      { changed: 'worker-new', added: 'worker-added' },
-      { changed: 'worker-old', removed: 'worker-removed' },
-    ));
-    result.diff.previous = 'raw-worker-previous';
-    result.diff.current = 'raw-worker-current';
-    const page = await fixture(t, { shadow, workerDiff: true, workerResult: result });
-    await set(page, { detailView: 'diff', detailTab: 'response' });
-    const state = await diffState(page);
-    assert.deepEqual(state.lines, [
-      { kind: 'changed', path: 'changed', before: 'worker-old', after: 'worker-new' },
-      { kind: 'removed', path: 'removed', before: 'worker-removed', after: undefined },
-      { kind: 'added', path: 'added', before: undefined, after: 'worker-added' },
-    ]);
-    assert.doesNotMatch(state.text, /raw-worker-(?:previous|current)/);
-    assert.deepEqual(state.errors, []);
+  test(`the Diff is the panel's own, whatever a worker on the surface would answer (${shadow ? 'closed shadow' : 'document'})`, async t => {
+    const answers = [
+      { diff: { previous: 'raw-worker-previous', current: 'raw-worker-current', structuralDiff: [{ type: 'changed', path: 'count', from: 1, to: 2 }] } },
+      { diff: { structuralDiff: [] } },
+      { diff: { structuralDiff: 'raw-worker-current' } },
+      null,
+    ];
+    for (const workerResult of answers) {
+      const page = await fixture(t, { shadow, workerDiff: true, workerResult });
+      await set(page, { detailView: 'diff', detailTab: 'response' });
+      await page.waitForFunction(() => window.compareTest.root.querySelectorAll('.xray-diff-line').length > 0);
+      const state = await diffState(page);
+      assert.deepEqual(state.lines, [
+        { kind: 'changed', path: 'count', before: '0', after: '1' },
+        { kind: 'added', path: 'removed', before: undefined, after: 'true' },
+      ], 'baseline {"count":0} against left {"count":1,"removed":true}');
+      assert.deepEqual(state.notices, []);
+      assert.doesNotMatch(state.text, /raw-worker-(?:previous|current)/);
+      assert.equal(state.workerCalls, 0, 'the worker is never asked');
+      assert.deepEqual(state.errors, []);
+      await page.close();
+    }
   });
 }
 
-test('malformed and unavailable worker output uses the bounded synchronous detail diff', async t => {
-  const invalid = [
-    null,
-    { structuralDiff: 'raw-worker-current' },
-    { structuralDiff: [{ type: 'changed', path: 'invalid', from: 'worker-old' }] },
-    { structuralDiff: [{ type: 'changed', path: 'invalid', to: 'worker-new' }] },
-    { structuralDiff: [{ type: 'added', path: 'invalid', to: 'wrong-field' }] },
-    { structuralDiff: [{ type: 'removed', path: 'invalid', from: 'wrong-field' }] },
-    { structuralDiff: [{ type: 'unknown', path: 'invalid', value: true }] },
-    { structuralDiff: [{ type: 'added', path: 12, value: true }] },
-    { structuralDiff: [{ type: 'added', path: 'x'.repeat(501), value: true }] },
-    { structuralDiff: [null] },
-    { structuralDiff: [...Array.from({ length: 200 }, (_, i) => ({ type: 'added', path: `worker-${i}`, value: i })), { type: 'added', path: 'invalid' }] },
-  ];
-  for (const diff of invalid) {
-    const page = await fixture(t, { workerDiff: true, workerResult: { diff } });
-    await set(page, { detailView: 'diff', detailTab: 'response' });
-    const state = await diffState(page);
-    assert.deepEqual(state.lines, [
-      { kind: 'changed', path: 'count', before: '0', after: '1' },
-      { kind: 'added', path: 'removed', before: undefined, after: 'true' },
-    ], 'an invalid worker diff falls back as a whole');
-    assert.deepEqual(state.errors, []);
-    await page.close();
-  }
-
+test('the Diff states its line cap and says "No structural differences" only for equal bodies', async t => {
   const page = await fixture(t, { workerDiff: true, workerAbsent: true });
   const baseline = { id: 'fallback-before', type: 'api', urlPath: '/fallback', timestamp: 1, responseRaw: '{}' };
   const current = { ...baseline, id: 'fallback-after', timestamp: 2, responseRaw: JSON.stringify(Object.fromEntries(Array.from({ length: 350 }, (_, i) => [`field-${i}`, i]))) };
   await set(page, { entries: [baseline, current], selectedId: current.id, detailView: 'diff' });
-  assert.equal((await diffState(page)).lines.length, 200, 'fallback line cap stays 200');
+  await page.waitForFunction(() => window.compareTest.root.querySelectorAll('.xray-diff-line').length > 0);
+  let state = await diffState(page);
+  assert.equal(state.lines.length, 200, 'line cap stays 200');
+  assert.deepEqual(state.notices, ['Showing the first 200 differences; the diff stopped there.']);
+  const same = { ...baseline, id: 'same-after', timestamp: 3, responseRaw: '{}' };
+  await set(page, { entries: [baseline, same], selectedId: same.id, detailView: 'diff' });
+  await page.waitForFunction(() => /No structural differences/.test(window.compareTest.root.querySelector('.xray-diff')?.textContent || ''));
+  state = await diffState(page);
+  assert.deepEqual([state.lines, state.notices], [[], []]);
 });
 
-test('valid empty worker diff and explicit null/undefined/falsy fields are not rejected', async t => {
-  for (const rows of [[], [
-    { type: 'added', path: 'null', value: null },
-    { type: 'removed', path: 'undefined', value: undefined },
-    { type: 'changed', path: 'falsy', from: 0, to: false },
-  ]]) {
-    const page = await fixture(t, { workerDiff: true, workerResult: { diff: { structuralDiff: rows } } });
-    await set(page, { detailView: 'diff' });
-    const state = await diffState(page);
-    assert.equal(state.lines.length, rows.length);
-    if (!rows.length) assert.match(state.text, /No structural differences/);
-    else assert.deepEqual(state.lines, [
-      { kind: 'added', path: 'null', before: undefined, after: 'null' },
-      { kind: 'removed', path: 'undefined', before: 'undefined', after: undefined },
-      { kind: 'changed', path: 'falsy', before: '0', after: 'false' },
-    ]);
-  }
-});
 const snap = page => page.evaluate(() => window.compareTest.snapshot());
 const set = (page, value) => page.evaluate(value => window.compareTest.set(value), value);
 async function click(page, text) {

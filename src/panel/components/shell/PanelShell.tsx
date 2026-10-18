@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
 import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue, themeRefreshNotice } from '../../models/panelSettings';
 import { buildSessionIndex } from '../../models/sessionIndex';
@@ -303,9 +303,29 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           </div>
         )}
       </header>
+      <SessionSaveNotice />
       <main className="xray-body" id="xray-tabpanel" role="tabpanel" aria-labelledby={`xray-tab-${activeTab}`}>
         {children}
       </main>
+    </div>
+  );
+}
+
+/**
+ * Spec J9: a failed session write, said once per failure streak (store.ts). A strip between the
+ * header and the body, on every surface, so it covers nothing and nothing covers it. Like the other
+ * alerts here (ErrorBoundary's fallback, Notice), the alert element is added when there is something
+ * to say, which is when assistive technology announces it.
+ */
+function SessionSaveNotice(): React.ReactElement | null {
+  const message = usePanelStore((state) => state.sessionSaveNotice);
+  const dismiss = usePanelStore((state) => state.dismissSessionSaveNotice);
+  if (!message) return null;
+  return (
+    <div className="xray-save-notice" role="alert">
+      <IconAlertTriangle className="xray-save-notice-icon" size={16} stroke={1.8} aria-hidden="true" />
+      <span className="xray-save-notice-text">{message}</span>
+      <button type="button" className="xray-notice-dismiss" aria-label="Dismiss save notice" onClick={dismiss}>Dismiss</button>
     </div>
   );
 }

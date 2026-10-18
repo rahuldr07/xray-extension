@@ -1,22 +1,11 @@
-// Bridge to the MAIN-world console-capture object store. Logged objects are kept
-// as lightweight previews with an __xray_ref__ marker; the full object is fetched
-// lazily on demand so large logs never bloat the captured stream.
+// Bridge to the MAIN-world console-capture object store. Logged objects arrive as
+// lightweight previews; the entry's objectRefs (with objectRefArgs, the argument each
+// belongs to) fetch the full object lazily, in the typed log model (spec J7), so large
+// logs never bloat the captured stream.
 
 interface LogObjectWindow {
   __XRAY_fetchLogObject__?(refId: string): Promise<unknown>;
   __XRAY_getLogObject__?(refId: string): unknown;
-}
-
-export function findRef(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null;
-  const ref = (value as Record<string, unknown>).__xray_ref__;
-  return typeof ref === 'string' ? ref : null;
-}
-
-export function hasLazyRef(value: unknown): boolean {
-  if (findRef(value)) return true;
-  if (Array.isArray(value)) return value.some(hasLazyRef);
-  return false;
 }
 
 export function canFetchLogObjects(): boolean {

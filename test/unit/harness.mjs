@@ -54,9 +54,10 @@ register('data:text/javascript,' + encodeURIComponent(RESOLVE_HOOK));
 // ---------------------------------------------------------------------------
 // Panel-parity guard.
 //
-// src/panel/utils.ts delegates schema()/buildCurl()/buildFetch()/buildMockPayload()
-// to window.XRAY_ConsoleHelpers when the MAIN-world helper bundle is present, and
-// falls back to a local implementation otherwise. Node has no `window` at all, so
+// src/panel/utils.ts delegates schema()/buildCurl()/buildFetch() to
+// window.XRAY_ConsoleHelpers when the MAIN-world helper bundle is present, and
+// falls back to a local implementation otherwise (buildMockPayload() prints its
+// own nodes since JSON fidelity J10). Node has no `window` at all, so
 // those functions would throw ReferenceError. We install a bare `window` with NO
 // XRAY_ConsoleHelpers: that is exactly the fallback path, and every assertion in
 // this suite is written against the fallback. If a future change ever installs a

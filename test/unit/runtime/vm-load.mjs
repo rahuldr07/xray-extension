@@ -93,12 +93,14 @@ export function loadIsolatedWorld(relPath, extraGlobals = {}) {
 export function loadWorker({ indexedDBOpen, origin = 'chrome-extension:' } = {}) {
   const posted = [];
   const idbOpenCalls = [];
+  const idbDeleteCalls = [];
   let clock = 0;
 
   const context = {
     ...baseGlobals(),
     posted,
     idbOpenCalls,
+    idbDeleteCalls,
     performance: { now: () => (clock += 1) },
     indexedDB: {
       open(name, version) {
@@ -106,6 +108,10 @@ export function loadWorker({ indexedDBOpen, origin = 'chrome-extension:' } = {})
         // A request object that never fires a callback: openDB()'s promise stays
         // pending, which is what we want for every test that is not about IDB.
         return indexedDBOpen ? indexedDBOpen(name, version) : { onerror: null, onsuccess: null, onupgradeneeded: null };
+      },
+      deleteDatabase(name) {
+        idbDeleteCalls.push(name);
+        return { onerror: null, onsuccess: null, onblocked: null };
       },
     },
   };

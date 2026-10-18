@@ -83,11 +83,16 @@ test('interceptor redacts sensitive headers and bounds captured payloads before 
   assert.match(interceptor, /return '\[redacted\]'/);
   assert.match(interceptor, /MAX_CAPTURE_TEXT_CHARS\s*=\s*250000/);
   assert.match(interceptor, /MAX_CAPTURE_BODY_CHARS\s*=\s*50000/);
-  assert.match(interceptor, /function _limitText/);
-  assert.match(interceptor, /function _limitBody/);
-  assert.match(interceptor, /requestBody:\s*_limitBody\(reqBody\)/);
-  assert.match(interceptor, /responseRaw:\s*_limitText\(raw, MAX_CAPTURE_TEXT_CHARS\)/);
-  assert.match(interceptor, /reqHeaders\[name\.toLowerCase\(\)\]\s*=\s*_safeHeader\(name, value\)/);
+  // JSON fidelity J6: bodies are bounded by _cut, which records truncation as metadata
+  // instead of an in-band suffix; request text and every response text go through it
+  // (behaviour is covered by the capture-interceptor VM tests).
+  assert.match(interceptor, /function _cut\(text, limit\)/);
+  assert.match(interceptor, /_cut\(text, MAX_CAPTURE_BODY_CHARS\)/);
+  assert.match(interceptor, /_cut\(raw, MAX_CAPTURE_TEXT_CHARS\)/);
+  assert.match(interceptor, /_cut\(text, MAX_WS_FRAME_PREVIEW\)/);
+  assert.doesNotMatch(interceptor, /truncated \$\{/, 'no in-band truncation suffix');
+  // setRequestHeader lowercases the name once (String(name), so a non-string never throws).
+  assert.match(interceptor, /const key = String\(name\)\.toLowerCase\(\);\s*this\.__xr\.reqHeaders\[key\]\s*=\s*_safeHeader\(key, value\)/);
   assert.match(interceptor, /resHeaders\[line\.slice\(0, idx\).*_safeHeader\(line\.slice\(0, idx\)/);
 });
 

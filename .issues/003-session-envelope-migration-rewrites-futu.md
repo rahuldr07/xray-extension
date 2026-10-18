@@ -13,3 +13,4 @@ updated: 2026-10-12 04:47
 
 ## Log
 - 2026-10-12 04:47 claude: filed
+- 2026-10-15 claude (JSON fidelity Task 8): the session envelope is now schemaVersion 2. A build from before it reads a v2 envelope as its own format: entries load, but every log shows no value there — v2 stores a log's typed value as `logDataJson` text (chrome.storage sorts object keys) and the old build reads `logData`. (Its save copies unknown fields through, so a later upgrade reads `logDataJson` again; it does relabel the envelope as v1, which the new build then migrates as legacy.) Versions newer than 2 are not migrated as legacy, but are still rewritten as 2 on the next save (this issue).

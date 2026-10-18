@@ -17,7 +17,6 @@
 
   let _panelReady = false;
   let _panelInitPromise = null;
-  let _workerReady = false;
   let _bridgeToken = null;
   const _captureReceiptState = {
     accepted: 0,
@@ -31,6 +30,9 @@
     lastEventAt: null,
   };
   const _captureReceiptListeners = new Set();
+  // Drops the page-side capture scripts report over the bridge (spec J5): 'clone-failed'
+  // (not postable even degraded) and 'pending-overflow' (the pre-config buffer was full).
+  const PAGE_DROP_REASONS = new Set(['clone-failed', 'pending-overflow']);
 
   function _captureReceiptSnapshot() {
     return {
@@ -95,7 +97,8 @@
     _captureReceiptState.dropReasons[reason] = Math.min(500000,
       (_captureReceiptState.dropReasons[reason] || 0) + bounded);
     _captureReceiptState.lastEventAt = Date.now();
-    if (reason === 'bridge-token') _publishCaptureReceiptSoon();
+    // These come from page-readable channels, so a flood must not drive the panel store.
+    if (reason === 'bridge-token' || PAGE_DROP_REASONS.has(reason)) _publishCaptureReceiptSoon();
     else _publishCaptureReceipt();
   }
 
@@ -177,17 +180,13 @@
   async function _runPanelInit() {
     _panelReady = true;
     
-    // Initialize worker (non-blocking)
+    // Initialize worker (non-blocking). Captures are not posted to it (it kept a token index nothing
+    // searched); its health still reaches the panel.
     if (window.XRAY_Worker?.init) {
       window.XRAY_Worker.onHealth?.((receipt) => {
-        _workerReady = window.XRAY_Worker.isReady?.() === true;
         window.XRAY_Panel?.noteWorkerHealth?.(receipt);
       });
-      window.XRAY_Worker.init().then(() => {
-        _workerReady = window.XRAY_Worker.isReady?.() === true;
-      }).catch(() => {
-        _workerReady = false;
-      });
+      window.XRAY_Worker.init().catch(() => {});
     }
     
     await window.XRAY_Panel?.init?.();
@@ -232,9 +231,18 @@
   //   * unbounded strings and arrays driven straight into the panel.
   const ENTRY_TYPES = new Set(['api', 'log', 'ws', 'sse', 'graphql']);
   const MAX_BRIDGE_TEXT = 300000;
+  // The interceptor keeps 50,000 chars of request text; the bridge's own bound for hostile
+  // input has the same slack MAX_BRIDGE_TEXT has over the 250,000-char response cap.
+  const MAX_BRIDGE_BODY_TEXT = 60000;
+  // GraphQL variables arrive as up to 10,000 chars of JSON text when they are large.
+  const MAX_BRIDGE_GRAPHQL_STRING = 10000;
   const MAX_BRIDGE_ARRAY = 500;
   const MAX_BRIDGE_KEYS = 200;
   const MAX_BATCH_ENTRIES = 500;
+  // The latest instant a Date can hold. Intl and toISOString throw a RangeError past it,
+  // and one such timestamp used to unmount the row that showed it.
+  const MAX_DATE_MS = 8.64e15;
+  const BODY_KINDS = new Set(['text', 'urlencoded', 'formdata', 'binary', 'none']);
   // Ids this world has seen arrive as fresh captures. An update for anything else is
   // a page inventing a target, so it is dropped rather than applied.
   const _knownEntryIds = new Set();
@@ -252,14 +260,416 @@
     return typeof value === 'string' ? value.slice(0, max) : undefined;
   }
 
-  function _cappedRecord(value) {
+  function _cappedRecord(value, maxString = 8000) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
     const out = {};
     for (const [key, raw] of Object.entries(value).slice(0, MAX_BRIDGE_KEYS)) {
       if (typeof key !== 'string' || key.length > 500) continue;
-      out[key] = typeof raw === 'string' ? raw.slice(0, 8000) : raw;
+      // defineProperty, so an own "__proto__" key stays data instead of a prototype.
+      Object.defineProperty(out, key, {
+        value: typeof raw === 'string' ? raw.slice(0, maxString) : raw, enumerable: true, configurable: true, writable: true,
+      });
     }
     return out;
+  }
+
+  const _count = (n) => (Number.isSafeInteger(n) && n >= 0 ? n : undefined);
+
+  // A body text with its truncation metadata (spec J6). keptChars is the length of the text
+  // actually carried, and metadata that cannot describe it is dropped: no text, a total
+  // below what is kept (or equal to it: nothing was cut), fewer bytes than kept chars. A
+  // text over the bridge's bound is cut here and the cut recorded the same way, never as
+  // an in-band suffix.
+  function _carryText(entry, raw, textKey, truncationKey, max) {
+    const value = raw[textKey];
+    if (typeof value !== 'string') return;
+    const text = value.length > max ? value.slice(0, max) : value;
+    entry[textKey] = text;
+    const meta = raw[truncationKey];
+    const given = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+    let totalChars = _count(given.totalChars);
+    const totalBytes = _count(given.totalBytes);
+    if (text.length < value.length) totalChars = Math.max(totalChars ?? 0, value.length);
+    const out = { keptChars: text.length };
+    if (totalChars !== undefined && totalChars > text.length) out.totalChars = totalChars;
+    if (totalBytes !== undefined && totalBytes >= text.length && (totalChars === undefined || totalChars > text.length)) out.totalBytes = totalBytes;
+    if (out.totalChars !== undefined || out.totalBytes !== undefined) entry[truncationKey] = out;
+  }
+
+  // A binary body descriptor: { binary: true, size, base64Prefix } (at most 64 bytes).
+  function _binaryDescriptor(value) {
+    if (!value || typeof value !== 'object' || value.binary !== true) return undefined;
+    const size = _count(value.size);
+    const prefix = typeof value.base64Prefix === 'string' && value.base64Prefix.length <= 88
+      && /^[A-Za-z0-9+/]*={0,2}$/.test(value.base64Prefix) ? value.base64Prefix : undefined;
+    if (size === undefined || prefix === undefined) return undefined;
+    return { binary: true, size, base64Prefix: prefix };
+  }
+
+  // Decoded JWT parts the interceptor read from sensitive request headers (claims only;
+  // the raw token never leaves the page). Read by the Tokens facet and lenses.
+  function _jwtLenses(value) {
+    if (!Array.isArray(value)) return undefined;
+    const record = (part) => _cappedRecord(part) ?? null;
+    return value.slice(0, 5)
+      .filter((lens) => lens && typeof lens === 'object' && typeof lens.source === 'string' && lens.source.length <= 200)
+      .map((lens) => ({ source: lens.source, header: record(lens.header), payload: record(lens.payload) }));
+  }
+
+  // ── The typed log model (spec J7) ────────────────────────────────────────────
+  // console-capture.js sends log values in the typed model (stable form documented in
+  // src/panel/models/logValue.ts): plain JSON where JSON is exact, and `{"$xray": kind, …}`
+  // envelopes for everything else. Like every field here, a value is rebuilt, never carried
+  // through: each envelope is checked field by field (unknown fields dropped); one that does
+  // not check out becomes a plain `object` envelope, so it reads as the data it is and never
+  // as a typed value; natives the bridge can carry (NaN, -0, BigInt, undefined, Date, Map,
+  // Set, Error, typed arrays, cycles) become envelopes.
+  //
+  // The encoder owns the bounds. These count in its units — `nodes`: every value (argument,
+  // item, entry value, Map key and value, Set value, typed-array value, cause); `chars`:
+  // every character of string values, keys, Error messages and stacks, Symbol descriptions
+  // and BigInt digits — cut the same way (a container stops and records the cut, a key over
+  // the key cap is left out and counted, BigInt digits are all or nothing), and sit at
+  // twice the encoder's preview and full-copy budgets with every per-value cap at least the
+  // encoder's. So anything the encoder emits passes unchanged — the docked panel shows what
+  // the HUD (which stores the page's batches as posted) shows — and only hostile input is
+  // cut. `encode` (jv(), whose argument is a live value, not a capture) escapes every object
+  // that has the reserved key, as the page-side encoder does.
+  const LOG_KEY = '$xray';
+  const LOG_ENTRY_LIMITS = { depth: 8, items: 500, string: 100000, stack: 100000, key: 20000, nodes: 20000, chars: 2000000 };
+  const LOG_FULL_LIMITS = { depth: 32, items: 2000, string: 100000, stack: 100000, key: 20000, nodes: 200000, chars: 20000000 };
+  const LOG_NUMBER_WORDS = new Set(['NaN', 'Infinity', '-Infinity', '-0']);
+  const LOG_TYPE_NAME = /^[A-Za-z][A-Za-z0-9]{0,39}$/;
+  const LOG_MAX_NAME = 200;
+  const _hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+  const _isLogCount = (value) => Number.isSafeInteger(value) && value >= 0;
+
+  function _logBudget(limits, encode = false) {
+    return { limits, nodes: limits.nodes, chars: limits.chars, ancestors: [], encode };
+  }
+
+  function _logTyped(kind, fields) {
+    return fields ? { [LOG_KEY]: kind, ...fields } : { [LOG_KEY]: kind };
+  }
+
+  // A prefix of `text` within `max` and the budget's characters, never ending inside a
+  // surrogate pair (the encoder's rule).
+  function _logClip(text, max, budget) {
+    let kept = Math.max(0, Math.min(max, budget.chars, text.length));
+    if (kept < text.length && kept > 0) {
+      const code = text.charCodeAt(kept - 1);
+      if (code >= 0xd800 && code <= 0xdbff) kept -= 1;
+    }
+    budget.chars -= kept;
+    return kept === text.length ? text : text.slice(0, kept);
+  }
+
+  function _logString(text, budget) {
+    const kept = _logClip(text, budget.limits.string, budget);
+    return kept.length === text.length ? kept : _logTyped('string', { value: kept, length: text.length });
+  }
+
+  // Digits all or nothing: a cut number would be a different number.
+  function _logBigint(digits, budget) {
+    if (digits.length > budget.chars) return _logTyped('unreadable');
+    budget.chars -= digits.length;
+    return _logTyped('bigint', { value: digits });
+  }
+
+  function _logNumber(value) {
+    if (Number.isNaN(value)) return _logTyped('number', { value: 'NaN' });
+    if (value === Infinity) return _logTyped('number', { value: 'Infinity' });
+    if (value === -Infinity) return _logTyped('number', { value: '-Infinity' });
+    if (Object.is(value, -0)) return _logTyped('number', { value: '-0' });
+    return value;
+  }
+
+  function _logDefine(target, key, value) {
+    Object.defineProperty(target, key, { value, enumerable: true, configurable: true, writable: true });
+  }
+
+  function _logChild(container, key, budget, depth) {
+    try {
+      return _logValue(container[key], budget, depth + 1);
+    } catch {
+      return _logTyped('unreadable');
+    }
+  }
+
+  // [key, value] pairs with string keys, as an object or error envelope lists them.
+  const _isEntryList = (value) => Array.isArray(value)
+    && value.every((pair) => Array.isArray(pair) && pair.length === 2 && typeof pair[0] === 'string');
+
+  // Entries while the budget lasts, under the encoder's rules: a key over the key cap is
+  // left out, and once the values or the characters run out every remaining key is; left-out
+  // keys are counted. Keys are charged like string values. `read(i)` decodes entry i's value.
+  function _logKeyed(keys, read, budget) {
+    const entries = [];
+    let omitted = 0;
+    const limit = Math.min(keys.length, budget.limits.items);
+    let i = 0;
+    for (; i < limit; i += 1) {
+      const key = keys[i];
+      if (budget.nodes <= 0) break;
+      if (key.length > budget.limits.key) { omitted += 1; continue; }
+      if (key.length > budget.chars) break;
+      budget.chars -= key.length;
+      entries.push([key, read(i)]);
+    }
+    return { entries, omitted: omitted + keys.length - i };
+  }
+
+  function _logValue(value, budget, depth = 0) {
+    budget.nodes -= 1;
+    switch (typeof value) {
+      case 'string': return _logString(value, budget);
+      case 'number': return _logNumber(value);
+      case 'boolean': return value;
+      case 'undefined': return _logTyped('undefined');
+      case 'bigint': return _logBigint(String(value), budget);
+      case 'symbol': return _logTyped('symbol', { description: _logClip(String(value).slice(7, -1), 1000, budget) });
+      case 'function': {
+        let name = '';
+        try { name = typeof value.name === 'string' ? value.name.slice(0, LOG_MAX_NAME) : ''; } catch { name = ''; }
+        return _logTyped('function', { name });
+      }
+      default: break;
+    }
+    if (value === null) return null;
+    if (budget.ancestors.includes(value)) return _logTyped('circular');
+    if (depth > budget.limits.depth || budget.nodes < 0) {
+      return Array.isArray(value)
+        ? _logTyped('depth', { type: 'array', length: _isLogCount(value.length) ? value.length : 0 })
+        : _logTyped('depth', { type: 'object' });
+    }
+    budget.ancestors.push(value);
+    try {
+      return _logObject(value, budget, depth);
+    } finally {
+      budget.ancestors.pop();
+    }
+  }
+
+  // Items of a list while the budget lasts; `read(i)` decodes item i.
+  function _logItems(count, read, budget) {
+    const limit = Math.min(count, budget.limits.items);
+    const items = [];
+    for (let i = 0; i < limit && budget.nodes > 0; i += 1) items.push(read(i));
+    return items;
+  }
+
+  function _logObject(value, budget, depth) {
+    if (Array.isArray(value)) {
+      const items = _logItems(value.length, (i) => _logChild(value, i, budget, depth), budget);
+      return items.length < value.length ? _logTyped('array', { items, length: value.length }) : items;
+    }
+    const tag = Object.prototype.toString.call(value);
+    if (tag === '[object Object]' && _hasOwn(value, LOG_KEY)) {
+      return (!budget.encode && _logEnvelope(value, budget, depth)) || _logEscaped(value, budget, depth);
+    }
+    if (tag === '[object Date]') {
+      const time = Date.prototype.getTime.call(value);
+      return _logTyped('date', { iso: Number.isNaN(time) ? null : new Date(time).toISOString() });
+    }
+    if (tag === '[object Map]' || tag === '[object Set]') {
+      const isMap = tag === '[object Map]';
+      const list = Array.from(value);
+      const out = _logItems(list.length, (i) => (isMap
+        ? [_logValue(list[i][0], budget, depth + 1), _logValue(list[i][1], budget, depth + 1)]
+        : _logValue(list[i], budget, depth + 1)), budget);
+      return isMap ? _logTyped('map', { size: value.size, entries: out }) : _logTyped('set', { size: value.size, values: out });
+    }
+    if (tag === '[object Error]') {
+      const text = (key, max) => { try { return typeof value[key] === 'string' ? _logClip(value[key], max, budget) : ''; } catch { return ''; } };
+      const name = (() => { try { return typeof value.name === 'string' ? value.name.slice(0, LOG_MAX_NAME) : ''; } catch { return ''; } })() || 'Error';
+      const message = text('message', budget.limits.string);
+      const stack = text('stack', budget.limits.stack);
+      return _logTyped('error', {
+        name,
+        message,
+        ...(stack ? { stack } : {}),
+        ...(_hasOwn(value, 'cause') ? { cause: _logChild(value, 'cause', budget, depth) } : {}),
+      });
+    }
+    if (tag === '[object ArrayBuffer]') return _logTyped('typedarray', { type: 'ArrayBuffer', length: value.byteLength });
+    if (ArrayBuffer.isView(value)) {
+      const type = tag.slice(8, -1);
+      if (type === 'DataView') return _logTyped('typedarray', { type, length: value.byteLength });
+      const values = _logItems(value.length, (i) => _logValue(value[i], budget, depth + 1), budget);
+      return _logTyped('typedarray', { type: LOG_TYPE_NAME.test(type) ? type : 'TypedArray', length: value.length, values });
+    }
+    const keys = Object.keys(value);
+    const proto = Object.getPrototypeOf(value);
+    let cls = '';
+    if (proto && proto !== Object.prototype) {
+      const name = typeof proto.constructor === 'function' ? proto.constructor.name : '';
+      if (typeof name === 'string' && name !== 'Object') cls = name.slice(0, LOG_MAX_NAME);
+    }
+    const { entries, omitted } = _logKeyed(keys, (i) => _logChild(value, keys[i], budget, depth), budget);
+    if (!cls && !omitted) {
+      const out = {};
+      for (const [key, item] of entries) _logDefine(out, key, item);
+      return out;
+    }
+    return _logTyped('object', { ...(cls ? { class: cls } : {}), entries, ...(omitted ? { omitted } : {}) });
+  }
+
+  // An object that has the reserved key but is not a valid envelope: plain data, listed.
+  function _logEscaped(value, budget, depth) {
+    const keys = Object.keys(value);
+    const { entries, omitted } = _logKeyed(keys, (i) => _logChild(value, keys[i], budget, depth), budget);
+    return _logTyped('object', { entries, ...(omitted ? { omitted } : {}) });
+  }
+
+  // A rebuilt envelope, or null when `value` is not a valid one.
+  function _logEnvelope(value, budget, depth) {
+    const own = (key) => (_hasOwn(value, key) ? value[key] : undefined);
+    const optionalCount = (key) => own(key) === undefined || _isLogCount(own(key));
+    const optionalName = (key) => own(key) === undefined || (typeof own(key) === 'string' && own(key).length <= LOG_MAX_NAME);
+    const listed = (pairs) => _logKeyed(pairs.map((pair) => pair[0]), (i) => _logValue(pairs[i][1], budget, depth + 1), budget);
+    const kind = own(LOG_KEY);
+    switch (kind) {
+      case 'undefined':
+      case 'circular':
+      case 'unreadable':
+        return _logTyped(kind);
+      case 'number':
+        return LOG_NUMBER_WORDS.has(own('value')) ? _logTyped('number', { value: own('value') }) : null;
+      case 'bigint': {
+        const digits = own('value');
+        return typeof digits === 'string' && /^-?\d+$/.test(digits) ? _logBigint(digits, budget) : null;
+      }
+      case 'function':
+        return typeof own('name') === 'string' ? _logTyped('function', { name: own('name').slice(0, LOG_MAX_NAME) }) : null;
+      case 'symbol':
+        return typeof own('description') === 'string' ? _logTyped('symbol', { description: _logClip(own('description'), 1000, budget) }) : null;
+      case 'date': {
+        const iso = own('iso');
+        if (iso === null) return _logTyped('date', { iso: null });
+        return typeof iso === 'string' && iso.length <= 40 && !Number.isNaN(Date.parse(iso)) ? _logTyped('date', { iso }) : null;
+      }
+      case 'dom':
+        return typeof own('text') === 'string' ? _logTyped('dom', { text: own('text').slice(0, 500) }) : null;
+      case 'depth': {
+        const type = own('type');
+        if (type !== undefined && type !== 'array' && type !== 'object') return null;
+        if (!optionalCount('length') || !optionalName('class')) return null;
+        return _logTyped('depth', {
+          ...(type !== undefined ? { type } : {}),
+          ...(own('class') !== undefined ? { class: own('class') } : {}),
+          ...(own('length') !== undefined ? { length: own('length') } : {}),
+        });
+      }
+      case 'string': {
+        const text = own('value');
+        const length = own('length');
+        if (typeof text !== 'string' || !_isLogCount(length) || length < text.length) return null;
+        return _logTyped('string', { value: _logClip(text, budget.limits.string, budget), length });
+      }
+      case 'array': {
+        const items = own('items');
+        const length = own('length');
+        if (!Array.isArray(items) || !_isLogCount(length) || length < items.length) return null;
+        return _logTyped('array', { items: _logItems(items.length, (i) => _logValue(items[i], budget, depth + 1), budget), length });
+      }
+      case 'object': {
+        const pairs = own('entries');
+        if (!_isEntryList(pairs) || !optionalName('class') || !optionalCount('omitted')) return null;
+        const { entries, omitted } = listed(pairs);
+        const total = (own('omitted') || 0) + omitted;
+        return _logTyped('object', {
+          ...(own('class') !== undefined ? { class: own('class') } : {}),
+          entries,
+          ...(total ? { omitted: total } : {}),
+        });
+      }
+      case 'map':
+      case 'set': {
+        const size = own('size');
+        const list = own(kind === 'map' ? 'entries' : 'values');
+        if (!_isLogCount(size) || !Array.isArray(list) || list.length > size) return null;
+        if (kind === 'map' && !list.every((pair) => Array.isArray(pair) && pair.length === 2)) return null;
+        const rebuilt = _logItems(list.length, (i) => (kind === 'map'
+          ? [_logValue(list[i][0], budget, depth + 1), _logValue(list[i][1], budget, depth + 1)]
+          : _logValue(list[i], budget, depth + 1)), budget);
+        return kind === 'map' ? _logTyped('map', { size, entries: rebuilt }) : _logTyped('set', { size, values: rebuilt });
+      }
+      case 'error': {
+        const name = own('name');
+        const message = own('message');
+        const stack = own('stack');
+        const pairs = own('entries');
+        if (typeof name !== 'string' || typeof message !== 'string') return null;
+        if (stack !== undefined && typeof stack !== 'string') return null;
+        if ((pairs !== undefined && !_isEntryList(pairs)) || !optionalCount('omitted')) return null;
+        const kept = {
+          name: name.slice(0, LOG_MAX_NAME),
+          message: _logClip(message, budget.limits.string, budget),
+        };
+        if (stack !== undefined) kept.stack = _logClip(stack, budget.limits.stack, budget);
+        const { entries, omitted } = pairs ? listed(pairs) : { entries: [], omitted: 0 };
+        const total = (own('omitted') || 0) + omitted;
+        return _logTyped('error', {
+          ...kept,
+          ...(entries.length ? { entries } : {}),
+          ...(total ? { omitted: total } : {}),
+          ...(_hasOwn(value, 'cause') ? { cause: _logValue(value.cause, budget, depth + 1) } : {}),
+        });
+      }
+      case 'typedarray': {
+        const type = own('type');
+        const length = own('length');
+        const values = own('values');
+        if (typeof type !== 'string' || !LOG_TYPE_NAME.test(type) || !_isLogCount(length)) return null;
+        if (values !== undefined && (!Array.isArray(values) || values.length > length)) return null;
+        if (values === undefined) return _logTyped('typedarray', { type, length });
+        return _logTyped('typedarray', { type, length, values: _logItems(values.length, (i) => _logValue(values[i], budget, depth + 1), budget) });
+      }
+      default:
+        return null;
+    }
+  }
+
+  // A log entry's arguments: one value when logArgCount is 1, else the list. An entry
+  // without a valid logArgCount is a pre-model shape and stays as it was.
+  function _carryLog(entry, raw) {
+    if (!_isLogCount(raw.logArgCount)) {
+      if (raw.logData !== undefined) entry.logData = raw.logData;
+      return;
+    }
+    const budget = _logBudget(LOG_ENTRY_LIMITS);
+    if (raw.logArgCount !== 1 && Array.isArray(raw.logData)) {
+      const args = raw.logData.slice(0, MAX_BRIDGE_ARRAY);
+      entry.logData = args.map((arg) => _logValue(arg, budget));
+      entry.logArgCount = args.length;
+    } else {
+      entry.logData = _logValue(raw.logData, budget);
+      entry.logArgCount = 1;
+    }
+  }
+
+  // Lazy "Load full object" handles (audit #9) and, for typed logs, the argument each one
+  // belongs to. A pair with an invalid half is dropped whole.
+  function _carryObjectRefs(entry, raw) {
+    if (!Array.isArray(raw.objectRefs)) return;
+    const validRef = (ref) => typeof ref === 'string' && ref.length > 0 && ref.length <= 200;
+    if (entry.logArgCount === undefined || !Array.isArray(raw.objectRefArgs)) {
+      entry.objectRefs = raw.objectRefs.slice(0, MAX_BRIDGE_ARRAY).filter(validRef);
+      return;
+    }
+    const refs = [];
+    const positions = [];
+    const pairs = Math.min(raw.objectRefs.length, raw.objectRefArgs.length, MAX_BRIDGE_ARRAY);
+    for (let i = 0; i < pairs; i += 1) {
+      const ref = raw.objectRefs[i];
+      const at = raw.objectRefArgs[i];
+      if (validRef(ref) && Number.isSafeInteger(at) && at >= 0 && at < entry.logArgCount) {
+        refs.push(ref);
+        positions.push(at);
+      }
+    }
+    entry.objectRefs = refs;
+    entry.objectRefArgs = positions;
   }
 
   // Returns a NEW object built field by field. Nothing the page sends is carried
@@ -281,7 +691,7 @@
     const entry = ENTRY_TYPES.has(raw.type) ? { id: raw.id, type: raw.type } : { id: raw.id };
     const num = (value, min, max) => (Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : undefined);
 
-    const timestamp = num(raw.timestamp, 0, Number.MAX_SAFE_INTEGER);
+    const timestamp = num(raw.timestamp, 0, MAX_DATE_MS);
     if (timestamp !== undefined) entry.timestamp = timestamp;
     const status = num(raw.status, 0, 999);
     if (status !== undefined) entry.status = status;
@@ -291,26 +701,44 @@
     if (size !== undefined) entry.size = size;
     const wsCloseCode = num(raw.wsCloseCode, 0, 65535);
     if (wsCloseCode !== undefined) entry.wsCloseCode = wsCloseCode;
+    // A traffic rule's delay (rules cap it at 60 s).
+    const delayedByRuleMs = num(raw.delayedByRuleMs, 0, 60000);
+    if (delayedByRuleMs !== undefined) entry.delayedByRuleMs = delayedByRuleMs;
 
     for (const key of ['method', 'url', 'urlPath', 'source', 'contentType', 'logLevel', 'message', 'mockRuleId', 'mockAction', 'driftFromId', 'replayOf', 'wsState', 'decryptStatus']) {
       const value = _cappedString(raw[key], 4000);
       if (value !== undefined) entry[key] = value;
     }
-    const responseRaw = _cappedString(raw.responseRaw, MAX_BRIDGE_TEXT);
-    if (responseRaw !== undefined) entry.responseRaw = responseRaw;
+    // Spec J4/J6: captured text with its truncation metadata, and what kind of request
+    // body the text stands for.
+    _carryText(entry, raw, 'responseRaw', 'responseTruncated', MAX_BRIDGE_TEXT);
+    _carryText(entry, raw, 'requestBodyText', 'requestTruncated', MAX_BRIDGE_BODY_TEXT);
+    if (BODY_KINDS.has(raw.requestBodyKind)) entry.requestBodyKind = raw.requestBodyKind;
+    const responseBinary = _binaryDescriptor(raw.responseBinary);
+    if (responseBinary) entry.responseBinary = responseBinary;
     entry.parseToken = _cappedString(raw.parseToken, 4000) ?? null;
+    const jwtLenses = _jwtLenses(raw.jwtLenses);
+    if (jwtLenses) entry.jwtLenses = jwtLenses;
 
-    for (const key of ['requestHeaders', 'responseHeaders', 'graphql', 'timing']) {
+    for (const key of ['requestHeaders', 'responseHeaders', 'timing']) {
       const value = _cappedRecord(raw[key]);
       if (value !== undefined) entry[key] = value;
     }
-    for (const key of ['requestBody', 'responseDecrypted', 'logData']) {
+    const graphql = _cappedRecord(raw.graphql, MAX_BRIDGE_GRAPHQL_STRING);
+    if (graphql !== undefined) entry.graphql = graphql;
+    for (const key of ['requestBody', 'responseDecrypted']) {
       if (raw[key] !== undefined) entry[key] = raw[key];
     }
+    // Spec J7: console arguments in the typed log model, rebuilt and bounded.
+    _carryLog(entry, raw);
     for (const key of ['args', 'initiator', 'wsFrames']) {
       if (Array.isArray(raw[key])) entry[key] = raw[key].slice(0, MAX_BRIDGE_ARRAY);
     }
-    for (const key of ['mocked', 'replayed', 'pinned', 'imported']) {
+    _carryObjectRefs(entry, raw);
+    // captureDegraded: the capture kept the entry but lost part of it (spec J5);
+    // bodyReserialized: responseRaw was rebuilt from a parsed value (XHR 'json').
+    // Not `imported`: only the panel's import sets it (it reads pre-J6 in-band suffixes, spec J9).
+    for (const key of ['mocked', 'replayed', 'pinned', 'captureDegraded', 'bodyReserialized']) {
       if (typeof raw[key] === 'boolean') entry[key] = raw[key];
     }
     if (!isUpdate) _rememberEntryId(entry.id);
@@ -395,6 +823,14 @@
       _postStoredCaptureConfig();
       return;
     }
+    // Spec J5: an entry the interceptor could not post even degraded is counted, not lost
+    // silently. Page script can read the token, so the count is checked and bounded.
+    if (e.data?.__xray_capture_drop__) {
+      if (!_bridgeToken || e.data.token !== _bridgeToken || !PAGE_DROP_REASONS.has(e.data.reason)) return;
+      const count = e.data.count;
+      if (Number.isInteger(count) && count >= 1) _recordCaptureDrop(e.data.reason, Math.min(500, count));
+      return;
+    }
     if (!e.data?.__xray_capture__) return;
     if (!_bridgeToken || e.data.token !== _bridgeToken) {
       _recordCaptureDrop('bridge-token');
@@ -433,11 +869,6 @@
       if (window.XRAY_Panel?.addAll) window.XRAY_Panel.addAll(entries);
       else entries.forEach((entry) => window.XRAY_Panel?.add?.(entry));
       _relayBatchToDevtools(entries);
-
-      // Send to worker for indexing (non-blocking)
-      if (_workerReady && window.XRAY_Worker) {
-        entries.forEach((entry) => window.XRAY_Worker.addEntry(entry).catch(() => {}));
-      }
       return;
     }
     
@@ -451,11 +882,6 @@
     
     window.XRAY_Panel?.add?.(entry);
     _relayToDevtools(entry);
-    
-    // Send to worker for indexing (non-blocking)
-    if (_workerReady && window.XRAY_Worker) {
-      window.XRAY_Worker.addEntry(entry).catch(() => {});
-    }
   });
 
   // Local fallback: handle Ctrl/Cmd+Shift+X even if background command routing fails.
@@ -507,12 +933,20 @@
   // Expose global helper: jv(data) — opens panel and injects data as a manual log entry
   window.jv = function (data) {
     _initPanel().then(() => {
+      // A live value, not a capture: encoded like console-capture.js does.
+      let logData;
+      try {
+        logData = _logValue(data, _logBudget(LOG_FULL_LIMITS, true));
+      } catch {
+        logData = '[XRAY: this value could not be captured]';
+      }
       const entry = {
         id: 'jv_' + Date.now().toString(36),
         type: 'log',
         timestamp: Date.now(),
         logLevel: 'log',
-        logData: data,
+        logArgCount: 1,
+        logData,
         pinned: false,
       };
       window.XRAY_Panel?.add?.(entry);
@@ -531,7 +965,16 @@
         if (e.source !== window) return;
         if (e.data?.__xray_fetch_response__ && e.data.token === _bridgeToken && e.data.msgId === msgId) {
           window.removeEventListener('message', handler);
-          resolve(e.data.data);
+          // The page's answer is checked and rebuilt like a capture (spec J7); nothing
+          // stored under the handle (or an answer that cannot be read) is null.
+          let full = null;
+          try {
+            const data = e.data.data;
+            full = data === null || data === undefined ? null : _logValue(data, _logBudget(LOG_FULL_LIMITS));
+          } catch {
+            full = null;
+          }
+          resolve(full);
         }
       };
       

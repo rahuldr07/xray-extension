@@ -108,7 +108,11 @@ export interface SessionSource {
 }
 
 export interface SessionEnvelope {
-  schemaVersion: 1;
+  /**
+   * 2 (spec J9): bodies are saved as text with truncation metadata, logs in the typed model. A session
+   * saved before (1, or the bare `session_entries` array) is migrated once on restore.
+   */
+  schemaVersion: 2;
   sessionId: string;
   createdAt: number;
   updatedAt: number;
@@ -120,6 +124,44 @@ export interface SessionEnvelope {
   entries: XrayEntry[];
   runtime: RuntimeHealth;
 }
+
+/**
+ * A body text cut at capture or persistence (spec J6, J9): the kept prefix is `keptChars`
+ * long. `totalChars` is the whole text's length when known; `totalBytes` is the body's
+ * size when only a byte window of it was decoded (a large Blob or binary upload). Neither,
+ * for a cut a session saved before J9 made without recording the total.
+ */
+export interface BodyTruncation {
+  keptChars: number;
+  totalChars?: number;
+  totalBytes?: number;
+}
+
+/** What a captured request body was (spec J4); see content/interceptor.js _requestBodyFields. */
+export type RequestBodyKind = 'text' | 'urlencoded' | 'formdata' | 'binary' | 'none';
+
+/** Bytes that are not UTF-8 text: their size and their first 64 bytes as base64. */
+export interface BinaryBodyDescriptor {
+  binary: true;
+  size: number;
+  base64Prefix: string;
+}
+
+/** A ReadableStream request body: it cannot be read without consuming the page's stream. */
+export interface StreamBodyDescriptor {
+  binary: true;
+  stream: true;
+}
+
+/** One FormData field: [name, value], a file described by its name, size and type. */
+export type FormDataPair = [string, string | { file: string; size: number; type: string }];
+
+/**
+ * `requestBody` by `requestBodyKind`: the parsed text (any JSON value) or the text for
+ * 'text'; the string for 'urlencoded'; FormDataPair[] for 'formdata'; a binary or
+ * stream descriptor for 'binary'; null for 'none'.
+ */
+export type CapturedRequestBody = FormDataPair[] | BinaryBodyDescriptor | StreamBodyDescriptor | string | null;
 
 export interface XrayEntry {
   id: string;
@@ -135,14 +177,54 @@ export interface XrayEntry {
   size?: number;
   requestHeaders?: Record<string, unknown>;
   responseHeaders?: Record<string, unknown>;
+  /** Parsed JSON for 'text' bodies (any value), else a CapturedRequestBody shape. */
   requestBody?: unknown;
+  /**
+   * The request body as sent (spec J4): verbatim for 'text' and 'urlencoded', a
+   * `name=value` line rendering for 'formdata', absent for 'binary' and 'none'.
+   * `requestBody` stays the parsed form for now.
+   */
+  requestBodyText?: string;
+  requestBodyKind?: RequestBodyKind;
+  requestTruncated?: BodyTruncation;
   responseRaw?: unknown;
+  responseTruncated?: BodyTruncation;
+  /** An XHR arraybuffer/blob response that is not UTF-8 (responseRaw is then null). */
+  responseBinary?: BinaryBodyDescriptor;
   responseDecrypted?: unknown;
+  /** A decrypted text the saved session cut (spec J9). */
+  responseDecryptedTruncated?: BodyTruncation;
+  /**
+   * Restored from a session saved before J9 (spec J9): every save keeps what that session kept,
+   * uncut, until the entry leaves (maxEntries, Clear). Set by migration only — capture and import drop it.
+   */
+  legacySession?: boolean;
+  /** The capture kept the entry but lost part of it (an uncloneable value, an unreadable body). */
+  captureDegraded?: boolean;
+  /** responseRaw was rebuilt from a parsed value (XHR responseType 'json'), not the bytes received. */
+  bodyReserialized?: boolean;
+  /** console-capture handles for "Load full object". */
+  objectRefs?: string[];
+  /** The console argument each objectRefs handle belongs to (typed logs). */
+  objectRefArgs?: number[];
   contentType?: string;
   logLevel?: ConsoleLevel;
   message?: string;
   args?: unknown[];
+  /**
+   * The console arguments. With `logArgCount` it is the typed log model (spec J7, see
+   * models/logValue.ts): the single argument's value when there is one, else the list.
+   * Without it, a pre-model shape (old sessions), decoded by models/logValue.ts.
+   */
   logData?: unknown;
+  /** How many arguments the console call had; marks logData as the typed log model. */
+  logArgCount?: number;
+  /**
+   * Stored form only (spec J9, models/sessionStore.ts): a saved log's `logData` as JSON text, because
+   * chrome.storage gives objects back with sorted keys. Restoring turns it back into `logData`; it never
+   * appears on an entry the panel holds.
+   */
+  logDataJson?: string;
   decryptStatus?: 'ok' | 'failed' | 'none';
   parseToken?: string | null;
   initiator?: string[];
@@ -186,7 +268,10 @@ export interface WsFrame {
   dir: 'in' | 'out';
   ts: number;
   preview: string;
+  /** Bytes on the wire (UTF-8 for text frames; UTF-16 units in sessions captured before J16). */
   size: number;
+  /** Set when the preview is a cut of a longer text frame (spec J16). */
+  truncated?: BodyTruncation;
 }
 
 export interface TrafficRuleMatch {
@@ -237,6 +322,8 @@ export interface ConsoleEvent {
   args?: unknown[];
   data?: unknown;
   entryId?: string;
+  /** Page logs: consecutive logs merge (×N) only when their keys match (identical arguments). */
+  repeatKey?: string;
   commandId?: string;
   truncated?: boolean;
   /** Command results: wall-clock run time of the evaluation, in ms. */
@@ -247,6 +334,8 @@ export interface ConsoleEvent {
   cancelled?: boolean;
   /** Command results: the evaluator's result type (`number`, `array`, `function`…). */
   resultType?: string;
+  /** Command results: table()/toTable() returned the value (an out-of-band flag, spec J8). */
+  resultRender?: 'table';
   /** Command errors: whether a request was selected when the command ran (C5 hint). */
   hasRequest?: boolean;
 }
@@ -355,7 +444,7 @@ declare global {
     XRAY_Console?: {
       init(): void;
       setContext(entry: XrayEntry | null): void;
-      execute(code: string): Promise<{ type: string; result?: unknown; error?: { message?: string; stack?: string }; truncated?: boolean }>;
+      execute(code: string, options?: { readBody?(entry: XrayEntry, side: 'response' | 'request'): unknown }): Promise<{ type: string; result?: unknown; error?: { message?: string; stack?: string }; truncated?: boolean; render?: 'table' }>;
       navigateHistory(direction: 'up' | 'down'): string | null;
       getRuntimePreview?(): Record<string, unknown>;
       setVar?(name: string, value: unknown): void;
@@ -370,7 +459,8 @@ declare global {
       generateCurl?(entry: XrayEntry | null): string;
       generateFetch?(entry: XrayEntry | null): string;
       buildMock?(entry: XrayEntry | null): unknown;
-      toTable?(data: unknown): { __xr_render: 'table'; data: unknown };
+      toTable?(data: unknown): unknown[];
+      reviveValue?(value: unknown): unknown;
     };
     XRAY_Store?: {
       get<T = unknown>(key: string, defaultVal?: T | null, strict?: boolean): Promise<T | null>;
@@ -388,12 +478,6 @@ declare global {
       init(): Promise<void>;
       isReady(): boolean;
       whenReady(): Promise<void>;
-      addEntry(entry: XrayEntry): Promise<unknown>;
-      search(query: string, entries: XrayEntry[]): Promise<XrayEntry[]>;
-      computeStats(data: unknown): Promise<unknown>;
-      computeDiff(a: unknown, b: unknown): Promise<unknown[]>;
-      inferSchema(data: unknown): Promise<unknown>;
-      detailAnalysis(current: unknown, previous?: unknown): Promise<unknown>;
     };
     __XRAY_focusTrapActive?: boolean;
     __XRAY_bridgeToken?: string | null;

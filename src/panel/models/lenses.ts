@@ -1,4 +1,6 @@
 import type { XrayEntry } from '../types';
+import { entryRequest } from '../utils';
+import { parseJson, toValue } from './jsonText';
 
 export interface DecodedJwt {
   source: string;
@@ -24,12 +26,13 @@ function base64UrlDecode(segment: string): string {
   }
 }
 
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+/**
+ * A decoded header or payload segment as a value, through the lossless parser (spec J1): a claim past
+ * 2^53 (a numeric `sub`, an ID) is kept as written. Null when the segment is not one JSON document.
+ */
+function segmentValue(text: string): unknown {
+  const doc = parseJson(text);
+  return doc.ok && doc.kind === 'json' ? toValue(doc.root) : null;
 }
 
 function toIso(value: unknown): string | null {
@@ -48,8 +51,8 @@ function toIso(value: unknown): string | null {
 export function decodeJwt(token: string, source: string): DecodedJwt | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
-  const header = parseJson(base64UrlDecode(parts[0]));
-  const payload = parseJson(base64UrlDecode(parts[1]));
+  const header = segmentValue(base64UrlDecode(parts[0]));
+  const payload = segmentValue(base64UrlDecode(parts[1]));
   if (header == null && payload == null) return null;
   const payloadRecord = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
   const expiresAt = toIso(payloadRecord.exp);
@@ -110,7 +113,8 @@ export function extractJwts(entry: XrayEntry): DecodedJwt[] {
 
   collectStrings(entry.requestHeaders, candidates, 'requestHeaders');
   collectStrings(entry.responseHeaders, candidates, 'responseHeaders');
-  collectStrings(entry.requestBody, candidates, 'requestBody');
+  // The request body read from its text (a saved session keeps no parsed copy of a text, final fix M1).
+  collectStrings(entryRequest(entry), candidates, 'requestBody');
   const response = entry.responseDecrypted ?? entry.responseRaw;
   collectStrings(response, candidates, 'response');
 

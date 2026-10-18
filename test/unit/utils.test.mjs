@@ -152,6 +152,29 @@ test('formatBytes switches units at the kb / mb boundaries', () => {
   assert.equal(formatBytes(undefined), '0b');
 });
 
+test('Ruling: formatTime renders — for a timestamp outside the Date range instead of throwing', () => {
+  // Intl throws a RangeError past |t| = 8.64e15 (and for NaN/±Infinity); a page-posted,
+  // imported or HUD-delivered entry must not be able to unmount a row with one.
+  for (const value of [8.64e15 + 1, -8.64e15 - 1, Number.MAX_SAFE_INTEGER, 1e300, Infinity, -Infinity, 'not a time']) {
+    assert.doesNotThrow(() => U.formatTime(value), String(value));
+    assert.equal(U.formatTime(value), '—', String(value));
+  }
+  assert.match(U.formatTime(8.64e15), /^\d{2}:\d{2}:\d{2}$/, 'the last valid instant still formats');
+  assert.match(U.formatTime(-8.64e15), /^\d{2}:\d{2}:\d{2}$/);
+  assert.match(U.formatTime(1_700_000_000_000), /^\d{2}:\d{2}:\d{2}$/);
+});
+
+test('Fix1 isoTimestamp gives the Timing facet an ISO time, "—" outside the Date range, null when absent', () => {
+  assert.equal(U.isoTimestamp(1_700_000_000_000), new Date(1_700_000_000_000).toISOString());
+  assert.equal(U.isoTimestamp(8.64e15), new Date(8.64e15).toISOString());
+  for (const value of [8.64e15 + 1, -8.64e15 - 1, 1e300, Infinity, NaN, 'soon']) {
+    assert.doesNotThrow(() => U.isoTimestamp(value), String(value));
+    assert.equal(U.isoTimestamp(value), '—', String(value));
+  }
+  assert.equal(U.isoTimestamp(undefined), null);
+  assert.equal(U.isoTimestamp(0), null);
+});
+
 test('preview truncates and never throws', () => {
   assert.equal(preview(undefined), 'undefined');
   assert.equal(preview(null), 'null');

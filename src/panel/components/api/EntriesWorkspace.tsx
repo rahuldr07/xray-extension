@@ -17,6 +17,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { EmptyState } from '../common/EmptyState';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { FirstRun } from '../common/FirstRun';
 import { PaneDivider, usePaneSplit } from '../common/PaneDivider';
 import { RequestDetail } from '../detail/RequestDetail';
@@ -42,8 +43,9 @@ import {
 } from '../../models/entries';
 import { levelBucket, logLevelFilters, matchesLevel, type LevelFilter } from '../../models/logLevels';
 import { buildSessionIndex, type SessionIndex } from '../../models/sessionIndex';
+import { logEntryText } from '../../models/logValue';
 import type { ApiGroupingMode, ApiQuickFilter, SortField, XrayEntry } from '../../types';
-import { copyText, entryRequest, formatBytes, formatTime, methodClass, preview, statusClass } from '../../utils';
+import { copyText, entryRequest, formatBytes, formatTime, methodClass, statusClass } from '../../utils';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -1058,7 +1060,12 @@ function ApiDetailDrawer({ entry, onClose, backRef, drawerRef }: { entry: XrayEn
         <button ref={backRef} type="button" className="xray-btn xray-api-back-btn" aria-label="Back to requests" onClick={onClose}><IconArrowLeft {...iconProps} />Requests</button>
       </div>}
       <div className="xray-api-drawer-body">
-        {entry ? <RequestDetail entry={entry} onClose={onClose} /> : <EmptyState label="Nothing selected" hint="Choose a request to open the detail drawer - preview, schema, diff, replay, and more." />}
+        {/* J12: RequestDetail keeps a failing pane to itself; this catches anything above it. */}
+        {entry ? (
+          <ErrorBoundary resetKeys={[entry.id]} raw={() => entry}>
+            <RequestDetail entry={entry} onClose={onClose} />
+          </ErrorBoundary>
+        ) : <EmptyState label="Nothing selected" hint="Choose a request to open the detail drawer - preview, schema, diff, replay, and more." />}
       </div>
     </aside>
   );
@@ -1079,7 +1086,8 @@ function LogRow({
 }): React.ReactElement {
   const entry = row.entry;
   const level = entry.logLevel || 'log';
-  const text = preview(entry.message ?? entry.logData, 160);
+  // Spec J7: typed values as `10n`, `NaN`, `undefined`, `ƒ name()`…; never internal markers.
+  const text = useMemo(() => logEntryText(entry, 160), [entry]);
 
   // S22: fixed tracks — level, time, message (ellipsis), pin — so the time can never
   // run into the message.

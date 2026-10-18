@@ -5,6 +5,7 @@ import type {
   ExperimentPlan,
   ExperimentRecord,
 } from '../types';
+import { fromValue, LosslessNumber, parseJson, printJson, toValue, type JsonEntry, type JsonNode } from './jsonText';
 
 export type { ExperimentCheck, ExperimentCheckResult, ExperimentEvaluation, ExperimentPlan, ExperimentRecord } from '../types';
 
@@ -162,6 +163,16 @@ function snapshotValue(value: unknown): ValueSnapshot {
       return value;
     }
     if (typeof value === 'string') return string(value);
+    if (value instanceof LosslessNumber) {
+      // An integer past 2^53 read losslessly (JSON fidelity spec J1): kept as its digits in the typed
+      // model's bigint envelope — plain JSON, so a saved snapshot restores to the same value — and
+      // compared as a number by those digits (snapshotDigits, compareIntegers).
+      const digits = value.raw.replace(/\.0+$/, '');
+      if (!INTEGER_DIGITS.test(digits)) return visit(Number(value.raw), depth);
+      const integer = { $xray: 'bigint', value: digits };
+      charge(JSON.stringify(integer).length);
+      return Object.freeze(integer);
+    }
     if (!value || typeof value !== 'object') throw '[UNAVAILABLE]';
     if (seen.has(value)) throw '[CIRCULAR]';
     const array = Array.isArray(value);
@@ -207,6 +218,117 @@ function snapshotValue(value: unknown): ValueSnapshot {
 
 // Investigation authoring/persistence uses the same bounded privacy projection.
 export const snapshotExperimentValue = snapshotValue;
+
+/**
+ * snapshotValue over a lossless parse (spec J10: share-safe redaction walks JsonNode): the same
+ * budgets (20,000 printed characters, 1,000 nodes, depth 6 — past one the whole body is the marker
+ * string "[TRUNCATED]"), the same string redaction and sensitive keys whose values become
+ * "[REDACTED]". Everything else is kept as parsed — number lexemes, member order, duplicate keys, a
+ * string's escapes — so the result prints losslessly. Builds new nodes; the input is never changed.
+ */
+export function snapshotExperimentNode(root: JsonNode): { node: JsonNode; reason?: string } {
+  let chars = 0;
+  let nodes = 0;
+  let reason: string | undefined;
+  function charge(count: number): void {
+    chars += count;
+    if (chars > MAX_PLAN_BODY) throw '[TRUNCATED]';
+  }
+  function string(value: string): string {
+    if (value.length > MAX_PLAN_BODY) throw '[TRUNCATED]';
+    const clean = redactString(value, MAX_PLAN_BODY);
+    if (clean !== value || /\[(?:REDACTED|TRUNCATED|CIRCULAR|UNAVAILABLE)\]/i.test(value)) reason = 'redacted or incomplete data';
+    charge(JSON.stringify(clean).length);
+    return clean;
+  }
+  function visit(node: JsonNode, depth: number): JsonNode {
+    nodes += 1;
+    if (nodes > MAX_VALUE_NODES || depth > MAX_VALUE_DEPTH) throw '[TRUNCATED]';
+    switch (node.t) {
+      case 'null': charge(4); return node;
+      case 'bool': charge(node.value ? 4 : 5); return node;
+      case 'num': charge(printJson(node).length); return node;
+      case 'str': {
+        const clean = string(node.value);
+        return clean === node.value ? node : { t: 'str', value: clean };
+      }
+      case 'arr': {
+        charge(2);
+        if (node.items.length > MAX_VALUE_NODES - nodes) throw '[TRUNCATED]';
+        return { t: 'arr', items: node.items.map((item, index) => {
+          if (index) charge(1);
+          return visit(item, depth + 1);
+        }) };
+      }
+      default: {
+        charge(2);
+        const entries: JsonEntry[] = [];
+        for (const member of node.entries) {
+          if (nodes >= MAX_VALUE_NODES || member.key.length > MAX_HEADER_NAME) throw '[TRUNCATED]';
+          charge(JSON.stringify(member.key).length + 1 + (entries.length ? 1 : 0));
+          const sensitive = isSensitiveName(member.key);
+          if (sensitive) reason = 'redacted data';
+          entries.push({ ...member, value: visit(sensitive ? { t: 'str', value: REDACTED } : member.value, depth + 1) });
+        }
+        return { t: 'obj', entries };
+      }
+    }
+  }
+  try {
+    return { node: visit(root, 0), ...(reason ? { reason } : {}) };
+  } catch {
+    return { node: { t: 'str', value: '[TRUNCATED]' }, reason: 'size, node or depth budget exceeded' };
+  }
+}
+
+/**
+ * The text an experiment run sends for a sanitized plan body (spec J10): JSON as written by the
+ * snapshot — keys in its order, an integer past 2^53 as its digits (read back from its bigint
+ * envelope, never the envelope object) — a string body as itself, null for no body.
+ */
+export function planBodyText(body: unknown): string | null {
+  if (body === undefined || body === null) return null;
+  if (typeof body === 'string') return body;
+  return printJson(planBodyNode(body));
+}
+
+/**
+ * A sanitized plan body as nodes, for display and for planBodyText: an integer past 2^53 as its digits
+ * (the snapshot's bigint envelope is internal and never shown), null for no body.
+ */
+export function planBodyNode(body: unknown): JsonNode {
+  return body === undefined ? { t: 'null' } : fromValue(withIntegers(body, 0));
+}
+
+/** A snapshot (bounded: depth 6, 1,000 nodes) with its bigint envelopes as LosslessNumber. */
+function withIntegers(value: unknown, depth: number): unknown {
+  const digits = snapshotDigits(value);
+  if (digits !== null) return new LosslessNumber(digits);
+  if (!value || typeof value !== 'object' || depth > MAX_VALUE_DEPTH + 1) return value;
+  if (Array.isArray(value)) return value.map((item) => withIntegers(item, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    Object.defineProperty(out, key, { value: withIntegers((value as Record<string, unknown>)[key], depth + 1), enumerable: true, writable: true, configurable: true });
+  }
+  return out;
+}
+
+/**
+ * Whether two sanitized plan bodies hold the same data, whatever their key order (chrome.storage gives
+ * a saved plan back with its keys sorted).
+ */
+export function samePlanBody(a: unknown, b: unknown): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(item).sort()) Object.defineProperty(sorted, key, { value: (item as Record<string, unknown>)[key], enumerable: true });
+    return sorted;
+  }) ?? 'undefined';
+}
 
 function sanitizeUrl(value: string): string {
   const parsed = new URL(value);
@@ -347,19 +469,58 @@ function responseValue(entry: ExperimentEntry): unknown {
   return entry.responseDecrypted != null ? entry.responseDecrypted : entry.responseRaw;
 }
 
+/**
+ * A captured response text as the value structural checks compare: the lossless parse of a JSON
+ * document (an integer past 2^53 kept exactly), else the text itself.
+ */
+export function responseTextValue(text: string): unknown {
+  const doc = parseJson(text);
+  return doc.ok && doc.kind === 'json' ? toValue(doc.root) : text;
+}
+
 function responseSnapshot(entry: ExperimentEntry): ValueSnapshot {
   let value = responseValue(entry);
   if (value === undefined || value === '') return { value: undefined, reason: 'response missing' };
   if (entry.responseDecrypted == null && typeof value === 'string') {
     if (value.length > MAX_PLAN_BODY) return { value: '[TRUNCATED]', reason: 'size budget exceeded' };
-    try { value = JSON.parse(value); } catch { /* Non-JSON responses remain scalar strings. */ }
+    value = responseTextValue(value);
   }
   return snapshotValue(value);
+}
+
+const INTEGER_DIGITS = /^-?\d+$/;
+
+/**
+ * The digits of a snapshot's integer past 2^53 — `{ "$xray": "bigint", "value": "<digits>" }`, exactly
+ * those two keys (see snapshotValue) — else null. A captured object of that very shape reads the same
+ * way: snapshots are snapshotted again when a saved check is restored (normalizeCheck), so the shape
+ * cannot be told from data there, and escaping objects with an own "$xray" key would turn saved
+ * envelopes into data. The only effect is on comparisons: such an object compares as that integer.
+ */
+function snapshotDigits(value: unknown): string | null {
+  if (!plainObject(value) || Object.keys(value).length !== 2 || value.$xray !== 'bigint') return null;
+  return typeof value.value === 'string' && INTEGER_DIGITS.test(value.value) ? value.value : null;
+}
+
+/**
+ * An integer past 2^53 against another value: a number to schema mode; equal to another one with the
+ * same digits; and equal to a plain number it rounds to, so a check saved before integers were kept
+ * exactly (JSON.parse had rounded 9007199254740993 to 9007199254740992) still matches what it meant.
+ */
+function compareIntegers(expected: unknown, expectedDigits: string | null, actual: unknown, actualDigits: string | null, mode: 'equal' | 'contains' | 'schema'): boolean {
+  if (mode === 'schema') return (expectedDigits !== null || typeof expected === 'number') && (actualDigits !== null || typeof actual === 'number');
+  if (expectedDigits !== null && actualDigits !== null) return expectedDigits === actualDigits;
+  const digits = (expectedDigits ?? actualDigits) as string;
+  const other = expectedDigits !== null ? actual : expected;
+  return typeof other === 'number' && Number(digits) === other;
 }
 
 // Inputs are detached, fully validated bounded snapshots, never raw graphs.
 function compareValues(expected: unknown, actual: unknown, mode: 'equal' | 'contains' | 'schema'): boolean {
   if (expected === null || actual === null) return expected === actual;
+  const expectedDigits = snapshotDigits(expected);
+  const actualDigits = snapshotDigits(actual);
+  if (expectedDigits !== null || actualDigits !== null) return compareIntegers(expected, expectedDigits, actual, actualDigits, mode);
   if (typeof expected !== 'object' || typeof actual !== 'object') return mode === 'schema' ? typeof expected === typeof actual : expected === actual;
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual)) return false;

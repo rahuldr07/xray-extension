@@ -1,4 +1,5 @@
 import React from 'react';
+import { logErrorInfo } from '../../models/logValue';
 import type { ConsoleEvent } from '../../types';
 
 // Error shapes shared by page-log rows (ConsoleRow) and command cells (CommandCell).
@@ -7,30 +8,23 @@ export interface ConsoleError {
   name: string;
   message: string;
   stack: string;
+  /** One-line text of the Error's cause (page logs, spec J7). */
+  cause?: string;
 }
 
-// A console.error(new Error()) arrives as an error-level log whose data is a
-// captured {__type__:'Error', name, message, stack} preview — stringifying that
-// gives ugly raw JSON. Detect the error shape (page logs OR REPL error results)
-// so we can render a clean "Name: message" line + an expandable stack instead.
+// A console.error(new Error()) arrives as an error-level log whose argument is a typed
+// Error ({"$xray":"error", name, message, stack, cause?} — spec J7), and a command that
+// returns an Error has the same typed value (spec J8). Detect it (or a REPL failure) so we
+// can render a clean "Name: message" line + an expandable stack instead.
 export function extractConsoleError(event: ConsoleEvent): ConsoleError | null {
-  // A captured Error is tagged __type__:'Error'. Untagged objects are only
-  // treated as errors when the stack itself looks like one — a plain API payload
-  // shaped { name, message, stack } (a validation DTO, say) must keep its JSON
-  // tree, or every other property on it becomes unreachable in the UI.
-  const looksLikeStack = (stack: string): boolean => /\n\s*at\s/.test(stack) || /^\w*Error\b/.test(stack);
-  const isErrorObject = (value: unknown): ConsoleError | null => {
-    if (!value || typeof value !== 'object') return null;
-    const record = value as Record<string, unknown>;
-    const looksLikeError = record.__type__ === 'Error' ||
-      (typeof record.stack === 'string' && typeof record.message === 'string' && 'name' in record &&
-        looksLikeStack(record.stack));
-    if (!looksLikeError) return null;
-    return { name: String(record.name || 'Error'), message: String(record.message || ''), stack: String(record.stack || '') };
-  };
-  const found = isErrorObject(event.data) || (event.args || []).map(isErrorObject).find(Boolean) || null;
-  if (found) return found;
-  // REPL failures: event.data is { message, stack } with no __type__.
+  // Only the typed Error envelope is an Error: the encoder knows which values really were
+  // Errors, so an object shaped { name, message, stack } — or with __type__: 'Error' — is
+  // data and keeps its tree.
+  if (event.type === 'log') {
+    return (event.args || []).map((arg) => logErrorInfo(arg)).find(Boolean) || logErrorInfo(event.data) || null;
+  }
+  if (event.type === 'result') return logErrorInfo(event.data);
+  // REPL failures: event.data is the evaluator's { message, stack }.
   if (event.type === 'error' && event.data && typeof event.data === 'object') {
     const record = event.data as Record<string, unknown>;
     return { name: 'Error', message: String(record.message || event.message || 'Execution failed'), stack: String(record.stack || '') };
@@ -66,15 +60,19 @@ export function commandStackFrames(error: ConsoleError): StackFrame[] {
 // XRAY evaluation wrapper's own <anonymous> frames).
 export function ErrorBlock({ error, frames: given }: { error: ConsoleError; frames?: StackFrame[] }): React.ReactElement {
   const frames = React.useMemo(() => given ?? stackFrames(error), [error, given]);
-  if (!frames.length) return <p className="xray-muted">No stack trace available.</p>;
+  const cause = error.cause ? <p className="xray-muted xray-error-cause">Caused by: {error.cause}</p> : null;
+  if (!frames.length) return <><p className="xray-muted">No stack trace available.</p>{cause}</>;
   return (
-    <ol className="xray-error-frames">
-      {frames.map((frame, index) => (
-        <li key={index}>
-          <span className="xray-error-fn">{frame.fn}</span>
-          {frame.loc && <code className="xray-error-loc" title={frame.loc}>{frame.loc}</code>}
-        </li>
-      ))}
-    </ol>
+    <>
+      <ol className="xray-error-frames">
+        {frames.map((frame, index) => (
+          <li key={index}>
+            <span className="xray-error-fn">{frame.fn}</span>
+            {frame.loc && <code className="xray-error-loc" title={frame.loc}>{frame.loc}</code>}
+          </li>
+        ))}
+      </ol>
+      {cause}
+    </>
   );
 }

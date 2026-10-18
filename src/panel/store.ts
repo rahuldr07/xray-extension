@@ -11,7 +11,7 @@ import {
 } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS, normalizePanelSettings } from './models/panelSettings';
 import { hasPageBridgeRoute, postToPageBridge, publishCaptureSettings, publishTrafficRules } from './runtime/captureConfig';
-import { MAX_EXPERIMENTS, armExperiment, cancelExperiment, createExperiment, evaluateExperiment, failExperiment, observeExperiment, startExperiment } from './models/experiments';
+import { MAX_EXPERIMENTS, armExperiment, cancelExperiment, createExperiment, evaluateExperiment, failExperiment, observeExperiment, planBodyText, samePlanBody, snapshotExperimentValue, startExperiment } from './models/experiments';
 import { buildDriftIndex, detectDrift, noteDriftEntry } from './models/drift';
 import { MAX_TRAFFIC_RULES, TRAFFIC_RULES_KEY, createRuleId, defaultRule, normalizeRule, normalizeRules, ruleMatcherError } from './models/rules';
 import { AI_SETTINGS_KEY, SESSION_ENTRIES_KEY, SESSION_ENVELOPE_KEY } from './models/sessionStore';
@@ -23,6 +23,9 @@ import { FINDING_STATE_KEY, createFindingState, deriveFindings, dismissFinding, 
 import { createInvestigation, createAssertion, createScenario, evaluateAssertions, ownValue, resolveEntryRef, MAX_INVESTIGATIONS, MAX_ASSERTIONS, MAX_SCENARIO_STEPS, MAX_SCENARIO_RUNS, type InvestigationStore, type SavedInvestigation, type AssertionResult, type RunSummary } from './models/investigations';
 import { SAVED_INVESTIGATIONS_KEY, normalizeInvestigationStore, serializeInvestigationStore } from './models/investigationPersistence';
 import { isReplayableEntry, replayabilityReason } from './models/replayability';
+import { capturedPlanValue, replayBody, replayFormPairs, type ReplayFormPair } from './models/replayBody';
+import { logArgs, logArgsText, logRepeatKey } from './models/logValue';
+import { consoleBodyValue } from './models/consoleResults';
 
 const MAX_ENTRIES = 1000;
 
@@ -46,10 +49,13 @@ let _sessionWritePending: SessionWriteRequest | null = null;
 let _sessionWriteAfterBarrier: SessionWriteRequest | null = null;
 let _sessionRestoreGeneration = 0;
 let _storageIssue: string | null = null;
+// Spec J9: the session-save notice is raised once per failure streak (see noteSessionSaveFailed).
+let _sessionSaveFailing = false;
 let _unsubscribeWorkerHealth: (() => void) | undefined;
 let _unsubscribeCaptureReceipt: (() => void) | undefined;
 let _captureDropped = 0;
 let _captureDeliverySeen = { delivered: 0, noConsumer: 0, relayFailed: 0 };
+const _captureDropReasonsSeen: Record<string, number> = {};
 let _runtimeRestartRequested = false;
 
 // These are private isolated-world APIs, never page-posted payloads.
@@ -72,6 +78,7 @@ interface CaptureReceipt {
   delivered?: unknown;
   noConsumer?: unknown;
   relayFailed?: unknown;
+  dropReasons?: unknown;
   deliveryReasons?: unknown;
   lastEventAt?: unknown;
 }
@@ -94,7 +101,11 @@ const RUNTIME_ERROR_CODES = new Set([
   'worker-origin-unavailable', 'worker-policy-blocked', 'worker-startup-timeout',
   'worker-missing', 'worker-terminated', 'worker-restart-unavailable', 'storage-unavailable', 'storage-read-failed', 'storage-write-failed',
   'cache-open-failed', 'cache-write-failed', 'cache-prune-failed', 'cache-clear-failed', 'no-consumer', 'relay-failed',
+  'clone-failed', 'pending-overflow',
 ]);
+// Drop reasons the diagnostics name instead of the generic 'capture-drop' (spec J5): the
+// page could not post a capture even degraded, or the pre-config buffer overflowed.
+const NAMED_DROP_REASONS = ['clone-failed', 'pending-overflow'] as const;
 function safeRuntimeCode(value: unknown): string | null {
   return typeof value === 'string' && RUNTIME_ERROR_CODES.has(value) ? value : null;
 }
@@ -149,6 +160,17 @@ function commitConsolePins(pins: ConsolePin[]): void {
 // The page element that held focus when the injected side panel opened, so we can
 // hand focus back to the page when it closes (Escape / close button).
 let _lastPageFocus: HTMLElement | null = null;
+
+/** What Edit & Replay (or an experiment run) changes about the captured request. */
+export interface ReplayOverrides {
+  method?: string;
+  url?: string;
+  requestHeaders?: Record<string, unknown>;
+  /** The body to send exactly, replacing the captured text; null sends no body. */
+  requestBodyText?: string | null;
+  /** FormData fields to send as a form, in place of the captured body (an experiment's sanitized form). */
+  requestForm?: ReplayFormPair[];
+}
 
 interface PanelState {
   initialized: boolean;
@@ -245,6 +267,11 @@ interface PanelState {
   setSurface(surface: XrayAppMode): void;
   settings: PanelSettings;
   toastMessage: string | null;
+  /**
+   * "Couldn't save the session — <reason>" (spec J9): raised by the first failed session write of a
+   * failure streak, cleared by the next successful one. Dismissing it keeps it away for the streak.
+   */
+  sessionSaveNotice: string | null;
   setInitialized(value: boolean): void;
   setOpen(value: boolean): void;
   setDevtoolsMode(value: boolean): void;
@@ -282,7 +309,14 @@ interface PanelState {
   toggleRule(id: string): void;
   setRules(rules: TrafficRule[]): void;
   setAiSettings(patch: Partial<AiSettings>): void;
-  replayEntry(entry: XrayEntry, overrides?: Partial<XrayEntry>): string | null;
+  /**
+   * Replays a captured request from the page. The body is the captured request text (spec J10) — or a
+   * FormData of text fields, rebuilt in the page from its captured fields — or, when given,
+   * `overrides.requestForm` or `overrides.requestBodyText` exactly (Edit & Replay's editor; null for no
+   * body). A captured body that cannot be sent as captured (cut at capture, files, binary, unread) is
+   * refused unless an override replaces it. Returns the refusal reason, or null once posted.
+   */
+  replayEntry(entry: XrayEntry, overrides?: ReplayOverrides): string | null;
   openReplayEditor(entry: XrayEntry): void;
   closeReplayEditor(): void;
   openExplain(entry: XrayEntry): void;
@@ -328,7 +362,20 @@ interface PanelState {
   confirmPending(): void;
   showToast(message: string): void;
   clearToast(): void;
+  dismissSessionSaveNotice(): void;
   restorePreferences(): Promise<void>;
+}
+
+/**
+ * A capture as the store takes it: never `imported` (only the panel's import sets it; it reads pre-J6
+ * in-band suffixes) and never `legacySession` (only migrating a saved pre-J9 session sets it; it
+ * exempts an entry from the session budget) — spec J9. content.js carries neither across the bridge;
+ * the HUD stores the page's batches as posted, so the store drops them too.
+ */
+function liveCapture<T extends { imported?: unknown; legacySession?: unknown }>(raw: T): T {
+  if (!('imported' in raw) && !('legacySession' in raw)) return raw;
+  const { imported: _imported, legacySession: _legacy, ...live } = raw;
+  return live as T;
 }
 
 function entryToConsoleEvent(entry: XrayEntry): ConsoleEvent {
@@ -346,22 +393,39 @@ function entryToConsoleEvent(entry: XrayEntry): ConsoleEvent {
   }
 
   const level = entry.logLevel || 'log';
-  const data = Array.isArray(entry.args) ? entry.args : Array.isArray(entry.logData) ? entry.logData : [entry.logData ?? entry.message ?? ''];
+  // Spec J7: the arguments in the typed log model (pre-model entries decoded), the message
+  // as the console prints them — console.log([1,2,3]) reads "[1,2,3]", console.log(1,2,3)
+  // reads "1 2 3", null and undefined are words — and a repeat key, so only identical
+  // logs merge as ×N.
+  let args: unknown[];
+  let text: string;
+  let repeatKey: string | undefined;
+  try {
+    args = logArgs(entry);
+    text = logArgsText(args, 600);
+    repeatKey = logRepeatKey(args);
+  } catch {
+    // Only a hand-built value can refuse to be read; it keeps the old preview.
+    args = Array.isArray(entry.logData) ? entry.logData : [entry.logData ?? entry.message ?? ''];
+    text = args.map((item) => typeof item === 'string' ? item : previewJson(item)).join(' ');
+  }
   return {
     id: 'evt_' + entry.id,
     type: 'log',
     level,
     timestamp: Number(entry.timestamp) || Date.now(),
-    message: String(entry.message ?? data.map((item) => typeof item === 'string' ? item : previewJson(item)).join(' ')).slice(0, 600),
-    args: data,
+    message: String(entry.message ?? text).slice(0, 600),
+    args,
     entryId: entry.id,
+    // Absent when the arguments are too large to compare cheaply: those logs merge on
+    // their message, as every log did before.
+    ...(repeatKey !== undefined ? { repeatKey } : {}),
   };
 }
 
-// Message previews must not expose the internal __xray_ref__ lazy-load marker.
 function previewJson(value: unknown): string {
   try {
-    return JSON.stringify(value, (key, item) => (key === '__xray_ref__' ? undefined : item)) ?? String(value);
+    return JSON.stringify(value) ?? String(value);
   } catch {
     return String(value);
   }
@@ -605,6 +669,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   setSurface: (surface) => set({ surface }),
   settings: DEFAULT_PANEL_SETTINGS,
   toastMessage: null,
+  sessionSaveNotice: null,
   setInitialized: (value) => set({ initialized: value }),
   setOpen: (value) => {
     window.__XRAY_focusTrapActive = value;
@@ -733,8 +798,9 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     const added: ConsoleEvent[] = [];
     const seen = new Set(entries.map((entry) => entry.id));
     let dropped = 0;
-    for (const raw of batch) {
-      if (!raw || (raw.type !== 'api' && raw.type !== 'log')) { dropped += 1; continue; }
+    for (const item of batch) {
+      if (!item || (item.type !== 'api' && item.type !== 'log')) { dropped += 1; continue; }
+      const raw = liveCapture(item);
       const id = raw.id || 'entry_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
       if (seen.has(id)) { dropped += 1; continue; }
       seen.add(id);
@@ -772,7 +838,8 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   // fetch completions land unthrottled — mapping the whole entries array (and
   // re-rendering every subscriber) once per patch caused storms. One flush per
   // 50ms window applies all pending patches in a single commit.
-  updateEntry: (patch) => {
+  updateEntry: (update) => {
+    const patch = liveCapture(update);
     const pending = _pendingEntryPatches.get(patch.id);
     _pendingEntryPatches.set(patch.id, pending ? { ...pending, ...patch } : patch);
     if (_entryPatchTimer !== null) return;
@@ -962,6 +1029,10 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     if (baseline) {
       try { safeExperiment(baseline, record.plan, record.checks); } catch { code = 'INVALID_PLAN'; }
     }
+    // A replay run sends the captured request text (spec J10) — or, retargeted or edited, the sanitized
+    // plan body — and never a body it cannot send as meant.
+    const replayBodyChoice = !code && baseline && !rule ? experimentBody(record.plan, baseline) : null;
+    if (replayBodyChoice && !replayBodyChoice.ok) code = 'BODY_NOT_REPLAYABLE';
     if (code) {
       const experiments = state.experiments.map(item => item.id === id ? failExperiment(running, { code, reason: experimentReason(code), now: Date.now() }) : item);
       set({ experiments }); persistExperiments(experiments); return;
@@ -983,7 +1054,8 @@ export const usePanelStore = create<PanelState>((set, get) => ({
           // An unchanged captured URL must reach MAIN verbatim for its origin-pinned restoration.
           url: record.plan.preserveCapturedUrl ? baseline.url : record.plan.url,
           requestHeaders: headers,
-          requestBody: record.plan.body ?? null,
+          ...(replayBodyChoice?.ok && replayBodyChoice.form ? { requestForm: replayBodyChoice.form }
+            : { requestBodyText: replayBodyChoice?.ok ? replayBodyChoice.text ?? null : planBodyText(record.plan.body) }),
         });
       }
     } catch { finishExperiment(id, 'DISPATCH_FAILED'); }
@@ -1006,17 +1078,35 @@ export const usePanelStore = create<PanelState>((set, get) => ({
       get().showToast(reason);
       return reason;
     }
-    const source = { ...entry, ...(overrides || {}) };
+    const { requestBodyText, requestForm, ...target } = overrides || {};
+    const source = { ...entry, ...target };
     if (!isReplayableEntry(source)) {
       const reason = replayabilityReason(source) || 'This replay target is unavailable.';
       get().showToast(reason);
       return reason;
     }
+    // Text, or FormData fields the page rebuilds the form from (content/interceptor.js).
+    let body: string | null | { formdata: ReplayFormPair[] };
+    if (requestForm) body = { formdata: requestForm };
+    else if (overrides && 'requestBodyText' in overrides) body = requestBodyText ?? null;
+    else {
+      const captured = replayBody(entry);
+      if (!captured.exact) {
+        const reason = captured.reason || 'This request body cannot be replayed exactly.';
+        get().showToast(captured.editHint ? `${reason} Use Edit & Replay to send an edited body.` : reason);
+        return reason;
+      }
+      body = captured.form ? { formdata: captured.form } : captured.text;
+    }
+    let headers = source.requestHeaders || {};
+    // A text in place of a captured form is not multipart: its captured Content-Type would announce a
+    // boundary the text does not have. (A rebuilt form drops it in the page: the browser sets a new one.)
+    if (entry.requestBodyKind === 'formdata' && (body === null || typeof body === 'string')) headers = withoutMultipartType(headers);
     const request = {
       url: String(source.url || ''),
       method: String(source.method || 'GET'),
-      headers: source.requestHeaders || {},
-      body: source.requestBody ?? null,
+      headers,
+      body,
       replayOf: entry.id,
     };
     if (postToPageBridge('replay', { request })) {
@@ -1287,6 +1377,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   dismissThemeRefresh: () => get().updateSettings({ themeRefreshPending: false }),
   showToast: (message) => set({ toastMessage: message }),
   clearToast: () => set({ toastMessage: null }),
+  dismissSessionSaveNotice: () => set({ sessionSaveNotice: null }),
   restorePreferences: async () => {
     const restoreGeneration = _sessionRestoreGeneration;
     const findingRevision = _findingRevision;
@@ -1387,10 +1478,13 @@ export const usePanelStore = create<PanelState>((set, get) => ({
         : noConsumer > _captureDeliverySeen.noConsumer ? 'no-consumer'
           : delivered > _captureDeliverySeen.delivered && lastError !== null && ['relay-failed', 'no-consumer'].includes(lastError) ? null : undefined;
       _captureDeliverySeen = { delivered, noConsumer, relayFailed };
+      const reasons = receipt.dropReasons && typeof receipt.dropReasons === 'object' ? receipt.dropReasons as Record<string, unknown> : {};
+      const namedDrop = NAMED_DROP_REASONS.find((reason) => counter(reasons[reason]) > (_captureDropReasonsSeen[reason] || 0));
+      for (const reason of NAMED_DROP_REASONS) _captureDropReasonsSeen[reason] = Math.max(_captureDropReasonsSeen[reason] || 0, counter(reasons[reason]));
       if (dropped || deliveryError !== undefined) get().noteRuntimeEvent({
         ...(dropped ? { dropped } : {}),
         lastEventAt: receipt.lastEventAt,
-        ...(deliveryError !== undefined ? { lastErrorCode: deliveryError } : { lastErrorCode: 'capture-drop' }),
+        ...(deliveryError !== undefined ? { lastErrorCode: deliveryError } : { lastErrorCode: namedDrop ?? 'capture-drop' }),
       });
     };
     _unsubscribeCaptureReceipt = receipts?.subscribe?.(noteCapture);
@@ -1637,7 +1731,7 @@ export function evaluateConsoleCommand(code: string): Promise<ConsoleExecutionRe
   const state = usePanelStore.getState();
   setConsoleContext(state.selectedId ? state.entries.find((entry) => entry.id === state.selectedId) ?? null : null);
   syncConsolePins(consolePinMap(state));
-  return executeConsoleCommand(code);
+  return executeConsoleCommand(code, consoleBodyValue);
 }
 
 // Adapt only authoritative experiment transitions. No new traffic observer or executor.
@@ -1657,8 +1751,9 @@ usePanelStore.subscribe((state, previous) => {
 function safeExperiment(entry: XrayEntry, overrides: Partial<ExperimentPlan> = {}, checks?: ExperimentCheck[]): ExperimentRecord {
   const url = new URL(overrides.url ?? String(entry.url || ''));
   url.username = ''; url.password = ''; url.hash = '';
-  let body = overrides.body !== undefined ? overrides.body : entry.requestBody;
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch { /* retain non-JSON text */ } }
+  // A plan body is a value (Edit & Replay passes planValueOfText of its editor; a saved plan or step
+  // its sanitized value): never parsed again here, so a JSON string body is not decoded twice.
+  const body = overrides.body !== undefined ? overrides.body : capturedPlanValue(entry);
   const expectedChecks = checks ?? [{ type: 'status', expected: Number(entry.status) || 200 }, { type: 'response', expected: true }];
   const cleanChecks = expectedChecks.map(check => {
     if (check.type !== 'structural' || check.expected === undefined) return check;
@@ -1676,6 +1771,45 @@ function safeExperiment(entry: XrayEntry, overrides: Partial<ExperimentPlan> = {
   return record;
 }
 
+const SNAPSHOT_MARKER = /^\[(?:TRUNCATED|CIRCULAR|UNAVAILABLE)\]$/;
+
+/**
+ * What a replay run sends — what Replay would (replayBody). While the plan's body is the baseline's own
+ * (its sanitized form equals the sanitized captured body, whatever the key order) and the run stays on
+ * the captured origin, the captured request exactly: its text, or its FormData of text fields — refused
+ * when it cannot be sent as captured (cut, files, binary, unread). Otherwise (an edited body, or
+ * retargeted to another origin, where the plan promises no secrets) the sanitized plan body, printed
+ * with its integers as written — a FormData baseline's sanitized fields as a form again — refused when
+ * sanitizing replaced the whole body with a marker or the fields cannot be rebuilt.
+ */
+function experimentBody(plan: ExperimentPlan, baseline: XrayEntry): { ok: true; text?: string | null; form?: ReplayFormPair[] } | { ok: false } {
+  if (sameOrigin(plan.url, String(baseline.url || '')) && samePlanBody(plan.body, snapshotExperimentValue(capturedPlanValue(baseline)).value)) {
+    const captured = replayBody(baseline);
+    if (!captured.exact) return { ok: false };
+    return captured.form ? { ok: true, form: captured.form } : { ok: true, text: captured.text };
+  }
+  if (typeof plan.body === 'string' && SNAPSHOT_MARKER.test(plan.body)) return { ok: false };
+  if (baseline.requestBodyKind === 'formdata' && Array.isArray(plan.body)) {
+    const form = replayFormPairs(plan.body);
+    return form ? { ok: true, form } : { ok: false };
+  }
+  return { ok: true, text: planBodyText(plan.body) };
+}
+
+/** Headers without a multipart Content-Type (any spelling of the name). */
+function withoutMultipartType(headers: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === 'content-type' && /^\s*multipart\//i.test(String(value))) continue;
+    out[name] = value;
+  }
+  return out;
+}
+
+function sameOrigin(a: string, b: string): boolean {
+  try { return new URL(a).origin === new URL(b).origin; } catch { return false; }
+}
+
 function experimentReason(code: string): string {
   const reasons: Record<string, string> = {
     TIMEOUT: 'No matching captured result arrived before the timeout.',
@@ -1686,6 +1820,7 @@ function experimentReason(code: string): string {
     INVALID_PLAN: 'Plan URL is invalid or retargeting was not acknowledged.',
     INVALID_MOCK: 'Choose a valid disabled mock rule with no active experiment.',
     DISPATCH_FAILED: 'The replay or mock submission failed.',
+    BODY_NOT_REPLAYABLE: 'The request body cannot be replayed exactly (cut at capture, FormData, binary, or too large for the sanitized plan). Use Edit & Replay to send an edited body.',
     INTERRUPTED: 'Previous run was interrupted. It was not restarted.',
     FAILED: 'Experiment failed.',
     CANCELLED: 'Stopped waiting. An in-flight replay cannot be recalled.',
@@ -1785,6 +1920,32 @@ function noteStorageIssue(get: () => PanelState, code: string | null): void {
   usePanelStore.setState({ runtimeHealth: health, session: sessionSnapshot({ ...current, runtimeHealth: health }) });
 }
 
+// Spec J9: a failed session write is said in the panel — "Couldn't save the session — <reason>" —
+// once per failure streak, as well as in the diagnostics receipt (noteStorageIssue). The reason is
+// one of these fixed texts, never the browser's error.
+const SESSION_SAVE_REASONS = {
+  quota: "the browser's storage for XRAY is full",
+  unavailable: 'storage is unavailable (reload the page if XRAY was just updated)',
+  failed: 'the browser refused the write',
+} as const;
+
+function sessionSaveReason(error: unknown): keyof typeof SESSION_SAVE_REASONS {
+  const fields = typeof error === 'object' && error !== null ? error as { code?: unknown; reason?: unknown } : {};
+  if (fields.reason === 'quota') return 'quota';
+  return fields.code === 'storage-unavailable' ? 'unavailable' : 'failed';
+}
+
+function noteSessionSaveFailed(error: unknown): void {
+  if (_sessionSaveFailing) return;
+  _sessionSaveFailing = true;
+  usePanelStore.setState({ sessionSaveNotice: `Couldn't save the session — ${SESSION_SAVE_REASONS[sessionSaveReason(error)]}.` });
+}
+
+function noteSessionSaved(): void {
+  _sessionSaveFailing = false;
+  if (usePanelStore.getState().sessionSaveNotice !== null) usePanelStore.setState({ sessionSaveNotice: null });
+}
+
 async function runSessionWrite(get: () => PanelState, request: SessionWriteRequest): Promise<void> {
   let legacyFailed = false;
   try {
@@ -1793,15 +1954,20 @@ async function runSessionWrite(get: () => PanelState, request: SessionWriteReque
     if (!request.clearLegacy && request.generation !== _sessionRestoreGeneration) return;
     if (request.clearLegacy) {
       // Independently erase the migration fallback even if the envelope write fails.
-      try { await setStoredValue(SESSION_ENTRIES_KEY, []); } catch {
+      try { await setStoredValue(SESSION_ENTRIES_KEY, []); } catch (error) {
         legacyFailed = true;
         noteStorageIssue(get, 'storage-write-failed');
+        noteSessionSaveFailed(error);
       }
     }
     try {
       await setStoredValue(SESSION_ENVELOPE_KEY, request.session);
       if (!legacyFailed && (_storageIssue === 'storage-write-failed' || _storageIssue === 'storage-unavailable')) noteStorageIssue(get, null);
-    } catch { noteStorageIssue(get, 'storage-write-failed'); }
+      if (!legacyFailed) noteSessionSaved();
+    } catch (error) {
+      noteStorageIssue(get, 'storage-write-failed');
+      noteSessionSaveFailed(error);
+    }
   } finally {
     _sessionWriteActive = false;
     request.resolve();
@@ -1820,6 +1986,7 @@ async function runSessionWrite(get: () => PanelState, request: SessionWriteReque
 function persistSession(get: () => PanelState, clearLegacy = false): Promise<void> {
   if (!hasSessionStorage()) {
     get().noteRuntimeEvent({ lastErrorCode: 'storage-unavailable' });
+    noteSessionSaveFailed({ code: 'storage-unavailable' });
     // The diagnostic update must not start a missing-store retry loop.
     if (_sessionPersistTimer) { clearTimeout(_sessionPersistTimer); _sessionPersistTimer = null; }
     return Promise.resolve();

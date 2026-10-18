@@ -1,72 +1,38 @@
 import React, { useMemo, useState } from 'react';
 import { IconLayoutSidebarRightExpand, IconWindowMaximize } from '@tabler/icons-react';
 import { JsonView } from '../detail/JsonView';
-import { describeResult, formatResultBytes, tableColumns, TABLE_MAX_ROWS, type ResultDescription } from '../../models/consoleResults';
-import { safeStringify } from '../../utils';
+import {
+  cellText,
+  describeCommandResult,
+  resultJsonText,
+  resultRows,
+  tableCell,
+  TABLE_MAX_ROWS,
+  type DescribedResult,
+} from '../../models/consoleResults';
+import { logDisplay, logKind, logValueText } from '../../models/logValue';
+import { TreeLeaf } from '../../models/treeDisplay';
 
 export type ResultViewMode = 'table' | 'tree' | 'json';
 
-const JSON_TEXT_LIMIT = 200_000;
+// A command result is the typed log model (spec J8): plain JSON plus "$xray" envelopes for what
+// JSON cannot hold. It is shown as the Logs show those values — 10n, NaN, undefined, Map(2) —
+// never as an envelope; the JSON view and Copy use the JSON projection (models/consoleResults.ts).
 
-/**
- * `table(rows)` / `toTable(rows)` come back as a render marker around the rows. The
- * marker only steers rendering: `$_`, saved variables and inspector paths use the rows.
- */
-export function unwrap(value: unknown): { value: unknown; forceTable: boolean } {
-  if (value && typeof value === 'object' && !Array.isArray(value) &&
-    (value as Record<string, unknown>).__xr_render === 'table') {
-    const data = (value as Record<string, unknown>).data;
-    return { value: data, forceTable: Array.isArray(data) && !!tableColumns(data) };
-  }
-  return { value, forceTable: false };
-}
+const LEAF_CLASS: Record<TreeLeaf['tone'], string> = {
+  string: 'xray-json-string',
+  number: 'xray-json-number',
+  bool: 'xray-json-bool',
+  null: 'xray-json-null',
+  typed: 'xray-json-typed',
+  muted: 'xray-json-muted',
+};
 
-// The evaluator serializes these to strings ("[Function: f]", "12n", "Symbol(x)");
-// their badge comes from the evaluator's type, and they display unquoted.
-const STRINGIFIED_TYPES = new Set(['function', 'bigint', 'symbol']);
-
-export interface DescribedResult {
-  value: unknown;
-  description: ResultDescription;
-  /** Display the (string) value as-is, without JSON quotes. */
-  raw: boolean;
-}
-
-/** Describe a command result once; the cell and the view share it. */
-export function describeCommandResult(rawValue: unknown, type: string, truncated = false): DescribedResult {
-  const { value, forceTable } = unwrap(rawValue);
-  let description = describeResult(value, type);
-  if (forceTable && description.kind !== 'table') {
-    description = { ...description, kind: 'table', columns: tableColumns(value as unknown[]) ?? [] };
-  }
-  if (typeof value === 'string' && STRINGIFIED_TYPES.has(type)) {
-    return { value, description: { ...description, kind: 'scalar', badge: type }, raw: true };
-  }
-  // An object too large for the transfer limit arrives as clipped JSON text.
-  if (typeof value === 'string' && truncated && (type === 'object' || type === 'array')) {
-    description = { ...description, badge: `${type} · truncated JSON · ${formatResultBytes(description.bytes)}` };
-  }
-  return { value, description, raw: false };
-}
-
-/** What Copy puts on the clipboard: scalars raw, everything else as formatted JSON. */
-export function resultCopyText(raw: unknown): string {
-  const { value } = unwrap(raw);
-  if (typeof value === 'string') return value;
-  if (value === undefined) return 'undefined';
-  if (value === null || typeof value !== 'object') return String(value);
-  try {
-    const json = JSON.stringify(value, null, 2);
-    if (json !== undefined) return json;
-  } catch {
-    // Cyclic or otherwise unserializable: fall through to the bounded serializer.
-  }
-  return safeStringify(value, 2, JSON_TEXT_LIMIT);
-}
-
+/** An inline scalar's text: a string quoted, a typed value as the Logs write it (`10n`, `ƒ f()`). */
 function scalarText(value: unknown): string {
   if (typeof value === 'string') return JSON.stringify(value);
   if (value === undefined) return 'undefined';
+  if (value !== null && typeof value === 'object') return logValueText(value);
   return String(value);
 }
 
@@ -74,15 +40,16 @@ function scalarClass(value: unknown): string {
   if (typeof value === 'string') return 'xray-json-string';
   if (typeof value === 'number') return 'xray-json-number';
   if (typeof value === 'boolean') return 'xray-json-bool';
+  if (logKind(value)) {
+    const shown = logDisplay(value);
+    if (shown instanceof TreeLeaf) return LEAF_CLASS[shown.tone];
+  }
   return 'xray-json-null';
 }
 
-function cellText(value: unknown): string {
-  if (value === undefined) return '';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return `Array(${value.length})`;
-  if (typeof value === 'object') return '{…}';
-  return String(value);
+/** A text result's body: a long string, or a cut one's first characters and an ellipsis. */
+function textBody(value: unknown): string {
+  return typeof value === 'string' ? value : logValueText(value, { top: true, limit: 1_000_000 });
 }
 
 export function ResultTable({ rows, columns }: { rows: unknown[]; columns: string[] }): React.ReactElement {
@@ -94,22 +61,24 @@ export function ResultTable({ rows, columns }: { rows: unknown[]; columns: strin
           <tr>{columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr>
         </thead>
         <tbody>
-          {shown.map((row, index) => {
-            const record = row && typeof row === 'object' ? row as Record<string, unknown> : {};
-            return (
-              <tr key={index}>
-                {columns.map((column) => {
-                  const text = cellText(record[column]);
-                  return <td key={column} title={text.length > 40 ? text : undefined}>{text}</td>;
-                })}
-              </tr>
-            );
-          })}
+          {shown.map((row, index) => (
+            <tr key={index}>
+              {columns.map((column) => {
+                const text = cellText(tableCell(row, column));
+                return <td key={column} title={text.length > 40 ? text : undefined}>{text}</td>;
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
       {rows.length > shown.length && <p className="xray-result-more">+{rows.length - shown.length} more</p>}
     </div>
   );
+}
+
+/** A console cap, stated ("Showing 1,000 of 5,000 items"). */
+export function ResultNotice({ notice }: { notice: string | null }): React.ReactElement | null {
+  return notice ? <span className="xray-result-notice">{notice}</span> : null;
 }
 
 /**
@@ -118,12 +87,13 @@ export function ResultTable({ rows, columns }: { rows: unknown[]; columns: strin
  * the caller's `actions` — above the body. The view choice can be controlled so it
  * survives the virtualized row unmounting.
  */
-export function ResultView({ value: rawValue, type, described, truncated, onOpenInspector, inspectId, actions, view, onViewChange }: {
+export function ResultView({ value: rawValue, type, described, table, onOpenInspector, inspectId, actions, view, onViewChange }: {
   value: unknown;
   type: string;
   /** Pass when already computed (CommandCell) to avoid describing twice. */
   described?: DescribedResult;
-  truncated?: boolean;
+  /** table() returned the value (the out-of-band flag): lay its rows out as a table. */
+  table?: boolean;
   /** When given, a big object/array renders as a summary with Open in inspector (C6). */
   onOpenInspector?: (value: unknown) => void;
   /** Tags the Open in inspector control so closing the inspector can return focus to it. */
@@ -133,10 +103,10 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
   onViewChange?: (view: ResultViewMode) => void;
 }): React.ReactElement {
   const own = useMemo(
-    () => described ?? describeCommandResult(rawValue, type, truncated),
-    [described, rawValue, type, truncated],
+    () => described ?? describeCommandResult(rawValue, type, table),
+    [described, rawValue, type, table],
   );
-  const { value, description, raw } = own;
+  const { value, description } = own;
   const [localView, setLocalView] = useState<ResultViewMode | null>(null);
   const tableAllowed = description.kind === 'table';
   const requested = view ?? localView;
@@ -144,7 +114,11 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
     ? requested
     : tableAllowed ? 'table' : 'tree';
   const jsonText = useMemo(
-    () => (current === 'json' && description.kind !== 'scalar' && description.kind !== 'text' ? safeStringify(value, 2, JSON_TEXT_LIMIT) : ''),
+    () => (current === 'json' && description.kind !== 'scalar' && description.kind !== 'text' ? resultJsonText(value) : ''),
+    [current, description.kind, value],
+  );
+  const display = useMemo(
+    () => (current === 'tree' && (description.kind === 'tree' || description.kind === 'table') ? logDisplay(value) : null),
     [current, description.kind, value],
   );
   const choose = (next: ResultViewMode): void => {
@@ -153,10 +127,11 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
   };
 
   if (description.kind === 'scalar') {
+    const text = scalarText(value);
     return (
       <span className="xray-result-inline">
         <span className="xray-result-arrow" aria-hidden="true">→</span>
-        <code className={`xray-result-scalar ${raw ? 'xray-json-punct' : scalarClass(value)}`} title={raw ? String(value) : scalarText(value)}>{raw ? String(value) : scalarText(value)}</code>
+        <code className={`xray-result-scalar ${scalarClass(value)}`} title={text}>{text}</code>
         <span className="xray-result-badge">{description.badge}</span>
         {actions}
       </span>
@@ -169,6 +144,7 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
       <div className="xray-result is-big">
         <div className="xray-result-bar">
           <span className="xray-result-badge">{description.badge}</span>
+          <ResultNotice notice={description.notice} />
           <span className="xray-result-actions">{actions}</span>
         </div>
         <div className="xray-result-big">
@@ -189,6 +165,7 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
     <div className="xray-result">
       <div className="xray-result-bar">
         <span className="xray-result-badge">{description.badge}</span>
+        <ResultNotice notice={description.notice} />
         {modes.length > 0 && (
           <div className="xray-result-views" role="group" aria-label="Result view">
             {modes.map((mode) => (
@@ -216,13 +193,13 @@ export function ResultView({ value: rawValue, type, described, truncated, onOpen
       </div>
       <div className="xray-result-body">
         {description.kind === 'text' ? (
-          <pre className="xray-result-text">{String(value)}</pre>
+          <pre className="xray-result-text">{textBody(value)}</pre>
         ) : current === 'table' ? (
-          <ResultTable rows={value as unknown[]} columns={description.columns} />
+          <ResultTable rows={resultRows(value) ?? []} columns={description.columns} />
         ) : current === 'json' ? (
           <pre className="xray-json xray-result-json">{jsonText}</pre>
         ) : (
-          <JsonView value={value} />
+          <JsonView value={display} />
         )}
       </div>
     </div>

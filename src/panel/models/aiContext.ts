@@ -1,5 +1,6 @@
 import type { AiSettings, XrayEntry } from '../types';
 import { isSensitiveName } from './experiments';
+import { LosslessNumber, parseJson, toValue } from './jsonText';
 
 export interface AiContextOptions {
   headers: boolean;
@@ -81,6 +82,14 @@ function redactUrl(value: string): string {
   }
 }
 
+/** FormData pairs with every value under a sensitive name replaced: [name, value | file] in order. */
+function formPairs(pairs: readonly unknown[], customHeader: string): unknown[] {
+  return pairs.map((pair) => {
+    if (!Array.isArray(pair) || pair.length < 2 || typeof pair[0] !== 'string') return pair;
+    return [pair[0], sensitive(pair[0], customHeader) ? REDACTED : pair[1]];
+  });
+}
+
 function durationMs(value: unknown): number {
   const number = typeof value === 'number' ? value : typeof value === 'string' && value.length <= 100 ? Number(value) : 0;
   return Number.isFinite(number) ? Math.round(number) : 0;
@@ -114,12 +123,16 @@ function projection(entry: XrayEntry, related: XrayEntry[], destination: AiDesti
     if (depth > 12) return omitted('depth limit 12');
     if (value == null || typeof value === 'boolean') return value ?? null;
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    // An integer past 2^53 from the lossless parse: its digits as written (JSON.stringify writes the lexeme).
+    if (value instanceof LosslessNumber) return value;
     if (typeof value === 'string') {
       const bounded = text(value);
       if (bounded !== value) return bounded;
       const trimmed = value.trim();
       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try { return visit(JSON.parse(trimmed), depth + 1, body); } catch { /* Non-JSON text stays inert. */ }
+        // The lossless parser (spec J1): an integer past 2^53 keeps its digits. Non-JSON text stays inert.
+        const doc = parseJson(trimmed);
+        if (doc.ok && doc.kind === 'json') return visit(toValue(doc.root), depth + 1, body);
       }
       if (body) notice(WARNING);
       const urlText = /^(?:[a-z][a-z\d+.-]*:\/\/|\/|\?)[^\s<>"']*$/i.test(value) ? redactUrl(value) : value;
@@ -167,7 +180,18 @@ function projection(entry: XrayEntry, related: XrayEntry[], destination: AiDesti
   if (entry.graphql) context.graphql = { operationName: field('metadata', entry.graphql.operationName), operationType: field('metadata', entry.graphql.operationType) };
   context.requestHeaders = field('headers', entry.requestHeaders);
   context.responseHeaders = field('headers', entry.responseHeaders);
-  context.requestBody = field('request body', entry.requestBody, true);
+  // The request text as captured (spec J10), never the parsed copy a saved session key-sorted. A FormData
+  // is its fields, each value redacted by its field name as the share-safe export does: its text
+  // rendering joins values with line breaks, which no pattern can tell from a value's own spaces and
+  // newlines. Without its fields (not kept with the entry) it is left out.
+  if (entry.requestBodyKind === 'formdata') {
+    section = 'request body';
+    const pairs = Array.isArray(entry.requestBody) ? formPairs(entry.requestBody, destination.authHeader) : null;
+    context.requestBody = pairs ? visit(pairs, 0, true) : omitted('FormData fields not kept');
+  } else {
+    const sentText = entry.requestBodyKind !== 'binary' && typeof entry.requestBodyText === 'string' ? entry.requestBodyText : undefined;
+    context.requestBody = field('request body', sentText ?? entry.requestBody, true);
+  }
   if (entry.graphql) (context.graphql as Record<string, unknown>).variables = field('request body', entry.graphql.variables, true);
   context.response = field('response body', entry.responseDecrypted ?? entry.responseRaw ?? entry.response, true);
   return { context, notices };

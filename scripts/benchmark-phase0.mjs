@@ -79,20 +79,26 @@ const payload = Array.from({ length: 10_000 }, (_, index) => ({
 const previous = payload.map((row, index) => index % 17 === 0 ? { ...row, field_0: 'previous' } : row);
 const workload = '10000 rows / 24 generated fields + id and nested';
 fixtures.push({ workload, jsonBytes: Buffer.byteLength(JSON.stringify(payload)) });
-measure(workload, 'worker inferSchema', () => worker.inferSchema(payload),
-  result => assert.equal(result[0].id, 'number'));
-measure(workload, 'worker computeDiff / full traversal', () => worker.computeDiff(previous, payload),
-  result => assert.equal(result.length, Math.ceil(payload.length / 17)));
-measure(workload, 'worker gridRows / capped', () => worker.gridRows(payload),
-  result => assert.equal(result.objects.length, 200));
+// The worker's inferSchema/computeDiff/gridRows/detailAnalysis were removed by JSON fidelity
+// Task 6 (spec J11: Table, Schema and Diff run panel-side on every surface); measured only when present.
+if (typeof worker.inferSchema === 'function') {
+  measure(workload, 'worker inferSchema', () => worker.inferSchema(payload),
+    result => assert.equal(result[0].id, 'number'));
+  measure(workload, 'worker computeDiff / full traversal', () => worker.computeDiff(previous, payload),
+    result => assert.equal(result.length, Math.ceil(payload.length / 17)));
+  measure(workload, 'worker gridRows / capped', () => worker.gridRows(payload),
+    result => assert.equal(result.objects.length, 200));
+}
 measure(workload, 'worker computeStats / bounded', () => worker.computeStats(payload),
   result => assert.ok(result.keyCount > 0));
-measure(workload, 'worker detailAnalysis', () => worker.detailAnalysis(payload, previous),
-  result => {
-    assert.equal(result.engine, 'worker-js');
-    assert.equal(result.grid.objects.length, 200);
-    assert.equal(result.diff.structuralDiff.length, 500);
-  });
+if (typeof worker.detailAnalysis === 'function') {
+  measure(workload, 'worker detailAnalysis', () => worker.detailAnalysis(payload, previous),
+    result => {
+      assert.equal(result.engine, 'worker-js');
+      assert.equal(result.grid.objects.length, 200);
+      assert.equal(result.diff.structuralDiff.length, 500);
+    });
+}
 
 const sourcePaths = [
   'workers/xray-worker.js', 'src/panel/models/entries.ts', 'src/panel/models/globalSearch.ts',

@@ -20,8 +20,9 @@ const lodashLite = H.createRuntime()._;
 
 test('console-helpers: the module publishes the expected export surface', () => {
   assert.deepEqual(Object.keys(H).sort(), [
-    'buildMock', 'createRuntime', 'diff', 'flatten', 'generateCurl', 'generateFetch',
-    'omit', 'parseBody', 'parseParams', 'parseUrl', 'pick', 'schema', 'toCSV', 'toTable',
+    'buildMock', 'createRuntime', 'diff', 'encodeResult', 'flatten', 'generateCurl', 'generateFetch',
+    'omit', 'parseBody', 'parseParams', 'parseUrl', 'pick', 'reviveContext', 'reviveValue', 'schema',
+    'siblingEntry', 'toCSV', 'toTable',
   ]);
   assert.equal(H.lodashLite, undefined, 'lodashLite is private; only createRuntime()._ exposes it');
 });
@@ -113,10 +114,14 @@ test('toCSV: the header row is escaped and columns come from every row', () => {
   assert.equal(H.toCSV([{ v: '=1+1' }]), "v\n'=1+1", 'formula-looking cells are neutralised');
 });
 
-test('toTable: wraps an array in the panel render marker, coercing non-arrays to empty', () => {
-  assert.deepEqual(hostify(H.toTable([{ a: 1 }])), { __xr_render: 'table', data: [{ a: 1 }] });
-  assert.deepEqual(hostify(H.toTable('nope')), { __xr_render: 'table', data: [] });
-  assert.deepEqual(hostify(H.toTable(null)), { __xr_render: 'table', data: [] });
+test('toTable: evaluates to a copy of the rows (the render flag is out of band), coercing non-arrays to empty', () => {
+  const rows = [{ a: 1 }];
+  assert.deepEqual(hostify(H.toTable(rows)), [{ a: 1 }]);
+  assert.notEqual(H.toTable(rows), rows, 'a copy: the caller\'s array is never marked');
+  assert.equal(H.encodeResult(H.toTable(rows)).render, 'table');
+  assert.equal(H.encodeResult(rows).render, undefined);
+  assert.deepEqual(hostify(H.toTable('nope')), []);
+  assert.deepEqual(hostify(H.toTable(null)), []);
 });
 
 // ───────────────────────────────────────────────────────────── diff
@@ -469,4 +474,49 @@ test('createRuntime: $help documents pins and no longer advertises pin("name")',
   assert.doesNotMatch(help, /pin\("name"\)/);
   assert.match(help, /a … f +pinned requests' parsed response bodies/);
   assert.match(help, /reused/);
+});
+
+// ───────────────────────────────────────────────────── JSON fidelity Task 9 (spec J10)
+
+// The audit's request fixtures (#5): the request text as captured (requestBodyText), beside a parsed
+// copy that JSON.parse rounded and chrome.storage key-sorted.
+const REQUEST_TEXTS = {
+  jsonstring: '"hello"',
+  double: '"{\\"a\\":1}"',
+  literalnull: 'null',
+  literalfalse: 'false',
+  pretty: '{\n  "a": 1\n}',
+  keyorder: '{"b":1,"a":2,"10":3,"2":4}',
+  bigint: '{"id": 9007199254740993, "n": 12345678901234567890}',
+  empty: '',
+};
+const sentEntry = (text) => ({
+  url: 'https://api.test/echo', method: 'POST', requestHeaders: { 'content-type': 'application/json' },
+  requestBodyKind: 'text', requestBodyText: text, requestBody: { a: 1, b: 1, id: 9007199254740992 },
+});
+
+test('J10 generateCurl / generateFetch send the raw request text, false, null and "" bodies included', () => {
+  for (const [name, text] of Object.entries(REQUEST_TEXTS)) {
+    const quoted = `'${text.replace(/'/g, "'\\''")}'`;
+    assert.ok(H.generateCurl(sentEntry(text)).endsWith(` \\\n  --data-raw ${quoted}`), `${name}: cURL`);
+    const snippet = H.generateFetch(sentEntry(text));
+    assert.equal(JSON.parse(snippet.slice(snippet.indexOf(', ') + 2, -1)).body, text, `${name}: fetch`);
+  }
+  assert.ok(!H.generateCurl({ ...sentEntry('x'), requestBodyKind: 'none', requestBodyText: undefined, requestBody: null }).includes('--data-raw'));
+  // An entry saved before J4 has only its parsed value: false and 0 are bodies too (audit #5).
+  assert.ok(H.generateCurl({ url: 'u', method: 'POST', requestBody: false }).endsWith("--data-raw 'false'"));
+  const zero = H.generateFetch({ url: 'u', method: 'POST', requestBody: 0 });
+  assert.equal(JSON.parse(zero.slice(zero.indexOf(', ') + 2, -1)).body, '0');
+});
+
+test('Carry (Task 7): buildMock / $mock() keep integers past 2^53 exact (BigInt, like res)', () => {
+  const entry = { type: 'api', url: 'https://a.test/x', method: 'get', status: 200, responseRaw: '{"id":9007199254740993,"n":12345678901234567890,"small":1,"f":1.5}' };
+  const mock = H.buildMock(entry);
+  assert.equal(mock.response.id, 9007199254740993n);
+  assert.equal(mock.response.n, 12345678901234567890n);
+  assert.equal(mock.response.small, 1);
+  assert.equal(mock.response.f, 1.5);
+  const runtime = H.createRuntime({ currentEntry: entry, entries: [entry] });
+  assert.equal(runtime.$mock().response.id, 9007199254740993n);
+  assert.equal(runtime.mock(entry).response.n, 12345678901234567890n);
 });

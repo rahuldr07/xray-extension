@@ -105,3 +105,26 @@ test('Chrome storage can recover after failure and the next strict bridge operat
   await bridge.setStoredValue('session', { saved: true });
   assert.deepEqual(hostify(await bridge.getStoredValue('session', null)), { saved: true });
 });
+
+// Spec J9: the session-save notice names why a write failed. A full quota is classified in
+// shared/store.js (the only place that sees Chrome's error) and carried as a fixed reason —
+// never Chrome's message, never the key or the value.
+test('a quota rejection is classified as reason "quota"; any other write failure has no reason', async () => {
+  for (const synchronous of [false, true]) {
+    const quota = () => {
+      const error = new Error(`QUOTA_BYTES quota exceeded ${secret}`);
+      if (synchronous) throw error;
+      return Promise.reject(error);
+    };
+    const { bridge, store, logs } = loadBridge({ chrome: { storage: { local: { get: quota, set: quota } } } });
+    await rejectsSafely(bridge.setStoredValue(secret, { secret }), 'storage-write-failed');
+    await assert.rejects(bridge.setStoredValue('session', {}), (error) => error.reason === 'quota');
+    await assert.rejects(store.set('session', {}, true), (error) => error.reason === 'quota');
+    await assert.rejects(bridge.getStoredValue('session', null), (error) => error.code === 'storage-read-failed' && error.reason === undefined);
+    assert.deepEqual(logs, []);
+  }
+  const { bridge } = loadBridge({ chrome: { storage: { local: { get: async () => ({}), set: async () => { throw new Error(secret); } } } } });
+  await assert.rejects(bridge.setStoredValue('session', {}), (error) => error.code === 'storage-write-failed' && error.reason === undefined);
+  const missing = loadBridge({ chrome: undefined });
+  await assert.rejects(missing.bridge.setStoredValue('session', {}), (error) => error.code === 'storage-unavailable' && error.reason === undefined);
+});

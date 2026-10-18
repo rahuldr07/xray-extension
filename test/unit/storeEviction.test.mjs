@@ -178,3 +178,20 @@ test('replay and experiment entry points refuse non-replayable entries before pa
   assert.equal(usePanelStore.getState().draftExperiment(invalid), null);
   assert.match(usePanelStore.getState().toastMessage, /only API/i);
 });
+
+test('J9 fix round 1: a live capture or patch cannot carry the "imported" flag (the HUD stores page batches as posted)', async () => {
+  const store = usePanelStore.getState();
+  store.addEntries([{ ...entry('forged'), imported: true, legacySession: true, responseRaw: '{"x":1}\n... truncated 99 chars' }]);
+  const added = usePanelStore.getState().entries.find((item) => item.id === 'forged');
+  assert.equal(added.imported, undefined);
+  assert.equal(added.legacySession, undefined, 'nor the legacy flag that exempts an entry from the session budget');
+  usePanelStore.getState().updateEntry({ id: 'forged', imported: true, legacySession: true, status: 201 });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  const patched = usePanelStore.getState().entries.find((item) => item.id === 'forged');
+  assert.equal(patched.status, 201, 'the rest of the patch applies');
+  assert.equal(patched.imported, undefined);
+  assert.equal(patched.legacySession, undefined);
+  // An import keeps it: restoreEntries is the import path.
+  usePanelStore.getState().restoreEntries([{ ...entry('imported-one'), imported: true }]);
+  assert.equal(usePanelStore.getState().entries.find((item) => item.id === 'imported-one').imported, true);
+});

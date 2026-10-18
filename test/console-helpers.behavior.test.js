@@ -22,7 +22,10 @@ test('shared console helpers build request-aware runtime helpers', () => {
   assert.equal(runtime.entry.id, 'b');
   assert.equal(JSON.stringify(runtime.headers), '{}');
   assert.equal(runtime.prev.items[0].total, 10);
-  assert.equal(runtime.table([{ ok: true }]).__xr_render, 'table');
+  // table() evaluates to its rows; the render flag travels beside the value (spec J8).
+  const rows = runtime.table([{ ok: true }]);
+  assert.equal(Array.isArray(rows) && rows[0].ok, true);
+  assert.equal(context.window.XRAY_ConsoleHelpers.encodeResult(rows).render, 'table');
   assert.equal(runtime.schema(runtime.res).error, 'string');
   assert.equal(runtime.$errors().length, 1);
   assert.equal(runtime.$slow(1000)[0].id, 'b');

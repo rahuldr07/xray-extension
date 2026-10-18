@@ -2,6 +2,7 @@ import type { XrayEntry } from '../types';
 
 export interface ConsoleExecutionResult {
   type: string;
+  /** The value in the typed log model (spec J8; models/consoleResults.ts describes it). */
   result?: unknown;
   error?: {
     code?: string;
@@ -9,7 +10,12 @@ export interface ConsoleExecutionResult {
     stack?: string;
   };
   truncated?: boolean;
+  /** table()/toTable() returned the value: lay its rows out as a table (an out-of-band flag). */
+  render?: 'table';
 }
+
+/** The typed body of an entry's response or request, as the Console context carries it. */
+export type ConsoleBodyReader = (entry: XrayEntry, side: 'response' | 'request') => unknown;
 
 export function initConsoleRuntime(): void {
   window.XRAY_Console?.init?.();
@@ -19,7 +25,12 @@ export function setConsoleContext(entry: XrayEntry | null): void {
   window.XRAY_Console?.setContext?.(entry);
 }
 
-export async function executeConsoleCommand(code: string): Promise<ConsoleExecutionResult | null> {
+/**
+ * Run `code` through the engine. `readBody` (the running surface's lossless parse) gives the
+ * values `res`, `req`, `prev`, `next` and pins carry, so an integer past 2^53 reaches the page
+ * exactly (as a BigInt); without it the page parses the raw text.
+ */
+export async function executeConsoleCommand(code: string, readBody?: ConsoleBodyReader): Promise<ConsoleExecutionResult | null> {
   const bridge = window.XRAY_Console;
   if (!bridge?.execute) {
     return {
@@ -31,7 +42,7 @@ export async function executeConsoleCommand(code: string): Promise<ConsoleExecut
     };
   }
   try {
-    return await bridge.execute(code);
+    return await bridge.execute(code, readBody ? { readBody } : undefined);
   } catch {
     return {
       type: 'error',

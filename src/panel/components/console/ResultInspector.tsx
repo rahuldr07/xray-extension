@@ -1,15 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconArrowLeft, IconCopy, IconCornerDownLeft, IconSearch, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { describeResult } from '../../models/consoleResults';
+import { describeResult, resultJsonText, resultRows, type ResultDescription } from '../../models/consoleResults';
 import { formatPath, parsePlainPath, type PathSegment } from '../../models/consoleAssist';
+import { logDisplay } from '../../models/logValue';
 import { pushEscapeLayer } from '../../runtime/panelKeyboard';
-import { copyText, safeStringify } from '../../utils';
+import { copyText } from '../../utils';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { JsonView } from '../detail/JsonView';
-import { ResultTable, type ResultViewMode } from './ResultView';
+import { ResultNotice, ResultTable, type ResultViewMode } from './ResultView';
 
 const iconProps = { size: 15, stroke: 1.8 } as const;
-const JSON_TEXT_LIMIT = 200_000;
+// The description of a value describeResult cannot read: Tree and JSON views only.
+const UNREADABLE: ResultDescription = { kind: 'tree', badge: 'value', big: false, bytes: 0, count: null, summary: '', columns: [], notice: null };
+
+// Inspected values are the typed log model (a command result, a page log's argument — spec J7/J8):
+// the JSON view is its JSON projection, never its envelopes. Built inside the body's error
+// boundary: the projection can throw on a hand-built value.
+function JsonText({ value }: { value: unknown }): React.ReactElement {
+  const text = useMemo(() => resultJsonText(value), [value]);
+  return <pre className="xray-json xray-result-json">{text}</pre>;
+}
+
+// The tree shows typed values as the Logs do (10n, Map(2) with "k" => children); a listed
+// object's children keep their names as path segments.
+function TreeBody({ value, onSelectPath, filter }: { value: unknown; onSelectPath: (segments: PathSegment[]) => void; filter: string }): React.ReactElement {
+  const display = useMemo(() => logDisplay(value), [value]);
+  return <JsonView value={display} onSelectPath={onSelectPath} filter={filter} />;
+}
 const SIMPLE_IDENT = /^[A-Za-z_$][\w$]*$/;
 
 /**
@@ -58,7 +76,13 @@ export function ResultInspector({ value, label, rootExpression, mode, onClose, o
   onUsePath: (path: string) => void;
 }): React.ReactElement {
   const showToast = usePanelStore((state) => state.showToast);
-  const description = useMemo(() => describeResult(value, ''), [value]);
+  const description = useMemo(() => {
+    try {
+      return describeResult(value, '');
+    } catch {
+      return UNREADABLE; // the body below fails inside its error boundary instead
+    }
+  }, [value]);
   const tableAllowed = description.kind === 'table';
   const [view, setView] = useState<ResultViewMode>('tree');
   const [filter, setFilter] = useState('');
@@ -68,7 +92,6 @@ export function ResultInspector({ value, label, rootExpression, mode, onClose, o
   const filterRef = useRef<HTMLInputElement | null>(null);
   const overlay = mode === 'overlay';
 
-  const jsonText = useMemo(() => (view === 'json' ? safeStringify(value, 2, JSON_TEXT_LIMIT) : ''), [view, value]);
   const path = selected ? inspectorPath(rootExpression, selected) : '';
 
   // Escape: a layer below dialogs and menus, above the panel.
@@ -139,6 +162,7 @@ export function ResultInspector({ value, label, rootExpression, mode, onClose, o
           </button>
         )}
       </header>
+      {description.notice && <p className="xray-inspector-notice"><ResultNotice notice={description.notice} /></p>}
       <div className="xray-inspector-tools">
         <div className="xray-result-views" role="group" aria-label="Inspector view">
           {modes.map((item) => (
@@ -169,13 +193,17 @@ export function ResultInspector({ value, label, rootExpression, mode, onClose, o
         )}
       </div>
       <div className="xray-inspector-body">
-        {view === 'table' && tableAllowed ? (
-          <ResultTable rows={value as unknown[]} columns={description.columns} />
-        ) : view === 'json' ? (
-          <pre className="xray-json xray-result-json">{jsonText}</pre>
-        ) : (
-          <JsonView value={value} onSelectPath={setSelected} filter={deferredFilter} />
-        )}
+        {/* J12: the header, view switch, footer and Escape layer stay outside, so the
+            inspector can always switch view or close. */}
+        <ErrorBoundary resetKeys={[value, view]} raw={() => value}>
+          {view === 'table' && tableAllowed ? (
+            <ResultTable rows={resultRows(value) ?? []} columns={description.columns} />
+          ) : view === 'json' ? (
+            <JsonText value={value} />
+          ) : (
+            <TreeBody value={value} onSelectPath={setSelected} filter={deferredFilter} />
+          )}
+        </ErrorBoundary>
       </div>
       <footer className="xray-inspector-foot">
         {path

@@ -84,6 +84,12 @@ const { outputFiles } = await build({
              sessionWriteActive: this.sessionWriteActive,
              sessionWriteMaxActive: this.sessionWriteMaxActive };
         },
+        notice() {
+          const nodes = [...this.root.querySelectorAll('.xray-save-notice')];
+          const box = nodes[0]?.getBoundingClientRect();
+          return { count: nodes.length, text: nodes[0]?.textContent ?? null, role: nodes[0]?.closest('[role]')?.getAttribute('role') ?? null,
+            visible: !!box && box.width > 0 && box.height > 0, workspace: (this.root === document ? document.body : this.root).textContent.includes('Fixture workspace') };
+        },
       };
     `,
   }, bundle: true, format: 'iife', write: false,
@@ -125,7 +131,7 @@ test('legacy entries migrate once and debounced writes contain one bounded envel
   state = await snapshot(page);
   assert.equal(sessionWrites(state).length, 1);
   const persisted = sessionWrites(state)[0].value;
-  assert.equal(persisted.schemaVersion, 1);
+  assert.equal(persisted.schemaVersion, 2);
   assert.equal(persisted.sessionId, id);
   assert.deepEqual(persisted.entries.map(item => item.id), ['legacy', 'new']);
   assert.equal(persisted.entries[1].status, 201);
@@ -224,6 +230,50 @@ test('storage rejection leaves live traffic intact with a secret-free degraded r
   assert.doesNotMatch(JSON.stringify(state.session.runtime), /credential|synthetic secret/);
   assert.deepEqual(state.errors, []);
 });
+
+// Spec J9: a failed session write is said in the panel, once per failure streak, as well as in the
+// diagnostics receipt; a successful save ends the streak.
+for (const shadow of [false, true]) {
+  test(`a failed session save shows one notice per failure streak (${shadow ? 'closed shadow' : 'document'})`, async t => {
+    const page = await fixture(t, { shadow, failWrite: true });
+    const notice = () => page.evaluate(() => window.sessionTest.notice());
+    const storeWrites = (mode) => page.evaluate(mode => {
+      window.XRAY_Store.set = mode === 'ok'
+        ? async (key, value) => { window.sessionTest.stored[key] = structuredClone(value); }
+        : async () => { throw Object.assign(new Error('storage-write-failed'), { code: 'storage-write-failed', reason: 'quota' }); };
+    }, mode);
+    await action(page, 'addEntry', entry('unsaved'));
+    assert.equal((await notice()).count, 0, 'nothing is said before a write fails');
+    await page.waitForTimeout(4100);
+    let shown = await notice();
+    assert.equal(shown.count, 1);
+    assert.ok(shown.visible);
+    assert.equal(shown.role, 'alert');
+    assert.equal(shown.text.replace('Dismiss', '').trim(), "Couldn't save the session — the browser refused the write.");
+    assert.ok(shown.workspace, 'non-blocking: the panel body is still there');
+    assert.equal((await snapshot(page)).health.lastErrorCode, 'storage-write-failed', 'the diagnostics receipt stays');
+    assert.doesNotMatch(shown.text, /credential|synthetic secret/);
+    await click(page, 'Dismiss save notice');
+    assert.equal((await notice()).count, 0);
+    await action(page, 'clearSession');
+    await page.waitForTimeout(100);
+    assert.equal((await notice()).count, 0, 'the same streak does not raise it again');
+    await storeWrites('ok');
+    await action(page, 'clearSession');
+    await page.waitForTimeout(100);
+    await storeWrites('quota');
+    await action(page, 'clearSession');
+    await page.waitForTimeout(100);
+    shown = await notice();
+    assert.equal(shown.count, 1, 'a new streak raises it again');
+    assert.equal(shown.text.replace('Dismiss', '').trim(), "Couldn't save the session — the browser's storage for XRAY is full.");
+    await storeWrites('ok');
+    await action(page, 'clearSession');
+    await page.waitForTimeout(100);
+    assert.equal((await notice()).count, 0, 'a successful save ends the streak and the notice');
+    assert.deepEqual((await snapshot(page)).errors, []);
+  });
+}
 
 test('failed initial storage read still initializes runtime receipts and accepts traffic', async t => {
   const page = await fixture(t, { failRead: true });
@@ -424,7 +474,13 @@ test('current envelopes win over legacy data and snapshots bound bodies/entries 
   assert.equal(saved.createdAt, 100);
   assert.equal(saved.entryCount, 500);
   assert.equal(saved.entries.length, 500);
-  assert.equal(saved.entries[0].responseRaw.length, 20001);
+  // Spec J9: one 3 MB budget, newest first, and every older entry keeps its first 2 KB; a cut is
+  // metadata, never an in-band "…".
+  assert.equal(saved.entries[499].responseRaw.length, 21000);
+  assert.equal(saved.entries[499].responseTruncated, undefined);
+  assert.equal(saved.entries[0].responseRaw.length, 2048);
+  assert.deepEqual(saved.entries[0].responseTruncated, { totalChars: 21000, keptChars: 2048 });
+  assert.ok(saved.entries.every(item => !item.responseRaw.endsWith('…')));
   assert.equal(saved.source.origin, 'https://last.test');
   assert.doesNotMatch(JSON.stringify(saved.source), /SOURCE_SECRET|credential/);
   assert.equal(saved.runtime.acceptedCount, 519);
@@ -445,6 +501,26 @@ test('trusted cumulative drop receipts are counted once and page-posted receipts
   await page.waitForTimeout(50);
   assert.equal((await snapshot(page)).health.droppedCount, 4);
   assert.equal((await snapshot(page)).health.acceptedCount, 0);
+});
+
+test('a clone-failed or pending-overflow drop names its reason in the runtime diagnostics', async t => {
+  const page = await fixture(t);
+  await page.evaluate(async () => {
+    let listener;
+    window.XRAY_CaptureReceipt = { get: () => ({ dropped: 0 }), subscribe: callback => { listener = callback; return () => {}; } };
+    await window.sessionTest.action('restorePreferences');
+    window.emitReceipt = receipt => listener(receipt);
+  });
+  const health = async receipt => {
+    await page.evaluate(receipt => window.emitReceipt(receipt), receipt);
+    return (await snapshot(page)).health;
+  };
+  assert.equal((await health({ dropped: 1, dropReasons: { 'clone-failed': 1 } })).lastErrorCode, 'clone-failed');
+  assert.equal((await health({ dropped: 3, dropReasons: { 'clone-failed': 1, 'pending-overflow': 2 } })).lastErrorCode, 'pending-overflow');
+  const last = await health({ dropped: 4, dropReasons: { 'clone-failed': 1, 'pending-overflow': 2, 'invalid-entry': 1 } });
+  assert.equal(last.lastErrorCode, 'capture-drop', 'other reasons keep the generic code');
+  assert.equal(last.droppedCount, 4);
+  assert.match((await snapshot(page)).diagnostic, /4 dropped · capture-drop/);
 });
 
 test('an explicit supported restart waits for health and is attempted at most once without altering context', async t => {

@@ -1,6 +1,5 @@
 import type { XrayEntry } from '../types';
-import { buildSessionIndex, getIndexedSearchDocument, type SessionIndex } from './sessionIndex';
-import { entryRequest, entryResponse, safeStringify } from '../utils';
+import { buildSessionIndex, entrySearchFields, getIndexedSearchDocument, type SearchFieldFilter, type SessionIndex } from './sessionIndex';
 
 export interface GlobalSearchMatch {
   id: string;
@@ -58,16 +57,16 @@ export type GlobalSearchField =
 
 const MAX_MATCHES = 200;
 const SNIPPET_RADIUS = 44;
-// Cap how much of any one body we scan so a giant response can't stall the search.
-const FIELD_SCAN_CHARS = 20_000;
 
-// The searchable fields of an entry, in priority order. The first one that matches
-// is what the result row reports, so URL/method come before bulky bodies.
-function entryFields(entry: XrayEntry, fields?: readonly GlobalSearchField[]): Array<[string, string]> {
-  const out: Array<[string, string]> = [];
-  const selected = fields === undefined ? null : new Set(fields.map((field) => String(field).toLowerCase().replace(/ /g, '')));
-  const wants = (name: string): boolean => {
-    if (selected === null || selected.has('all')) return true;
+/**
+ * Which fields a search scans, as a predicate over normalised names ('Response body' and
+ * 'responseBody' are both 'responsebody'): every field when `fields` is omitted.
+ */
+function fieldSelection(fields?: readonly GlobalSearchField[]): SearchFieldFilter {
+  if (fields === undefined) return () => true;
+  const selected = new Set(fields.map((field) => String(field).toLowerCase().replace(/ /g, '')));
+  return (name: string): boolean => {
+    if (selected.has('all')) return true;
     const normalized = name.toLowerCase().replace(/ /g, '');
     if (selected.has(normalized)) return true;
     if (selected.has('headers') && normalized.endsWith('headers')) return true;
@@ -76,22 +75,6 @@ function entryFields(entry: XrayEntry, fields?: readonly GlobalSearchField[]): A
     if (selected.has('response') && normalized.startsWith('response')) return true;
     return selected.has('identity') && ['method', 'url', 'status'].includes(normalized);
   };
-  const push = (label: string, value: string | undefined | null): void => {
-    if (value) out.push([label, value.length > FIELD_SCAN_CHARS ? value.slice(0, FIELD_SCAN_CHARS) : value]);
-  };
-  const stringify = (value: unknown): string => (typeof value === 'string' ? value : safeStringify(value, 0, FIELD_SCAN_CHARS));
-
-  if (wants('method')) push('Method', entry.method ? String(entry.method).toUpperCase() : '');
-  if (wants('url')) push('URL', String(entry.url || entry.urlPath || ''));
-  if (wants('status') && entry.status) push('Status', String(entry.status));
-  if (wants('requestHeaders') && entry.requestHeaders && typeof entry.requestHeaders === 'object') push('Request headers', stringify(entry.requestHeaders));
-  const reqBody = entryRequest(entry);
-  if (wants('requestBody') && reqBody != null) push('Request body', stringify(reqBody));
-  if (wants('responseHeaders') && entry.responseHeaders && typeof entry.responseHeaders === 'object') push('Response headers', stringify(entry.responseHeaders));
-  const resBody = entryResponse(entry);
-  if (wants('responseBody') && resBody != null) push('Response body', stringify(resBody));
-  if (wants('message') && entry.message) push('Message', String(entry.message));
-  return out;
 }
 
 function locate(text: string, needleLower: string, query: string, re: RegExp | null, caseSensitive: boolean): { index: number; length: number } | null {
@@ -122,6 +105,7 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
   }
   const needleLower = q.toLowerCase();
   const index = opts.index ?? buildSessionIndex(entries);
+  const wants = fieldSelection(opts.fields);
 
   const matches: GlobalSearchMatch[] = [];
   // Tracks whether the cap stopped the scan with entries still unexamined. Deriving
@@ -134,9 +118,9 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
     // The document cap limits retained derived data, not searchable entries.
     // Misses use the same bounded field derivation transiently, without backfill.
     const document = getIndexedSearchDocument(entry, index);
-    const fields = document ? document.fields : entryFields(entry, opts.fields);
+    const fields = document ? document.fields : entrySearchFields(entry, wants);
     for (const [field, text] of fields) {
-      if (!fieldIsSelected(field, opts.fields)) continue;
+      if (!wants(field)) continue;
       const hit = locate(text, needleLower, q, re, caseSensitive);
       if (!hit) continue;
       const start = Math.max(0, hit.index - SNIPPET_RADIUS);
@@ -157,17 +141,4 @@ export function searchEntries(entries: XrayEntry[], query: string, opts: GlobalS
     }
   }
   return { matches, error: null, truncated: stoppedEarly };
-}
-
-function fieldIsSelected(field: string, fields?: readonly GlobalSearchField[]): boolean {
-  if (fields === undefined) return true;
-  const selected = new Set(fields.map((value) => String(value).toLowerCase().replace(/ /g, '')));
-  if (selected.has('all')) return true;
-  const normalized = field.toLowerCase().replace(/ /g, '');
-  if (selected.has(normalized)) return true;
-  if (selected.has('headers') && normalized.endsWith('headers')) return true;
-  if (selected.has('body') && normalized.endsWith('body')) return true;
-  if (selected.has('request') && normalized.startsWith('request')) return true;
-  if (selected.has('response') && normalized.startsWith('response')) return true;
-  return selected.has('identity') && ['method', 'url', 'status'].includes(normalized);
 }

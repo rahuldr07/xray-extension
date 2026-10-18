@@ -17,7 +17,6 @@ import { PaneDivider } from '../common/PaneDivider';
 import { DisclosureMenu } from '../common/DisclosureMenu';
 import type { InspectRequest } from './CommandCell';
 import { inspectorRoot, ResultInspector } from './ResultInspector';
-import { unwrap } from './ResultView';
 import { insertAtConsoleCaret } from './consoleCaret';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
@@ -78,19 +77,14 @@ export function ConsoleWorkspace(): React.ReactElement {
     if (!inspected) return null;
     let code: string | undefined;
     let variable: string | undefined;
-    let tableMarker = false;
     for (const event of state.consoleEvents) {
       if (event.type === 'command' && (event.commandId || event.id) === inspected.cellId) code = event.message;
-      else if (event.commandId === inspected.cellId && event.type === 'result') {
-        variable = event.variable;
-        tableMarker = unwrap(event.data).value !== event.data;
-      }
+      else if (event.commandId === inspected.cellId && event.type === 'result') variable = event.variable;
     }
     if (code === undefined) return null;
-    const root = inspectorRoot(code, variable);
-    // The inspector shows a table() result's rows; the expression itself evaluates to
-    // the render marker, so its paths go through `.data` (a saved variable holds the rows).
-    return root && tableMarker && !variable ? `${root}.data` : root;
+    // table() evaluates to its rows (the render flag is out of band, spec J8), so paths
+    // index the expression directly.
+    return inspectorRoot(code, variable);
   });
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);

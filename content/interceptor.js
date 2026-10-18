@@ -26,6 +26,37 @@
   const _config = { captureFetch: true, captureXhr: true, captureWs: true, rules: [] };
   const MAX_CAPTURE_TEXT_CHARS = 250000;
   const MAX_CAPTURE_BODY_CHARS = 50000;
+  // A byte body is decoded through at most this many bytes per kept char (UTF-8 needs at
+  // most 3 bytes per UTF-16 unit), so a large upload is never read whole for a prefix.
+  const DECODE_BYTES_PER_CHAR = 4;
+  const REQUEST_DECODE_BYTES = MAX_CAPTURE_BODY_CHARS * DECODE_BYTES_PER_CHAR;
+  const BASE64_PREFIX_BYTES = 64;
+  // How long a Request body read may continue after the request settles before it stops
+  // with what it has (a stream the page never closes must not hold the entry back).
+  const SETTLE_GRACE_MS = 100;
+  const MAX_GRAPHQL_VARIABLES_CHARS = 10000;
+  // A request text past the capture cap is parsed (synchronously, inside the page's fetch() or
+  // send()) only when it may be GraphQL, and only up to this many chars (Task 3 ruling): past it,
+  // such a request shows as a plain POST.
+  const MAX_GRAPHQL_PARSE_CHARS = 1000000;
+  // A replayed FormData holds at most this many fields and characters of names and values
+  // (src/panel/models/replayBody.ts holds the same bounds; a form captured whole always fits).
+  const MAX_REPLAY_FORM_FIELDS = 1000;
+  const MAX_REPLAY_FORM_CHARS = MAX_CAPTURE_BODY_CHARS;
+  // Captured at document_start, before page script can replace them.
+  const _TextDecoder = typeof TextDecoder === 'function' ? TextDecoder : null;
+  const _TextEncoder = typeof TextEncoder === 'function' ? TextEncoder : null;
+  const _XMLSerializer = typeof XMLSerializer === 'function' ? XMLSerializer : null;
+  // Replay rebuilds a FormData of text fields with the constructor and append() as they were here,
+  // so page script that later replaces FormData or FormData.prototype.append does not change how the
+  // form is built. It is not sealed from the page: append runs through Function.prototype.call, and
+  // the capture of the replayed request reads the form with FormData.prototype.forEach, so a page
+  // that patches those can observe or alter its own replay, as it can any request it sends.
+  const _FormData = typeof FormData === 'function' ? FormData : null;
+  const _formAppend = _FormData && typeof _FormData.prototype.append === 'function' ? _FormData.prototype.append : null;
+  const _btoa = typeof btoa === 'function' ? btoa : null;
+  const _objectToString = Object.prototype.toString;
+  const _isView = ArrayBuffer.isView;
   const MAX_RULES = 50;
   const MAX_RULE_BODY_CHARS = 100000;
   const MAX_RULE_PATTERN_CHARS = 300;
@@ -88,13 +119,110 @@
     if (_suppressedIds.size > MAX_SUPPRESSED_IDS) _suppressedIds.delete(_suppressedIds.values().next().value);
   }
 
-  function _post(entry, update) {
+  function _postCapture(entry, update) {
     try {
       window.postMessage(update
-        ? { __xray_capture__: true, token: _bridgeToken, update: true, entry: _scrubEntry(entry) }
-        : { __xray_capture__: true, token: _bridgeToken, entry: _scrubEntry(entry) }, '*');
-    } catch { /* never throw into the page */ }
+        ? { __xray_capture__: true, token: _bridgeToken, update: true, entry }
+        : { __xray_capture__: true, token: _bridgeToken, entry }, '*');
+      return true;
+    } catch {
+      return false; // never throw into the page
+    }
   }
+
+  // Spec J5: postMessage structured-clones the entry, and a DataCloneError used to be
+  // swallowed here, so the request never appeared (audit #6). The entry is re-posted as a
+  // clone-safe copy flagged captureDegraded; if even that fails, the loss is counted as a
+  // 'clone-failed' drop, which content.js shows in the capture receipt.
+  function _post(entry, update) {
+    const scrubbed = _scrubEntry(entry);
+    if (_postCapture(scrubbed, update)) {
+      if (_dropsUnreported()) _reportDrops();
+      return;
+    }
+    let degraded = null;
+    try {
+      degraded = Object.assign(_cloneSafe(scrubbed, 0), { captureDegraded: true });
+    } catch {
+      degraded = null; // fall through to the counted drop
+    }
+    if (degraded && _postCapture(degraded, update)) return;
+    _countDrop('clone-failed', 1);
+  }
+
+  // Captures lost here are counted, never silent (spec J5): 'clone-failed' (the bridge
+  // refused even the degraded copy) and 'pending-overflow' (the pre-config buffer was full).
+  const _unreportedDrops = { 'clone-failed': 0, 'pending-overflow': 0 };
+
+  function _dropsUnreported() {
+    return _unreportedDrops['clone-failed'] > 0 || _unreportedDrops['pending-overflow'] > 0;
+  }
+
+  function _countDrop(reason, count) {
+    _unreportedDrops[reason] += count;
+    _reportDrops();
+  }
+
+  // Only primitives cross here, so this post cannot fail on cloning; if postMessage fails
+  // anyway, the counts wait for the next post that succeeds.
+  function _reportDrops() {
+    for (const reason of Object.keys(_unreportedDrops)) {
+      while (_unreportedDrops[reason] > 0) {
+        const count = Math.min(500, _unreportedDrops[reason]);
+        try {
+          window.postMessage({ __xray_capture_drop__: true, token: _bridgeToken, reason, count }, '*');
+        } catch {
+          return; // reported with the next capture that posts
+        }
+        _unreportedDrops[reason] -= count;
+      }
+    }
+  }
+
+  function _tagOf(value) {
+    return _objectToString.call(value);
+  }
+
+  // A copy postMessage can always clone, for the degraded re-post: strings, numbers,
+  // booleans and null are kept, arrays and plain records are copied (bounded), and any
+  // other value (function, typed array, Blob, FormData, DOM node, class instance) becomes
+  // a short descriptor such as "[object FormData]".
+  function _cloneSafe(value, depth) {
+    if (value === null || value === undefined) return value;
+    const type = typeof value;
+    if (type === 'string' || type === 'boolean' || type === 'number') return value;
+    if (type === 'bigint' || type === 'symbol') return String(value);
+    if (type !== 'object') return `[${type}]`;
+    if (depth > 8) return '[…]';
+    try {
+      const tag = _tagOf(value);
+      if (tag === '[object Array]') {
+        const out = [];
+        for (let i = 0; i < Math.min(value.length, 500); i += 1) out.push(_cloneSafe(value[i], depth + 1));
+        return out;
+      }
+      if (tag !== '[object Object]') return tag;
+      const out = {};
+      for (const key of Object.keys(value).slice(0, 200)) {
+        let item;
+        try {
+          item = _cloneSafe(value[key], depth + 1);
+        } catch {
+          item = '[unreadable]';
+        }
+        // defineProperty, so an own "__proto__" key stays data instead of a prototype.
+        Object.defineProperty(out, key, { value: item, enumerable: true, configurable: true, writable: true });
+      }
+      return out;
+    } catch {
+      return '[unreadable]';
+    }
+  }
+
+  // Captures the full pre-config buffer dropped, by transport. An update carries no
+  // source, so it is attributed through the transport its entry was held under.
+  const _overflow = { captureFetch: 0, captureXhr: 0, captureWs: 0 };
+  const _heldTransport = new Map();
 
   function _endPendingWindow() {
     if (_pendingTimer) { clearTimeout(_pendingTimer); _pendingTimer = null; }
@@ -114,13 +242,27 @@
         _suppress(item.entry.id);
       }
     }
+    // Only now is it known which transports are captured: what the full buffer dropped
+    // for those counts as lost; traffic the user turned off would never have been shown.
+    let lost = 0;
+    for (const key of Object.keys(_overflow)) {
+      if (_config[key] === true) lost += _overflow[key];
+      _overflow[key] = 0;
+    }
+    _heldTransport.clear();
+    if (lost) _countDrop('pending-overflow', lost);
   }
 
   _pendingTimer = setTimeout(() => { _pendingTimer = null; if (!_configured) _endPendingWindow(); }, PENDING_FLUSH_MS);
 
   function _hold(entry, update) {
+    if (!update && entry) _heldTransport.set(entry.id, _transportKey(entry));
     _pending.push({ entry, update });
-    if (_pending.length > MAX_PENDING_CAPTURES) _pending.shift();
+    if (_pending.length > MAX_PENDING_CAPTURES) {
+      const dropped = _pending.shift();
+      const key = dropped.update ? _heldTransport.get(dropped.entry && dropped.entry.id) : _transportKey(dropped.entry);
+      if (key) _overflow[key] += 1;
+    }
   }
 
   // The capture guard only skips emitting: rules and the real request are unaffected.
@@ -255,9 +397,16 @@
     return out;
   }
 
+  // Header values are the strings fetch and XHR send (both convert them); a raw page value
+  // such as a function used to make the whole entry uncloneable, and it was lost.
   function _safeHeader(name, value) {
     if (SENSITIVE_HEADER.test(String(name || ''))) return '[redacted]';
-    return value;
+    if (typeof value === 'string') return value;
+    try {
+      return String(value);
+    } catch {
+      return '';
+    }
   }
 
   // C-4b: URLs were captured VERBATIM, so every credential that travels in a query
@@ -312,7 +461,12 @@
 
   function _collectSecrets(source) {
     const out = {};
-    const add = (name, value) => { if (SENSITIVE_HEADER.test(String(name || ''))) out[String(name).toLowerCase()] = value; };
+    // Kept as text, converted here: the JWT lens and replay read the values later, outside any try,
+    // and a page value whose conversion throws is left out instead (the real request converts it again).
+    const add = (name, value) => {
+      if (!SENSITIVE_HEADER.test(String(name || ''))) return;
+      try { out[String(name).toLowerCase()] = String(value); } catch { /* not kept */ }
+    };
     if (source instanceof Headers) source.forEach((v, k) => add(k, v));
     else if (Array.isArray(source)) source.forEach((pair) => { if (Array.isArray(pair) && pair.length >= 2) add(pair[0], pair[1]); });
     else if (source && typeof source === 'object') Object.entries(source).forEach(([k, v]) => add(k, v));
@@ -400,19 +554,395 @@
     return out;
   }
 
-  function _limitText(value, limit) {
-    if (typeof value !== 'string') return value;
-    if (value.length <= limit) return value;
-    return value.slice(0, limit) + `\n... truncated ${value.length - limit} chars`;
+  // ── body text (spec J4, J6) ────────────────────────────────────────────────
+  // Truncation is metadata, never an in-band suffix: the kept prefix plus
+  // { totalChars, keptChars }. The cut never ends inside a surrogate pair.
+  function _cut(text, limit) {
+    if (text.length <= limit) return { text, truncated: null };
+    let end = limit;
+    const last = text.charCodeAt(end - 1);
+    const next = text.charCodeAt(end);
+    if (last >= 0xD800 && last <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF) end -= 1;
+    return { text: text.slice(0, end), truncated: { totalChars: text.length, keptChars: end } };
   }
 
-  function _limitBody(value) {
-    if (typeof value === 'string') return _limitText(value, MAX_CAPTURE_BODY_CHARS);
+  // UTF-8 byte length (a lone surrogate counts as the 3-byte U+FFFD sent in its place).
+  // The native encoder measures a multi-megabyte body several times faster than a
+  // char-code loop, even with the copy it makes.
+  function _utf8Length(text) {
     try {
-      const text = JSON.stringify(value);
-      if (text && text.length > MAX_CAPTURE_BODY_CHARS) return _limitText(text, MAX_CAPTURE_BODY_CHARS);
-    } catch {}
-    return value;
+      return new _TextEncoder().encode(text).length;
+    } catch {
+      return text.length; // no encoder: UTF-16 units, as sizes were before J16
+    }
+  }
+
+  // The first `limit` bytes of a Uint8Array, as a view (no copy).
+  function _byteWindow(bytes, limit) {
+    return new Uint8Array(bytes.buffer, bytes.byteOffset, Math.min(bytes.byteLength, limit));
+  }
+
+  // Bytes as text when they are valid UTF-8, else null. The decoder is fatal (bytes that
+  // are not UTF-8 are binary, never replacement characters) and keeps a BOM, so the text
+  // re-encodes to exactly the bytes sent. `windowBytes` are the first bytes of a body of
+  // `totalBytes`. A partial window (more bytes follow, or may follow) decodes in stream
+  // mode so a character cut at its end is not taken for invalid bytes, and its cut is
+  // reported in bytes: the full text length is unknown. `whole` is the full text when the
+  // window held the whole body.
+  function _decodeUtf8(windowBytes, totalBytes, limit, partial = windowBytes.byteLength < totalBytes) {
+    if (!_TextDecoder) return null;
+    let text;
+    try {
+      text = new _TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(windowBytes, { stream: partial });
+    } catch {
+      return null; // not UTF-8
+    }
+    const cut = _cut(text, limit);
+    if (partial) return { text: cut.text, truncated: { totalBytes, keptChars: cut.text.length }, whole: null };
+    return { text: cut.text, truncated: cut.truncated, whole: text };
+  }
+
+  function _base64Prefix(bytes) {
+    try {
+      const head = _byteWindow(bytes, BASE64_PREFIX_BYTES);
+      let binary = '';
+      for (let i = 0; i < head.length; i += 1) binary += String.fromCharCode(head[i]);
+      return _btoa ? _btoa(binary) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  // Bytes that are not UTF-8 text: their size and their first 64 bytes.
+  function _binaryDescriptor(windowBytes, totalBytes) {
+    return { binary: true, size: totalBytes, base64Prefix: _base64Prefix(windowBytes) };
+  }
+
+  function _parsedOrText(text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  function _readBlobWindow(blob, limit) {
+    return blob.slice(0, limit * DECODE_BYTES_PER_CHAR).arrayBuffer().then((buffer) => new Uint8Array(buffer));
+  }
+
+  // Reads a byte stream to its end, keeping copies of its first `limit` bytes and only
+  // counting the rest, so a body of any size costs at most the window. `settled` stops
+  // the read SETTLE_GRACE_MS after it resolves if the stream has not ended by then; the
+  // result says whether the stream was read to its end.
+  function _readStreamWindow(stream, limit, settled) {
+    return new Promise((resolve) => {
+      const chunks = [];
+      let kept = 0;
+      let total = 0;
+      let over = false;
+      let reader = null;
+      const finish = (complete) => {
+        if (over) return;
+        over = true;
+        const bytes = new Uint8Array(kept);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        resolve({ bytes, total, complete });
+      };
+      const pump = () => {
+        try {
+          reader.read().then(({ done, value }) => {
+            if (over) return;
+            if (done) {
+              finish(true);
+              return;
+            }
+            const chunk = _isView(value) ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength) : new Uint8Array(0);
+            total += chunk.byteLength;
+            if (kept < limit) {
+              const take = Math.min(chunk.byteLength, limit - kept);
+              chunks.push(chunk.slice(0, take));
+              kept += take;
+            }
+            pump();
+          }).catch(() => finish(false)); // a failed read or a throw above both end the read
+        } catch {
+          finish(false);
+        }
+      };
+      try {
+        reader = stream.getReader();
+      } catch {
+        finish(false);
+        return;
+      }
+      pump();
+      if (!settled) return;
+      settled.then(() => setTimeout(() => {
+        if (over) return;
+        finish(false);
+        // Cancels only this clone's branch of the tee; the page's request keeps its own.
+        try {
+          reader.cancel().catch(() => { /* already closed or errored */ });
+        } catch {
+          // a reader that cannot cancel is simply left to the garbage collector
+        }
+      }, SETTLE_GRACE_MS));
+    });
+  }
+
+  function _isThenable(value) {
+    return !!value && typeof value.then === 'function';
+  }
+
+  // Runs fn with the values once none is pending: synchronously when nothing is a promise,
+  // so ordinary captures keep today's timing. Each async reader settles to degraded fields
+  // on its own; one that rejects anyway is replaced by a degraded marker, so the entry is
+  // still emitted and never lost waiting.
+  function _whenReady(values, fn) {
+    const run = (ready) => {
+      try {
+        fn(ready);
+      } catch {
+        // never throw into the page
+      }
+    };
+    if (!values.some(_isThenable)) {
+      run(values);
+      return;
+    }
+    Promise.all(values.map((value) => (_isThenable(value)
+      ? Promise.resolve(value).catch(() => ({ captureDegraded: true }))
+      : value))).then(run);
+  }
+
+  // The request body as the entry carries it (spec J4). requestBodyText is the text sent,
+  // verbatim and capped at MAX_CAPTURE_BODY_CHARS; requestTruncated records a cut;
+  // requestBody stays the parsed form today's views read (Tasks 5 and 9 move them to the
+  // text). requestBodyKind:
+  //   'none'        no body: JS null/undefined, or an XHR GET/HEAD, which sends none
+  //   'text'        a string, a primitive (sent as its string), an XHR Document (sent
+  //                 serialized), or bytes that are UTF-8 (Blob, ArrayBuffer, typed array,
+  //                 DataView, Request body)
+  //   'urlencoded'  URLSearchParams, as its string
+  //   'formdata'    FormData: see _formDataFields; requestBodyText is a rendering, not the
+  //                 wire bytes (the browser picks the multipart boundary when it sends)
+  //   'binary'      bytes that are not UTF-8: requestBody is {binary, size, base64Prefix}
+  //                 (first 64 bytes) and there is no requestBodyText; a ReadableStream
+  //                 body, which cannot be read without consuming it, is {binary, stream}
+  // GraphQL is recognised from the whole body, whatever its size (the fields carry it).
+  // A typed array, Blob or FormData never reaches the posted entry: the bridge, the store
+  // and chrome.storage cannot carry them (audit #6, #7). Blob bodies are read
+  // asynchronously, so for them this returns a promise of the fields.
+  function _requestBodyFields(body, url, viaXhr) {
+    try {
+      if (body === undefined || body === null) return { requestBodyKind: 'none', requestBody: null };
+      if (typeof body === 'string') return _textBodyFields(body, 'text', url);
+      if (typeof body !== 'object') return _textBodyFields(String(body), 'text', url);
+      const tag = _tagOf(body);
+      if (tag === '[object URLSearchParams]') return _textBodyFields(String(body), 'urlencoded', url);
+      if (tag === '[object FormData]') return _formDataFields(body);
+      if (tag === '[object Blob]' || tag === '[object File]') return _blobBodyFields(body, url);
+      if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') return _bytesBodyFields(new Uint8Array(body), url);
+      if (_isView(body)) return _bytesBodyFields(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), url);
+      if (tag === '[object ReadableStream]') return { requestBodyKind: 'binary', requestBody: { binary: true, stream: true } };
+      // XHR sends a Document serialized; fetch converts it to its string like any object.
+      if (viaXhr && /^\[object (?:HTML|XML)?Document\]$/.test(tag)) return _textBodyFields(_documentText(body, tag), 'text', url);
+      return _textBodyFields(String(body), 'text', url);
+    } catch {
+      return { requestBody: null, captureDegraded: true };
+    }
+  }
+
+  // XHR's serialization of a Document body: an HTML document's children in HTML syntax
+  // (doctype, comments, the root element's markup); any other document through
+  // XMLSerializer.
+  function _documentText(doc, tag) {
+    if (tag !== '[object HTMLDocument]') return _XMLSerializer ? new _XMLSerializer().serializeToString(doc) : String(doc);
+    const nodes = doc.childNodes;
+    let text = '';
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (node.nodeType === 10) text += `<!DOCTYPE ${node.name}>`;
+      else if (node.nodeType === 8) text += `<!--${node.data}-->`;
+      else if (node.nodeType === 1) text += node.outerHTML;
+    }
+    return text;
+  }
+
+  // A Request's own body, read from a clone (fetch tees the stream, so the page's request
+  // is untouched) through a bounded window: only the first bytes are kept, the rest is
+  // counted. The read ends with the stream, or shortly after the real request settles: a
+  // stream the page never closes, or an upload it aborted, still yields its entry,
+  // captureDegraded with the bytes seen so far.
+  function _requestObjectBodyFields(req, url, settled) {
+    try {
+      const method = String(req.method || 'GET').toUpperCase();
+      if (req.body === null || method === 'GET' || method === 'HEAD') return { requestBodyKind: 'none', requestBody: null };
+      const stream = req.clone().body;
+      if (!stream || typeof stream.getReader !== 'function') return { requestBody: null, captureDegraded: true };
+      return _readStreamWindow(stream, REQUEST_DECODE_BYTES, settled)
+        .then(({ bytes, total, complete }) => (complete
+          ? _bytesFields(bytes, total, url)
+          : Object.assign(_bytesFields(bytes, total, url, true), { captureDegraded: true })))
+        .catch(() => ({ requestBody: null, captureDegraded: true }));
+    } catch {
+      return { requestBody: null, captureDegraded: true };
+    }
+  }
+
+  // Whether parsing a request text is worth its cost in the page (Task 3 ruling): always for a
+  // text within the capture cap (its parsed form is the entry's requestBody); past the cap only
+  // to recognise GraphQL, and never past MAX_GRAPHQL_PARSE_CHARS. The cheap pre-check is the
+  // text containing "query": a body _graphqlInfo can read has a string `query` member, so a
+  // GraphQL content type adds no body this check misses. Any other text is never parsed whole.
+  function _parseWorthwhile(text, truncated) {
+    return !truncated || (text.length <= MAX_GRAPHQL_PARSE_CHARS && text.indexOf('query') !== -1);
+  }
+
+  // GraphQL is recognised from the whole text (bounded above), so its variables keep their own
+  // cut; the parsed form is the entry's requestBody only when nothing was cut.
+  function _textBodyFields(text, kind, url) {
+    const cut = _cut(text, MAX_CAPTURE_BODY_CHARS);
+    const parsed = kind === 'text' && _parseWorthwhile(text, !!cut.truncated) ? _parsedOrText(text) : text;
+    const fields = {
+      requestBodyKind: kind,
+      requestBodyText: cut.text,
+      requestBody: cut.truncated ? cut.text : parsed,
+    };
+    if (cut.truncated) fields.requestTruncated = cut.truncated;
+    return _withGraphql(fields, url, parsed);
+  }
+
+  function _withGraphql(fields, url, parsed) {
+    const graphql = _graphqlInfo(url, parsed);
+    if (graphql) fields.graphql = graphql;
+    return fields;
+  }
+
+  function _bytesBodyFields(bytes, url) {
+    return _bytesFields(_byteWindow(bytes, REQUEST_DECODE_BYTES), bytes.byteLength, url);
+  }
+
+  // A byte body from its first bytes and its size. `partial` marks a body whose end was
+  // not seen (a stream read stopped early).
+  function _bytesFields(windowBytes, totalBytes, url, partial) {
+    const decoded = _decodeUtf8(windowBytes, totalBytes, MAX_CAPTURE_BODY_CHARS, partial);
+    if (!decoded) return { requestBodyKind: 'binary', requestBody: _binaryDescriptor(windowBytes, totalBytes) };
+    const parsed = decoded.whole !== null && _parseWorthwhile(decoded.whole, !!decoded.truncated) ? _parsedOrText(decoded.whole) : null;
+    const fields = {
+      requestBodyKind: 'text',
+      requestBodyText: decoded.text,
+      requestBody: decoded.truncated ? decoded.text : parsed,
+    };
+    if (decoded.truncated) fields.requestTruncated = decoded.truncated;
+    // Inside the decode window the whole text is known, so GraphQL is read from it too.
+    return decoded.whole === null ? fields : _withGraphql(fields, url, parsed);
+  }
+
+  function _blobBodyFields(blob, url) {
+    const totalBytes = Number(blob.size) || 0;
+    return _readBlobWindow(blob, MAX_CAPTURE_BODY_CHARS)
+      .then((windowBytes) => _bytesFields(windowBytes, totalBytes, url))
+      .catch(() => ({ requestBodyKind: 'binary', requestBody: { binary: true, size: totalBytes, base64Prefix: '' }, captureDegraded: true }));
+  }
+
+  // FormData: requestBody is [[name, value | {file, size, type}], …] in order;
+  // requestBodyText is one `name=value` line per field, a file as
+  // `name=[file "a.png", image/png, 4 bytes]`, values unescaped. Pairs and text share the
+  // 50,000-char budget, and the full rendering is measured by summing, never built, so a
+  // huge field costs no copy.
+  function _formDataFields(form) {
+    const pairs = [];
+    const pieces = [];
+    let pairRoom = MAX_CAPTURE_BODY_CHARS;
+    let textRoom = MAX_CAPTURE_BODY_CHARS + 1; // one char past the cap lets _cut see a pair
+    let totalChars = 0;
+    let count = 0;
+    form.forEach((value, name) => {
+      const key = String(name);
+      const file = typeof value === 'string' ? null
+        : { file: String(value?.name ?? ''), size: Number(value?.size) || 0, type: String(value?.type ?? '') };
+      const shown = file ? `[file "${file.file}", ${file.type || 'no type'}, ${file.size} bytes]` : value;
+      const separator = count ? 1 : 0;
+      const lineLength = key.length + 1 + shown.length;
+      count += 1;
+      totalChars += separator + lineLength;
+      if (textRoom > 0) {
+        const piece = `${separator ? '\n' : ''}${key}=${shown.slice(0, Math.max(0, textRoom - separator - key.length - 1))}`.slice(0, textRoom);
+        pieces.push(piece);
+        textRoom -= piece.length;
+      }
+      if (pairRoom > 0) {
+        // The separator before a field takes room too, as it does in the text.
+        const room = pairRoom - separator;
+        pairs.push([key, file || (lineLength > room ? _cut(value, Math.max(0, room - key.length - 1)).text : value)]);
+        pairRoom -= separator + lineLength;
+      }
+    });
+    const cut = _cut(pieces.join(''), MAX_CAPTURE_BODY_CHARS);
+    const fields = { requestBodyKind: 'formdata', requestBodyText: cut.text, requestBody: pairs };
+    if (totalChars > cut.text.length) fields.requestTruncated = { totalChars, keptChars: cut.text.length };
+    return fields;
+  }
+
+  // Response text as the entry carries it: the kept prefix, and responseTruncated when
+  // it was cut (spec J6).
+  function _responseTextFields(raw) {
+    if (typeof raw !== 'string') return { responseRaw: null };
+    const cut = _cut(raw, MAX_CAPTURE_TEXT_CHARS);
+    return cut.truncated ? { responseRaw: cut.text, responseTruncated: cut.truncated } : { responseRaw: cut.text };
+  }
+
+  function _responseFields(raw) {
+    if (typeof raw !== 'string') return { responseRaw: null, size: 0 };
+    return Object.assign({ size: _utf8Length(raw) }, _responseTextFields(raw));
+  }
+
+  // A byte response: text when it is UTF-8; otherwise no text, and responseBinary
+  // describes the bytes (size and first 64 bytes).
+  function _responseBytesFields(windowBytes, totalBytes) {
+    const decoded = _decodeUtf8(windowBytes, totalBytes, MAX_CAPTURE_TEXT_CHARS);
+    if (!decoded) return { responseRaw: null, size: totalBytes, responseBinary: _binaryDescriptor(windowBytes, totalBytes) };
+    return decoded.truncated
+      ? { responseRaw: decoded.text, responseTruncated: decoded.truncated, size: totalBytes }
+      : { responseRaw: decoded.text, size: totalBytes };
+  }
+
+  // Spec J5: responseType 'json' is re-serialized from the parsed value (flagged
+  // bodyReserialized: the browser already rounded big numbers and reordered integer keys);
+  // 'arraybuffer' and 'blob' are decoded when UTF-8 (a blob is read asynchronously, so this
+  // returns a promise for it). 'document' is not captured as text.
+  function _xhrResponseFields(xhr) {
+    try {
+      const type = xhr.responseType || '';
+      if (type === 'text' || type === '') return _responseFields(xhr.responseText);
+      if (type === 'json') {
+        const value = xhr.response;
+        if (value === null || value === undefined) return { responseRaw: null, size: 0 };
+        return Object.assign(_responseFields(JSON.stringify(value)), { bodyReserialized: true });
+      }
+      if (type === 'arraybuffer') {
+        const buffer = xhr.response;
+        if (!buffer) return { responseRaw: null, size: 0 };
+        const bytes = new Uint8Array(buffer);
+        return _responseBytesFields(_byteWindow(bytes, MAX_CAPTURE_TEXT_CHARS * DECODE_BYTES_PER_CHAR), bytes.byteLength);
+      }
+      if (type === 'blob') {
+        const blob = xhr.response;
+        if (!blob) return { responseRaw: null, size: 0 };
+        const totalBytes = Number(blob.size) || 0;
+        return _readBlobWindow(blob, MAX_CAPTURE_TEXT_CHARS)
+          .then((windowBytes) => _responseBytesFields(windowBytes, totalBytes))
+          .catch(() => ({ responseRaw: null, size: totalBytes, captureDegraded: true }));
+      }
+      return { responseRaw: null, size: 0 };
+    } catch {
+      return { responseRaw: null, size: 0, captureDegraded: true };
+    }
   }
 
   function _resolveUrl(url) {
@@ -439,14 +969,24 @@
       const fieldMatch = query.match(/\{\s*([A-Za-z_][\w]*)/);
       const operationType = opMatch?.[1] || 'query';
       const operationName = String(body.operationName || opMatch?.[2] || fieldMatch?.[1] || 'anonymous').slice(0, 120);
+      // Large variables travel as their cut JSON text, the cut recorded as metadata (J6).
       let variables = null;
+      let variablesTruncated = null;
       if (body.variables && typeof body.variables === 'object') {
         try {
           const text = JSON.stringify(body.variables);
-          variables = text.length > 10000 ? _limitText(text, 10000) : body.variables;
-        } catch {}
+          if (text.length > MAX_GRAPHQL_VARIABLES_CHARS) {
+            const cut = _cut(text, MAX_GRAPHQL_VARIABLES_CHARS);
+            variables = cut.text;
+            variablesTruncated = cut.truncated;
+          } else {
+            variables = body.variables;
+          }
+        } catch {
+          variables = null; // unserializable variables are left out
+        }
       }
-      return { operationType, operationName, variables };
+      return variablesTruncated ? { operationType, operationName, variables, variablesTruncated } : { operationType, operationName, variables };
     } catch {
       return null;
     }
@@ -597,7 +1137,12 @@
     const start = Date.now();
     const initiator = _initiatorStack();
 
-    let url = '', method = 'GET', reqHeaders = {}, reqBody = null;
+    let url = '', method = 'GET', reqHeaders = {};
+    let bodyFields = { requestBodyKind: 'none', requestBody: null };
+    // Resolved once the real request settles (answered, failed, or answered by a rule): a
+    // Request body read that has not ended by then stops shortly after.
+    let settle = null;
+    const settled = new Promise((resolve) => { settle = resolve; });
     try {
       const req = args[0];
       const init = args[1] || {};
@@ -606,38 +1151,43 @@
         method     = (init.method || req.method || 'GET').toUpperCase();
         reqHeaders = Object.assign(_parseHeaders(req.headers), _parseHeaders(init.headers));
         _rememberSecrets(id, url, req.headers, init.headers);
-        try { reqBody = await req.clone().json(); } catch { reqBody = null; }
-        if (reqBody === null && init.body) {
-          try { reqBody = JSON.parse(init.body); } catch { reqBody = init.body; }
-        }
+        // init.body, when given, replaces the Request's own body, as fetch does. The read
+        // is not awaited here: the request goes out now and the entry waits for its body.
+        bodyFields = init.body != null ? _requestBodyFields(init.body, url) : _requestObjectBodyFields(req, url, settled);
       } else {
         url        = _resolveUrl(String(req)); // Resolve relative URLs
         method     = (init.method || 'GET').toUpperCase();
         reqHeaders = _parseHeaders(init.headers);
         _rememberSecrets(id, url, init.headers);
-        if (init.body) {
-          try { reqBody = JSON.parse(init.body); } catch { reqBody = init.body; }
-        }
+        bodyFields = _requestBodyFields(init.body, url);
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* an unreadable argument keeps the defaults; the real fetch reports it */ }
 
-    const graphql = _graphqlInfo(url, reqBody);
     const jwtLenses = _extractJwtLenses(_secretStore.get(id)?.values);
     const baseEntry = {
       id, type: 'api', timestamp: start,
       source: 'fetch',
       method, url, urlPath: _path(url),
-      requestHeaders: reqHeaders, requestBody: _limitBody(reqBody),
+      requestHeaders: reqHeaders,
       pinned: false,
       initiator,
-      ...(graphql ? { graphql } : {}),
       ...(jwtLenses.length ? { jwtLenses } : {}),
       ...(replayMark ? { replayed: true, replayOf: replayMark.replayOf } : {}),
+    };
+    // Emits the entry once its request body is ready: now for most bodies, after the read
+    // for a Blob or Request body. `after` runs once the entry is out (timing updates for
+    // an id the isolated world has not seen yet would be dropped).
+    const emitWithBody = (complete, after) => {
+      settle();
+      _whenReady([bodyFields], ([fields]) => {
+        _emit(complete(Object.assign(baseEntry, fields)));
+        if (after) after();
+      });
     };
 
     const rule = _matchRule(method, url);
     if (rule && rule.action.type === 'fail') {
-      _emit(_mockEntry(Object.assign(baseEntry, {
+      emitWithBody((entry) => _mockEntry(Object.assign(entry, {
         duration: 0, size: 0,
         responseHeaders: {}, responseRaw: null,
         responseDecrypted: null, decryptStatus: 'none', parseToken: null,
@@ -648,11 +1198,12 @@
       if (rule.action.delayMs) await _sleep(rule.action.delayMs);
       const body = rule.action.body || '';
       const headers = Object.assign({ 'content-type': 'application/json' }, rule.action.headers);
-      _emit(_mockEntry(Object.assign(baseEntry, {
-        duration: Date.now() - start,
+      const duration = Date.now() - start;
+      emitWithBody((entry) => _mockEntry(Object.assign(entry, {
+        duration,
         size: body.length,
         responseHeaders: headers,
-        responseRaw: _limitText(body, MAX_CAPTURE_TEXT_CHARS),
+        ..._responseTextFields(body),
         responseDecrypted: null, decryptStatus: 'none', parseToken: null,
       }), rule));
       const status = rule.action.status;
@@ -668,9 +1219,11 @@
     let response;
     try {
       response = await _origFetch.apply(this, args);
+      settle();
     } catch (err) {
-      _emit(Object.assign(baseEntry, {
-        status: 0, duration: Date.now() - start,
+      const duration = Date.now() - start;
+      emitWithBody((entry) => Object.assign(entry, {
+        status: 0, duration,
         responseHeaders: {}, responseRaw: null,
         responseDecrypted: null, decryptStatus: 'none',
         parseToken: null, size: 0,
@@ -679,30 +1232,35 @@
     }
 
     const duration = Date.now() - start;
-    const clone = response.clone();
     const resHeaders = _parseHeaders(response.headers);
     const token = reqHeaders['x-parse-token'] || reqHeaders['X-Parse-Token'] || null;
 
-    clone.text().then(raw => {
-      let parsed = null, size = 0;
-      try { size = new TextEncoder().encode(raw).length; } catch {}
-      try { parsed = JSON.parse(raw); } catch {}
-
+    // A body that cannot be read (the page aborted it mid-stream, say) used to lose the
+    // whole entry; it now arrives without a body, flagged captureDegraded (spec J5).
+    const finish = (raw, extra) => {
+      let parsed = null;
+      if (typeof raw === 'string') {
+        try { parsed = JSON.parse(raw); } catch { /* not JSON */ }
+      }
       // 'pending' is resolved in the isolated world by content.js — see C-6.
       const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
-      const decrypted = null;
-
       const timing = _resourceTiming(url);
-      _emit(Object.assign(baseEntry, {
-        status: response.status, duration, size,
+      emitWithBody((entry) => Object.assign(entry, {
+        status: response.status, duration,
         responseHeaders: resHeaders,
-        responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
-        responseDecrypted: decrypted,
+        ..._responseFields(raw),
+        responseDecrypted: null,
         decryptStatus, parseToken: token,
         timing,
-      }));
-      if (!timing) _attachTimingLater(id, url);
-    }).catch(() => {});
+      }, extra), () => { if (!timing) _attachTimingLater(id, url); });
+    };
+    try {
+      response.clone().text()
+        .then((raw) => finish(raw), () => finish(null, { captureDegraded: true }))
+        .catch(() => { /* nothing may reach the page as an unhandled rejection */ });
+    } catch {
+      finish(null, { captureDegraded: true });
+    }
 
     return response;
   };
@@ -718,30 +1276,51 @@
     'getAllResponseHeaders', 'getResponseHeader'];
 
   function _clearMockShadow(xhr) {
-    if (!xhr || !xhr.__xrMockShadow) return;
-    for (const name of MOCK_SHADOWED) {
-      try { delete xhr[name]; } catch {}
+    try {
+      if (!xhr || !xhr.__xrMockShadow) return;
+      for (const name of MOCK_SHADOWED) delete xhr[name];
+      delete xhr.__xrMockShadow;
+    } catch {
+      // never throw into the page; a shadow that cannot be removed stays
     }
-    try { delete xhr.__xrMockShadow; } catch {}
   }
 
+  // The wrappers never throw into the page: an argument the bookkeeping cannot read
+  // (a number is fine, an object whose toString throws is not) is left to the native
+  // call, which reports it exactly as it would without XRAY.
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     _clearMockShadow(this);
     // Always tracked: rules need the method/URL even when capture is off.
-    this.__xr = {
-      id: _uid(), method: (method || 'GET').toUpperCase(), url: _resolveUrl(String(url)),
-      reqHeaders: {}, start: 0, initiator: _captureOn('captureXhr') ? _initiatorStack() : null,
-      sync: rest.length > 0 && rest[0] === false,
-    };
+    try {
+      this.__xr = {
+        id: _uid(), method: String(method ?? 'GET').toUpperCase(), url: _resolveUrl(String(url)),
+        reqHeaders: {}, start: 0, initiator: _captureOn('captureXhr') ? _initiatorStack() : null,
+        sync: rest.length > 0 && rest[0] === false,
+      };
+    } catch {
+      try {
+        this.__xr = null; // untracked: send() passes straight through
+      } catch {
+        // the native open() reports a receiver it cannot use
+      }
+    }
     return _origXHROpen.apply(this, [method, url, ...rest]);
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
-    if (this.__xr) {
-      this.__xr.reqHeaders[name.toLowerCase()] = _safeHeader(name, value);
-      if (SENSITIVE_HEADER.test(String(name || ''))) {
-        (this.__xr.rawSecrets || (this.__xr.rawSecrets = {}))[String(name).toLowerCase()] = value;
+    try {
+      if (this.__xr) {
+        const key = String(name).toLowerCase();
+        this.__xr.reqHeaders[key] = _safeHeader(key, value);
+        // The raw value is kept as text, converted here inside the try: send() reads it later outside
+        // any try (the JWT lens), and a page value whose conversion throws must not throw from there.
+        if (SENSITIVE_HEADER.test(key)) {
+          const text = String(value);
+          (this.__xr.rawSecrets || (this.__xr.rawSecrets = {}))[key] = text;
+        }
       }
+    } catch {
+      // left to the native setRequestHeader() below
     }
     return _origXHRSetHeader.apply(this, arguments);
   };
@@ -778,13 +1357,16 @@
       } catch {}
 
       if (baseEntry) {
-        _emit(_mockEntry(Object.assign(baseEntry, {
-          duration: Date.now() - xr.start,
-          size: body.length,
-          responseHeaders: headers,
-          responseRaw: _limitText(body, MAX_CAPTURE_TEXT_CHARS),
-          responseDecrypted: null, decryptStatus: 'none', parseToken: null,
-        }), rule));
+        const duration = Date.now() - xr.start;
+        _whenReady([xr.bodyFields], ([fields]) => {
+          _emit(_mockEntry(Object.assign(baseEntry, fields, {
+            duration,
+            size: body.length,
+            responseHeaders: headers,
+            ..._responseTextFields(body),
+            responseDecrypted: null, decryptStatus: 'none', parseToken: null,
+          }), rule));
+        });
       }
 
       try {
@@ -819,19 +1401,18 @@
     }
     _rememberSecrets(xr.id, xr.url, xr.rawSecrets);
 
-    let reqBody = null;
-    if (body) { try { reqBody = JSON.parse(body); } catch { reqBody = body; } }
-    const graphql = _graphqlInfo(xr.url, reqBody);
+    // XHR sends no body for GET and HEAD, whatever send() was given. The body fields live
+    // on the per-send state, so a reused object never mixes up two sends' bodies.
+    xr.bodyFields = _requestBodyFields(xr.method === 'GET' || xr.method === 'HEAD' ? null : body, xr.url, true);
     const jwtLenses = _extractJwtLenses(xr.rawSecrets);
 
     const baseEntry = {
       id: xr.id, type: 'api', timestamp: xr.start,
       source: 'xhr',
       method: xr.method, url: xr.url, urlPath: _path(xr.url),
-      requestHeaders: xr.reqHeaders, requestBody: _limitBody(reqBody),
+      requestHeaders: xr.reqHeaders,
       pinned: false,
       initiator: xr.initiator,
-      ...(graphql ? { graphql } : {}),
       ...(jwtLenses.length ? { jwtLenses } : {}),
     };
 
@@ -870,11 +1451,11 @@
         xr.emitted = true;
         const baseEntry = xr.baseEntry;
         const duration = Date.now() - xr.start;
-        let raw = null;
-        try { raw = this.responseType === '' || this.responseType === 'text' ? this.responseText : null; } catch {}
-        let parsed = null, size = 0;
-        try { size = new TextEncoder().encode(raw || '').length; } catch {}
-        try { parsed = JSON.parse(raw); } catch {}
+        // Everything this send reports is read now: a blob response is read
+        // asynchronously, and by then the page may have reused this object.
+        let status = 0;
+        try { status = this.status; } catch { /* reported as 0 */ }
+        const response = _xhrResponseFields(this);
 
         const resHeaders = {};
         try {
@@ -882,23 +1463,27 @@
             const idx = line.indexOf(':');
             if (idx > 0) resHeaders[line.slice(0, idx).trim().toLowerCase()] = _safeHeader(line.slice(0, idx).trim(), line.slice(idx + 1).trim());
           });
-        } catch {}
+        } catch { /* reported without response headers */ }
 
         const token = xr.reqHeaders['x-parse-token'] || null;
-        // 'pending' is resolved in the isolated world by content.js — see C-6.
-        const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
-        const decrypted = null;
-
-        const timing = _resourceTiming(xr.url);
-        _emit(Object.assign(baseEntry, {
-          status: this.status, duration, size,
-          responseHeaders: resHeaders,
-          responseRaw: _limitText(raw, MAX_CAPTURE_TEXT_CHARS),
-          responseDecrypted: decrypted,
-          decryptStatus, parseToken: token,
-          timing,
-        }));
-        if (!timing) _attachTimingLater(xr.id, xr.url);
+        _whenReady([xr.bodyFields, response], ([fields, res]) => {
+          let parsed = null;
+          if (typeof res.responseRaw === 'string') {
+            try { parsed = JSON.parse(res.responseRaw); } catch { /* not JSON */ }
+          }
+          // 'pending' is resolved in the isolated world by content.js — see C-6.
+          const decryptStatus = _decryptPending(token, parsed) ? 'pending' : 'none';
+          const timing = _resourceTiming(xr.url);
+          _emit(Object.assign(baseEntry, fields, {
+            status, duration,
+            responseHeaders: resHeaders,
+            responseDecrypted: null,
+            decryptStatus, parseToken: token,
+            timing,
+          }, res));
+          // After the entry: an update for an id the isolated world has not seen is dropped.
+          if (!timing) _attachTimingLater(xr.id, xr.url);
+        });
       });
     }
 
@@ -917,18 +1502,26 @@
   };
 
   // ── WebSocket wrapper ──────────────────────────────────────────────────────
+  // Spec J16: a frame's size is the bytes that crossed the socket (UTF-8 for text), and a
+  // text frame past the preview cap keeps its prefix with `truncated: { totalChars,
+  // keptChars }` instead of an in-band ellipsis.
   function _framePreview(data) {
     try {
-      if (typeof data === 'string') {
-        return { preview: data.length > MAX_WS_FRAME_PREVIEW ? data.slice(0, MAX_WS_FRAME_PREVIEW) + '…' : data, size: data.length };
-      }
+      if (typeof data === 'string') return _textFrame(data);
       if (data instanceof Blob) return { preview: `[Blob ${data.size} bytes]`, size: data.size };
       if (data instanceof ArrayBuffer) return { preview: `[ArrayBuffer ${data.byteLength} bytes]`, size: data.byteLength };
       if (ArrayBuffer.isView(data)) return { preview: `[Binary ${data.byteLength} bytes]`, size: data.byteLength };
-      return { preview: String(data).slice(0, MAX_WS_FRAME_PREVIEW), size: 0 };
+      return _textFrame(String(data));
     } catch {
       return { preview: '[unreadable frame]', size: 0 };
     }
+  }
+
+  function _textFrame(text) {
+    const cut = _cut(text, MAX_WS_FRAME_PREVIEW);
+    const frame = { preview: cut.text, size: _utf8Length(text) };
+    if (cut.truncated) frame.truncated = cut.truncated;
+    return frame;
   }
 
   function _trackSocketEntry(entry) {
@@ -980,10 +1573,10 @@
     const tracker = _trackSocketEntry(entry);
 
     function pushFrame(dir, data) {
-      const { preview, size } = _framePreview(data);
-      entry.wsFrames.push({ dir, ts: Date.now(), preview, size });
+      const frame = _framePreview(data);
+      entry.wsFrames.push(Object.assign({ dir, ts: Date.now() }, frame));
       if (entry.wsFrames.length > MAX_WS_FRAMES) entry.wsFrames = entry.wsFrames.slice(-MAX_WS_FRAMES);
-      entry.size += size;
+      entry.size += frame.size;
       tracker.markDirty();
     }
 
@@ -1052,10 +1645,10 @@
     });
     source.addEventListener('message', (event) => {
       try {
-        const { preview, size } = _framePreview(event.data);
-        entry.wsFrames.push({ dir: 'in', ts: Date.now(), preview, size });
+        const frame = _framePreview(event.data);
+        entry.wsFrames.push(Object.assign({ dir: 'in', ts: Date.now() }, frame));
         if (entry.wsFrames.length > MAX_WS_FRAMES) entry.wsFrames = entry.wsFrames.slice(-MAX_WS_FRAMES);
-        entry.size += size;
+        entry.size += frame.size;
         tracker.markDirty();
       } catch {}
     });
@@ -1081,10 +1674,40 @@
     window.EventSource = WrappedEventSource;
   }
 
+  // A FormData rebuilt from its captured [name, value] text fields, names, values and order kept
+  // (the browser picks a new multipart boundary), or null when the fields are not that or exceed
+  // the bounds. Never throws into the page.
+  function _replayForm(pairs) {
+    try {
+      if (!_FormData || !_formAppend || !Array.isArray(pairs) || pairs.length > MAX_REPLAY_FORM_FIELDS) return null;
+      let chars = 0;
+      for (const pair of pairs) {
+        if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') return null;
+        chars += pair[0].length + pair[1].length;
+        if (chars > MAX_REPLAY_FORM_CHARS) return null;
+      }
+      const form = new _FormData();
+      for (const pair of pairs) _formAppend.call(form, pair[0], pair[1]);
+      return form;
+    } catch {
+      return null;
+    }
+  }
+
   // ── replay bridge ──────────────────────────────────────────────────────────
   // The panel posts a replay request; the wrapped fetch captures it like any
-  // page request, so replays appear in the stream with a replay marker.
+  // page request, so replays appear in the stream with a replay marker. Never throws
+  // into the page: a request a conversion fails on (a page that broke a built-in this
+  // path uses) is dropped.
   window.addEventListener('message', (event) => {
+    try {
+      _onReplayMessage(event);
+    } catch {
+      _replayMark = null;
+    }
+  });
+
+  function _onReplayMessage(event) {
     if (event.source !== window) return;
     if (!event.data?.__xray_replay__) return;
     if (event.data.token !== _bridgeToken) return;
@@ -1093,6 +1716,16 @@
     if (!/^https?:/i.test(url)) return;
     const method = /^[A-Z]+$/.test(String(request.method || '').toUpperCase()) ? String(request.method).toUpperCase() : 'GET';
     const replayOf = typeof request.replayOf === 'string' ? request.replayOf.slice(0, 100) : null;
+    // The body (spec J10): the request text exactly as the panel gives it — the captured text or the
+    // Edit & Replay editor's — or a FormData of text fields rebuilt from its captured fields. Nothing
+    // else is sent; fields that cannot be rebuilt drop the replay rather than send another body.
+    let body;
+    if (typeof request.body === 'string') body = request.body;
+    else if (request.body && typeof request.body === 'object' && 'formdata' in request.body) {
+      body = _replayForm(request.body.formdata);
+      if (!body) return;
+    }
+    const rebuiltForm = body !== undefined && typeof body !== 'string';
     // Restore the original request's sensitive header values (kept only here in
     // the MAIN world) so authed requests replay successfully. The panel only ever
     // sent us '[redacted]' placeholders.
@@ -1125,6 +1758,8 @@
         if (typeof key !== 'string' || key.length > 200) return;
         if (FORBIDDEN_REPLAY_HEADER.test(key)) return;
         const lower = key.toLowerCase();
+        // A rebuilt form gets a new boundary from the browser: the captured one would not match it.
+        if (rebuiltForm && lower === 'content-type' && /^\s*multipart\//i.test(String(value))) return;
         if (String(value) === '[redacted]') {
           if (secrets[lower] != null) { headers[key] = String(secrets[lower]).slice(0, 4000); applied.add(lower); }
           return; // can't restore -> drop rather than send the literal placeholder
@@ -1141,14 +1776,12 @@
     // credentials:'include' lets the browser re-attach cookies (a forbidden header
     // we can't set manually) so cookie-based auth also survives replay.
     const init = { method, headers, credentials: 'include' };
-    if (request.body != null && method !== 'GET' && method !== 'HEAD') {
-      init.body = typeof request.body === 'string' ? request.body : (() => { try { return JSON.stringify(request.body); } catch { return String(request.body); } })();
-    }
+    if (body !== undefined && method !== 'GET' && method !== 'HEAD') init.body = body;
     _replayMark = { replayOf };
     try {
       _xrayFetch(url, init).catch(() => {});
     } catch {
       _replayMark = null;
     }
-  });
+  }
 })();

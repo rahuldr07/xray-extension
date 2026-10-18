@@ -161,7 +161,8 @@ test('buildAxios emits a valid options object', () => {
     method: 'post',
     url: 'https://api.example.com/v1/orders?page=2',
     headers: { 'content-type': 'application/json', 'x-trace': 'abc' },
-    data: { sku: 'A1', qty: 2 },
+    // The request text as captured (JSON fidelity J10): Axios sends a string as it is.
+    data: '{"sku":"A1","qty":2}',
   });
   assert.equal(buildAxios(null), NO_SELECTION);
   const noBody = apiEntry({ requestBody: null, method: 'GET' });
@@ -249,6 +250,15 @@ test('buildSessionHar emits a well-formed HAR log with only API entries', () => 
 });
 
 // ------------------------------------------------------------- parseImport
+
+test('J9 fix round 2: an imported session never carries the legacy flag (it would exempt the entry from the session budget)', () => {
+  const file = JSON.stringify({ entries: [{ id: 'a', type: 'api', legacySession: true, responseRaw: '{}' }] });
+  const [entry] = parseImport(file).entries;
+  assert.equal(entry.imported, true);
+  assert.equal(entry.legacySession, undefined);
+  const [bare] = parseImport(JSON.stringify([{ id: 'b', type: 'log', legacySession: true }])).entries;
+  assert.equal(bare.legacySession, undefined);
+});
 
 test('parseImport rejects non-JSON and unrecognized shapes', () => {
   assert.deepEqual(parseImport('not json'), { entries: [], format: 'unknown', error: 'File is not valid JSON.' });
@@ -498,6 +508,25 @@ test('share-safe projection detaches ordinary fields and removes credentials, qu
   assert.ok(result.omittedCount > 0);
   result.entries[0].requestBody.sku = 'changed';
   assert.equal(JSON.stringify(input), before, 'projection must not mutate or retain input objects');
+});
+
+test('Fix1 share-safe redacts FormData pairs under sensitive names and drops binary base64 prefixes', () => {
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const form = apiEntry({ method: 'POST', requestBodyKind: 'formdata',
+    requestBody: [['username', 'ada'], ['password', 'private-hunter2'], ['api_key', 'private-k-123'], ['upload', { file: 'a.png', size: 4, type: 'image/png' }]],
+    requestBodyText: 'username=ada\npassword=private-hunter2\napi_key=private-k-123\nupload=[file "a.png", image/png, 4 bytes]' });
+  // Pair-shaped without a kind (an imported or hand-built entry) is treated the same way.
+  const unlabelled = apiEntry({ method: 'POST', requestBody: [['token', 'private-token'], ['page', '2']] });
+  const binary = apiEntry({ method: 'POST', requestBodyKind: 'binary', requestBody: { binary: true, size: 5, base64Prefix: 'cHJpdmF0ZQ==' } });
+  const stream = apiEntry({ method: 'POST', requestBodyKind: 'binary', requestBody: { binary: true, stream: true } });
+  const result = buildShareSafeSession([form, unlabelled, binary, stream]);
+  assert.doesNotMatch(JSON.stringify(result), /private-|cHJpdmF0ZQ/, 'no secret value, no captured bytes, no request text');
+  assert.deepEqual(plain(result.entries[0].requestBody),
+    [['username', 'ada'], ['password', '[REDACTED]'], ['api_key', '[REDACTED]'], ['upload', { file: 'a.png', size: 4, type: 'image/png' }]]);
+  assert.deepEqual(plain(result.entries[1].requestBody), [['token', '[REDACTED]'], ['page', '2']]);
+  assert.deepEqual(plain(result.entries[2].requestBody), { binary: true, size: 5 });
+  assert.deepEqual(plain(result.entries[3].requestBody), { binary: true, stream: true });
+  assert.ok(!('requestBodyText' in result.entries[0]));
 });
 
 test('share-safe projection bounds hostile bodies, keys, frames, entries and never invokes accessors or toJSON', () => {

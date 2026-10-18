@@ -16,9 +16,11 @@ import type { ConsoleEvent } from '../../types';
 import { errorHint } from '../../models/consoleAssist';
 import { saveConsoleVariable } from '../../runtime/consoleBridge';
 import { copyText } from '../../utils';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { focusFirstItem, handleMenuKeyDown, useMenuDismiss } from '../common/menuBehavior';
+import { describeCommandResult, resultCopyText, resultCopyToast } from '../../models/consoleResults';
 import { commandStackFrames, ErrorBlock, extractConsoleError, type ConsoleError } from './consoleErrors';
-import { describeCommandResult, ResultView, resultCopyText, unwrap, type ResultViewMode } from './ResultView';
+import { ResultView, type ResultViewMode } from './ResultView';
 
 const iconProps = { size: 15, stroke: 1.8 } as const;
 // Room the More menu needs below its trigger before it opens upward instead.
@@ -155,7 +157,7 @@ function ResultActions({ result }: { result: ConsoleEvent }): React.ReactElement
   async function copyResult(): Promise<void> {
     try {
       await copyText(resultCopyText(result.data));
-      showToast('Copied result.');
+      showToast(resultCopyToast(result.data, result.resultType || ''));
     } catch {
       showToast('Could not copy. Check clipboard permissions.');
     }
@@ -163,8 +165,8 @@ function ResultActions({ result }: { result: ConsoleEvent }): React.ReactElement
 
   function save(): void {
     try {
-      // The rows of a table() result, not its render marker (paths index the rows).
-      const name = saveConsoleVariable(unwrap(result.data).value);
+      // The typed value (spec J8): the next run revives it in the page (BigInt, Map, …).
+      const name = saveConsoleVariable(result.data);
       updateConsoleEvent(result.id, { variable: name });
       // The Save button is replaced by the name chip; keep focus in the cell.
       copyRef.current?.focus();
@@ -216,10 +218,14 @@ export const CommandCell = React.memo(function CommandCell({
   const cancelled = !!result?.cancelled;
   const failed = result?.type === 'error';
   const succeeded = !!result && !failed && !cancelled;
-  const described = useMemo(
-    () => (succeeded ? describeCommandResult(result.data, result.resultType || '', !!result.truncated) : null),
-    [succeeded, result],
-  );
+  const described = useMemo(() => {
+    if (!succeeded) return null;
+    try {
+      return describeCommandResult(result.data, result.resultType || '', result.resultRender === 'table');
+    } catch {
+      return null; // ResultView describes it again, inside the result's error boundary
+    }
+  }, [succeeded, result]);
   const scalar = described?.description.kind === 'scalar';
 
   function remove(): void {
@@ -229,18 +235,21 @@ export const CommandCell = React.memo(function CommandCell({
     root?.querySelector<HTMLElement>('[aria-label="Console command"]')?.focus();
   }
 
+  // J12: a result that fails to render costs only this cell, never the Console.
   const resultView = succeeded ? (
-    <ResultView
-      value={result.data}
-      type={result.resultType || ''}
-      described={described ?? undefined}
-      truncated={!!result.truncated}
-      actions={<ResultActions result={result} />}
-      view={view}
-      onViewChange={onViewChange ? (next) => onViewChange(cellId, next) : undefined}
-      onOpenInspector={onOpenInspector ? (value) => onOpenInspector({ cellId, value, label: firstLine }) : undefined}
-      inspectId={cellId}
-    />
+    <ErrorBoundary resetKeys={[result]} raw={() => resultCopyText(result.data)}>
+      <ResultView
+        value={result.data}
+        type={result.resultType || ''}
+        described={described ?? undefined}
+        table={result.resultRender === 'table'}
+        actions={<ResultActions result={result} />}
+        view={view}
+        onViewChange={onViewChange ? (next) => onViewChange(cellId, next) : undefined}
+        onOpenInspector={onOpenInspector ? (value) => onOpenInspector({ cellId, value, label: firstLine }) : undefined}
+        inspectId={cellId}
+      />
+    </ErrorBoundary>
   ) : null;
 
   const state = running ? 'is-running' : cancelled ? 'is-cancelled' : failed ? 'is-error' : scalar ? 'is-scalar' : '';
@@ -251,7 +260,7 @@ export const CommandCell = React.memo(function CommandCell({
         <code className="xray-cell-command" title={code}>{firstLine}</code>
         {lines.length > 1 && <span className="xray-cell-lines" title={code}>{lines.length} lines</span>}
         {scalar && resultView}
-        {result?.truncated && <span className="xray-truncated-badge" title="The result was truncated to fit the transfer limit">truncated</span>}
+        {result?.truncated && <span className="xray-truncated-badge" title="The console's caps left part of this result out; each cut says how much">truncated</span>}
         <span className="xray-cell-tail">
           {result?.durationMs !== undefined && <span className="xray-cell-time" title="Run time">{formatDuration(result.durationMs)}</span>}
           <span className="xray-cell-actions">

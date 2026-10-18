@@ -1,5 +1,6 @@
-import type { XrayEntry } from '../types';
+import type { BodyTruncation, FormDataPair, RequestBodyKind, XrayEntry } from '../types';
 import { parseBody } from '../utils';
+import { legacySuffix } from './capturedBody';
 
 export interface ImportResult {
   entries: XrayEntry[];
@@ -40,6 +41,55 @@ function harDuration(time: unknown, wait: unknown): number {
   return 0;
 }
 
+/**
+ * The request body from HAR postData (spec J10): its text verbatim as the request text — what views,
+ * Replay and a re-export read — with the parsed copy beside it as before. An in-band
+ * "\n... truncated N chars" suffix (exports made before J6) becomes truncation metadata.
+ */
+function postDataFields(postData: Record<string, unknown> | undefined): Pick<XrayEntry, 'requestBody' | 'requestBodyText' | 'requestBodyKind' | 'requestTruncated'> {
+  const text = postData?.text;
+  if (typeof text !== 'string') return formParams(postData) ?? { requestBody: null };
+  const legacy = legacySuffix(text);
+  const kept = legacy ? text.slice(0, legacy.kept) : text;
+  const mime = typeof postData?.mimeType === 'string' ? postData.mimeType.toLowerCase() : '';
+  const kind: RequestBodyKind = mime.startsWith('application/x-www-form-urlencoded') ? 'urlencoded' : 'text';
+  const truncated: BodyTruncation | undefined = legacy ? { keptChars: legacy.kept, totalChars: legacy.kept + legacy.omitted } : undefined;
+  return {
+    requestBody: legacy ? kept : kind === 'urlencoded' ? kept : parseBody(kept),
+    requestBodyText: kept,
+    requestBodyKind: kind,
+    ...(truncated ? { requestTruncated: truncated } : {}),
+  };
+}
+
+/**
+ * The params of a multipart postData without text (XRAY's HAR writes FormData that way, final fix I2)
+ * as the FormData fields capture records: [name, value | {file, size, type}] in order, with the same
+ * `name=value` text rendering. A file's size was not exported, so it reads 0.
+ */
+function formParams(postData: Record<string, unknown> | undefined): Pick<XrayEntry, 'requestBody' | 'requestBodyText' | 'requestBodyKind'> | null {
+  const params = postData?.params;
+  const mime = typeof postData?.mimeType === 'string' ? postData.mimeType.toLowerCase() : '';
+  if (!Array.isArray(params) || !mime.startsWith('multipart/form-data')) return null;
+  const pairs: FormDataPair[] = [];
+  const lines: string[] = [];
+  for (const param of params as unknown[]) {
+    if (!param || typeof param !== 'object') continue;
+    const { name, value, fileName, contentType } = param as Record<string, unknown>;
+    const key = String(name ?? '');
+    if (typeof fileName === 'string') {
+      const file = { file: fileName, size: 0, type: typeof contentType === 'string' ? contentType : '' };
+      pairs.push([key, file]);
+      lines.push(`${key}=[file "${file.file}", ${file.type || 'no type'}, ${file.size} bytes]`);
+    } else {
+      const text = String(value ?? '');
+      pairs.push([key, text]);
+      lines.push(`${key}=${text}`);
+    }
+  }
+  return { requestBodyKind: 'formdata', requestBody: pairs, requestBodyText: lines.join('\n') };
+}
+
 function harEntryToXray(harEntry: Record<string, unknown>): XrayEntry | null {
   const request = harEntry.request as Record<string, unknown> | undefined;
   const response = harEntry.response as Record<string, unknown> | undefined;
@@ -49,7 +99,7 @@ function harEntryToXray(harEntry: Record<string, unknown>): XrayEntry | null {
   try { urlPath = new URL(url).pathname; } catch { /* keep url */ }
   const content = response?.content as Record<string, unknown> | undefined;
   const postData = request.postData as Record<string, unknown> | undefined;
-  const requestBody = parseBody(postData?.text ?? null);
+  const sent = postDataFields(postData);
   const timings = harEntry.timings as Record<string, unknown> | undefined;
   return {
     id: newId('har'),
@@ -64,12 +114,22 @@ function harEntryToXray(harEntry: Record<string, unknown>): XrayEntry | null {
     size: Number(content?.size) || 0,
     requestHeaders: headerArrayToObject(request.headers),
     responseHeaders: headerArrayToObject(response?.headers),
-    requestBody,
+    ...sent,
     responseRaw: typeof content?.text === 'string' ? content.text : null,
     responseDecrypted: null,
     imported: true,
     pinned: false,
   };
+}
+
+/**
+ * A session entry from a file: marked `imported`, and never `legacySession` — that flag (set when a
+ * saved pre-J9 session is migrated, spec J9) exempts an entry from the session budget, and an
+ * exported session may carry it.
+ */
+function importedEntry(entry: XrayEntry): XrayEntry {
+  const { legacySession: _legacy, ...rest } = entry;
+  return { ...rest, imported: true };
 }
 
 export function parseImport(text: string): ImportResult {
@@ -94,7 +154,7 @@ export function parseImport(text: string): ImportResult {
   if (Array.isArray(sessionEntries)) {
     const entries = sessionEntries
       .filter((entry): entry is XrayEntry => !!entry && typeof entry === 'object' && typeof (entry as XrayEntry).id === 'string')
-      .map((entry) => ({ ...entry, imported: true }));
+      .map(importedEntry);
     return { entries, format: 'session' };
   }
 
@@ -102,7 +162,7 @@ export function parseImport(text: string): ImportResult {
   if (Array.isArray(parsed)) {
     const entries = parsed
       .filter((entry): entry is XrayEntry => !!entry && typeof entry === 'object' && typeof (entry as XrayEntry).id === 'string')
-      .map((entry) => ({ ...entry, imported: true }));
+      .map(importedEntry);
     if (entries.length) return { entries, format: 'session' };
   }
 

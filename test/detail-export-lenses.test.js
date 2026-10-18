@@ -15,19 +15,17 @@ test('React detail parity logic is typed outside the component tree', () => {
   const emptyState = read('src/panel/components/common/EmptyState.tsx');
 
   assert.match(detailModel, /export const detailViews/);
-  assert.match(detailModel, /export function detailValue/);
-  assert.match(detailModel, /detailTab === 'request'/);
-  assert.match(detailModel, /detailTab === 'headers'/);
-  assert.match(detailModel, /requestHeaders/);
-  assert.match(detailModel, /responseHeaders/);
-  assert.match(detailModel, /export function gridRows/);
-  assert.match(detailModel, /slice\(0, 200\)/);
-  assert.match(detailModel, /Object\.keys\(row\)\.slice\(0, 20\)/);
-  assert.match(detailModel, /export function vizSummary/);
-  assert.match(detailModel, /schema\(value\)/);
-  assert.match(requestDetail, /detailValue\(entry,/);
-  assert.match(requestDetail, /gridRows\(value\)/);
-  assert.match(requestDetail, /buildVizSpec\(value\)/);
+  // Table, Schema and Diff read the lossless parser's nodes (JSON fidelity spec J3, J11); the value
+  // wrappers only tests called (detailValue, gridRows, vizSummary, structuralDiff) are gone (final fix M7).
+  assert.doesNotMatch(detailModel, /export function (detailValue|gridRows|vizSummary|structuralDiff)\b/);
+  assert.match(detailModel, /export function tableFromNode/);
+  assert.match(detailModel, /TABLE_MAX_ROWS = 200/);
+  assert.match(detailModel, /TABLE_MAX_ROW_KEYS = 20/);
+  assert.match(detailModel, /export function schemaFromNode/);
+  assert.match(detailModel, /export function diffNodes/);
+  assert.match(requestDetail, /bodyNode\(body\)/);
+  assert.match(requestDetail, /tableFromNode\(node\)/);
+  assert.match(requestDetail, /buildVizSpecFromNode\(node\)/);
   assert.match(jsonView, /safeStringify\(value\)/);
   assert.match(emptyState, /export function EmptyState/);
   assert.match(entriesWorkspace, /import \{ RequestDetail \}/);
@@ -67,7 +65,9 @@ test('React export parity logic is isolated and keeps old export formats', () =>
   assert.match(exportModel, /buildAxios\(entry\)/);
   assert.match(exportModel, /schema\(entryResponse\(entry\)\)/);
   assert.match(exportModel, /buildMockPayload\(entry\)/);
-  assert.match(exportModel, /safeStringify\(\{ entry: rest, response: entryResponse\(entry\) \}/);
+  // Selected JSON: the entry plus its response, embedded losslessly (JSON fidelity J10).
+  assert.match(exportModel, /return selectedJson\(entry\);/);
+  assert.match(exportModel, /\{ key: 'entry', value: entryNode \},\s*\{ key: 'response', value: bodyExportNode\(capturedResponse\(entry\)\) \}/);
   assert.match(exportModel, /buildSessionCsv\(entries\)/);
   assert.match(exportModel, /buildSessionHar\(entries\)/);
   assert.match(exportModal, /exportText\(selectedForExport, entries, format\)/);
@@ -132,8 +132,9 @@ test('React response detail renders native smart operations and bounded schema d
   assert.match(detail, /operation\.command \?\? operation\.lazyCommand\?\.\(\)/);
   assert.match(operations, /lazyCommand: \(\) => safeStringify\(response, 2, 500_000\)/);
   assert.match(detail, /setExportOpen\(true\)/);
-  assert.match(detail, /bodyView === 'schema'/);
-  assert.match(detail, /bodyView === 'diff'/);
+  // Copy in Schema and Diff gives what the view shows (printed from the body's nodes).
+  assert.match(detail, /view === 'schema'/);
+  assert.match(detail, /diffNodes\(previous, node\)/);
   assert.match(operations, /view:\s*'schema'/);
   assert.match(operations, /view:\s*'diff'/);
   assert.doesNotMatch(detail, /dangerouslySetInnerHTML|innerHTML/);
@@ -173,11 +174,12 @@ test('HAR and session import parse into XRAY entries', () => {
 test('Visualize view renders a real chart, not fake metadata JSON', () => {
   const viz = read('src/panel/models/viz.ts');
   const detail = read('src/panel/components/detail/RequestDetail.tsx');
-  assert.match(viz, /export function buildVizSpec/);
+  assert.doesNotMatch(viz, /export function buildVizSpec\b/, 'the value wrapper only tests called is gone (final fix M7)');
+  assert.match(viz, /export function buildVizSpecFromNode/);
   assert.match(viz, /kind: 'bars' \| 'none'/);
-  assert.match(viz, /function coerceRows/);
+  assert.match(viz, /rowArrayNode\(node\)/);
   assert.match(viz, /function frequency/);
-  assert.match(detail, /buildVizSpec\(value\)/);
+  assert.match(detail, /buildVizSpecFromNode\(node\)/);
   assert.match(detail, /xray-viz-bars/);
   assert.match(detail, /xray-viz-fill/);
   // the old fake viz that rendered schema metadata as JSON is gone

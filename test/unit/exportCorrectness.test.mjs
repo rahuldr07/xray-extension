@@ -87,6 +87,28 @@ test('share-safe drops Error message/stack and diagnostics from log args and log
   }
 });
 
+test('Final fix I1: share-safe reduces a typed Error (spec J7) to its name: no own properties, cause, message or stack', () => {
+  // console.error(axiosError) as console-capture.js + content.js deliver it: response data in own properties.
+  const axios = () => ({ $xray: 'error', name: 'AxiosError', message: 'Request failed for bob@example.com', stack: 'AxiosError: at https://app.test/x.js',
+    entries: [['code', 'ERR_BAD_REQUEST'], ['response', { $xray: 'object', class: 'Object', entries: [['data', { email: 'alice@example.com', note: 'card 4111 1111 1111 1111' }], ['status', 400]] }]],
+    cause: 'lookup failed for carol@example.com' });
+  const log = (logData, logArgCount) => ({ id: 'l', type: 'log', timestamp: 1, logLevel: 'error', logArgCount, logData });
+  const single = log(axios(), 1);
+  const args = log(['request failed', axios(), { wrapped: axios(), list: [axios()] }], 3);
+  const chained = log({ $xray: 'error', name: 'Error', message: 'outer', entries: [], cause: axios() }, 1);
+  const text = E.buildShareSafeExport([single, args, chained], 'session-json-safe').text;
+  for (const leak of ['alice@example.com', '4111', 'carol@example.com', 'bob@example.com', 'ERR_BAD_REQUEST', 'app.test', 'outer']) {
+    assert.equal(text.includes(leak), false, `share-safe export leaks ${leak}`);
+  }
+  const [one, many, chain] = JSON.parse(text).entries;
+  assert.deepEqual(one.logData, { name: 'AxiosError' });
+  assert.deepEqual(many.logData, ['request failed', { name: 'AxiosError' }, { wrapped: { name: 'AxiosError' }, list: [{ name: 'AxiosError' }] }]);
+  assert.deepEqual(chain.logData, { name: 'Error' }, 'the cause goes too, with its own fields');
+  // Every dropped field is counted (message, stack, two own properties, cause), as the card states.
+  const omitted = (entry) => E.buildShareSafeSession([entry]).omittedCount;
+  assert.equal(omitted(single) - omitted(log({ ok: true }, 1)), 5);
+});
+
 test('share-safe query allow-list keeps page=1, redacts token=x', () => {
   const entry = apiEntry({ url: 'https://x.test/a?page=1&token=x&Limit=5&other=y' });
   const out = JSON.parse(E.buildShareSafeExport([entry], 'session-json-safe').text);

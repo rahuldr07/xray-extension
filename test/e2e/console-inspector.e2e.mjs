@@ -49,14 +49,15 @@ const { outputFiles } = await build({
             execute(code) {
               self.calls.push(code);
               if (RESPONSES[code] || !self.evaluate) return Promise.resolve(RESPONSES[code] || {type:'undefined'});
-              // Opt-in evaluation against the same body, with the runtime's table() render
-              // marker and the console scope, so inserted paths are really run.
-              const table = rows => ({__xr_render:'table', data:Array.isArray(rows) ? rows : []});
+              // Opt-in evaluation against the same body, with the runtime's table() (rows
+              // flagged out of band, spec J8) and the console scope, so inserted paths are really run.
+              const tables = new WeakSet();
+              const table = rows => { const out = Array.isArray(rows) ? rows.slice() : []; tables.add(out); return out; };
               const names = Object.keys(self.vars);
               try {
                 const value = new Function('res', 'table', ...names, 'return (' + code + ');')(BODY, table, ...names.map(n => self.vars[n]));
                 const type = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
-                return Promise.resolve({type, result:value});
+                return Promise.resolve({type, result:value, ...(tables.has(value) ? {render:'table'} : {})});
               } catch (error) {
                 return Promise.resolve({type:'error', error:{message:error.name + ': ' + error.message}});
               }
@@ -379,7 +380,7 @@ for (const fixture of [
     assert.equal(await page.evaluate(() => window.insp.inspector().querySelector('button[aria-label="Use in prompt"]')?.disabled), true, 'no expression to prefix');
   });
 
-  test(`a table() result: $_, Save as variable and inspector paths use the rows, not the render marker (${fixture.label})`, async t => {
+  test(`a table() result: $_, Save as variable and inspector paths use the rows; the render flag is out of band (${fixture.label})`, async t => {
     const page = await open(t, fixture, 1600);
     await page.evaluate(() => { window.insp.evaluate = true; });
     // The "Table of users" starter inserts exactly this (console-editor covers the chip).
@@ -396,10 +397,10 @@ for (const fixture of [
     await openInspector(page, 0);
     await click(page, '.xray-inspector .xray-json-toggle[title="Expand [3]"]');
     await clickRow(page, '"name"');
-    assert.equal(await footerPath(page), '(table(res.users)).data[3].name', 'the expression path goes through .data');
+    assert.equal(await footerPath(page), '(table(res.users))[3].name', 'table() evaluates to the rows: no .data hop');
     await page.evaluate(() => { window.insp.draft(''); window.insp.query('[aria-label="Console command"]').focus(); });
     await click(page, '.xray-inspector button[aria-label="Use in prompt"]');
-    await page.waitForFunction(() => window.insp.draftValue() === '(table(res.users)).data[3].name');
+    await page.waitForFunction(() => window.insp.draftValue() === '(table(res.users))[3].name');
     await click(page, '.xray-console-run');
     await page.waitForFunction(() => window.insp.cells().length === 3 && !/Running…/.test(window.insp.cellText(2)), null, { timeout: 4000 });
     const text = await page.evaluate(() => window.insp.cellText(2));

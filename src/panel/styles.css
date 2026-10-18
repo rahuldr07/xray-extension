@@ -1172,6 +1172,12 @@
   height: 28px;
 }
 
+/* The inspected value's stated cap, on its own line under the header (spec J8). */
+.xray-inspector-notice {
+  margin: 0;
+  padding: 6px 10px 0;
+}
+
 .xray-inspector-tools {
   display: flex;
   flex-wrap: wrap;
@@ -1757,6 +1763,14 @@
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+/* A console cap, stated beside the badge ("Showing 1,000 of 5,000 items", spec J8). */
+.xray-result-notice {
+  min-width: 0;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .xray-result {
@@ -3092,6 +3106,19 @@
   color: var(--xray-subtext);
 }
 
+/* Typed log values (spec J7): functions, Symbols, Dates, DOM nodes and container labels
+   (Map(3), TypeError) read as values rather than strings; notes (… 3 more, [Circular])
+   recede. */
+.xray-json-typed {
+  color: var(--xray-teal);
+  font-style: italic;
+}
+
+.xray-json-muted {
+  color: var(--xray-hint);
+  font-style: italic;
+}
+
 .xray-table {
   width: 100%;
   border-collapse: collapse;
@@ -3172,6 +3199,31 @@
   color: var(--xray-text);
   font: inherit;
   cursor: pointer;
+}
+
+/* Spec J9: "Couldn't save the session — <reason>", once per failure streak (store.ts). A strip
+   between the header and the body: it pushes the body down rather than covering any of it, and its
+   own class keeps it clear of the floating .xray-notice rules above. */
+.xray-save-notice {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-yellow) 40%, var(--xray-border));
+  background: color-mix(in srgb, var(--xray-yellow) 12%, var(--xray-surface));
+  color: var(--xray-text);
+  font: 600 11px/1.4 var(--xray-font);
+}
+
+.xray-save-notice-icon {
+  flex: 0 0 auto;
+  color: var(--xray-yellow);
+}
+
+.xray-save-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .xray-modal {
@@ -7853,7 +7905,8 @@ ul.xray-compare-notice {
    their width on one line; only the value wraps, inside its own box. A key
    wider than the pane scrolls with the tree body instead of breaking. */
 .xray-json-row > .xray-json-key,
-.xray-json-row > .xray-json-punct {
+.xray-json-row > .xray-json-punct,
+.xray-json-row > .xray-json-label {
   flex: 0 0 auto;
   white-space: pre;
 }
@@ -7962,6 +8015,245 @@ ul.xray-compare-notice {
   }
 }
 
+/* ── API detail body views: Raw and Tree from the captured text (JSON fidelity J2, J3, J13) ──
+   The Tree and Raw fill the detail content and window their rows inside their own scroller, so
+   the content is a column: notices take their height, the view takes the rest (never less than a
+   usable minimum, even where the content area has no fixed height). */
+.xray-detail-content.has-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xray-detail-content.has-pane > .xray-body-pane,
+.xray-detail-content.has-pane > .xray-raw,
+.xray-detail-content.has-pane > .xray-body-scroll {
+  flex: 1 1 0;
+  min-height: 280px;
+}
+
+.xray-body-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xray-body-pane > .xray-json-tree.is-virtual,
+.xray-body-pane > .xray-raw {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.xray-body-scroll {
+  min-width: 0;
+  overflow: auto;
+}
+
+.xray-json-tree.is-virtual {
+  padding: 8px 0 0;
+}
+
+.xray-json-tree.is-virtual > .xray-json-tree-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0 8px 6px;
+}
+
+.xray-json-vscroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.xray-json-vlist {
+  position: relative;
+  width: 100%;
+}
+
+.xray-json-vrow {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.xray-json-budget-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A repeated key (after the key) and a number JavaScript cannot hold (after the number). */
+.xray-json-tag {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0 6px 0 0;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--xray-tag-color, var(--xray-yellow)) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--xray-tag-color, var(--xray-yellow)) 14%, transparent);
+  color: var(--xray-text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.xray-json-tag.inexact {
+  --xray-tag-color: var(--xray-peach);
+  margin: 0 0 0 6px;
+}
+
+.xray-json-row.has-hint > .xray-json-value {
+  flex: 0 1 auto;
+}
+
+.xray-json-note {
+  color: var(--xray-subtext);
+  font: 700 10px/1.4 var(--xray-font);
+}
+
+.xray-json-depth {
+  flex: 0 0 auto;
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: var(--xray-radius-sm);
+  background: rgba(var(--xray-surface2-rgb), .7);
+  color: var(--xray-hint);
+  font-size: 10px;
+}
+
+/* A bidi control shown as its escape: set apart from the text around it. */
+.xray-bidi {
+  padding: 0 1px;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-red) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xray-red) 42%, transparent);
+  color: var(--xray-text);
+  font-style: normal;
+}
+
+.xray-raw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.xray-raw-toolbar .xray-json-tree-btn[aria-pressed="true"] {
+  border-color: var(--xray-accent);
+  color: var(--xray-text);
+  background: color-mix(in srgb, var(--xray-accent) 18%, transparent);
+}
+
+.xray-raw-toolbar .xray-json-tree-btn:disabled {
+  cursor: default;
+  opacity: .55;
+}
+
+.xray-raw-error {
+  color: var(--xray-red);
+  font: 700 11px/1.4 var(--xray-font);
+}
+
+.xray-raw {
+  position: relative;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.xray-raw:focus-visible {
+  outline: 2px solid var(--xray-accent);
+  outline-offset: -2px;
+}
+
+.xray-raw-list {
+  position: relative;
+  width: 100%;
+}
+
+.xray-raw-block {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.xray-raw.no-gutter .xray-json-line {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.xray-json-line.has-mark {
+  background: color-mix(in srgb, var(--xray-red) 9%, transparent);
+}
+
+.xray-raw-mark {
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-red) 34%, transparent);
+  box-shadow: 0 0 0 1px var(--xray-red);
+  color: var(--xray-text);
+}
+
+.xray-raw-mark.gap {
+  display: inline-block;
+  min-width: .6em;
+}
+
+.xray-body-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xray-body-notice {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-body-notice, var(--xray-blue)) 36%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-body-notice, var(--xray-blue)) 10%, transparent);
+  color: var(--xray-text);
+  font: 600 12px/1.4 var(--xray-font);
+}
+
+.xray-body-notice.warning {
+  --xray-body-notice: var(--xray-yellow);
+}
+
+/* Table view: the "Showing R of N rows · C of K columns" notice sits above the table. */
+.xray-table-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xray-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--xray-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.xray-body-status {
+  margin: 8px 0;
+  color: var(--xray-subtext);
+  font: 600 12px/1.5 var(--xray-font);
+}
+
+.xray-binary-body h3 {
+  margin: 0 0 6px;
+}
+
+.xray-binary-prefix {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: var(--xray-text);
+}
+
 /* ── Console: rendered errors (ErrorBlock) ───────────────────────────────── */
 .xray-error-name {
   color: var(--xray-red);
@@ -8068,6 +8360,77 @@ ul.xray-compare-notice {
 
 .xray-notice-action {
   flex: 0 0 auto;
+}
+
+/* ── J12: a view that failed to render (ErrorBoundary) ──
+   Same tinted callout as the error notice, in place of the view that failed. */
+.xray-render-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--xray-red) 36%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-red) 10%, transparent);
+  color: var(--xray-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.xray-render-fallback-icon {
+  flex: 0 0 auto;
+  color: var(--xray-red);
+}
+
+.xray-render-fallback-text {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.xray-render-fallback-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The root boundary's fallback (RootErrorBoundary): inside the panel's own frame, so it sits where
+   the panel does on every surface. */
+.xray-root-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--xray-red) 36%, transparent);
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-red) 10%, var(--xray-surface));
+  color: var(--xray-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.xray-root-fallback-icon {
+  color: var(--xray-red);
+}
+
+.xray-root-fallback-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.xray-root-fallback-text {
+  margin: 0;
+  max-width: 60ch;
+}
+
+.xray-root-fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 

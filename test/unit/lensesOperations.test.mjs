@@ -279,3 +279,24 @@ test('FIXED: a JWT with an out-of-range exp/iat returns null instead of throwing
   // A representable timestamp still formats.
   assert.equal(decodeJwt(encode({ exp: 1767225600 }), 'test').expiresAt, '2026-01-01T00:00:00.000Z');
 });
+
+test('Final fix M1: the JWT lens reads the request body from its text (a saved session keeps no parsed copy)', () => {
+  const token = jwt({ sub: 'from-text' });
+  // As a restore leaves a text body: requestBodyText, no parsed requestBody beside it.
+  const restored = apiEntry({ method: 'POST', requestHeaders: {}, requestBodyKind: 'text', requestBodyText: `{"auth":{"token":"${token}"}}`, requestBody: undefined, responseRaw: null });
+  const [lens] = extractJwts(restored);
+  assert.equal(lens?.source, 'requestBody.auth.token');
+  assert.equal(lens.payload.sub, 'from-text');
+  // A FormData field carries one too.
+  const form = apiEntry({ method: 'POST', requestHeaders: {}, requestBodyKind: 'formdata', requestBodyText: `t=${token}`, requestBody: [['t', token]], responseRaw: null });
+  assert.equal(extractJwts(form).length, 1);
+});
+
+test('Final fix M9: a body that is one integer past 2^53 offers no Schema, Table or Visualize (it has no members)', () => {
+  const big = apiEntry({ responseRaw: '9007199254740993' });
+  const ids = getResponseOperations(big, [big]).map((op) => op.id);
+  for (const id of ['schema', 'table', 'visualize']) assert.ok(!ids.includes(id), `${id} offered for a number`);
+  const object = apiEntry({ responseRaw: '{"id":9007199254740993}' });
+  const objectIds = getResponseOperations(object, [object]).map((op) => op.id);
+  for (const id of ['schema', 'table', 'visualize']) assert.ok(objectIds.includes(id), `${id} offered for an object`);
+});

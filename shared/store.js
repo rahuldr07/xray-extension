@@ -10,6 +10,16 @@ window.XRAY_Store = (() => {
     return error;
   }
 
+  // A full quota is the one failure the panel can explain ("Couldn't save the session — the
+  // browser's storage for XRAY is full", spec J9). Only this fixed reason leaves: never Chrome's text.
+  function quotaExceeded(caught) {
+    try {
+      return /quota/i.test(String(caught && caught.message));
+    } catch {
+      return false;
+    }
+  }
+
   // Legacy callers keep defaults/best-effort writes. Only the React bridge opts
   // into strict failures; receipts never retain Chrome messages, keys or values.
   async function get(key, defaultVal = null, strict = false) {
@@ -34,8 +44,12 @@ window.XRAY_Store = (() => {
       available = typeof storage?.set === 'function';
       if (!available) throw storageFailure('storage-unavailable');
       await storage.set({ [PREFIX + key]: value });
-    } catch {
-      if (strict) throw storageFailure(available ? 'storage-write-failed' : 'storage-unavailable');
+    } catch (caught) {
+      if (strict) {
+        const error = storageFailure(available ? 'storage-write-failed' : 'storage-unavailable');
+        if (available && quotaExceeded(caught)) error.reason = 'quota';
+        throw error;
+      }
       // Legacy quota or context errors remain best effort.
     }
   }

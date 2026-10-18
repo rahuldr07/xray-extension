@@ -1,9 +1,27 @@
 /* Behavioural tests for src/panel/models/detail.ts. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detail as D, viz, apiEntry, assertSchemaFallback } from './harness.mjs';
+import { detail as D, viz, apiEntry } from './harness.mjs';
 
-const { detailValue, detailViews, gridRows, structuralDiff, timingPhases, vizSummary } = D;
+const { detailViews, timingPhases } = D;
+const { fromValue, toValue } = await import('../../src/panel/models/jsonText.ts');
+
+// The panel's views read nodes only; the value wrappers that only tests called went with the final
+// fix (M7). These tests still drive Table and Diff with plain values, through fromValue as the
+// wrappers did, so the node models keep this coverage.
+function gridRows(value) {
+  const table = D.tableFromNode(value === undefined ? null : fromValue(value));
+  return { objects: table.rows.map((row) => toValue(row)), columns: table.columns };
+}
+function structuralDiff(previous, current, maxLines) {
+  const result = D.diffNodes(previous === undefined ? null : fromValue(previous), current === undefined ? null : fromValue(current), maxLines);
+  return result.lines.map((line) => {
+    const out = { path: line.path, kind: line.kind };
+    if (line.before) out.before = toValue(line.before);
+    if (line.after) out.after = toValue(line.after);
+    return out;
+  });
+}
 
 const byPath = (lines) => Object.fromEntries(lines.map((line) => [line.path, line.kind]));
 
@@ -54,23 +72,6 @@ test('timingPhases falls back to a single wall-clock bar', () => {
   assert.equal(negative.totalMs, 0, 'a negative duration clamps to 0');
 });
 
-// -------------------------------------------------------------- detailValue
-
-test('detailValue routes each tab to the right slice of the entry', () => {
-  const entry = apiEntry({
-    requestBody: '{"q":1}',
-    responseRaw: '{"r":2}',
-    requestHeaders: { a: '1' },
-    responseHeaders: { b: '2' },
-  });
-  assert.deepEqual(detailValue(entry, 'request'), { q: 1 });
-  assert.deepEqual(detailValue(entry, 'response'), { r: 2 });
-  assert.deepEqual(detailValue(entry, 'headers'), { requestHeaders: { a: '1' }, responseHeaders: { b: '2' } });
-
-  const bare = apiEntry({ requestHeaders: undefined, responseHeaders: undefined });
-  assert.deepEqual(detailValue(bare, 'headers'), { requestHeaders: {}, responseHeaders: {} });
-});
-
 test('detailViews lists every view the panel can render', () => {
   assert.deepEqual(detailViews, ['tree', 'grid', 'raw', 'schema', 'diff', 'viz', 'waterfall', 'headers']);
 });
@@ -93,17 +94,6 @@ test('gridRows caps at 200 rows and 20 columns per row', () => {
   const wide = [Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`c${i}`, i]))];
   assert.equal(gridRows(wide).columns.length, 20, 'only the first 20 keys of a row become columns');
   assert.equal(Object.keys(gridRows(wide).objects[0]).length, 40, 'the row data itself is not trimmed');
-});
-
-// --------------------------------------------------------------- vizSummary
-
-test('vizSummary reports the inferred schema and a row count', () => {
-  assertSchemaFallback(assert);
-  assert.deepEqual(vizSummary([{ a: 1 }, { a: 2 }]), { inferredType: [{ a: 'number' }], rows: 2 });
-  assert.deepEqual(vizSummary({ a: 'x' }), { inferredType: { a: 'string' }, rows: 1 });
-  assert.deepEqual(vizSummary('plain'), { inferredType: 'string', rows: 0 });
-  assert.deepEqual(vizSummary(null), { inferredType: 'null', rows: 0 });
-  assert.deepEqual(vizSummary([]), { inferredType: 'array', rows: 0 });
 });
 
 // ------------------------------------------------------------ structuralDiff
@@ -153,10 +143,12 @@ test('CAP structuralDiff stops at maxLines', () => {
   assert.equal(structuralDiff(before, after, 0).length, 0);
 });
 
-test('CAP structuralDiff stops descending past depth 6', () => {
+test('FIXED audit #14 — a change at depth 7 is no longer invisible to structuralDiff', () => {
   const nest = (leaf) => ({ a: { b: { c: { d: { e: { f: { g: leaf } } } } } } });
-  // a=1 b=2 c=3 d=4 e=5 f=6 g=7 — the walk into `g` is at depth 7 and is skipped.
-  assert.deepEqual(structuralDiff(nest('x'), nest('y')), [], 'a change at depth 7 is invisible');
+  // a=1 b=2 c=3 d=4 e=5 f=6 g=7. Was: the walk stopped past depth 6 and the Diff view said
+  // "No structural differences". The limit is now deeper and, where it stops, it says so
+  // (diffNodes notices; see test/unit/nodeViews.test.mjs).
+  assert.deepEqual(structuralDiff(nest('x'), nest('y')).map((line) => line.path), ['a.b.c.d.e.f.g']);
   const shallower = (leaf) => ({ a: { b: { c: { d: { e: { f: leaf } } } } } });
   assert.deepEqual(structuralDiff(shallower('x'), shallower('y')).map((line) => line.path), ['a.b.c.d.e.f']);
 });
@@ -238,9 +230,16 @@ test('FIXED: Table and Chart read the largest array, not the first one', () => {
     const grid = gridRows(payload);
     assert.equal(grid.objects.length, 25, JSON.stringify(Object.keys(payload)));
     assert.deepEqual(grid.columns, ['id', 'amount']);
-    assert.equal(viz.buildVizSpec(payload).kind, 'bars');
+    assert.equal(viz.buildVizSpecFromNode(fromValue(payload)).kind, 'bars');
   }
 
   // With no non-empty array there is still nothing to show, and that is honest.
   assert.equal(gridRows({ errors: [], data: [] }).objects.length, 0);
+});
+
+test('Final fix M7: the value-based view functions only tests called are gone — every view reads nodes', async () => {
+  const D = await import('../../src/panel/models/detail.ts');
+  const V = await import('../../src/panel/models/viz.ts');
+  for (const name of ['detailValue', 'gridRows', 'vizSummary', 'structuralDiff']) assert.equal(D[name], undefined, name);
+  assert.equal(V.buildVizSpec, undefined);
 });
