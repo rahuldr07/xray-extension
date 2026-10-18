@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const { read } = require('./helpers/source');
 
-test('Signal Gray semantic tokens are scoped to Shadow DOM and avoid web font loading', () => {
+test('fallback semantic tokens are scoped to Shadow DOM and avoid web font loading', () => {
   const tokens = read('src/panel/styles/tokens.css');
   const panelCss = read('src/panel/styles.css');
   const main = read('src/panel/main.tsx');
@@ -50,11 +50,12 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   const shell = read('src/panel/components/shell/PanelShell.tsx');
   const styles = read('src/panel/styles.css');
 
-  assert.match(types, /export type PanelTheme = 'operator' \| 'dev-edition' \| 'midnight' \| 'light-lab' \| 'claude' \| 'custom'/);
+  // The P1 lineup + custom. Retired ids are not themes: they migrate on load (spec V2).
+  assert.match(types, /export type PanelTheme = 'xray-dark' \| 'xray-light' \| 'github-dark' \| 'github-light' \| 'tokyo-night' \| 'catppuccin-mocha' \| 'dracula' \| 'gruvbox-dark' \| 'midnight' \| 'custom';/);
   assert.match(types, /export type PanelFont = 'jetbrains' \| 'cascadia' \| 'iosevka' \| 'system'/);
   assert.match(types, /export type PanelDensity = 'compact' \| 'comfortable' \| 'spacious'/);
   assert.match(settingsModel, /PANEL_FONT_VALUES/);
-  assert.match(settingsModel, /theme: 'operator'/);
+  assert.match(settingsModel, /theme: 'xray-dark'/);
   assert.match(settingsModel, /density: 'compact'/);
   assert.match(settingsModel, /glow: true/);
   assert.match(settingsModal, /label="Theme"/);
@@ -65,7 +66,7 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   assert.match(shell, /xray-density-\$\{settings\.density\}/);
   assert.match(shell, /xray-font-\$\{settings\.font\}/);
   assert.match(shell, /PANEL_FONT_VALUES\[settings\.font\]/);
-  for (const className of ['xray-theme-operator', 'xray-theme-dev-edition', 'xray-theme-midnight', 'xray-theme-light-lab', 'xray-theme-claude', 'xray-density-compact', 'xray-density-comfortable', 'xray-density-spacious']) {
+  for (const className of ['xray-theme-xray-dark', 'xray-theme-xray-light', 'xray-theme-github-dark', 'xray-theme-github-light', 'xray-theme-tokyo-night', 'xray-theme-catppuccin-mocha', 'xray-theme-dracula', 'xray-theme-gruvbox-dark', 'xray-theme-midnight', 'xray-density-compact', 'xray-density-comfortable', 'xray-density-spacious']) {
     assert.match(styles, new RegExp(`\\.${className}`));
   }
   assert.match(styles, /XRAY Operator UI override layer/);
@@ -90,17 +91,19 @@ test('Operator UI applies tab-specific API, Detail, Console, Snippet, and Insigh
   assert.doesNotMatch(styles, /\.xray-notebook/);
 });
 
-test('surfaces use theme RGB tokens so light themes (Light Lab, Claude) render correctly', () => {
+test('surfaces use theme RGB tokens so light themes (XRAY Light, GitHub Light) render correctly', () => {
   const styles = read('src/panel/styles.css');
   const tokens = read('src/panel/styles/tokens.css');
-  // no Catppuccin-dark surface values baked into rules — they must be tokenized
+  // no Catppuccin-dark surface values baked into rules — they must be tokenized (a preset's
+  // own token block, e.g. Catppuccin Mocha's --xray-overlay, is where such values belong)
+  const rules = styles.replace(/\.xray-theme-[a-z0-9-]+\s*\{[^}]*--xray-bg:[^}]*\}/g, '');
   for (const dark of ['rgba(17, 17, 27', 'rgba(24, 24, 37', 'rgba(30, 30, 46', 'rgba(49, 50, 68', 'rgba(205, 214, 244']) {
-    assert.doesNotMatch(styles, new RegExp(dark.replace(/[()]/g, '\\$&')), `${dark} must be a theme token, not hardcoded`);
+    assert.doesNotMatch(rules, new RegExp(dark.replace(/[()]/g, '\\$&')), `${dark} must be a theme token, not hardcoded`);
   }
   // the translucent-surface tokens exist on the base and every theme
   assert.match(tokens, /--xray-surface-rgb:/);
   assert.match(tokens, /--xray-text-rgb:/);
-  for (const theme of ['operator', 'dev-edition', 'midnight', 'light-lab', 'claude']) {
+  for (const theme of ['xray-dark', 'xray-light', 'github-dark', 'github-light', 'tokyo-night', 'catppuccin-mocha', 'dracula', 'gruvbox-dark', 'midnight']) {
     const block = styles.match(new RegExp(`\\.xray-theme-${theme}\\s*\\{[^}]*\\}`));
     assert.ok(block, `theme block for ${theme} not found`);
     assert.match(block[0], /--xray-bg-rgb:/);
@@ -117,18 +120,19 @@ test('theme tokens reach popups too, not just the panel', () => {
   // A display:contents wrapper carries theme tokens to the panel AND the sibling
   // modals (Settings, Export, Command palette, Global search, …) via inheritance.
   assert.match(app, /xray-theme-scope xray-theme-\$\{settings\.theme\}/);
-  // The accent is resolved rather than looked up directly: it is applied as an inline
-  // custom property, so it outranks every .xray-theme-* block and used to follow the
-  // dark-theme pastels onto the light themes at 1.33-2.80 contrast, which put the focus
-  // ring below the 3:1 floor. resolveAccentValue picks a darkened variant by measured
-  // background luminance.
-  assert.match(app, /'--xray-accent': resolveAccentValue\(settings\)/);
+  // A preset owns its accent (spec P2): the inline --xray-accent, which outranks every
+  // .xray-theme-* block, is set only for an accent the user picked (or the custom theme's).
+  // resolveAccentValue solves a picked swatch for the preset's own surfaces; the pastels
+  // used to follow the user onto light themes at 1.33-2.80 contrast, below the focus ring's
+  // 3:1 floor.
+  assert.match(app, /const accent = resolveAccentValue\(settings\);/);
+  assert.match(app, /\.\.\.\(accent \? \{ '--xray-accent': accent \} : \{\}\)/);
   assert.match(app, /settings\.theme === 'custom' \? buildCustomThemeVars/);
   // the wrapper contains the modals (they're inside the same element, not siblings of it)
   assert.match(app, /<div className={`xray-theme-scope[\s\S]*<SettingsModal \/>[\s\S]*<GlobalSearch \/>[\s\S]*<\/div>/);
   assert.match(styles, /\.xray-theme-scope\s*\{\s*display: contents;/);
   // preset token blocks are no longer panel-scoped, so the wrapper matches them
-  assert.doesNotMatch(styles, /\.xray-panel\.xray-theme-operator/);
+  assert.doesNotMatch(styles, /\.xray-panel\.xray-theme-[a-z]/);
   // the default token fallback still exists for both the shadow host and plain mount
   assert.match(tokens, /:host,\s*\.xray-app-root/);
 });

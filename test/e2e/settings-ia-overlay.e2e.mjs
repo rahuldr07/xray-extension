@@ -226,7 +226,7 @@ for (const shadow of [false, true]) {
     assert.match(body, /Change in chrome:\/\/extensions\/shortcuts/);
     body = await text('about');
     assert.match(body, /Decryption: responses to requests with an X-Parse-Token header pass through the decrypt hook in shared\/decrypt\.js, which does nothing until a developer edits it\./);
-    assert.match(body, /5 presets/);
+    assert.match(body, /9 presets/); // the P1 lineup (THEME_PRESETS)
     await text('appearance');
     const choices = await page.evaluate(() => {
       const root = window.settingsTest.root;

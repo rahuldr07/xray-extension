@@ -51,7 +51,7 @@ const { outputFiles } = await build({
             apiSearchQuery: '', pinnedIds: new Set(),
             settings: { ...state.settings, panelWidth: width, compactRows: false, firstRunDismissed: true },
           });
-          host.className = 'xray-theme-scope xray-theme-operator';
+          host.className = 'xray-theme-scope xray-theme-xray-dark';
           const panel = host.appendChild(document.createElement('div'));
           panel.className = 'xray-panel xray-mode-window xray-open';
           panel.style.cssText = 'container-type:inline-size;container-name:xray;width:' + width + 'px;height:700px;display:block;position:relative;';

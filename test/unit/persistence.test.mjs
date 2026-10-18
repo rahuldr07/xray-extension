@@ -103,7 +103,7 @@ test('applyPanelPreferences distinguishes false from absent for the boolean fiel
 test('applyPanelPreferences normalizes the settings blob through the settings model', () => {
   const patch = applyPanelPreferences({ settings: { maxEntries: 99_999, theme: 'nonsense', bogus: 1 } });
   assert.equal(patch.settings.maxEntries, 5000);
-  assert.equal(patch.settings.theme, 'operator');
+  assert.equal(patch.settings.theme, 'xray-dark');
   assert.equal('bogus' in patch.settings, false);
   assert.deepEqual(Object.keys(patch.settings).sort(), Object.keys(PS.DEFAULT_PANEL_SETTINGS).sort());
 });

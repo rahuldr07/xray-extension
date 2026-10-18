@@ -42,7 +42,7 @@ const { outputFiles } = await build({
             selectedId:null,apiDetailOpen:false,detailView:'schema',detailTab:'response'});
           installPanelKeyboard({dismissible:true,getRoot:()=>this.root});
           flushSync(()=>createRoot(shadow?this.root.appendChild(document.createElement('div')):host).render(
-             <div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open" style={{width:'1000px',height:'760px'}}>
+             <div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open" style={{width:'1000px',height:'760px'}}>
                <EntriesWorkspace mode="api" /><GlobalSearch />
             </div></div>
           ));

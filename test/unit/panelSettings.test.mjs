@@ -130,7 +130,8 @@ test('FIXED an explicit undefined no longer turns booleans off', () => {
 const ENUMS = [
   ['defaultDetailView', ['tree', 'grid', 'raw', 'schema', 'diff', 'viz', 'waterfall', 'headers'], 'tree'],
   ['accent', ['blue', 'mauve', 'teal', 'green', 'peach', 'coral'], 'blue'],
-  ['theme', ['operator', 'dev-edition', 'midnight', 'light-lab', 'claude', 'custom'], 'operator'],
+  // Retired ids are not in the domain: they migrate (test/unit/themeMigration.test.mjs).
+  ['theme', ['xray-dark', 'xray-light', 'github-dark', 'github-light', 'tokyo-night', 'catppuccin-mocha', 'dracula', 'gruvbox-dark', 'midnight', 'custom'], 'xray-dark'],
   ['font', ['jetbrains', 'cascadia', 'iosevka', 'system'], 'jetbrains'],
   ['density', ['compact', 'comfortable', 'spacious'], 'compact'],
   ['dockSide', ['left', 'right'], 'right'],

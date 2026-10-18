@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconArrowsMaximize, IconDeviceLaptop, IconDownload, IconLayoutSidebarLeftExpand, IconLayoutSidebarRightExpand, IconPictureInPicture, IconSettings, IconTerminal2, IconX } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue } from '../../models/panelSettings';
+import { DEFAULT_PANEL_SETTINGS, PANEL_FONT_VALUES, PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, resolveAccentValue, themeRefreshNotice } from '../../models/panelSettings';
 import { buildSessionIndex } from '../../models/sessionIndex';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { formatBytes } from '../../utils';
@@ -175,11 +175,13 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
   // A custom theme is applied purely as inline CSS variables on this element, so
   // it stays scoped to the panel and never affects the host page or the runtime.
   const customVars = settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {};
+  // A preset's own accent comes from its CSS block; only a picked one is set inline (spec P2).
+  const accent = resolveAccentValue(settings);
 
   return (
     <div
       className={`xray-panel xray-mode-${mode} ${dockable ? `xray-dock-${dockSide}` : ''} xray-theme-${settings.theme} xray-density-${settings.density} xray-font-${settings.font} ${settings.glow ? 'xray-glow' : 'xray-no-glow'} ${settings.hacker ? 'xray-hacker' : ''} ${open ? 'xray-open' : ''} ${devtoolsMode ? 'xray-devtools' : ''} ${settings.compactRows ? 'xray-compact-rows' : ''}`}
-      style={{ '--xray-accent': resolveAccentValue(settings), '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
+      style={{ ...(accent ? { '--xray-accent': accent } : {}), '--xray-font': PANEL_FONT_VALUES[settings.font], '--xray-radius': `${settings.radius}px`, '--xray-panel-width': `${appliedWidth}px`, ...customVars } as React.CSSProperties}
     >
       {dockable && (
         // `resize` is a ref, so mutating it never re-renders — reading it here meant the
@@ -310,6 +312,28 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
 
 // Mounted by App after modal siblings so a receipt remains actionable above a
 // backdrop. The region itself stays mounted for reliable polite announcements.
+/**
+ * The theme-refresh notice (spec V2) in its own slot: a receipt toast never replaces it, it
+ * does not time out, and it shows only while the panel is open, so a surface restored in the
+ * background cannot spend it. Dismissing it is the only thing that clears it.
+ */
+export function ThemeRefreshNotice(): React.ReactElement {
+  const pending = usePanelStore((state) => state.settings.themeRefreshPending);
+  const theme = usePanelStore((state) => state.settings.theme);
+  const open = usePanelStore((state) => state.open);
+  const dismiss = usePanelStore((state) => state.dismissThemeRefresh);
+  return (
+    <div className="xray-notice-region" role="status" aria-live="polite">
+      {pending && open && (
+        <div className="xray-notice">
+          <span>{themeRefreshNotice(theme)}</span>
+          <button type="button" className="xray-notice-dismiss" aria-label="Dismiss theme notice" onClick={dismiss}>Dismiss</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ToastRegion(): React.ReactElement {
   const toastMessage = usePanelStore((state) => state.toastMessage);
   const clearToast = usePanelStore((state) => state.clearToast);

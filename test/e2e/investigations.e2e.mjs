@@ -24,7 +24,7 @@ const { outputFiles } = await build({
         const sheet=document.createElement('style');sheet.textContent=styles;(shadow?this.root:document.head).appendChild(sheet);
         const mount=shadow?this.root.appendChild(document.createElement('div')):host;
         usePanelStore.setState({entries:[baseline],selectedId:'baseline',activeTab:'rules',rulesSubTab:'investigations',open:true});
-        flushSync(()=>createRoot(mount).render(<div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open"><Rules/></div></div>));},
+        flushSync(()=>createRoot(mount).render(<div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open"><Rules/></div></div>));},
       click(text,index=0){const b=[...this.root.querySelectorAll('button')].filter(b=>b.textContent.trim()===text)[index];
         if(!b)throw Error('Missing '+text);if(b.disabled)throw Error('Disabled '+text);b.scrollIntoView();b.focus();
         const r=b.getBoundingClientRect();if(!r.width||!r.height)throw Error('Hidden '+text);return {x:r.left+r.width/2,y:r.top+r.height/2};},

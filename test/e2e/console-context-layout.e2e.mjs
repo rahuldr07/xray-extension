@@ -18,7 +18,7 @@ const { outputFiles } = await build({
       import { usePanelStore } from './src/panel/store';
       import styles from './src/panel/styles.css';
       window.consoleLayout = {
-        setup(shadow, selected, mode = 'window', theme = 'operator') {
+        setup(shadow, selected, mode = 'window', theme = 'xray-dark') {
           const host = document.body.appendChild(document.createElement('div'));
           if (mode === 'hud') {
             host.style.width = '1600px';
@@ -132,7 +132,7 @@ after(async () => { await browser?.close(); });
 const screenshotDir = '/tmp/omnirush/console-slider';
 mkdirSync(screenshotDir, { recursive: true });
 
-for (const [theme, label] of [['light-lab', 'light'], ['midnight', 'dark']]) {
+for (const [theme, label] of [['xray-light', 'light'], ['midnight', 'dark']]) {
   test(`captures ${label} narrow dragged panel`, async t => {
     const page = await browser.newPage({ viewport: { width: 1800, height: 700 } });
     t.after(() => page.close());

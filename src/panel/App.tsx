@@ -15,7 +15,7 @@ import { FindingSynthesisModal } from './components/ai/FindingSynthesisModal';
 import { CommandPalette } from './components/shell/CommandPalette';
 import { GlobalSearch } from './components/search/GlobalSearch';
 import { PanelShell } from './components/shell/PanelShell';
-import { ToastRegion } from './components/shell/PanelShell';
+import { ThemeRefreshNotice, ToastRegion } from './components/shell/PanelShell';
 import type { XrayAppMode } from './types';
 
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
@@ -25,11 +25,12 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   // The theme's color tokens (and accent/font/radius) live on this wrapper, not on
   // .xray-panel — because the modals below render as siblings of the panel. A
   // `display: contents` wrapper carries the tokens down to BOTH the panel and every
-  // popup via inheritance, without adding a layout box. Presets get their tokens
-  // from the `.xray-theme-*` CSS block (which now keys off this class); the custom
-  // theme supplies them inline.
+  // popup via inheritance, without adding a layout box. Presets get their tokens, accent
+  // included, from the `.xray-theme-*` CSS block (which keys off this class); an accent
+  // the user picked goes inline over it, and the custom theme supplies everything inline.
+  const accent = resolveAccentValue(settings);
   const themeVars = {
-    '--xray-accent': resolveAccentValue(settings),
+    ...(accent ? { '--xray-accent': accent } : {}),
     '--xray-font': PANEL_FONT_VALUES[settings.font],
     '--xray-radius': `${settings.radius}px`,
     ...(settings.theme === 'custom' ? buildCustomThemeVars(settings.customTheme) : {}),
@@ -53,6 +54,7 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
       <GlobalSearch />
       <ConfirmationModal />
       <ToastRegion />
+      <ThemeRefreshNotice />
     </div>
   );
 }

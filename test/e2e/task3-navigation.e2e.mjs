@@ -37,7 +37,7 @@ const { outputFiles } = await build({
             entries: firstRun ? [] : logs, apiDetailOpen: false,
             settings: { ...state.settings, panelWidth: width, compactRows: width < 600, firstRunDismissed: !firstRun },
           });
-          mount.className = 'xray-theme-scope xray-theme-operator';
+          mount.className = 'xray-theme-scope xray-theme-xray-dark';
           const panel = mount.appendChild(document.createElement('div'));
           panel.className = 'xray-panel xray-mode-window xray-open';
           panel.style.cssText = 'container-type:inline-size;container-name:xray;width:' + width + 'px;height:700px;display:block;position:relative;';

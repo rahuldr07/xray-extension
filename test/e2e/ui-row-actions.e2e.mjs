@@ -20,7 +20,7 @@ const { outputFiles } = await build({
       import styles from './src/panel/styles.css';
       function Fixture() {
         const tab = usePanelStore(s => s.activeTab);
-        return <div className="xray-theme-scope xray-theme-operator">
+        return <div className="xray-theme-scope xray-theme-xray-dark">
           <div className="xray-panel xray-mode-window xray-open">
             {tab === 'console' ? <ConsoleWorkspace /> : <EntriesWorkspace mode={tab === 'logs' ? 'logs' : 'api'} />}
           </div>

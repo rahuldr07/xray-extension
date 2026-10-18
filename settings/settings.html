@@ -6,81 +6,126 @@
   <style>
     /* This is a top-level options document, not a shadow tree, so :root is the
        correct host for the tokens (the panel's :host rule would match nothing).
-       The palette is the real --xray-* contract from src/panel/styles.css, not
-       the zinc/indigo --xr-* set this page used to carry.
+       The palette is the real --xray-* contract from src/panel/styles.css.
 
        Reflecting the saved theme: settings.js sets themeSelect.value from
        chrome.storage.local, which makes the matching <option> :checked, and the
        page CSP (script-src 'self') rules out an inline script. So the theme is
        read back declaratively with :has() — that also previews a theme the
-       moment it is picked, before Save. Values mirror the .xray-theme-* blocks
-       in src/panel/styles.css; keep them in step. */
+       moment it is picked, before Save. Values mirror each preset's
+       .xray-theme-* block in src/panel/styles.css, accent included (a preset
+       owns its accent); test/unit/settingsContent.test.mjs keeps them in step.
+       :root is XRAY Dark, the default. */
     :root {
-      --xray-bg: #0b0f14;
-      --xray-surface: #101720;
-      --xray-surface2: #151f2b;
-      --xray-text: #d8e2ef;
-      --xray-subtext: #8fa1b7;
-      --xray-hint: #536274;
-      --xray-blue: #37d5ff;
-      --xray-green: #38f29b;
-      --xray-border: rgba(80, 114, 148, .42);
+      --xray-bg: #141517;
+      --xray-surface: #1b1c1f;
+      --xray-surface2: #25272a;
+      --xray-text: #eeeff1;
+      --xray-subtext: #bcbfc5;
+      --xray-hint: #90949b;
+      --xray-accent: #3dc8f5;
+      --xray-green: #65d68a;
+      --xray-border: #34363a;
       --xray-radius: 10px;
       --xray-radius-sm: calc(var(--xray-radius) * 0.6);
       --xray-radius-lg: calc(var(--xray-radius) * 1.4);
       --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
     }
     /* 'custom' has no static palette here — its colors live in storage and only
-       the panel resolves them — so it stays on the Operator default. */
-    :root:has(#theme option[value="dev-edition"]:checked) {
-      --xray-bg: #11131f;
-      --xray-surface: #171a2b;
-      --xray-surface2: #20243a;
-      --xray-text: #e1e7ff;
-      --xray-subtext: #a8b0cf;
-      --xray-hint: #6f789d;
-      --xray-blue: #75ddff;
-      --xray-green: #62e6a8;
-      --xray-border: rgba(124, 138, 189, .36);
+       the panel resolves them — so it stays on the XRAY Dark default. */
+    :root:has(#theme option[value="xray-light"]:checked) {
+      --xray-bg: #f3f4f6;
+      --xray-surface: #ffffff;
+      --xray-surface2: #eaecef;
+      --xray-text: #16171a;
+      --xray-subtext: #4b4f55;
+      --xray-hint: #646971;
+      --xray-accent: #00698f;
+      --xray-green: #007138;
+      --xray-border: #d7d9dd;
+    }
+    :root:has(#theme option[value="github-dark"]:checked) {
+      --xray-bg: #0d1117;
+      --xray-surface: #161b22;
+      --xray-surface2: #21262d;
+      --xray-text: #e6edf3;
+      --xray-subtext: #c9d1d9;
+      --xray-hint: #8a939d;
+      --xray-accent: #5297ff;
+      --xray-green: #3fb950;
+      --xray-border: #30363d;
+    }
+    :root:has(#theme option[value="github-light"]:checked) {
+      --xray-bg: #f6f8fa;
+      --xray-surface: #ffffff;
+      --xray-surface2: #eaeef2;
+      --xray-text: #1f2328;
+      --xray-subtext: #424a53;
+      --xray-hint: #646c75;
+      --xray-accent: #005eca;
+      --xray-green: #00722b;
+      --xray-border: #d0d7de;
+    }
+    :root:has(#theme option[value="tokyo-night"]:checked) {
+      --xray-bg: #16161e;
+      --xray-surface: #1a1b26;
+      --xray-surface2: #292e42;
+      --xray-text: #c0caf5;
+      --xray-subtext: #a9b1d6;
+      --xray-hint: #9094b2;
+      --xray-accent: #7ba4f9;
+      --xray-green: #9ece6a;
+      --xray-border: #101014;
+    }
+    :root:has(#theme option[value="catppuccin-mocha"]:checked) {
+      --xray-bg: #181825;
+      --xray-surface: #1e1e2e;
+      --xray-surface2: #313244;
+      --xray-text: #cdd6f4;
+      --xray-subtext: #a6adc8;
+      --xray-hint: #959ab3;
+      --xray-accent: #cba6f7;
+      --xray-green: #a6e3a1;
+      --xray-border: #45475a;
+    }
+    :root:has(#theme option[value="dracula"]:checked) {
+      --xray-bg: #21222c;
+      --xray-surface: #282a36;
+      --xray-surface2: #343746;
+      --xray-text: #f8f8f2;
+      --xray-subtext: #adb5cb;
+      --xray-hint: #8d9fd4;
+      --xray-accent: #c59dff;
+      --xray-green: #50fa7b;
+      --xray-border: #424450;
+    }
+    :root:has(#theme option[value="gruvbox-dark"]:checked) {
+      --xray-bg: #1d2021;
+      --xray-surface: #282828;
+      --xray-surface2: #3c3836;
+      --xray-text: #ebdbb2;
+      --xray-subtext: #bdae93;
+      --xray-hint: #afa08b;
+      --xray-accent: #8ec07c;
+      --xray-green: #b8bb26;
+      --xray-border: #504945;
     }
     :root:has(#theme option[value="midnight"]:checked) {
-      --xray-bg: #05070a;
-      --xray-surface: #090d12;
-      --xray-surface2: #0f151d;
-      --xray-text: #d7f7ff;
-      --xray-subtext: #83a4ad;
-      --xray-hint: #49626b;
-      --xray-blue: #00e5ff;
-      --xray-green: #00ff95;
-      --xray-border: rgba(0, 229, 255, .28);
-    }
-    :root:has(#theme option[value="light-lab"]:checked) {
-      --xray-bg: #edf3fb;
-      --xray-surface: #f8fbff;
-      --xray-surface2: #e6eef9;
-      --xray-text: #172033;
-      --xray-subtext: #526173;
-      --xray-hint: #75869a;
-      --xray-blue: #006adc;
-      --xray-green: #087f5b;
-      --xray-border: rgba(82, 97, 115, .28);
-    }
-    :root:has(#theme option[value="claude"]:checked) {
-      --xray-bg: #f0eee6;
-      --xray-surface: #faf9f5;
-      --xray-surface2: #eceae0;
-      --xray-text: #23221f;
-      --xray-subtext: #6b675f;
-      --xray-hint: #6d6960;
-      --xray-blue: #4a6fa5;
-      --xray-green: #3f8a4f;
-      --xray-border: rgba(60, 55, 48, .18);
+      --xray-bg: #000000;
+      --xray-surface: #101010;
+      --xray-surface2: #1d1d1d;
+      --xray-text: #ffffff;
+      --xray-subtext: #eeeeee;
+      --xray-hint: #c8c8c8;
+      --xray-accent: #00e5ff;
+      --xray-green: #75e6a8;
+      --xray-border: #ffffff;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background:
-        radial-gradient(circle at top, color-mix(in srgb, var(--xray-blue) 12%, transparent) 0%, transparent 48%),
+        radial-gradient(circle at top, color-mix(in srgb, var(--xray-accent) 12%, transparent) 0%, transparent 48%),
         var(--xray-bg);
       color: var(--xray-text);
       font-family: var(--xray-font);
@@ -109,7 +154,7 @@
       font-size: 15px;
       letter-spacing: .5px;
       font-weight: 700;
-      color: var(--xray-blue);
+      color: var(--xray-accent);
     }
     .head p {
       margin-top: 5px;
@@ -152,8 +197,8 @@
     }
     select:focus,
     input[type="number"]:focus {
-      border-color: var(--xray-blue);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-blue) 25%, transparent);
+      border-color: var(--xray-accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--xray-accent) 25%, transparent);
     }
     .hint {
       color: var(--xray-hint);
@@ -205,21 +250,21 @@
       transition: transform .2s, background .2s;
     }
     .switch input:checked + .switch-track {
-      background: var(--xray-blue);
-      border-color: var(--xray-blue);
+      background: var(--xray-accent);
+      border-color: var(--xray-accent);
     }
     .switch input:checked + .switch-track::after {
       transform: translateX(20px);
-      /* The track is --xray-blue, which is a light pastel on the dark themes and
-         a deep ink on the light ones, so pin the knob to --xray-bg: it inverts
-         with the theme and stays legible against the filled track either way. */
+      /* The track is the accent, which is light on the dark themes and a deep
+         ink on the light ones, so pin the knob to --xray-bg: it inverts with the
+         theme and stays legible against the filled track either way. */
       background: var(--xray-bg);
     }
     .save-btn {
       margin-top: 8px;
       border: none;
       border-radius: var(--xray-radius);
-      background: var(--xray-blue);
+      background: var(--xray-accent);
       color: var(--xray-bg);
       font: inherit;
       font-weight: 700;
@@ -261,20 +306,15 @@
     <section class="body">
       <div class="setting">
         <label for="theme">Theme</label>
-        <select id="theme">
-          <option value="operator">Signal Gray (default)</option>
-          <option value="dev-edition">Harbor Instrument</option>
-          <option value="midnight">High Contrast</option>
-          <option value="light-lab">Paper Relay</option>
-          <option value="claude">Claude</option>
-          <option value="custom">Custom (Theme Studio)</option>
-        </select>
+        <!-- Options come from settings.js (its copy of the panel's THEME_PRESETS). -->
+        <select id="theme"></select>
       </div>
 
       <div class="setting">
         <label for="accent">Accent</label>
         <select id="accent">
-          <option value="blue">Amber (default)</option>
+          <option value="theme">Theme accent (default)</option>
+          <option value="blue">Amber</option>
           <option value="mauve">Lavender</option>
           <option value="teal">Teal</option>
           <option value="green">Green</option>

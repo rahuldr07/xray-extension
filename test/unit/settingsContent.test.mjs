@@ -42,34 +42,52 @@ test('every accent has a truthful display name', () => {
   assert.equal(new Set(Object.values(labels.ACCENT_NAMES)).size, 6);
 });
 
-test('options page theme names match the panel presets', () => {
+// The options page previews each preset with :has() blocks that mirror the panel's token
+// blocks (it is a separate document, so it cannot use styles.css). XRAY Dark, the default,
+// is its :root.
+const PAGE_TOKENS = ['--xray-bg', '--xray-surface', '--xray-surface2', '--xray-text', '--xray-subtext', '--xray-hint', '--xray-accent', '--xray-green', '--xray-border'];
+function optionsPageBlocks() {
   const html = readFileSync(new URL('../../settings/settings.html', import.meta.url), 'utf8');
-  const text = (value) => html.match(new RegExp(`<option value="${value}">([^<]*)</option>`))?.[1];
-  assert.equal(text('operator'), 'Signal Gray (default)');
-  assert.equal(text('dev-edition'), 'Harbor Instrument');
-  assert.equal(text('midnight'), 'High Contrast');
-  assert.equal(text('light-lab'), 'Paper Relay');
+  const tokens = (body) => Object.fromEntries([...body.matchAll(/(--xray-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+  const blocks = { [P.DEFAULT_PANEL_SETTINGS.theme]: tokens(html.match(/:root \{([^}]*)\}/)[1]) };
+  for (const [, id, body] of html.matchAll(/:root:has\(#theme option\[value="([a-z0-9-]+)"\]:checked\) \{([^}]*)\}/g)) blocks[id] = tokens(body);
+  return blocks;
+}
+
+test('options page previews every preset with its panel block\'s colours', () => {
+  const styles = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
+  const blocks = optionsPageBlocks();
+  assert.deepEqual(Object.keys(blocks), P.THEME_PRESETS.map(({ id }) => id), 'one preview per preset, no retired ones');
+  for (const { id } of P.THEME_PRESETS) {
+    const body = styles.match(new RegExp(`\\.xray-theme-${id}\\s*\\{([^}]*)\\}`))[1];
+    const panel = Object.fromEntries([...body.matchAll(/(--xray-[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+    for (const token of PAGE_TOKENS) assert.equal(blocks[id][token], panel[token], `${id} ${token}`);
+  }
 });
 
-test('options page Claude hint text reaches 4.5:1 on its backgrounds', () => {
-  const html = readFileSync(new URL('../../settings/settings.html', import.meta.url), 'utf8');
-  const block = html.match(/option\[value="claude"\]:checked\) \{([^}]*)\}/)[1];
-  const token = name => block.match(new RegExp(`--xray-${name}: (#[0-9a-f]{6})`, 'i'))[1];
+test('options page hint text reaches its preset\'s target on every background', () => {
   const lum = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
     .map(c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
     .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
   const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
-  for (const bg of ['bg', 'surface', 'surface2']) {
-    const r = ratio(token('hint'), token(bg));
-    assert.ok(r >= 4.5, `Claude hint ${token('hint')} on ${bg} ${token(bg)} = ${r.toFixed(2)}`);
+  for (const [id, block] of Object.entries(optionsPageBlocks())) {
+    const need = id === 'midnight' ? 7 : 4.5;
+    for (const bg of ['bg', 'surface', 'surface2']) {
+      const r = ratio(block['--xray-hint'], block[`--xray-${bg}`]);
+      assert.ok(r >= need, `${id} hint ${block['--xray-hint']} on ${bg} ${block[`--xray-${bg}`]} = ${r.toFixed(2)}`);
+    }
+    // The Save button paints --xray-bg text on the accent.
+    assert.ok(ratio(block['--xray-bg'], block['--xray-accent']) >= need, `${id} Save button text`);
   }
 });
 
-test('options page accent names match the panel display names', () => {
+test('options page accent names match the panel display names, after the theme\'s own accent', () => {
   const html = readFileSync(new URL('../../settings/settings.html', import.meta.url), 'utf8');
-  const expected = { blue: 'Amber (default)', mauve: 'Lavender', teal: 'Teal', green: 'Green', peach: 'Gold', coral: 'Coral' };
-  for (const [value, text] of Object.entries(expected)) assert.ok(html.includes(`<option value="${value}">${text}</option>`), value);
-  for (const [value, name] of Object.entries(labels.ACCENT_NAMES)) assert.ok(expected[value].startsWith(name), value);
+  const options = [...html.match(/<select id="accent">([\s\S]*?)<\/select>/)[1].matchAll(/<option value="([a-z]+)">([^<]*)<\/option>/g)].map(([, value, text]) => [value, text]);
+  assert.deepEqual(options, [
+    ['theme', 'Theme accent (default)'],
+    ...Object.entries(labels.ACCENT_NAMES),
+  ]);
 });
 
 test('publishCaptureSettings reports delivery', () => {
@@ -150,12 +168,13 @@ async function optionsPage(stored) {
   await vm.runInNewContext(readFileSync(new URL('../../settings/settings.js', import.meta.url), 'utf8'), context);
   return {
     elements: element,
+    async store(record) { store.xray_react_panel_preferences = record; },
     async save() { await elements.save.listeners.click(); return store.xray_react_panel_preferences.settings; },
   };
 }
 
 test('options page Save marks a changed accent as chosen', async () => {
-  const page = await optionsPage({ settings: { theme: 'operator', accent: 'blue', accentChosen: false } });
+  const page = await optionsPage({ settings: { theme: 'xray-dark', accent: 'blue', accentChosen: false } });
   page.elements('accent').value = 'teal';
   const saved = await page.save();
   assert.equal(saved.accent, 'teal');
@@ -163,8 +182,70 @@ test('options page Save marks a changed accent as chosen', async () => {
 });
 
 test('options page Save leaves accentChosen alone when the accent is unchanged', async () => {
-  const page = await optionsPage({ settings: { theme: 'claude', accent: 'peach', accentChosen: false } });
+  const page = await optionsPage({ settings: { theme: 'xray-light', accent: 'peach', accentChosen: false } });
   const saved = await page.save();
   assert.equal(saved.accent, 'peach');
   assert.equal(saved.accentChosen, false);
+});
+
+// settings.js is a plain script and cannot import THEME_PRESETS: it keeps a literal copy, pinned
+// here to the model (ids, labels, order) by what the page actually renders.
+test('options page lists the panel presets in picker order, then Custom', async () => {
+  const page = await optionsPage({});
+  const options = page.elements('theme').options.map((option) => [option.value, option.textContent]);
+  assert.deepEqual(options, [
+    ...P.THEME_PRESETS.map(({ id, label }) => [id, id === DEFAULT_PANEL_SETTINGS.theme ? `${label} (default)` : label]),
+    ['custom', 'Custom (Theme Studio)'],
+  ]);
+  assert.equal(page.elements('theme').value, 'xray-dark', 'a fresh install shows the default theme');
+  assert.equal(page.elements('accent').value, 'theme', 'with its own accent');
+});
+
+test('options page migrates stored settings exactly as the panel does (spec V2)', async () => {
+  // Stored before the refresh (no themeRefreshPending) and after it, valid and corrupt accents.
+  for (const theme of ['operator', 'dev-edition', 'light-lab', 'claude', 'midnight', 'github-light', 'custom']) {
+    for (const accent of [...Object.keys(PANEL_ACCENT_VALUES), 'chartreuse']) {
+      for (const accentChosen of [undefined, false, true]) {
+        for (const themeRefreshPending of [undefined, false]) {
+          const stored = { theme, accent, ...(accentChosen === undefined ? {} : { accentChosen }), ...(themeRefreshPending === undefined ? {} : { themeRefreshPending }), maxEntries: 750 };
+          const name = JSON.stringify(stored);
+          const panel = P.normalizePanelSettings(stored);
+          const valid = accent in PANEL_ACCENT_VALUES;
+          const page = await optionsPage({ settings: stored });
+          assert.equal(page.elements('theme').value, panel.theme, `${name}: theme shown`);
+          if (valid || !panel.accentChosen) assert.equal(page.elements('accent').value, panel.accentChosen ? panel.accent : 'theme', `${name}: accent shown`);
+          const saved = await page.save();
+          assert.deepEqual([saved.theme, saved.accentChosen, saved.themeRefreshPending, saved.maxEntries], [panel.theme, panel.accentChosen, panel.themeRefreshPending, 750], `${name}: saved`);
+          if (valid) assert.equal(saved.accent, panel.accent, `${name}: saved accent`);
+        }
+      }
+    }
+  }
+});
+
+test('options page shows a corrupt accent on a retired theme as the theme accent', async () => {
+  const page = await optionsPage({ settings: { theme: 'claude', accent: 'chartreuse', accentChosen: true } });
+  assert.equal(page.elements('theme').value, 'xray-light');
+  assert.equal(page.elements('accent').value, 'theme');
+  const saved = await page.save();
+  assert.equal(saved.accentChosen, false);
+  assert.equal(saved.themeRefreshPending, true, 'the panel still owes the user the refresh notice');
+});
+
+test('options page Save keeps a notice the panel already dismissed dismissed', async () => {
+  const page = await optionsPage({ settings: { theme: 'operator', accent: 'blue' } });
+  // The panel migrated the same record, and the user dismissed the notice, before this Save.
+  await page.store({ settings: { theme: 'xray-dark', accent: 'blue', accentChosen: false, themeRefreshPending: false } });
+  const saved = await page.save();
+  assert.equal(saved.theme, 'xray-dark');
+  assert.equal(saved.themeRefreshPending, false);
+});
+
+test('options page "Theme accent" hands the accent back to the theme', async () => {
+  const page = await optionsPage({ settings: { theme: 'dracula', accent: 'coral', accentChosen: true } });
+  assert.equal(page.elements('accent').value, 'coral');
+  page.elements('accent').value = 'theme';
+  const saved = await page.save();
+  assert.equal(saved.accentChosen, false);
+  assert.equal(saved.accent, 'coral', 'the swatch is remembered, not applied');
 });

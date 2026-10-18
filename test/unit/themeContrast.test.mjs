@@ -36,19 +36,22 @@ const baseTokens = (() => {
   return declarations(m[1]);
 })();
 
-const { PANEL_ACCENT_VALUES: DARK_ACCENTS, PANEL_ACCENT_VALUES_LIGHT: LIGHT_ACCENTS, THEME_DEFAULT_ACCENT } = P;
-const preset = (cls, id, light) => ({
-  ...baseTokens,
-  ...themeBlock(cls),
-  '--xray-accent': (light ? LIGHT_ACCENTS : DARK_ACCENTS)[THEME_DEFAULT_ACCENT[id] ?? 'blue'],
-});
+const { PANEL_ACCENT_VALUES: DARK_ACCENTS, PANEL_ACCENT_VALUES_LIGHT: LIGHT_ACCENTS } = P;
+
+// The preset lineup (spec P1), in picker order. Each is evaluated with its OWN block
+// accent: a preset owns its accent (P2). `vars` is lazy so a missing block fails only
+// its own test.
+const LINEUP = [
+  ['XRAY Dark', 'xray-dark'], ['XRAY Light', 'xray-light'], ['GitHub Dark', 'github-dark'], ['GitHub Light', 'github-light'],
+  ['Tokyo Night', 'tokyo-night'], ['Catppuccin Mocha', 'catppuccin-mocha'], ['Dracula', 'dracula'], ['Gruvbox Dark', 'gruvbox-dark'],
+  ['High Contrast', 'midnight'],
+];
 
 const THEMES = {
-  'Signal Gray': { vars: preset('xray-theme-operator', 'operator', false), need: 4.5 },
-  'Harbor Instrument': { vars: preset('xray-theme-dev-edition', 'dev-edition', false), need: 4.5 },
-  'Paper Relay': { vars: preset('xray-theme-light-lab', 'light-lab', true), need: 4.5 },
-  'High Contrast': { vars: preset('xray-theme-midnight', 'midnight', false), need: 7 },
-  Claude: { vars: preset('xray-theme-claude', 'claude', true), need: 4.5 },
+  ...Object.fromEntries(LINEUP.map(([label, id]) => [label, {
+    get vars() { return { ...baseTokens, ...themeBlock(`xray-theme-${id}`) }; },
+    need: id === 'midnight' ? 7 : 4.5,
+  }])),
   'Custom (defaults)': { vars: { ...baseTokens, ...T.buildCustomThemeVars(T.DEFAULT_CUSTOM_THEME) }, need: 4.5 },
   // Every Theme Studio starter preset, with the full matrix.
   ...Object.fromEntries(T.THEME_STUDIO_PRESETS.map(({ label, theme }) => [
@@ -275,32 +278,55 @@ for (const [name, theme] of Object.entries(THEMES)) {
   });
 }
 
+// Every accent swatch the user can pick, on every preset (spec P2): the value the panel
+// actually applies inline (resolveAccentValue, i.e. the swatch solved for that preset's
+// surfaces) through the FULL matrix — own-tint rules, the accent-tinted selected row and
+// its flags, the export chip and the primary button — at the preset's own target.
+const SWATCHES = Object.keys(DARK_ACCENTS);
+const pickedAccent = (id, accent) => P.resolveAccentValue({ ...P.DEFAULT_PANEL_SETTINGS, theme: id, accent, accentChosen: true });
+for (const [name, id] of LINEUP) {
+  test(`${name}: every accent swatch the user can pick meets the contrast targets`, () => {
+    const { vars, need } = THEMES[name];
+    const problems = [];
+    for (const accent of SWATCHES) {
+      const value = pickedAccent(id, accent);
+      assert.match(value ?? '', /^#[0-9a-f]{6}$/, `${name} ${accent}: a picked accent resolves to a hex`);
+      const { fails } = matrix(`${name} + ${accent} ${value}`, { vars: { ...vars, '--xray-accent': value }, need });
+      if (fails.length) problems.push(fmt(`${name} + ${accent} ${value}`, fails));
+    }
+    assert.equal(problems.length, 0, `failing pairs:\n${problems.join('\n')}`);
+  });
+}
+
 // Accent swatches as text on their own tint (the badge / primary-button tint),
 // composited over the preset's --xray-bg, per the presets that use each palette.
 // The badge and button hosts (tab bar, modal surfaces) are lighter than bg on the
-// light presets, so this model is the stricter one there.
+// light presets, so this model is the stricter one there. Each swatch is the value
+// the preset applies when it is picked.
 const TINT = 0.14;
 function swatchFails(palette, themeNames) {
   const fails = [];
   for (const themeName of themeNames) {
     const { vars, need } = THEMES[themeName];
+    const id = LINEUP.find(([label]) => label === themeName)[1];
     const bg = parseColor('var(--xray-bg)', vars);
-    for (const [id, accent] of Object.entries(palette)) {
+    for (const swatch of Object.keys(palette)) {
+      const accent = pickedAccent(id, swatch);
       const a = parseColor(accent, vars);
       const tint = over([a[0], a[1], a[2], TINT], bg);
       const r = ratio(a, tint);
       if (r >= need) continue;
-      fails.push({ label: `accent ${id} ${accent} on its ${Math.round(TINT * 100)}% tint`, fg: accent, bg: hex(tint), ratio: r, min: need, themeName });
+      fails.push({ label: `accent ${swatch} ${accent} on its ${Math.round(TINT * 100)}% tint`, fg: accent, bg: hex(tint), ratio: r, min: need, themeName });
     }
   }
   return fails;
 }
-test('every light accent swatch reads on its tint over Paper Relay and Claude', () => {
-  const fails = swatchFails(LIGHT_ACCENTS, ['Paper Relay', 'Claude']);
+test('every light accent swatch reads on its tint over the light presets', () => {
+  const fails = swatchFails(LIGHT_ACCENTS, ['XRAY Light', 'GitHub Light']);
   assert.equal(fails.length, 0, `failing pairs:\n${fails.map((f) => fmt(f.themeName, [f])).join('\n')}`);
 });
-test('every dark accent swatch reads on its tint over Signal Gray, Harbor and High Contrast (7:1)', () => {
-  const fails = swatchFails(DARK_ACCENTS, ['Signal Gray', 'Harbor Instrument', 'High Contrast']);
+test('every dark accent swatch reads on its tint over the dark presets (High Contrast 7:1)', () => {
+  const fails = swatchFails(DARK_ACCENTS, ['XRAY Dark', 'GitHub Dark', 'Tokyo Night', 'Catppuccin Mocha', 'Dracula', 'Gruvbox Dark', 'High Contrast']);
   assert.equal(fails.length, 0, `failing pairs:\n${fails.map((f) => fmt(f.themeName, [f])).join('\n')}`);
 });
 test('the custom default accent reads on its tint over the custom background', () => {
@@ -394,6 +420,19 @@ test('Theme Studio preset accents stay recognisably their brand hue', () => {
   const problems = [];
   for (const { label, theme } of T.THEME_STUDIO_PRESETS) problems.push(...hueKept(`${label} accent`, BRAND_ACCENTS[label], theme.accent));
   assert.deepEqual(problems, []);
+});
+
+// A picked swatch is solved for each preset in OKLCH lightness only (spec P2), so it still
+// reads as Amber, Lavender, … on every preset; one that already reads is applied as is.
+test('picked accent swatches keep their hue and chroma on every preset', () => {
+  const problems = [];
+  for (const preset of P.THEME_PRESETS) {
+    const palette = preset.kind === 'light' ? LIGHT_ACCENTS : DARK_ACCENTS;
+    for (const [accent, swatch] of Object.entries(palette)) problems.push(...hueKept(`${preset.id} ${accent}`, swatch, pickedAccent(preset.id, accent)));
+  }
+  assert.deepEqual(problems, []);
+  assert.equal(pickedAccent('xray-dark', 'teal'), DARK_ACCENTS.teal, 'a swatch that already reads is not moved');
+  assert.equal(pickedAccent('xray-light', 'teal'), LIGHT_ACCENTS.teal, 'light presets start from the light swatch table');
 });
 
 // Randomize: every accent it can pick, in both modes, yields a theme that passes the

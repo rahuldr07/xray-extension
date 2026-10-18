@@ -30,7 +30,7 @@ const { outputFiles } = await build({
           restoreFinding:id=>usePanelStore.setState({findings:restoreFinding(usePanelStore.getState().findings,id)}),
           openFindingEvidence:(id,entryId)=>this.calls.evidence.push([id,entryId]),
           openFindingSynthesis:ids=>this.calls.synthesis.push(ids)});
-        flushSync(()=>createRoot(shadow?this.root.appendChild(document.createElement('div')):host).render(<div className="xray-theme-scope xray-theme-operator">{panel?<div className="xray-panel xray-mode-window xray-open"><Insights/></div>:<Insights/>}</div>));
+        flushSync(()=>createRoot(shadow?this.root.appendChild(document.createElement('div')):host).render(<div className="xray-theme-scope xray-theme-xray-dark">{panel?<div className="xray-panel xray-mode-window xray-open"><Insights/></div>:<Insights/>}</div>));
       },
       click(name){const el=[...this.root.querySelectorAll('button')].find(el=>el.textContent.trim()===name||el.getAttribute('aria-label')===name);if(!el)throw Error('Missing '+name);el.click()},
       select(index){const el=this.root.querySelectorAll('[aria-label^="Select finding"]')[index];if(!el)throw Error('Missing selection '+index);el.click()},

@@ -69,8 +69,12 @@ luminance rather than theme name**, so a custom theme with a light background ge
 
 ## 3. Themes must reach every surface
 
-There are five presets — `operator`, `dev-edition`, `midnight`, `light-lab`, `claude` —
-plus a fully custom theme, each scoped as `.xray-theme-<name>`.
+There are nine presets — `xray-dark` (the default), `xray-light`, `github-dark`, `github-light`,
+`tokyo-night`, `catppuccin-mocha`, `dracula`, `gruvbox-dark` and `midnight` (High Contrast),
+listed in `THEME_PRESETS` (`src/panel/models/panelSettings.ts`) — plus a fully custom theme,
+each scoped as `.xray-theme-<name>`. A preset owns its accent; an accent swatch the user picks
+is set inline over it. Retired ids (`operator`, `dev-edition`, `light-lab`, `claude`) migrate on
+load (`RETIRED_THEMES`).
 
 XRAY renders in **three separate surfaces**, and a theme change has to land in all of
 them:

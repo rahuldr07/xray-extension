@@ -12,6 +12,8 @@ const {
 } = P;
 
 const settings = (patch) => ({ ...DEFAULT_PANEL_SETTINGS, ...patch });
+// A swatch the user picked (spec P2: only a picked accent is applied over the preset's own).
+const picked = (theme, accent) => resolveAccentValue(settings({ theme, accent, accentChosen: true }));
 
 // WCAG relative luminance and contrast, so the thresholds below are measured rather
 // than asserted by eye.
@@ -28,18 +30,13 @@ function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// Backgrounds measured from the running panel for the two light presets.
-const LIGHT_LAB_BG = '#edf3fb';
-const CLAUDE_BG = '#f0eee6';
-const DARK_BG = '#1e1e2e';
+const LIGHT = P.THEME_PRESETS.filter(({ kind }) => kind === 'light');
+const DARK = P.THEME_PRESETS.filter(({ kind }) => kind === 'dark');
 
 test('light presets are classified as light, dark presets as dark', () => {
-  for (const theme of ['light-lab', 'claude']) {
-    assert.equal(isLightTheme(settings({ theme })), true, `${theme} should be light`);
-  }
-  for (const theme of ['operator', 'dev-edition', 'midnight']) {
-    assert.equal(isLightTheme(settings({ theme })), false, `${theme} should be dark`);
-  }
+  assert.deepEqual(LIGHT.map(({ id }) => id), ['xray-light', 'github-light']);
+  for (const { id } of LIGHT) assert.equal(isLightTheme(settings({ theme: id })), true, `${id} should be light`);
+  for (const { id } of DARK) assert.equal(isLightTheme(settings({ theme: id })), false, `${id} should be dark`);
 });
 
 test('a custom theme is classified by its actual background, not by name', () => {
@@ -58,27 +55,33 @@ test('a malformed custom background falls back to the dark palette', () => {
   }
 });
 
-test('dark themes keep the original pastel accents', () => {
+test('no accent is applied over a preset until the user picks one', () => {
+  for (const { id } of P.THEME_PRESETS) {
+    for (const accent of Object.keys(PANEL_ACCENT_VALUES)) {
+      assert.equal(resolveAccentValue(settings({ theme: id, accent, accentChosen: false })), undefined, `${id} ${accent}`);
+    }
+  }
+});
+
+test('XRAY Dark keeps the original pastel accents', () => {
   for (const accent of Object.keys(PANEL_ACCENT_VALUES)) {
-    assert.equal(resolveAccentValue(settings({ theme: 'operator', accent })), PANEL_ACCENT_VALUES[accent]);
+    assert.equal(picked('xray-dark', accent), PANEL_ACCENT_VALUES[accent]);
   }
 });
 
-test('light themes swap in the darkened accents', () => {
+test('light presets swap in the darkened accents', () => {
   for (const accent of Object.keys(PANEL_ACCENT_VALUES_LIGHT)) {
-    assert.equal(resolveAccentValue(settings({ theme: 'light-lab', accent })), PANEL_ACCENT_VALUES_LIGHT[accent]);
-    assert.equal(resolveAccentValue(settings({ theme: 'claude', accent })), PANEL_ACCENT_VALUES_LIGHT[accent]);
+    for (const { id } of LIGHT) assert.equal(picked(id, accent), PANEL_ACCENT_VALUES_LIGHT[accent], `${id} ${accent}`);
   }
 });
 
-test('every accent clears the 3:1 non-text contrast floor on both light themes', () => {
+test('every picked accent clears the 3:1 non-text contrast floor on the light presets', () => {
   // WCAG 1.4.11. The focus ring is drawn in the accent, so below 3:1 keyboard focus
   // is untrackable. The original pastels measured 1.33-2.80 here.
   for (const accent of Object.keys(PANEL_ACCENT_VALUES_LIGHT)) {
-    for (const [name, bg] of [['light-lab', LIGHT_LAB_BG], ['claude', CLAUDE_BG]]) {
-      const resolved = resolveAccentValue(settings({ theme: name, accent }));
-      const ratio = contrast(resolved, bg);
-      assert.ok(ratio >= 3, `${accent} on ${name} is ${ratio.toFixed(2)}:1, below the 3:1 floor`);
+    for (const { id, preview } of LIGHT) {
+      const ratio = contrast(picked(id, accent), preview.bg);
+      assert.ok(ratio >= 3, `${accent} on ${id} is ${ratio.toFixed(2)}:1, below the 3:1 floor`);
     }
   }
 });
@@ -87,16 +90,17 @@ test('the original pastels really did fail on light backgrounds', () => {
   // Guards the premise of this whole mechanism: if someone reverts to using
   // PANEL_ACCENT_VALUES everywhere, this documents why that regressed.
   for (const accent of ['blue', 'mauve', 'teal', 'green']) {
-    assert.ok(
-      contrast(PANEL_ACCENT_VALUES[accent], LIGHT_LAB_BG) < 3,
-      `${accent} pastel unexpectedly passes on a light background`,
-    );
+    for (const { id, preview } of LIGHT) {
+      assert.ok(contrast(PANEL_ACCENT_VALUES[accent], preview.bg) < 3, `${accent} pastel unexpectedly passes on ${id}`);
+    }
   }
 });
 
-test('dark themes are unaffected and still clear 3:1', () => {
+test('every picked accent clears 3:1 on the dark presets', () => {
   for (const accent of Object.keys(PANEL_ACCENT_VALUES)) {
-    const ratio = contrast(resolveAccentValue(settings({ theme: 'operator', accent })), DARK_BG);
-    assert.ok(ratio >= 3, `${accent} on operator is ${ratio.toFixed(2)}:1`);
+    for (const { id, preview } of DARK) {
+      const ratio = contrast(picked(id, accent), preview.bg);
+      assert.ok(ratio >= 3, `${accent} on ${id} is ${ratio.toFixed(2)}:1`);
+    }
   }
 });

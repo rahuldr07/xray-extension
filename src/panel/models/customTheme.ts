@@ -524,12 +524,13 @@ export function buildCustomThemeVars(theme: CustomTheme): Record<string, string>
 
 /**
  * The theme with its accent moved in OKLCH lightness only (hue kept) until it reads at
- * 4.5:1 as text on its own 10 % tint over surface and surface2, on the primary
- * button's mauve stop, and on a 14 % tint over bg. An accent that already passes is
- * returned unchanged. Used for the Theme Studio presets and Randomize; a user-picked
- * accent is never rewritten.
+ * `target` (4.5:1 by default) as text on its own 10 % tint over surface and surface2, on
+ * the primary button's mauve stop, and on a 14 % tint over bg. An accent that already
+ * passes is returned unchanged. Used for the Theme Studio presets and Randomize, and to
+ * fit an accent swatch to a built-in preset (panelSettings.ts); a custom theme's
+ * user-picked accent is never rewritten.
  */
-export function solveThemeAccent(theme: CustomTheme): CustomTheme {
+export function solveThemeAccent(theme: CustomTheme, target = 4.51): CustomTheme {
   const c = resolveThemeColors(theme);
   const bg = toRgb(c.bg), surface = toRgb(c.surface), s2 = toRgb(c.surface2), text = toRgb(c.text);
   const mauve = toRgb(c.mauve);
@@ -537,7 +538,7 @@ export function solveThemeAccent(theme: CustomTheme): CustomTheme {
   const hosts = (fg: RGB): RGB[] => [
     mix(surface, fg, 0.10), mix(s2, fg, 0.10), mix(surface, mauve, 0.10), mix(s2, mauve, 0.10), mix(bg, fg, 0.14),
   ];
-  const accent = toHex(solveLightness(toRgb(clampHex(theme.accent, DEFAULT_CUSTOM_THEME.accent)), dir, hosts, 4.51));
+  const accent = toHex(solveLightness(toRgb(clampHex(theme.accent, DEFAULT_CUSTOM_THEME.accent)), dir, hosts, target));
   return { ...theme, accent };
 }
 

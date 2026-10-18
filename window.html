@@ -7,19 +7,24 @@
   <style>
     /* The panel declares its tokens on #xray-window-root and the theme class on a
        display:contents child of it, so custom properties never reach html/body —
-       they inherit downward only. A frozen Catppuccin #1e1e2e therefore showed a
+       they inherit downward only. A frozen dark background therefore showed a
        dark slab (on load, on overscroll, behind translucent chrome) next to a
-       light panel in Light Lab / Claude.
+       light panel on a light preset.
 
        :has() lets the document read the theme back off the mounted subtree. The
        values below mirror the --xray-bg of each .xray-theme-* block in
-       src/panel/styles.css — keep them in step. */
-    :root { --xray-window-bg: #1e1e2e; }
-    :root:has(.xray-theme-operator) { --xray-window-bg: #0b0f14; }
-    :root:has(.xray-theme-dev-edition) { --xray-window-bg: #11131f; }
-    :root:has(.xray-theme-midnight) { --xray-window-bg: #05070a; }
-    :root:has(.xray-theme-light-lab) { --xray-window-bg: #edf3fb; }
-    :root:has(.xray-theme-claude) { --xray-window-bg: #f0eee6; }
+       src/panel/styles.css (test/unit/themePresets.test.mjs keeps them in step);
+       before the panel mounts, and for a custom theme, the XRAY Dark default. */
+    :root { --xray-window-bg: #141517; }
+    :root:has(.xray-theme-xray-dark) { --xray-window-bg: #141517; }
+    :root:has(.xray-theme-xray-light) { --xray-window-bg: #f3f4f6; }
+    :root:has(.xray-theme-github-dark) { --xray-window-bg: #0d1117; }
+    :root:has(.xray-theme-github-light) { --xray-window-bg: #f6f8fa; }
+    :root:has(.xray-theme-tokyo-night) { --xray-window-bg: #16161e; }
+    :root:has(.xray-theme-catppuccin-mocha) { --xray-window-bg: #181825; }
+    :root:has(.xray-theme-dracula) { --xray-window-bg: #21222c; }
+    :root:has(.xray-theme-gruvbox-dark) { --xray-window-bg: #1d2021; }
+    :root:has(.xray-theme-midnight) { --xray-window-bg: #000000; }
 
     html,
     body {

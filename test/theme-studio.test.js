@@ -20,13 +20,15 @@ test('header palette button opens Settings to Appearance with visual theme swatc
   assert.match(shell, /<ThemeSwitcher \/>/);
 
   // Settings modal syncs to the requested section and renders visual theme swatches
-  assert.match(settingsModal, /THEME_PREVIEWS/);
+  assert.match(settingsModal, /THEME_PRESETS\.map\(/);
   assert.match(settingsModal, /const explicit = consumeSettingsSectionHint\(\)/);
-  // S3: the preset no longer sends an accent; the store applies it only while accentChosen is false.
-  assert.match(settingsModal, /updateSettings\(\{ theme: preview\.id \}\)/);
-  assert.match(settingsModal, /id: 'claude', label: 'Claude'/);
+  // P2: a preset sends no accent; its block's own accent shows until the user picks one.
+  assert.match(settingsModal, /updateSettings\(\{ theme: preset\.id \}\)/);
+  // Swatches paint the preset's own preview values (pinned to its token block by test/unit/themePresets.test.mjs).
+  assert.match(settingsModal, /background: preset\.preview\.bg, color: preset\.preview\.text/);
   assert.match(styles, /\.xray-theme-swatch/);
-  assert.match(styles, /\.xray-theme-claude\s*\{/);
+  // Claude (retired, spec V2) gave way to XRAY Light as the light preset.
+  assert.match(styles, /\.xray-theme-xray-light\s*\{/);
 
   // the HUD host must not use layout containment (it would trap fixed descendants)
   const hud = read('content/hud-mount.js');

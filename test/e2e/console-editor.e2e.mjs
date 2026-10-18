@@ -24,7 +24,7 @@ const { outputFiles } = await build({
       const BIG = Array.from({length:200}, (_, i) => ({id:i, name:'User ' + i}));
       window.ed = {
         root: null, calls: [], vars: {}, history: [], historyIndex: -1,
-        setup(shadow, mode, width, theme = 'operator', hidden = false) {
+        setup(shadow, mode, width, theme = 'xray-dark', hidden = false) {
           const host = document.body.appendChild(document.createElement('div'));
           this.host = host;
           if (mode === 'hud') { host.style.width = width + 'px'; host.style.height = '100vh'; }
@@ -476,7 +476,7 @@ for (const fixture of FIXTURES) {
   });
 }
 
-for (const [theme, label] of [['light-lab', 'light'], ['midnight', 'dark'], ['operator', 'operator']]) {
+for (const [theme, label] of [['xray-light', 'light'], ['midnight', 'dark'], ['xray-dark', 'default']]) {
   test(`token colours come from theme tokens (${label})`, async t => {
     const page = await open(t, FIXTURES[1], 960, 760, theme);
     await ev(page, () => window.ed.draft('const s = "x" + 1; // note\nfoo'));

@@ -20,7 +20,8 @@ test('React settings persist user preferences and publish capture config to vani
     assert.match(types, new RegExp(field));
     assert.match(settingsModel, new RegExp(field));
   }
-  assert.match(persistence, /settings:\s*state\.settings/);
+  // The whole settings object is persisted (the legacy marker themeRefreshPending pinned to a boolean).
+  assert.match(persistence, /settings:\s*\{ \.\.\.state\.settings, themeRefreshPending: Boolean\(state\.settings\.themeRefreshPending\) \}/);
   assert.match(persistence, /normalizePanelSettings\(preferences\.settings\)/);
   assert.match(store, /updateSettings\(patch: Partial<PanelSettings>\): void/);
   assert.match(store, /publishCaptureSettings\(settings\)/);

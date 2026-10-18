@@ -25,7 +25,7 @@ const { outputFiles } = await build({
         responseRaw: '{"synthetic":true}', ...extra });
       usePanelStore.setState({ open: true, activeTab: 'api', apiGroupingMode: 'endpoint' });
       flushSync(() => createRoot(root.appendChild(document.createElement('div'))).render(
-        <div className="xray-theme-scope xray-theme-operator" style={{'--xray-font':'monospace'}}>
+        <div className="xray-theme-scope xray-theme-xray-dark" style={{'--xray-font':'monospace'}}>
           <div className="xray-panel xray-mode-window xray-open"><EntriesWorkspace mode="api" /></div>
         </div>
       ));

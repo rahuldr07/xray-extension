@@ -60,7 +60,7 @@ const { outputFiles } = await build({
           mixedTail() { return [...this.mixed(), ...this.many(60)]; },
           many(n = 80) { return Array.from({length:n}, (_, i) => log('line ' + i)); },
         },
-        setup(shadow, mode, width, fixture, theme = 'operator') {
+        setup(shadow, mode, width, fixture, theme = 'xray-dark') {
           const host = document.body.appendChild(document.createElement('div'));
           if (mode === 'hud') { host.style.width = width + 'px'; host.style.height = '100vh'; }
           this.root = shadow ? host.attachShadow({mode:'closed'}) : document;
@@ -331,7 +331,7 @@ for (const fixture of [
 
 const shotDir = fileURLToPath(new URL('../../output/console-redesign/task-9/', import.meta.url));
 mkdirSync(shotDir, { recursive: true });
-for (const [width, theme] of [[1600, 'operator'], [760, 'light-lab'], [420, 'midnight']]) {
+for (const [width, theme] of [[1600, 'xray-dark'], [760, 'xray-light'], [420, 'midnight']]) {
   test(`screenshot: mixed stream with ×14 repeats, the pill and the Clear ▾ menu (${width}, ${theme})`, async t => {
     const page = await open(t, { shadow:false, mode:'window' }, width, 'showcase', 760, theme);
     await page.waitForTimeout(150);

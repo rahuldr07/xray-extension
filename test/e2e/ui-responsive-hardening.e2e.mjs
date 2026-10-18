@@ -56,14 +56,14 @@ const { outputFiles } = await build({
             settings: { ...state.settings, panelWidth: 380 },
           });
           if (baseKind === 'experiment') {
-            mount.className = 'xray-theme-scope xray-theme-operator';
+            mount.className = 'xray-theme-scope xray-theme-xray-dark';
             const panel = mount.appendChild(document.createElement('div'));
             panel.className = 'xray-panel xray-mode-window xray-open';
             panel.style.cssText = 'container-type:inline-size;container-name:xray;width:380px;max-width:380px;height:800px;display:block;position:relative;';
             panel.style.setProperty('--xray-accent', '#f5c2e7');
             flushSync(() => createRoot(panel).render(<ExperimentPanel />));
           } else if (baseKind === 'export' || baseKind === 'replay') {
-            mount.className = 'xray-theme-scope xray-theme-operator';
+            mount.className = 'xray-theme-scope xray-theme-xray-dark';
             mount.style.setProperty('--xray-accent', '#f5c2e7');
             flushSync(() => createRoot(mount).render(baseKind === 'export' ? <ExportModal /> : <ReplayModal />));
           } else {

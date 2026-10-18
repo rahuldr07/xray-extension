@@ -31,7 +31,7 @@ const { outputFiles } = await build({
           const style = document.createElement('style'); style.textContent = css;
           (shadow ? this.root : document.head).appendChild(style);
           const mount = (shadow ? this.root : host).appendChild(document.createElement('div'));
-          mount.className = 'xray-theme-scope xray-theme-operator';
+          mount.className = 'xray-theme-scope xray-theme-xray-dark';
           window.XRAY_Store = { get: async () => null, set: async () => {} };
           usePanelStore.setState({
             open: true, settingsOpen: kind === 'settings', settingsSection: section || 'general', settingsSectionHint: null,

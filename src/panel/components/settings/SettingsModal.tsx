@@ -22,14 +22,14 @@ import {
   IconWand,
 } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
-import { PANEL_ACCENT_VALUES, PANEL_ACCENT_VALUES_LIGHT, resolveAccentValue, THEME_DEFAULT_ACCENT } from '../../models/panelSettings';
+import { accentSwatchValue, PANEL_ACCENT_VALUES, THEME_PRESETS } from '../../models/panelSettings';
 import { ACCENT_NAMES, AI_PROVIDER_OPTIONS, DENSITY_OPTIONS, FONT_OPTIONS } from '../../models/settingsLabels';
 import type { LabelledOption } from '../../models/settingsLabels';
 import { buildCustomThemeVars, THEME_STUDIO_PRESETS, clampHex, contrastGrade, contrastRatio, decodeTheme, encodeTheme, exportThemeCss, generateFromAccent, isHex, isTokenOverridden, OVERRIDE_KEYS, parseThemeInput, randomTheme, resolveThemeColors, themePackageToSettings } from '../../models/customTheme';
 import type { CustomTokenKey } from '../../models/customTheme';
 import { copyText } from '../../utils';
 import { XRAY_BUILD, XRAY_VERSION } from '../../version';
-import type { AiSettings, CustomTheme, PanelAccent, PanelDensity, PanelFont, PanelSettings, PanelTheme } from '../../types';
+import type { AiSettings, CustomTheme, PanelAccent, PanelDensity, PanelFont, PanelSettings } from '../../types';
 import { ModalShell } from '../common/ModalShell';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
@@ -78,19 +78,6 @@ const AI_MODELS: Record<AiSettings['provider'], string[]> = {
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
   custom: [],
 };
-
-// Preview swatches mirror each theme's real background + accent so the picker
-// shows what you're choosing, not just a label.
-const THEME_PREVIEWS: Array<{ id: PanelTheme; label: string; bg: string; accent: string; text: string }> = [
-  // Keep the existing IDs so persisted preferences and shared links remain valid;
-  // the Appearance workflow presents the new instrument language.
-  { id: 'operator', label: 'Signal Gray', bg: '#181a1f', accent: '#d99a2b', text: '#f3f4f6' },
-  { id: 'dev-edition', label: 'Harbor Instrument', bg: '#20252b', accent: '#c47b4c', text: '#eef1f3' },
-  { id: 'light-lab', label: 'Paper Relay', bg: '#f7f5ef', accent: PANEL_ACCENT_VALUES_LIGHT[THEME_DEFAULT_ACCENT['light-lab'] ?? 'blue'], text: '#282722' },
-  { id: 'midnight', label: 'High Contrast', bg: '#000000', accent: '#ffd166', text: '#ffffff' },
-  // Light presets show the darkened accent they actually apply (resolveAccentValue).
-  { id: 'claude', label: 'Claude', bg: '#f0eee6', accent: PANEL_ACCENT_VALUES_LIGHT[THEME_DEFAULT_ACCENT.claude ?? 'blue'], text: '#23221f' },
-];
 
 // Full-freedom token editor (tweakcn-style): every color the panel paints is
 // individually editable, grouped so the surface is scannable. The four base
@@ -380,17 +367,18 @@ export function SettingsModal(): React.ReactElement | null {
               <div className="xray-settings-row xray-theme-picker-row">
                 <span><strong>Theme</strong><small>Pick a preset, or build your own with full color freedom. Themes only restyle this panel - never the page or the extension.</small></span>
                 <div className="xray-theme-grid">
-                  {THEME_PREVIEWS.map((preview) => (
+                  {/* Swatches paint each preset's own block values (THEME_PRESETS), so the picker shows what you're choosing. */}
+                  {THEME_PRESETS.map((preset) => (
                     <button
-                      key={preview.id}
-                      className={`xray-theme-swatch ${settings.theme === preview.id ? 'active' : ''}`}
-                      style={{ background: preview.bg, color: preview.text }}
-                      onClick={() => updateSettings({ theme: preview.id })}
-                      aria-pressed={settings.theme === preview.id}
+                      key={preset.id}
+                      className={`xray-theme-swatch ${settings.theme === preset.id ? 'active' : ''}`}
+                      style={{ background: preset.preview.bg, color: preset.preview.text }}
+                      onClick={() => updateSettings({ theme: preset.id })}
+                      aria-pressed={settings.theme === preset.id}
                     >
-                      <span className="xray-theme-swatch-dot" style={{ background: preview.accent }} />
-                      <span className="xray-theme-swatch-label">{preview.label}</span>
-                      {settings.theme === preview.id && <IconCheck size={13} stroke={2.6} />}
+                      <span className="xray-theme-swatch-dot" style={{ background: preset.preview.accent }} />
+                      <span className="xray-theme-swatch-label">{preset.label}</span>
+                      {settings.theme === preset.id && <IconCheck size={13} stroke={2.6} />}
                     </button>
                   ))}
                   <button
@@ -413,7 +401,7 @@ export function SettingsModal(): React.ReactElement | null {
                 accent,
                 accentChosen: true,
                 ...(settings.theme === 'custom' ? { customTheme: { ...settings.customTheme, accent: PANEL_ACCENT_VALUES[accent] } } : {}),
-              })} />
+              })} onUseTheme={() => updateSettings({ accentChosen: false })} />
               <ToggleRow label="Glow" desc="Accent-coloured glow on selected rows and buttons, plus the background grid." checked={settings.glow} onChange={(value) => updateSettings({ glow: value })} />
               <ToggleRow label="Hacker mode" desc="CRT scanlines, vignette, a moving scan sweep, and phosphor glow. Close Settings to see it - it styles the panel behind this dialog. Respects reduced-motion." checked={settings.hacker} onChange={(value) => { updateSettings({ hacker: value }); showToast(value ? 'Hacker mode ON - close Settings to see the CRT.' : 'Hacker mode off.'); }} />
               <ToggleRow label="Compact API rows" desc="Shorter rows in the API list. Same as the list's row-height button." checked={settings.compactRows} onChange={(value) => updateSettings({ compactRows: value })} />
@@ -434,7 +422,7 @@ export function SettingsModal(): React.ReactElement | null {
               <SettingsSectionTitle label="About" />
               <InfoRow label="Version" desc={`XRAY ${XRAY_VERSION} · built ${XRAY_BUILD}`} />
               <InfoRow label="UI stack" desc="React, TypeScript, Zustand, TanStack Virtual, and Tabler icons." />
-              <InfoRow label="Theme" desc={`Fully token-driven themes (${THEME_PREVIEWS.length} presets + a custom Theme Studio) scoped to the panel via inline CSS variables.`} />
+              <InfoRow label="Theme" desc={`Fully token-driven themes (${THEME_PRESETS.length} presets + a custom Theme Studio) scoped to the panel via inline CSS variables.`} />
               <div className="xray-settings-row read-only"><span><small>Decryption: responses to requests with an X-Parse-Token header pass through the decrypt hook in shared/decrypt.js, which does nothing until a developer edits it.</small></span></div>
             </>
           )}
@@ -858,25 +846,43 @@ function TextRow({ label, desc, value, placeholder, onChange }: { label: string;
   );
 }
 
-function AccentRow({ settings, onChange }: { settings: PanelSettings; onChange(accent: PanelAccent): void }): React.ReactElement {
+function AccentRow({ settings, onChange, onUseTheme }: { settings: PanelSettings; onChange(accent: PanelAccent): void; onUseTheme(): void }): React.ReactElement {
+  // A preset owns its accent until a swatch is picked (spec P2); the custom theme's is its own.
+  const preset = THEME_PRESETS.find(({ id }) => id === settings.theme);
+  const themeAccent = Boolean(preset) && !settings.accentChosen;
   return (
     <div className="xray-settings-row">
       <span><strong>Accent color</strong><small>Selections, active states, and primary actions.</small></span>
       <div className="xray-color-row">
-        {(Object.keys(PANEL_ACCENT_VALUES) as PanelAccent[]).map((accent) => (
+        {preset && (
           <button
-            key={accent}
-            className={`xray-color-swatch ${settings.accent === accent ? 'active' : ''}`}
-            aria-label={`Use ${ACCENT_NAMES[accent]} accent`}
-            title={ACCENT_NAMES[accent]}
-            aria-pressed={settings.accent === accent}
-            // Preview the accent this theme will actually apply. Showing the dark-theme
-            // pastel while a light theme renders the darkened variant made the swatch a
-            // misleading preview of its own effect.
-            style={{ background: resolveAccentValue({ ...settings, accent }) }}
-            onClick={() => onChange(accent)}
-          />
-        ))}
+            className={`xray-color-theme ${themeAccent ? 'active' : ''}`}
+            aria-label="Use theme accent"
+            title={`${preset.label}'s own accent`}
+            aria-pressed={themeAccent}
+            onClick={onUseTheme}
+          >
+            <span className="xray-theme-swatch-dot" style={{ background: preset.preview.accent }} />
+            Theme
+          </button>
+        )}
+        {(Object.keys(PANEL_ACCENT_VALUES) as PanelAccent[]).map((accent) => {
+          const active = !themeAccent && settings.accent === accent;
+          return (
+            <button
+              key={accent}
+              className={`xray-color-swatch ${active ? 'active' : ''}`}
+              aria-label={`Use ${ACCENT_NAMES[accent]} accent`}
+              title={ACCENT_NAMES[accent]}
+              aria-pressed={active}
+              // Preview the accent this theme will actually apply: the swatch solved for the
+              // active preset. Showing the raw pastel while the theme renders a darkened or
+              // lightened variant made the swatch a misleading preview of its own effect.
+              style={{ background: accentSwatchValue(settings, accent) }}
+              onClick={() => onChange(accent)}
+            />
+          );
+        })}
       </div>
     </div>
   );

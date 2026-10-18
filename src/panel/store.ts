@@ -9,7 +9,7 @@ import {
   serializePanelPreferences,
   type SerializedPanelPreferences,
 } from './models/panelPersistence';
-import { DEFAULT_PANEL_SETTINGS, normalizePanelSettings, THEME_DEFAULT_ACCENT, themeDefaultAccent } from './models/panelSettings';
+import { DEFAULT_PANEL_SETTINGS, normalizePanelSettings } from './models/panelSettings';
 import { hasPageBridgeRoute, postToPageBridge, publishCaptureSettings, publishTrafficRules } from './runtime/captureConfig';
 import { MAX_EXPERIMENTS, armExperiment, cancelExperiment, createExperiment, evaluateExperiment, failExperiment, observeExperiment, startExperiment } from './models/experiments';
 import { buildDriftIndex, detectDrift, noteDriftEntry } from './models/drift';
@@ -321,6 +321,8 @@ interface PanelState {
   clearComparison(): void;
   updateSettings(patch: Partial<PanelSettings>): void;
   resetSettings(): void;
+  /** Dismisses the theme-refresh notice: the only thing that clears it (stored with the settings). */
+  dismissThemeRefresh(): void;
   requestConfirmation(request: Omit<ConfirmationRequest, 'id'> & { id?: string }): void;
   closeConfirmation(): void;
   confirmPending(): void;
@@ -1221,29 +1223,25 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   clearComparison: () => set({ compareLeftId: null, compareRightId: null, compareOpen: false }),
   updateSettings: (patch) => {
     const current = get().settings;
-    let effective: Partial<PanelSettings> = patch;
-    // A preset theme sets its own accent only while the user has never picked one.
-    if (patch.theme && patch.theme !== current.theme && patch.accent === undefined
-      && patch.theme in THEME_DEFAULT_ACCENT && !(patch.accentChosen ?? current.accentChosen)) {
-      effective = { ...effective, accent: themeDefaultAccent(patch.theme) };
-    }
-    const next = normalizePanelSettings({ ...current, ...effective });
+    // A theme change leaves the accent alone: a preset brings its own (its CSS block) until
+    // the user picks one (spec P2).
+    const next = normalizePanelSettings({ ...current, ...patch });
     // Lowering Max entries below what is held deletes entries now: ask first (S1 applies).
-    const lowered = effective.maxEntries !== undefined && next.maxEntries < current.maxEntries
+    const lowered = patch.maxEntries !== undefined && next.maxEntries < current.maxEntries
       ? evictEntries(get().entries, next.maxEntries, pinnedAndSelected(get())).dropped.size : 0;
     if (lowered > 0) {
-      const { maxEntries, ...rest } = effective;
+      const { maxEntries, ...rest } = patch;
       if (Object.keys(rest).length) get().updateSettings(rest);
       get().requestConfirmation({
         title: 'Lower Max entries?',
         message: `This deletes ${lowered} of ${get().entries.length} captured entries now, oldest first. Pinned and selected entries are kept.`,
         confirmLabel: 'Delete entries',
         tone: 'danger',
-        onConfirm: () => applySettings(set, get, normalizePanelSettings({ ...get().settings, maxEntries }), effective),
+        onConfirm: () => applySettings(set, get, normalizePanelSettings({ ...get().settings, maxEntries }), patch),
       });
       return;
     }
-    applySettings(set, get, next, effective);
+    applySettings(set, get, next, patch);
   },
   resetSettings: () => {
     // Layout is not a preference the user is asking to lose: a reset that also collapsed
@@ -1256,6 +1254,8 @@ export const usePanelStore = create<PanelState>((set, get) => ({
       apiSplit: kept.apiSplit,
       logsSplit: kept.logsSplit,
       firstRunDismissed: kept.firstRunDismissed,
+      // A pending theme-refresh notice is spent only by dismissing it.
+      themeRefreshPending: kept.themeRefreshPending,
     });
     applySettings(set, get, settings, { defaultDetailView: settings.defaultDetailView });
   },
@@ -1284,6 +1284,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     set({ pendingConfirmation: null });
     request.onConfirm();
   },
+  dismissThemeRefresh: () => get().updateSettings({ themeRefreshPending: false }),
   showToast: (message) => set({ toastMessage: message }),
   clearToast: () => set({ toastMessage: null }),
   restorePreferences: async () => {
@@ -1329,6 +1330,12 @@ export const usePanelStore = create<PanelState>((set, get) => ({
       rules,
       ...(aiSettings ? { aiSettings: { ...DEFAULT_AI_SETTINGS, ...aiSettings } } : {}),
     });
+    // This load migrated settings from before the theme refresh (spec V2) and raised the refresh
+    // notice: store the new theme id and the pending notice at once, so a reload or another
+    // surface starts from them. The notice itself waits for a visible panel (ThemeRefreshNotice).
+    if (get().settings.themeRefreshPending && preferences?.settings?.themeRefreshPending !== true) {
+      persistPanelPreferences(get());
+    }
     const settings = usePanelStore.getState().settings;
     set({ captureDelivered: publishCaptureSettings(settings) });
     publishTrafficRules(rules);

@@ -180,7 +180,8 @@ test('injected side panel is resizable, dockable, persisted, and dismissible', (
   assert.match(settings, /dockSide: 'right'/);
   assert.match(settings, /PANEL_WIDTH_MIN/);
   // settings already persist via serializePanelPreferences -> no new storage key needed
-  assert.match(persistence, /settings: state\.settings/);
+  // The whole settings object is persisted (the legacy marker themeRefreshPending pinned to a boolean).
+  assert.match(persistence, /settings: \{ \.\.\.state\.settings, themeRefreshPending: Boolean\(state\.settings\.themeRefreshPending\) \}/);
 
   // a keyboard-accessible resize grabber drives an inline --xray-panel-width
   assert.match(shell, /xray-resize-handle/);

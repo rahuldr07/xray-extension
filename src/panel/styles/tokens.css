@@ -1,7 +1,9 @@
 :host,
 .xray-app-root {
-  /* Signal Gray / Instrument Amber fallback contract. Preset classes and custom
-     inline variables override these values inside the panel scope. */
+  /* Fallback contract for anything rendered outside a theme class: a neutral dark
+     palette that predates the preset lineup (test/theming-tokens.test.js pins it).
+     Preset classes and custom inline variables override these values inside the
+     panel scope. */
   --xray-bg: #181a1f;
   --xray-surface: #202329;
   --xray-surface2: #292e36;

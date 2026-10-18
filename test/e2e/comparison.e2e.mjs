@@ -33,7 +33,7 @@ const { outputFiles } = await build({
         const selected=usePanelStore(s=>s.selectedId);
         const tab=usePanelStore(s=>s.activeTab);
         const entry=entries.find(e=>e.id===selected);
-        return <div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open">
+        return <div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open">
           {tab==='api' && entry?.type==='api' && <RequestDetail entry={entry} />}
           <button id="outside">Outside</button><CommandPalette />
         </div></div>;

@@ -32,7 +32,7 @@ const { outputFiles } = await build({
         const entries = usePanelStore(s=>s.entries);
         const selected = usePanelStore(s=>s.selectedId);
         const explain = usePanelStore(s=>s.explainEntry);
-        return <div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open">
+        return <div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open">
           <RequestDetail entry={entries.find(e=>e.id===selected) || entries[0]} compact={window.responseTest.compact} onClose={()=>usePanelStore.getState().setApiDetailOpen(false)} />
           <button id="outside">Outside</button>
           {explain && <ModalShell title="Explain fixture" onClose={()=>usePanelStore.getState().closeExplain()}><button>Analyze fixture</button></ModalShell>}

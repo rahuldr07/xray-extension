@@ -21,7 +21,7 @@ const { outputFiles } = await build({
     function App(){
       const tab=usePanelStore(s=>s.activeTab);
       const settings=usePanelStore(s=>s.settingsOpen);
-      return <div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open">
+      return <div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open">
         {tab==='console'?<ConsoleWorkspace/>:<RequestDetail entry={entry}/>}
         <CommandPalette/><ExportModal/>
         {settings&&<ModalShell title="Blocking settings" onClose={()=>usePanelStore.getState().setSettingsOpen(false)}><button>Blocker</button></ModalShell>}

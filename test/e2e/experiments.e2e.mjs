@@ -20,7 +20,7 @@ const { outputFiles } = await build({
     const messages=[], writes={};
     window.XRAY_Store={get:async key=>writes[key],set:async (key,value)=>{writes[key]=JSON.parse(JSON.stringify(value));}};
     window.postMessage=message=>messages.push(message);
-    function Fixture(){const tab=usePanelStore(s=>s.activeTab);return <div className="xray-theme-scope xray-theme-operator"><div className="xray-panel xray-mode-window xray-open">
+    function Fixture(){const tab=usePanelStore(s=>s.activeTab);return <div className="xray-theme-scope xray-theme-xray-dark"><div className="xray-panel xray-mode-window xray-open">
        {tab==='rules'?<Rules/>:<RequestDetail entry={window.__XRAY_experimentEntry}/>}<ReplayModal/>
     </div></div>;}
     window.experimentTest={

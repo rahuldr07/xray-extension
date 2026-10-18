@@ -3,7 +3,9 @@ export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights';
 export type XrayAppMode = 'devtools' | 'hud' | 'window';
 export type DetailView = 'tree' | 'grid' | 'raw' | 'schema' | 'diff' | 'viz' | 'waterfall' | 'headers';
 export type PanelAccent = 'blue' | 'mauve' | 'teal' | 'green' | 'peach' | 'coral';
-export type PanelTheme = 'operator' | 'dev-edition' | 'midnight' | 'light-lab' | 'claude' | 'custom';
+// The preset lineup + custom. Retired preset ids are not themes: stored ones migrate on load
+// (RETIRED_THEMES in models/panelSettings.ts).
+export type PanelTheme = 'xray-dark' | 'xray-light' | 'github-dark' | 'github-light' | 'tokyo-night' | 'catppuccin-mocha' | 'dracula' | 'gruvbox-dark' | 'midnight' | 'custom';
 
 export interface CustomTheme {
   // The four base colors are always present; a theme built from only these stays
@@ -301,6 +303,12 @@ export interface PanelSettings {
   logsSplit: number;
   /** Set once the first-run introduction has been dismissed. */
   firstRunDismissed: boolean;
+  /**
+   * A theme-refresh notice is waiting to be seen: raised when loading settings from before the
+   * theme refresh changed what the user sees (spec V2), cleared only when the user dismisses it.
+   * Settings stored before the refresh lack the key, which is how they are told apart.
+   */
+  themeRefreshPending: boolean;
 }
 
 export type DockSide = 'left' | 'right';

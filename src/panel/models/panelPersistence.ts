@@ -75,7 +75,10 @@ export function serializePanelPreferences(state: PanelPreferencesState): Seriali
     recording: state.recording,
     pinnedIds: Array.from(state.pinnedIds),
     snippets: state.snippets,
-    settings: state.settings,
+    // themeRefreshPending is always stored as a boolean: a record without it reads as settings
+    // from before the theme refresh (normalizePanelSettings), which would hand a High Contrast
+    // user's picked Gold back to the theme accent on the next load.
+    settings: { ...state.settings, themeRefreshPending: Boolean(state.settings.themeRefreshPending) },
   };
 }
 

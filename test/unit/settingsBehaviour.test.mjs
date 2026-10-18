@@ -64,23 +64,26 @@ test('max entries change that evicts nothing does not ask', () => {
   assert.equal(usePanelStore.getState().settings.maxEntries, 500);
 });
 
-test('theme keeps chosen accent; never-chosen takes the preset accent', () => {
+test('theme keeps chosen accent; never-chosen shows the preset\'s own accent', () => {
   seed(0);
   usePanelStore.getState().updateSettings({ accent: 'teal', accentChosen: true });
-  usePanelStore.getState().updateSettings({ theme: 'dev-edition' });
+  usePanelStore.getState().updateSettings({ theme: 'dracula' });
   assert.equal(usePanelStore.getState().settings.accent, 'teal');
+  assert.equal(usePanelStore.getState().settings.accentChosen, true);
   seed(0);
-  usePanelStore.getState().updateSettings({ theme: 'dev-edition' });
-  assert.equal(usePanelStore.getState().settings.accent, 'coral');
+  usePanelStore.getState().updateSettings({ theme: 'dracula' });
   assert.equal(usePanelStore.getState().settings.accentChosen, false);
+  assert.equal(P.resolveAccentValue(usePanelStore.getState().settings), undefined, 'the Dracula block accent shows');
 });
 
 test('legacy settings: accent equal to the theme default is not chosen; otherwise chosen', () => {
   assert.equal(DEFAULT_PANEL_SETTINGS.accentChosen, false);
-  assert.equal(normalizePanelSettings({ theme: 'dev-edition', accent: 'coral' }).accentChosen, false);
-  assert.equal(normalizePanelSettings({ theme: 'operator', accent: 'blue' }).accentChosen, false);
-  assert.equal(normalizePanelSettings({ theme: 'operator', accent: 'teal' }).accentChosen, true);
-  assert.equal(normalizePanelSettings({ theme: 'operator', accent: 'teal', accentChosen: false }).accentChosen, false);
+  // Stored before accentChosen existed: High Contrast set Gold itself, every other theme Amber.
+  assert.equal(normalizePanelSettings({ theme: 'midnight', accent: 'peach' }).accentChosen, false);
+  assert.equal(normalizePanelSettings({ theme: 'midnight', accent: 'blue' }).accentChosen, true);
+  assert.equal(normalizePanelSettings({ theme: 'xray-dark', accent: 'blue' }).accentChosen, false);
+  assert.equal(normalizePanelSettings({ theme: 'xray-dark', accent: 'teal' }).accentChosen, true);
+  assert.equal(normalizePanelSettings({ theme: 'xray-dark', accent: 'teal', accentChosen: false }).accentChosen, false);
 });
 
 test('reset keeps layout and evicts to the restored max immediately', () => {
