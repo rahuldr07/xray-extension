@@ -206,6 +206,16 @@ export function statusClass(status?: number): 'ok' | 'warn' | 'error' | '' {
   return '';
 }
 
+/**
+ * The status colour class for a captured request. One still in flight (no response yet, so no
+ * status) is 'pending' (spec S5, --xray-pending); a failed request (status 0) and a WebSocket
+ * (no HTTP status) are not in flight.
+ */
+export function entryStatusClass(entry: { status?: number | string; wsState?: string }): 'ok' | 'warn' | 'error' | 'pending' | '' {
+  if (entry.status == null) return entry.wsState == null ? 'pending' : '';
+  return statusClass(Number(entry.status));
+}
+
 export function eventEntry(event: ConsoleEvent, entries?: readonly XrayEntry[]): XrayEntry | null {
   if (event.type !== 'network') return null;
   // Network events retain a legacy args snapshot for compatibility, but the API

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Console stream (spec S1–S6) on the real App, store, virtualized stream and
 // stylesheet: one timeline of command cells and page logs, filter chips with
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const RESPONSES = {
         answer: {type:'number',result:42},
         'users.filter(u => u.active)': {type:'array',result:[{id:1}]},
@@ -131,7 +133,7 @@ async function open(t, { shadow, mode }, width, fixtureName, height = 760, theme
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'page errors'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.stream.setup(args.shadow, args.mode, args.width, args.fixtureName, args.theme), { shadow, mode, width, fixtureName, theme });
   await page.waitForFunction(() => window.stream.query('.xray-console-run'));

@@ -394,7 +394,7 @@ export function SettingsModal(): React.ReactElement | null {
                 </div>
               </div>
               {settings.theme === 'custom' && <CustomThemeEditor />}
-              <SelectRow label="Font stack" desc="Monospace font for tables, JSON and console. Uses fonts installed on this computer." value={settings.font} options={FONT_OPTIONS} onChange={(value) => updateSettings({ font: value as PanelFont })} />
+              <SelectRow label="Font stack" desc="Monospace font for data — URLs, JSON, console. Uses fonts installed on this computer." value={settings.font} options={FONT_OPTIONS} onChange={(value) => updateSettings({ font: value as PanelFont })} />
               <SelectRow label="Density" desc="Control global spacing, row heights, and panel chrome." value={settings.density} options={DENSITY_OPTIONS} onChange={(value) => updateSettings({ density: value as PanelDensity })} />
               <RangeRow label="Corner radius" desc="Roundness of cards, buttons, inputs, and drawers." value={settings.radius} min={0} max={20} step={1} suffix="px" onChange={(value) => updateSettings({ radius: value })} />
               <AccentRow settings={settings} onChange={(accent) => updateSettings({

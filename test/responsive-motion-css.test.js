@@ -192,13 +192,16 @@ test('S1: data and controls render in their real case; uppercase stays on eyebro
     '.xray-panel .xray-detail-views .xray-chip {',
     '.xray-rule-summary {',
     '.xray-summary {',
-    '.xray-panel .xray-chip,\n.xray-panel .xray-badge {',
+    '.xray-panel .xray-chip {',
+    '.xray-theme-scope .xray-settings-section-title,',
+    '.xray-api-table-head {\n  position',
   ]) {
     assert.doesNotMatch(body(head), /text-transform: uppercase/, `${head} is not forced uppercase`);
   }
-  assert.doesNotMatch(body('.xray-panel .xray-method,'), /uppercase/);
-  // Section eyebrows keep it.
-  assert.match(body('.xray-panel .xray-settings-section-title,'), /text-transform: uppercase/);
+  assert.doesNotMatch(body('.xray-theme-scope .xray-method,'), /uppercase/);
+  // Spec S3: only the small Settings nav group labels keep it (section titles read in real case).
+  assert.match(body('.xray-settings-nav-group-title {'), /text-transform: uppercase/);
+  assert.match(body('.xray-theme-scope .xray-settings-section-title,'), /text-transform: none/);
 });
 
 test('S2: the record control is a red dot when recording; the accent ring is :focus-visible only', () => {
@@ -206,8 +209,10 @@ test('S2: the record control is a red dot when recording; the accent ring is :fo
   const shell = read('src/panel/components/shell/PanelShell.tsx');
   assert.match(shell, /xray-record-btn \$\{runtimeHealth\.health === 'healthy' \? 'recording' : ''\}/);
   // Resting/hover/active styling is gated on :not(:focus-visible) and out-specifies the
-  // generic .xray-icon-btn accent rules, so it does not depend on source order.
-  assert.match(styles, /\.xray-topbar \.xray-icon-btn\.xray-record-btn:not\(:focus-visible\) \{[^}]*border-color: color-mix\(in srgb, var\(--xray-hint\)[^}]*outline: none;/);
+  // generic .xray-icon-btn accent rules, so it does not depend on source order. Like every icon
+  // button it is outlined only on hover/focus (spec S1), so its resting rule draws no border.
+  assert.match(styles, /\.xray-topbar \.xray-icon-btn\.xray-record-btn:not\(:focus-visible\) \{[^}]*outline: none;/);
+  assert.doesNotMatch(styles, /\.xray-topbar \.xray-icon-btn\.xray-record-btn:not\(:focus-visible\) \{[^}]*border-color/);
   // The recording state paints the dot red.
   assert.match(styles, /\.xray-topbar \.xray-record-btn\.recording \.xray-live-dot \{[^}]*var\(--xray-red\)/);
   // No accent border/colour for the record button outside :focus-visible.

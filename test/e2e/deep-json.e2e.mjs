@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Final fix C1 on the real App, store and stylesheet, in the document and in a closed shadow root,
 // with shared/console-helpers.js loaded as every extension surface loads it. A response nested
@@ -24,7 +26,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const DEPTH = 100000;
       const api = (id, responseRaw, extra) => ({ id, type: 'api', method: 'GET', status: 200, url: 'https://example.test/' + id, urlPath: '/' + id,
@@ -128,7 +130,7 @@ async function open(t, shadow, stored = {}, { rootFailures = false } = {}) {
     if (!rootFailures) assert.deepEqual(reported, [], 'nothing failed to render');
     else assert.ok(reported.every((text) => text.includes('root boom')), reported.join(' | '));
   });
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: HELPERS_SOURCE });
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(([value, data]) => window.dj.setup(value, data), [shadow, stored]);

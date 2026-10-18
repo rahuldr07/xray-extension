@@ -4,13 +4,27 @@
   <meta charset="utf-8">
   <title>XRAY DevTools Panel</title>
   <style>
+    /* The twin of window.html: the panel's tokens never reach html/body, so the document reads
+       the theme back off the mounted subtree with :has(). Each value is that preset block's
+       --xray-bg (test/unit/themePresets.test.mjs keeps them in step); before the panel mounts,
+       and for a custom theme, the XRAY Dark default. */
+    :root { --xray-window-bg: #141517; }
+    :root:has(.xray-theme-xray-dark) { --xray-window-bg: #141517; }
+    :root:has(.xray-theme-xray-light) { --xray-window-bg: #f3f4f6; }
+    :root:has(.xray-theme-github-dark) { --xray-window-bg: #0d1117; }
+    :root:has(.xray-theme-github-light) { --xray-window-bg: #f6f8fa; }
+    :root:has(.xray-theme-tokyo-night) { --xray-window-bg: #16161e; }
+    :root:has(.xray-theme-catppuccin-mocha) { --xray-window-bg: #181825; }
+    :root:has(.xray-theme-dracula) { --xray-window-bg: #21222c; }
+    :root:has(.xray-theme-gruvbox-dark) { --xray-window-bg: #1d2021; }
+    :root:has(.xray-theme-midnight) { --xray-window-bg: #000000; }
+
     html, body {
       margin: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #09090b;
-      color: #e5e7eb;
+      background: var(--xray-window-bg);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     }
   </style>

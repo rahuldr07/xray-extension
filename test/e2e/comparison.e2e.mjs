@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Real components, store and modal keyboard ownership; only extension boundaries
 // are stubbed. Removing the comparison actions/evidence must fail these tests.
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { CommandPalette } from './src/panel/components/shell/CommandPalette';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const left = {id:'left',type:'api',method:'GET',url:'https://one.test/users',urlPath:'/users',
         source:'fetch',status:200,duration:12,size:100,timestamp:1,
         requestHeaders:{authorization:'[redacted]','x-before':'old'},requestBody:{page:1},
@@ -105,7 +107,7 @@ async function fixture(t, { shadow = false, width = 960, workerDiff = false, wor
 } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(options => Object.assign(window.compareTest, options), { useWorkerDiff: workerDiff, workerAbsent, workerResult });
   await page.evaluate(shadow => window.compareTest.setup(shadow), shadow);

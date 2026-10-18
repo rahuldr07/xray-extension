@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Exercise the real React shell and centralized keyboard handler in both ordinary
 // DOM and a closed shadow root. Kept in the opt-in browser suite (no new deps).
@@ -83,7 +84,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, shadow = false, dismissible = true) {
   const page = await browser.newPage();
   t.after(() => page.close());
-  await page.setContent('<style>.xray-modal-backdrop { position: fixed; inset: 0; z-index: 10; background: white; }</style>');
+  await setStandardsContent(page, '<style>.xray-modal-backdrop { position: fixed; inset: 0; z-index: 10; background: white; }</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ shadow, dismissible }) => window.modalTest.setup(shadow, dismissible), { shadow, dismissible });
   return page;

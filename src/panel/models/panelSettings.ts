@@ -28,7 +28,7 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
   { id: 'github-dark', label: 'GitHub Dark', kind: 'dark', contrast: 4.5, preview: { bg: '#0d1117', accent: '#5297ff', text: '#e6edf3' }, hosts: { surface: '#161b22', surface2: '#21262d', mauve: '#ad7fff' } },
   { id: 'github-light', label: 'GitHub Light', kind: 'light', contrast: 4.5, preview: { bg: '#f6f8fa', accent: '#005eca', text: '#1f2328' }, hosts: { surface: '#ffffff', surface2: '#eaeef2', mauve: '#723cca' } },
   { id: 'tokyo-night', label: 'Tokyo Night', kind: 'dark', contrast: 4.5, preview: { bg: '#16161e', accent: '#7ba4f9', text: '#c0caf5' }, hosts: { surface: '#1a1b26', surface2: '#292e42', mauve: '#bb9af7' } },
-  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', kind: 'dark', contrast: 4.5, preview: { bg: '#181825', accent: '#cba6f7', text: '#cdd6f4' }, hosts: { surface: '#1e1e2e', surface2: '#313244', mauve: '#cba6f7' } },
+  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha', kind: 'dark', contrast: 4.5, preview: { bg: '#181825', accent: '#cba6f7', text: '#cdd6f4' }, hosts: { surface: '#1e1e2e', surface2: '#313244', mauve: '#f5c2e7' } },
   { id: 'dracula', label: 'Dracula', kind: 'dark', contrast: 4.5, preview: { bg: '#21222c', accent: '#c59dff', text: '#f8f8f2' }, hosts: { surface: '#282a36', surface2: '#343746', mauve: '#ff86ca' } },
   { id: 'gruvbox-dark', label: 'Gruvbox Dark', kind: 'dark', contrast: 4.5, preview: { bg: '#1d2021', accent: '#8ec07c', text: '#ebdbb2' }, hosts: { surface: '#282828', surface2: '#3c3836', mauve: '#ea9bb0' } },
   { id: 'midnight', label: 'High Contrast', kind: 'dark', contrast: 7, preview: { bg: '#000000', accent: '#00e5ff', text: '#ffffff' }, hosts: { surface: '#101010', surface2: '#1d1d1d', mauve: '#d4a8ff' } },
@@ -84,7 +84,7 @@ export const PANEL_ACCENT_VALUES: Record<PanelAccent, string> = {
   mauve: '#cba6f7',
   teal: '#94e2d5',
   green: '#a6e3a1',
-  peach: '#ffd166',
+  peach: '#f2d457',
   coral: '#eaa388',
 };
 
@@ -105,7 +105,7 @@ export const PANEL_ACCENT_VALUES_LIGHT: Record<PanelAccent, string> = {
   mauve: '#7418ec',
   teal: '#0d696e',
   green: '#226d15',
-  peach: '#865100',
+  peach: '#6e6200',
   coral: '#a23f1e',
 };
 
@@ -186,7 +186,8 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   font: 'jetbrains',
   density: 'compact',
   radius: 10,
-  glow: true,
+  // Opt-in (spec A3): off for new installs and Reset; a stored value is kept.
+  glow: false,
   hacker: false,
   confirmDestructiveActions: true,
   panelWidth: 960,

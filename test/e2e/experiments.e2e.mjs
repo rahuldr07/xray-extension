@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'jsx', contents: `
@@ -14,7 +16,7 @@ const { outputFiles } = await build({
     import { RequestDetail } from './src/panel/components/detail/RequestDetail';
     import { ReplayModal } from './src/panel/components/replay/ReplayModal';
     import { usePanelStore } from './src/panel/store';
-    import styles from './src/panel/styles.css';
+    const styles = ${JSON.stringify(PANEL_CSS)};
      const baseline = {id:'baseline',type:'api',method:'GET',status:200,url:'https://example.test/api?token=secret-query',
        urlPath:'/api',timestamp:1,responseRaw:{ok:true},requestHeaders:{authorization:'Bearer secret-auth'},requestBody:{password:'secret-body'}};
     const messages=[], writes={};
@@ -53,7 +55,7 @@ async function fixture(t, { shadow = false, width = 960, bridge = true, entry } 
   const page = await browser.newPage({ viewport: { width, height: 800 } });
   t.after(() => page.close());
   page.setDefaultTimeout(3000);
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ shadow, bridge, entry }) => window.experimentTest.setup(shadow, bridge, entry), { shadow, bridge, entry });
   return page;

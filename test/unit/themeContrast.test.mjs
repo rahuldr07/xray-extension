@@ -8,12 +8,15 @@
  * future token or rule edit cannot silently make a theme unreadable.
  *
  * Targets: text ≥ 4.5:1 (High Contrast ≥ 7:1); meaningful UI graphics (input
- * borders, scrollbar thumbs) ≥ 3:1. Every failing pair is listed in the message.
+ * borders, scrollbar thumbs) ≥ 3:1; the state markers the calm accent keeps (selection
+ * bar, active-tab indicator, focus ring) ≥ 3:1, High Contrast ≥ 7:1. Every failing pair
+ * is listed in the message.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { customTheme as T, panelSettings as P } from './harness.mjs';
+import { lab, deltaE2000 } from './colourDistance.mjs';
 
 const root = new URL('../../', import.meta.url).pathname;
 const styles = readFileSync(root + 'src/panel/styles.css', 'utf8');
@@ -161,6 +164,11 @@ function ratio(fg, bg) {
 }
 
 // ── the matrix ─────────────────────────────────────────────────────────────
+// The selected and the hovered row stay visibly different fills (CIEDE2000; ~1–2 is a just-noticeable
+// difference). The presets' --xray-selection percentages and --xray-hover values were solved for ≥ 4
+// over every swatch (observed minimum 4.02, Catppuccin Mocha; custom themes ≥ 6.1); the test holds
+// 3.5 so a later lightness nudge has room, and the accent bar remains the primary selection mark.
+const ROW_STATES_DELTA_E = 3.5;
 function matrix(name, { vars, need }) {
   const rows = [];
   const color = (value) => parseColor(value, vars);
@@ -171,21 +179,24 @@ function matrix(name, { vars, need }) {
 
   // Composite surfaces, evaluated from the real rules.
   const inputRule = '.xray-panel .xray-input, .xray-panel .xray-select, .xray-panel textarea, .xray-panel input, .xray-panel select';
+  // Pane layering (spec S6): panel chrome --xray-surface, content panes --xray-bg, wells and inputs
+  // --xray-surface2. Each layer is the flat token itself, so the pairs below are the real hosts.
   const inputBgValue = ruleValue(inputRule, 'background');
-  assert.ok(inputBgValue, 'input background rule not found');
+  assert.equal(inputBgValue, 'var(--xray-surface2)', 'inputs are wells: --xray-surface2 (spec S6)');
   const input = over(color(inputBgValue), bg);
   const wellValue = ruleValue('.xray-panel .xray-json, .xray-panel .xray-json-editor', 'background');
-  assert.ok(wellValue, 'JSON well background rule not found');
-  const well = over(color(splitTop(wellValue, ',').at(-1)), bg);
+  assert.equal(wellValue, 'var(--xray-surface2)', 'the JSON well is --xray-surface2 (spec S6)');
+  const well = over(color(wellValue), bg);
 
   for (const fg of ['text', 'subtext', 'hint']) {
     add(`${fg} on bg`, color(`var(--xray-${fg})`), bg, need);
     add(`${fg} on surface2`, color(`var(--xray-${fg})`), surface2, need);
   }
-  // Status / syntax colours that render as text (teal = POST). Every theme defines
-  // --xray-pending and --xray-neutral, but nothing reads them (no var() use in any
-  // stylesheet or component), so they are not asserted as text here.
-  for (const fg of ['red', 'green', 'blue', 'mauve', 'peach', 'yellow', 'teal']) {
+  // Pressed and neutral-active fills (chips, menu toggles, raw-view buttons) are --xray-surface3.
+  add('text on surface3', color('var(--xray-text)'), color('var(--xray-surface3)'), need);
+  // Status / syntax colours that render as text (teal = POST), plus the wired state tokens (spec
+  // S5): --xray-pending (an in-flight request's status) and --xray-neutral (JSON null).
+  for (const fg of ['red', 'green', 'blue', 'mauve', 'peach', 'yellow', 'teal', 'pending', 'neutral']) {
     add(`${fg} on bg`, color(`var(--xray-${fg})`), bg, need);
     add(`${fg} on surface`, color(`var(--xray-${fg})`), surface, need);
     add(`${fg} on JSON well`, color(`var(--xray-${fg})`), well, need);
@@ -211,20 +222,42 @@ function matrix(name, { vars, need }) {
     add(`webkit scrollbar thumb vs track (on ${underName})`, color(thumbWebkit), track, 3);
   }
 
-  // API rows (T7): 4xx/5xx status text (red) on the selected-row tint, and each
-  // row flag's text on its own tint, on a plain row and on the selected row.
-  // SLOW, REPEATED and LARGE share one rule.
-  const selectedValue = ruleValue('.xray-panel .xray-api-row.selected', 'background');
-  assert.ok(selectedValue, 'selected API row background rule not found');
-  const gradient = splitTop(selectedValue, ',')[0].match(/^linear-gradient\((.*)\)$/s);
-  assert.ok(gradient, `selected row background is not a gradient: ${selectedValue}`);
-  const selected = over(color(splitTop(gradient[1], ',')[1]), bg);
+  // State markers (the selection bar, the active tab's indicator, the focus ring) are UI graphics:
+  // 3:1, and High Contrast's 7:1, so its states stay distinguishable at its own target.
+  const marker = need === 7 ? 7 : 3;
+  const accent = color('var(--xray-accent)');
+
+  // API rows (T7): the selected row is a flat neutral fill (spec A3) marked by the accent bar
+  // (A1). Its text, 4xx/5xx status text (red) and each row flag's text on its own tint, on a
+  // plain row and on the selected row. SLOW, REPEATED and LARGE share one rule.
+  // Spec S5: the selected row is --xray-selection (one source for every list), a hovered row
+  // --xray-hover; rows sit on the content pane (--xray-bg, spec S6).
+  const selectedRule = '.xray-panel :is(.xray-api-row, .xray-entry-row, .xray-console-row, .xray-log-row).selected';
+  const selectedValue = ruleValue(selectedRule, 'background');
+  assert.equal(selectedValue, 'var(--xray-selection)', `the selected row is --xray-selection (spec S5): \`${selectedRule}\``);
+  const selected = over(color(selectedValue), bg);
+  add('text on selected row', color('var(--xray-text)'), selected, need);
   add('red on selected row', color('var(--xray-red)'), selected, need);
+  const hoverRule = '.xray-panel :is(.xray-api-row, .xray-entry-row, .xray-console-row, .xray-log-row):is(:hover, :focus-visible)';
+  const hoverValue = ruleValue(hoverRule, 'background');
+  assert.equal(hoverValue, 'var(--xray-hover)', `a hovered row is --xray-hover (spec S5): \`${hoverRule}\``);
+  const hovered = over(color(hoverValue), bg);
+  add('text on hovered row', color('var(--xray-text)'), hovered, need);
+  add('red on hovered row', color('var(--xray-red)'), hovered, need);
+  // Row states distinct: the selected and the hovered row must not read as the same state.
+  const states = deltaE2000(lab(hex(selected)), lab(hex(hovered)));
+  if (states < ROW_STATES_DELTA_E) rows.push({ label: `row states distinct: selected ${hex(selected)} vs hovered ${hex(hovered)} ΔE2000 ${states.toFixed(2)}`, fg: hex(selected), bg: hex(hovered), ratio: 0, min: ROW_STATES_DELTA_E });
+  const bar = ruleValue('.xray-api-row.selected, .xray-entry-row.selected', 'box-shadow');
+  assert.match(bar ?? '', /^inset 3px 0 0 var\(--xray-accent\)$/, `the selection bar is the accent: ${bar}`);
+  add('selection bar (accent) vs selected row', accent, selected, marker);
   for (const [flag, selector] of [
     ['error', '.xray-api-flag.error'],
     ['slow', '.xray-api-flag.slow, .xray-api-flag.repeated, .xray-api-flag.large'],
     ['empty', '.xray-api-flag.empty'],
     ['pinned', '.xray-api-flag.pinned'],
+    // Categorical flags are neutral chips (spec S1, A2), like the plain flag (subtext on a text tint).
+    ['drift / graphql', '.xray-api-flag.drift, .xray-api-flag.graphql'],
+    ['plain', '.xray-api-flag'],
   ]) {
     const fgValue = ruleValue(selector, 'color');
     const tint = ruleValue(selector, 'background');
@@ -243,27 +276,75 @@ function matrix(name, { vars, need }) {
     }
   }
 
-  // Export format chip (active): text and its <small> over the accent tint, which the
-  // own-tint scan above cannot see (text colour and tint are different tokens). The
-  // chip sits on the export rail (surface at .55) inside the modal (surface).
-  const activeFormat = ruleValue('.xray-export-format.active', 'background');
-  assert.match(activeFormat ?? '', /var\(--xray-accent\b/, 'active export format uses the accent tint, like the mode chips');
+  // Calm accent (spec A1): pressed and active controls that are not the active tab are neutral —
+  // text on --xray-surface3, outlined with the control border. The export format chip sits on the
+  // export rail (surface at .55) inside the modal (surface); filter and view chips on surface.
   const rail = over(color(ruleValue('.xray-export-rail', 'background')), surface);
-  const chip = over(color(activeFormat), rail);
-  for (const fg of [ruleValue('.xray-export-format.active', 'color'), ruleValue('.xray-export-format.active small', 'color')]) {
-    add(`${fg} on active export format (export rail)`, color(fg), chip, need);
+  for (const [name, selector, host] of [
+    ['active export format (export rail)', '.xray-export-format.active', rail],
+    ['active chip', '.xray-chip.active', surface],
+    ['active detail tab / view chip', '.xray-panel .xray-detail-tab.active, .xray-panel .xray-detail-views .xray-chip.active', surface],
+  ]) {
+    const fill = ruleValue(selector, 'background');
+    assert.ok(fill, `${selector} background rule not found`);
+    assert.doesNotMatch(fill, /--xray-accent/, `${name} is neutral (spec A1): ${fill}`);
+    add(`text on ${name}`, color(ruleValue(selector, 'color')), over(color(fill), host), need);
+  }
+  add('<small> on active export format', color(ruleValue('.xray-export-format.active small', 'color')), over(color(ruleValue('.xray-export-format.active', 'background')), rail), need);
+  // Spec S5: a control being pressed (:active) fills with --xray-active, a tint of the effective
+  // accent; its label stays --xray-text. (Persistent active states above stay neutral, spec A1.)
+  const pressedRule = '.xray-theme-scope :is(.xray-btn, .xray-icon-btn, .xray-chip, .xray-action-btn, .xray-menu-item):not(.primary):not(:disabled):active';
+  assert.equal(ruleValue(pressedRule, 'background'), 'var(--xray-active)', `a pressed control is --xray-active (spec S5): \`${pressedRule}\``);
+  add('text on a pressed control (--xray-active)', color('var(--xray-text)'), color('var(--xray-active)'), need);
+  // A filter count inside the active chip (spec A1: filter counts are --xray-subtext).
+  const countColour = ruleValue('.xray-chip-count', 'color');
+  assert.equal(countColour, 'var(--xray-subtext)', 'filter counts are --xray-subtext');
+  add('subtext count on active chip', color(countColour), over(color(ruleValue('.xray-chip-count', 'background')), over(color(ruleValue('.xray-chip.active', 'background')), surface)), need);
+
+  // The active top tab keeps the accent: text on its accent-soft fill over the tab bar, and the
+  // accent indicator against the bar.
+  const topbar = color(ruleValue('.xray-topbar', 'background'));
+  const activeTab = over(color(ruleValue('.xray-panel .xray-tab.active', 'background')), topbar);
+  add('text on active tab', color(ruleValue('.xray-tab.active', 'color')), activeTab, need);
+  add('active tab indicator (accent) vs tab bar', color(ruleValue('.xray-tab::after', 'background')), topbar, marker);
+
+  // The active Settings item: text on its accent tint over the nav, and the accent bar against it.
+  const nav = over(color(ruleValue('.xray-settings-nav', 'background')), surface);
+  const navItem = over(color(ruleValue('.xray-settings-nav-item.active', 'background')), nav);
+  add('text on active Settings item', color(ruleValue('.xray-settings-nav-item.active', 'color')), navItem, need);
+  add('active Settings item bar (accent) vs nav', color(ruleValue('.xray-settings-nav-item.active', 'border-left-color')), navItem, 3);
+
+  // Focus rings follow the effective accent (--xray-focus), against bg and surface.
+  for (const [host, hostName] of [[bg, 'bg'], [surface, 'surface']]) add(`focus ring vs ${hostName}`, color('var(--xray-focus)'), host, marker);
+  // The request list and the Logs listbox (final review I-7): rows are aria-activedescendant
+  // options, so the list's own ring is the only keyboard focus indicator. It is the ring that
+  // ships — read from its rule, full strength, 2px, drawn inside the list (which sits on bg).
+  const listFocusRule = '.xray-panel :is(.xray-api-table-scroll, .xray-logs-list)[tabindex]:focus-visible';
+  const listOutline = ruleValue(listFocusRule, 'outline');
+  assert.equal(listOutline, '2px solid var(--xray-focus)', `the list focus ring is full-strength --xray-focus, 2px: \`${listFocusRule}\``);
+  assert.equal(ruleValue(listFocusRule, 'outline-offset'), '-2px', 'drawn inside the list, so its scroller cannot clip it');
+  add('list focus ring vs bg', color(listOutline.replace(/^2px solid /, '')), bg, marker);
+
+  // A find highlight in Global Search results (the modal is surface): marker yellow, not the accent.
+  const mark = '.xray-gsearch-snippet mark';
+  assert.doesNotMatch(ruleValue(mark, 'background') ?? '', /--xray-accent/, 'search highlights are not the accent (spec A1)');
+  add('text on search highlight', color(ruleValue(mark, 'color')), over(color(ruleValue(mark, 'background')), surface), need);
+
+  // Primary buttons: accent text on a FLAT accent fill (spec A2: no gradient, no mauve). Colour
+  // and fill live in different rules, so the generic scan above cannot see this pair.
+  const primaryRule = '.xray-theme-scope .xray-action-btn.primary, .xray-theme-scope .xray-btn.primary';
+  const primary = ruleValue(primaryRule, 'background');
+  assert.ok(primary, 'primary button background rule not found');
+  assert.doesNotMatch(primary, /gradient|--xray-mauve/, `the primary button is a flat accent fill: ${primary}`);
+  assert.match(primary, /var\(--xray-accent\)/, `the primary button fill is the accent: ${primary}`);
+  for (const [host, hostName] of [[surface, 'surface'], [surface2, 'surface2']]) {
+    add(`accent on primary button flat fill (${hostName})`, color(ruleValue(primaryRule, 'color')), over(color(primary), host), need);
   }
 
-  // Primary buttons: accent text over the panel-scope gradient (colour and tint
-  // live in different rules, so the generic scan above cannot see this pair).
-  const primary = ruleValue('.xray-panel .xray-operation-btn, .xray-panel .xray-action-btn.primary, .xray-panel .xray-btn.primary', 'background');
-  const stops = primary?.match(/^linear-gradient\((.*)\)$/s);
-  assert.ok(stops, `primary button background is not a gradient: ${primary}`);
-  for (const stop of splitTop(stops[1], ',').slice(1)) {
-    for (const [host, hostName] of [[surface, 'surface'], [surface2, 'surface2']]) {
-      add(`accent on primary button stop ${stop} (${hostName})`, color('var(--xray-accent)'), over(color(stop), host), need);
-    }
-  }
+  // Column headers are --xray-hint on the table head (spec A1, not the accent).
+  const head = '.xray-panel .xray-api-table-head';
+  assert.equal(ruleValue(head, 'color'), 'var(--xray-hint)', 'API column headers are --xray-hint');
+  add('hint on API column header', color('var(--xray-hint)'), over(color(ruleValue(head, 'background')), bg), need);
 
   const fails = rows.filter((r) => r.ratio < r.min);
   return { name, rows, fails };
@@ -280,8 +361,9 @@ for (const [name, theme] of Object.entries(THEMES)) {
 
 // Every accent swatch the user can pick, on every preset (spec P2): the value the panel
 // actually applies inline (resolveAccentValue, i.e. the swatch solved for that preset's
-// surfaces) through the FULL matrix — own-tint rules, the accent-tinted selected row and
-// its flags, the export chip and the primary button — at the preset's own target.
+// surfaces) through the FULL matrix — own-tint rules, the selected row, its flags and its
+// accent bar, the calm-accent active states, focus and the primary button's flat fill — at the
+// preset's own target.
 const SWATCHES = Object.keys(DARK_ACCENTS);
 const pickedAccent = (id, accent) => P.resolveAccentValue({ ...P.DEFAULT_PANEL_SETTINGS, theme: id, accent, accentChosen: true });
 for (const [name, id] of LINEUP) {
@@ -298,11 +380,11 @@ for (const [name, id] of LINEUP) {
   });
 }
 
-// Accent swatches as text on their own tint (the badge / primary-button tint),
-// composited over the preset's --xray-bg, per the presets that use each palette.
-// The badge and button hosts (tab bar, modal surfaces) are lighter than bg on the
-// light presets, so this model is the stricter one there. Each swatch is the value
-// the preset applies when it is picked.
+// Accent swatches as text on their own tint, composited over the preset's --xray-bg, per
+// the presets that use each palette: a stricter stand-in for the primary button's flat
+// fill (10 %, checked exactly in the matrix above) — 14 % and over bg, which is darker
+// than the button hosts on the light presets. Each swatch is the value the preset applies
+// when it is picked.
 const TINT = 0.14;
 function swatchFails(palette, themeNames) {
   const fails = [];

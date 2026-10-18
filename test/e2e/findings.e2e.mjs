@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
 
 // Real model/Insights/FindingsPanel; store action stubs isolate this component
 // fixture. These tests prove action wiring, not storage or provider delivery.
@@ -15,7 +16,7 @@ const { outputFiles } = await build({
     import {Insights} from './src/panel/components/insights/Insights';
     import {deriveFindings,createFindingState,reconcileFindingState,dismissFinding,restoreFinding} from './src/panel/models/findings';
     import {usePanelStore} from './src/panel/store';
-    import styles from './src/panel/styles.css';
+    const styles = ${JSON.stringify(PANEL_CSS)};
     const entries=Array.from({length:7},(_,i)=>({id:'entry-'+i,type:'api',method:'GET',url:'https://safe.test/items/'+i+'?token=secret#hash',urlPath:'/items/'+i,duration:900,status:200,size:20,timestamp:i+1,responseRaw:'RAW_BODY_SECRET'}));
     window.findingTest={calls:{evidence:[],synthesis:[],storage:0,network:0},root:null,errors:[],
       setup(shadow,panel){

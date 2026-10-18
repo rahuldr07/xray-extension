@@ -3,6 +3,8 @@ import test, { after, before } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: {
@@ -14,7 +16,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const entry = {
         id: 'retained-entry', type: 'api', method: 'GET', status: 200,
@@ -84,7 +86,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, viewport, storedWidth = 640) {
   const page = await browser.newPage({ viewport, reducedMotion: 'reduce' });
   t.after(() => page.close());
-  await page.setContent('<style>html,body{margin:0;min-width:100%;min-height:100%}</style>');
+  await setStandardsContent(page, '<style>html,body{margin:0;min-width:100%;min-height:100%}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ width, storedWidth }) => window.panelSlider.setup(width, storedWidth), { width: viewport.width, storedWidth });
   await page.waitForFunction(() => window.panelSlider.panel().getBoundingClientRect().width > 0);

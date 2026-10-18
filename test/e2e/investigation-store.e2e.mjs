@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'ts', contents: `
@@ -50,7 +51,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, setup = true) {
   const page = await browser.newPage();
   t.after(() => page.close());
-  await page.setContent('<main>Real store fixture</main>');
+  await setStandardsContent(page, '<main>Real store fixture</main>');
   await page.addScriptTag({ content: outputFiles[0].text });
   if (setup) await page.evaluate(() => window.storeTest.setup());
   return page;

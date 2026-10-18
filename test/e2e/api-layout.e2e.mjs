@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Real component, store and stylesheet: these checks exercise computed layout,
 // scrolling and user input rather than matching CSS/source strings.
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { EntriesWorkspace } from './src/panel/components/api/EntriesWorkspace';
       import { usePanelStore } from './src/panel/store';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const root = window.closedFixture ? document.body.appendChild(document.createElement('div')).attachShadow({ mode: 'closed' }) : document;
       const sheet = (window.closedFixture ? root : document.head).appendChild(document.createElement('style'));
       sheet.textContent = styles;
@@ -89,7 +91,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, width = 420, closed = false) {
   const page = await browser.newPage({ viewport: { width, height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body { margin: 0; }</style>');
+  await setStandardsContent(page, '<style>body { margin: 0; }</style>');
   await page.evaluate(value => { window.closedFixture = value; }, closed);
   await page.addScriptTag({ content: outputFiles[0].text });
   return page;

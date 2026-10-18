@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Real wheel scrolling over Console results, the stream and the inspector. A nested
 // element that is a scroll container but cannot scroll (e.g. a JSON tree body with
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const TALL = { rows: Array.from({ length: 40 }, (_, i) => ({ n: i, label: 'row ' + i })) };
       // Over the big-result limit, and an object, so the inspector opens on its tree view.
       const BIG = Object.fromEntries(Array.from({ length: 300 }, (_, i) => ['key' + i, 'value ' + i]));
@@ -73,7 +75,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, shadow) {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(shadow => window.sx.setup(shadow), shadow);
   return page;

@@ -1,18 +1,18 @@
 :host,
 .xray-app-root {
-  /* Fallback contract for anything rendered outside a theme class: a neutral dark
-     palette that predates the preset lineup (test/theming-tokens.test.js pins it).
-     Preset classes and custom inline variables override these values inside the
-     panel scope. */
-  --xray-bg: #181a1f;
-  --xray-surface: #202329;
-  --xray-surface2: #292e36;
-  --xray-surface3: #333943;
+  /* Fallback contract for anything rendered outside a theme class (the first paint of
+     the HUD and window before mount): the XRAY Dark default's palette, value for value
+     (test/theming-tokens.test.js pins it to the .xray-theme-xray-dark block). Preset
+     classes and custom inline variables override these values inside the panel scope. */
+  --xray-bg: #141517;
+  --xray-surface: #1b1c1f;
+  --xray-surface2: #25272a;
+  --xray-surface3: #303235;
   /* RGB triples so translucent surfaces (rgba(var(--…-rgb), a)) adapt per theme */
-  --xray-bg-rgb: 24, 26, 31;
-  --xray-surface-rgb: 32, 35, 41;
-  --xray-surface2-rgb: 41, 46, 54;
-  --xray-text-rgb: 243, 244, 246;
+  --xray-bg-rgb: 20, 21, 23;
+  --xray-surface-rgb: 27, 28, 31;
+  --xray-surface2-rgb: 37, 39, 42;
+  --xray-text-rgb: 238, 239, 241;
   /* corner-radius scale — base is set inline per-panel from settings.radius */
   --xray-radius: 10px;
   --xray-radius-sm: calc(var(--xray-radius) * 0.6);
@@ -22,28 +22,31 @@
   --xray-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --xray-dur-fast: 120ms;
   --xray-dur: 180ms;
-  --xray-text: #f3f4f6;
-  --xray-subtext: #c1c7d0;
-  --xray-hint: #8e98a8;
-  --xray-border: rgba(142, 152, 168, .34);
-  --xray-border-control: #717b8a;
-  --xray-focus: #d99a2b;
-  --xray-selection: #4d3b1d;
-  --xray-hover: #2b3038;
-  --xray-active: #59421e;
-  --xray-disabled: #626a76;
-  --xray-accent: #d99a2b;
-  --xray-accent-soft: #4d3b1d;
-  --xray-green: #43b581;
-  --xray-blue: #5aa9e6;
-  --xray-yellow: #d99a2b;
-  --xray-red: #e8858d;
-  --xray-mauve: #b694d7;
-  --xray-teal: #4fb3a4;
-  --xray-peach: #da9064;
-  --xray-pending: #d99a2b;
-  --xray-neutral: #8e98a8;
-  --xray-shadow: rgba(0, 0, 0, .38);
-  --xray-overlay: rgba(24, 26, 31, .74);
+  --xray-text: #eeeff1;
+  --xray-subtext: #bcbfc5;
+  --xray-hint: #90949b;
+  --xray-border: #34363a;
+  --xray-border-control: #71757b;
+  --xray-focus: var(--xray-accent);
+  --xray-selection: color-mix(in srgb, var(--xray-accent) 11.5%, var(--xray-bg));
+  --xray-hover: #25272a;
+  --xray-active: color-mix(in srgb, var(--xray-accent) 28%, var(--xray-bg));
+  --xray-disabled: #5a5e63;
+  --xray-accent: #3dc8f5;
+  --xray-accent-soft: var(--xray-selection);
+  --xray-green: #65d68a;
+  --xray-blue: #96b2fb;
+  --xray-yellow: #f6c65b;
+  --xray-red: #f8767a;
+  --xray-mauve: #c6a0f2;
+  --xray-teal: #5cd5c7;
+  --xray-peach: #f5a166;
+  --xray-pending: #f6c65b;
+  --xray-neutral: #90949b;
+  --xray-shadow: rgba(0, 0, 0, .40);
+  --xray-overlay: rgba(20, 21, 23, .74);
   --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  /* Spec S2: chrome (tabs, buttons, menus, Settings, modals, toasts) uses the platform UI sans;
+     --xray-font above (the Font stack setting) stays the monospace data font. No web fonts. */
+  --xray-font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }

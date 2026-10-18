@@ -200,6 +200,17 @@ test('methodClass / statusClass map to the CSS variants the panel paints', () =>
   assert.equal(statusClass(undefined), '');
 });
 
+// Spec S5: an in-flight request (no response yet, so no status) paints --xray-pending. A failed
+// request (status 0) and a WebSocket (no HTTP status) are not in flight.
+test('entryStatusClass marks an in-flight request pending and otherwise follows statusClass', () => {
+  assert.equal(U.entryStatusClass({}), 'pending');
+  assert.equal(U.entryStatusClass({ status: undefined }), 'pending');
+  assert.equal(U.entryStatusClass({ status: 0 }), '');
+  assert.equal(U.entryStatusClass({ status: 200 }), 'ok');
+  assert.equal(U.entryStatusClass({ status: 503 }), 'error');
+  assert.equal(U.entryStatusClass({ wsState: 'open' }), '');
+});
+
 test('eventEntry unwraps a network console event and rejects anything else', () => {
   const entry = apiEntry();
   assert.equal(eventEntry({ type: 'network', args: [entry] }), entry);

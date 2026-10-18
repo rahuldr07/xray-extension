@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Real components, store, virtualizers and stylesheet; only external clipboard,
 // persistence and MAIN-world object transport are replaced with synthetic data.
@@ -17,7 +19,7 @@ const { outputFiles } = await build({
       import { EntriesWorkspace } from './src/panel/components/api/EntriesWorkspace';
       import { ConsoleWorkspace } from './src/panel/components/console/ConsoleWorkspace';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       function Fixture() {
         const tab = usePanelStore(s => s.activeTab);
         return <div className="xray-theme-scope xray-theme-xray-dark">
@@ -79,7 +81,7 @@ async function fixture(t, shadow, width = 960) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no browser errors'); });
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(shadow => window.rowActions.setup(shadow), shadow);
   return page;

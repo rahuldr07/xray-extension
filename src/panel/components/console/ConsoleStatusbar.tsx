@@ -14,11 +14,12 @@ export function ConsoleStatusbar(): React.ReactElement {
   }, [entries, slowThresholdMs]);
   return (
     <footer className="xray-statusbar">
-      <span className="xray-status-item" style={{ color: 'var(--xray-green)' }}>{stats.total - stats.errors} ok</span>
-      <span className="xray-status-item" style={{ color: 'var(--xray-red)' }}>{stats.errors} errors</span>
-      <span className="xray-status-item xray-status-slow" style={{ color: 'var(--xray-yellow)' }}>{stats.slow} slow (≥{slowThresholdMs}ms)</span>
+      {/* Spec S2: labels in the UI font, numbers in the mono data font. */}
+      <span className="xray-status-item" style={{ color: 'var(--xray-green)' }}><span className="xray-status-num">{stats.total - stats.errors}</span> ok</span>
+      <span className="xray-status-item" style={{ color: 'var(--xray-red)' }}><span className="xray-status-num">{stats.errors}</span> errors</span>
+      <span className="xray-status-item xray-status-slow" style={{ color: 'var(--xray-yellow)' }}><span className="xray-status-num">{stats.slow}</span> slow (≥<span className="xray-status-num">{slowThresholdMs}ms</span>)</span>
       <span className="xray-spacer" />
-      <span className="xray-status-total">{stats.total} requests<span className="xray-status-avg"> - avg {Math.round(stats.avg)}ms</span></span>
+      <span className="xray-status-total"><span className="xray-status-num">{stats.total}</span> requests<span className="xray-status-avg"> - avg <span className="xray-status-num">{Math.round(stats.avg)}ms</span></span></span>
     </footer>
   );
 }

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // The production component/store/keyboard run in Chromium, including a closed
 // shadow root. Only unavailable extension/clipboard boundaries are stubbed.
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { ModalShell } from './src/panel/components/common/ModalShell';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const base = { id:'one', type:'api', method:'GET', status:200,
         url:'https://example.test/widgets?full=' + 'long-'.repeat(45), urlPath:'/widgets',
         timestamp:200, duration:950, size:100, source:'fetch',
@@ -91,7 +93,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, { shadow = false, state = {}, compact = false, width = 960 } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.responseTest.setup(args.shadow, args.state, args.compact), { shadow, state, compact });
   return page;

@@ -4,6 +4,8 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'jsx', contents: `
@@ -16,7 +18,7 @@ const { outputFiles } = await build({
     import {ExportModal} from './src/panel/components/export/ExportModal';
     import {ModalShell} from './src/panel/components/common/ModalShell';
     import {usePanelStore} from './src/panel/store';
-    import styles from './src/panel/styles.css';
+    const styles = ${JSON.stringify(PANEL_CSS)};
     const entry={id:'fixture',type:'api',method:'GET',status:200,url:'https://example.test/widgets',urlPath:'/widgets',duration:900,responseRaw:'{"ok":true}'};
     function App(){
       const tab=usePanelStore(s=>s.activeTab);
@@ -55,7 +57,7 @@ before(async()=>{browser=await chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
 async function fixture(t, shadow=false){
   const page=await browser.newPage({viewport:{width:960,height:700}});t.after(()=>page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({content:outputFiles[0].text});
   await page.evaluate(shadow=>window.integration.setup(shadow),shadow);return page;
 }

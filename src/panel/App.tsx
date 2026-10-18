@@ -16,7 +16,7 @@ import { FindingSynthesisModal } from './components/ai/FindingSynthesisModal';
 import { CommandPalette } from './components/shell/CommandPalette';
 import { GlobalSearch } from './components/search/GlobalSearch';
 import { PanelShell } from './components/shell/PanelShell';
-import { ThemeRefreshNotice, ToastRegion } from './components/shell/PanelShell';
+import { ToastRegion } from './components/shell/PanelShell';
 import type { XrayAppMode } from './types';
 
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
@@ -58,7 +58,6 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
         <GlobalSearch />
         <ConfirmationModal />
         <ToastRegion />
-        <ThemeRefreshNotice />
       </RootErrorBoundary>
     </div>
   );

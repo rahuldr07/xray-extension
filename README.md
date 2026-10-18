@@ -62,7 +62,7 @@ API investigation is normally a tab-switching routine: Network panel, Console, c
 | **Mock rules** | Match requests by URL/method and return a mock body/status, inject latency, or force failure — applied in the page before the real network call. Seed a rule from any captured response with **Mock this**. |
 | **Replay & Edit-and-Replay** | Re-fire any captured request from the page, or edit method/URL/headers/body first. Auth survives: the original request's sensitive headers are restored in the page (they never leave it) and cookies re-attach via credentialed replay. Replays are recaptured and diffed against the original. |
 | **Real Visualize** | The Visualize view charts the response — numeric fields across rows, key/value magnitudes, or categorical frequency — as a single-series bar chart, and says so honestly when there's nothing numeric to plot. |
-| **Theme Studio** | Presets (Operator, Dev, Midnight, Light, Claude) plus a full custom theme: pick any background/surface/text/accent, generate a whole theme from one color, randomize, adjustable corner radius, opt-in CRT "hacker" overlay, a live WCAG contrast checker, and shareable theme codes (`xray1:…` / `window.html#theme=…`). Every theme is scoped to the panel via inline CSS variables — it never touches the page or the capture runtime. |
+| **Theme Studio** | Nine presets (XRAY Dark, XRAY Light, GitHub Dark, GitHub Light, Tokyo Night, Catppuccin Mocha, Dracula, Gruvbox Dark, High Contrast), each with its own accent, plus a full custom theme: pick any background/surface/text/accent, generate a whole theme from one color, randomize, adjustable corner radius, opt-in CRT "hacker" overlay, a live WCAG contrast checker, and shareable theme codes (`xray1:…` / `window.html#theme=…`). Every theme is scoped to the panel via CSS variables — it never touches the page or the capture runtime. |
 | **GraphQL awareness** | Parses `operationName`/`query`/`variables` and groups by operation instead of piling everything under `POST /graphql`. |
 | **WebSocket & SSE capture** | Wraps `WebSocket` and `EventSource`, streaming frames into a live Frames view with direction, size, and timing. |
 | **Schema-drift watchdog** | Keeps a per-endpoint schema baseline and flags responses whose shape changed, with a one-click diff. |
@@ -253,7 +253,7 @@ Why this matters:
 | State | Zustand |
 | Virtualization | `@tanstack/react-virtual` |
 | Icons | `@tabler/icons-react` |
-| Styling | Catppuccin Mocha tokens scoped with Shadow DOM `:host` |
+| Styling | `--xray-*` design tokens (XRAY Dark default, one block per preset) scoped with Shadow DOM `:host` |
 | Runtime | Vanilla JavaScript content scripts and service worker |
 
 The extension UI does not load web fonts, CDN scripts, or remote UI assets.
@@ -393,24 +393,28 @@ intended direction on each.
 
 ## Design Tokens
 
+Every colour, line, state, radius and type role is a `--xray-*` custom property. The
+fallback contract (XRAY Dark values, the type stacks, radius and motion) lives in
+[`src/panel/styles/tokens.css`](src/panel/styles/tokens.css); each preset overrides it with a
+`.xray-theme-*` block in [`src/panel/styles.css`](src/panel/styles.css), and a custom theme
+supplies the same tokens inline. An excerpt of the default:
+
 ```css
 :host {
-  --xray-bg: #1e1e2e;
-  --xray-surface: #181825;
-  --xray-surface2: #313244;
-  --xray-text: #cdd6f4;
-  --xray-green: #a6e3a1;
-  --xray-blue: #89b4fa;
-  --xray-yellow: #f9e2af;
-  --xray-red: #f38ba8;
-  --xray-mauve: #cba6f7;
-  --xray-teal: #94e2d5;
-  --xray-peach: #fab387;
-  --xray-hint: #6c7086;
-  --xray-subtext: #a6adc8;
-  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --xray-bg: #141517;
+  --xray-surface: #1b1c1f;
+  --xray-surface2: #25272a;
+  --xray-text: #eeeff1;
+  --xray-subtext: #bcbfc5;
+  --xray-hint: #90949b;
+  --xray-accent: #3dc8f5;
+  --xray-border: #34363a;
+  --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; /* data */
+  --xray-font-ui: ui-sans-serif, system-ui, sans-serif; /* chrome (abridged) */
 }
 ```
+
+See [`docs/ui-conventions.md`](docs/ui-conventions.md) for the full token list.
 
 ## License
 

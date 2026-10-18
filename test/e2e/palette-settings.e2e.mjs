@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: {
@@ -64,13 +66,13 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-const css = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
+const css = PANEL_CSS;
 const entry = (id, path) => ({ id, type: 'api', timestamp: 1700000000000, method: 'GET', urlPath: path, url: `https://synthetic.test${path}`, status: 200, duration: 30, responseRaw: '{}' });
 async function fixture(t, shadow = false) {
   const page = await browser.newPage();
   page.setDefaultTimeout(3000);
   t.after(() => page.close());
-  await page.setContent('<div></div>');
+  await setStandardsContent(page, '<div></div>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ shadow, css }) => window.paletteTest.setup(shadow, css), { shadow, css });
   return page;

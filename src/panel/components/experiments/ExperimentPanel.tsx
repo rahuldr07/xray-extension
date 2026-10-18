@@ -54,7 +54,7 @@ function ExperimentCard({ record }: { record: ExperimentRecord }): React.ReactEl
     <p className="xray-muted">Baseline: {record.baselineEntryId}{!baseline && ' — no longer retained'}{record.plan.mockRuleId && ` · Mock rule: ${record.plan.mockRuleId}`}</p>
     <div className="xray-experiment-grid">
       <label className="xray-field"><span>Planned method</span><input className="xray-input" value={editable ? method : record.plan.method} readOnly={!editable} maxLength={12} onChange={event => setMethod(event.currentTarget.value)} /></label>
-      <label className="xray-field xray-experiment-url"><span>Planned URL (sanitized)</span><input className="xray-input" value={editable ? url : record.plan.url} readOnly={!editable} onChange={event => setUrl(event.currentTarget.value)} /></label>
+      <label className="xray-field xray-experiment-url"><span>Planned URL (sanitized)</span><input className="xray-input xray-input-data" value={editable ? url : record.plan.url} readOnly={!editable} onChange={event => setUrl(event.currentTarget.value)} /></label>
       <label className="xray-field"><span>Expected status</span><input className="xray-input" type="number" min={100} max={599} value={expectedStatus} readOnly={!editable} onChange={event => setExpectedStatus(event.currentTarget.value)} /></label>
       <label className="xray-field"><span>Structural check vs baseline</span><select className="xray-select" disabled={!editable} value={structure} onChange={event => setStructure(event.currentTarget.value)}>
         <option value="none">None</option><option value="equal">Equal</option><option value="contains">Contains baseline</option><option value="schema">Same schema</option>

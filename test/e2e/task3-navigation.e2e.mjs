@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const { outputFiles } = await build({
@@ -17,7 +19,7 @@ const { outputFiles } = await build({
       import { EntriesWorkspace } from './src/panel/components/api/EntriesWorkspace';
       import { FirstRun } from './src/panel/components/common/FirstRun';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const logs = Array.from({length: 90}, (_, index) => ({
         id: 'log-' + index, type: 'log', logLevel: index % 3 === 0 ? 'warn' : 'log',
@@ -77,7 +79,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, shadow, width, firstRun = false) {
   const page = await browser.newPage({ viewport: { width: Math.max(width, 960), height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.task3Navigation.setup(args.shadow, args.width, args.firstRun), { shadow, width, firstRun });
   return page;

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // API detail Table, Schema, Diff and Visualize, and the global search (spec §2 J3, J14, J15; §8 J11;
 // plan Task 6) on the real App, store and stylesheet, in the document and in a closed shadow root.
@@ -22,7 +24,7 @@ const { outputFiles } = await build({
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const nest = (leaf, levels) => (levels === 0 ? leaf : { a: nest(leaf, levels - 1) });
       const FIX = {
@@ -144,7 +146,7 @@ async function open(t, fixture, { width = 1400, worker = false } = {}) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'no error may escape to the page'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.nv.setup(args.shadow, args.mode, args.width, args.worker), { ...fixture, width, worker });
   await page.waitForFunction(() => window.nv.has('[aria-label="Captured requests"]'));

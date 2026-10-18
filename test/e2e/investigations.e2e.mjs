@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'jsx', contents: `
@@ -12,7 +14,7 @@ const { outputFiles } = await build({
     import { flushSync } from 'react-dom';
     import { Rules } from './src/panel/components/rules/Rules';
     import { usePanelStore } from './src/panel/store';
-    import styles from './src/panel/styles.css';
+    const styles = ${JSON.stringify(PANEL_CSS)};
     const baseline={id:'baseline',type:'api',method:'GET',status:200,url:'https://example.test/api?token=private-query',urlPath:'/api',timestamp:1,
       responseRaw:{ok:true},requestHeaders:{authorization:'Bearer private-auth'},requestBody:{password:'private-body'}};
     const messages=[],writes={};
@@ -59,7 +61,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, { shadow = false, width = 960, saved } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 800 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({shadow,saved}) => window.investigationTest.setup(shadow,saved), {shadow,saved});
   return page;

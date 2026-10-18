@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const { outputFiles } = await build({
@@ -112,18 +114,21 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-const css = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
+const css = PANEL_CSS;
 
 async function fixture(t, kind, shadow, viewport, section) {
   const page = await browser.newPage({ viewport });
   page.setDefaultTimeout(3000);
   t.after(() => page.close());
-  await page.setContent('<style>html,body{margin:0;background:#1e1e2e}</style><div></div>');
+  await setStandardsContent(page, '<style>html,body{margin:0;background:#1e1e2e}</style><div></div>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ kind, shadow, css, section }) => window.modalTest.setup(kind, shadow, css, section), { kind, shadow, css, section });
   return page;
 }
-const measure = page => page.evaluate(() => window.modalTest.measure());
+// With tokens.css loaded the modal's entrance animation (scale .985 → 1) really runs; measure the
+// settled box, not a mid-animation frame.
+const settle = page => page.evaluate(() => Promise.all(window.modalTest.root.getAnimations().filter(a => a.effect?.getComputedTiming().endTime !== Infinity).map(a => a.finished)));
+const measure = async page => { await settle(page); return page.evaluate(() => window.modalTest.measure()); };
 
 for (const shadow of [false, true]) {
   const surface = shadow ? 'closed shadow' : 'document';

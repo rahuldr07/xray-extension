@@ -30,6 +30,8 @@
       --xray-radius-sm: calc(var(--xray-radius) * 0.6);
       --xray-radius-lg: calc(var(--xray-radius) * 1.4);
       --xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      /* Spec S2: chrome in the platform UI sans (tokens.css --xray-font-ui), data in --xray-font. */
+      --xray-font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     /* 'custom' has no static palette here — its colors live in storage and only
        the panel resolves them — so it stays on the XRAY Dark default. */
@@ -124,11 +126,10 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background:
-        radial-gradient(circle at top, color-mix(in srgb, var(--xray-accent) 12%, transparent) 0%, transparent 48%),
-        var(--xray-bg);
+      /* Flat token surfaces (spec A3): no accent wash behind the page. */
+      background: var(--xray-bg);
       color: var(--xray-text);
-      font-family: var(--xray-font);
+      font-family: var(--xray-font-ui);
       font-size: 13px;
       min-width: 340px;
       min-height: 100vh;
@@ -139,11 +140,10 @@
     .app {
       width: 100%;
       max-width: 560px;
-      background: color-mix(in srgb, var(--xray-surface) 84%, transparent);
+      background: var(--xray-surface);
       border: 1px solid var(--xray-border);
       border-radius: var(--xray-radius-lg);
       box-shadow: 0 14px 48px rgba(0, 0, 0, .28);
-      backdrop-filter: blur(8px);
       overflow: hidden;
     }
     .head {
@@ -154,7 +154,8 @@
       font-size: 15px;
       letter-spacing: .5px;
       font-weight: 700;
-      color: var(--xray-accent);
+      /* The heading is chrome, not a state: text colour (spec A1). */
+      color: var(--xray-text);
     }
     .head p {
       margin-top: 5px;
@@ -173,7 +174,7 @@
       flex-direction: column;
       gap: 7px;
       padding: 10px 0;
-      border-bottom: 1px solid color-mix(in srgb, var(--xray-hint) 32%, transparent);
+      border-bottom: 1px solid var(--xray-border);
     }
     .setting:last-child { border-bottom: none; }
     .setting label {
@@ -260,12 +261,14 @@
          theme and stays legible against the filled track either way. */
       background: var(--xray-bg);
     }
+    /* The primary action is the panel's flat accent tint (calm accent): accent text and border on
+       a 10% accent wash. Every preset block here reads at ≥ 4.5:1 (High Contrast ≥ 7:1) on it. */
     .save-btn {
       margin-top: 8px;
-      border: none;
+      border: 1px solid var(--xray-accent);
       border-radius: var(--xray-radius);
-      background: var(--xray-accent);
-      color: var(--xray-bg);
+      background: color-mix(in srgb, var(--xray-accent) 10%, var(--xray-surface));
+      color: var(--xray-accent);
       font: inherit;
       font-weight: 700;
       cursor: pointer;
@@ -274,13 +277,15 @@
     }
     .save-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
     .save-btn:active { transform: translateY(0); }
+    /* The focus ring follows the accent, as in the panel (spec A1). */
     .save-btn:focus-visible {
-      outline: 2px solid var(--xray-text);
+      outline: 2px solid var(--xray-accent);
       outline-offset: 2px;
     }
     .save-btn.is-saved {
-      background: var(--xray-green);
-      color: var(--xray-bg);
+      border-color: var(--xray-green);
+      background: color-mix(in srgb, var(--xray-green) 10%, var(--xray-surface));
+      color: var(--xray-green);
     }
 
     /* The panel honours prefers-reduced-motion; this page did not. */

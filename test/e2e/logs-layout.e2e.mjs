@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Logs tab layout (S22-S24): fixed 32px rows, Console's level chips, full-width list
 // until a log is opened, then list | detail (> 900), stacked (600-900) or the
@@ -21,7 +23,7 @@ const { outputFiles } = await build({
       import { usePanelStore } from './src/panel/store';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
       import { serializePanelPreferences } from './src/panel/models/panelPersistence';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const levels = ['log', 'warn', 'error', 'info', 'log', 'warn'];
       const logs = levels.map((level, index) => ({
@@ -77,7 +79,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, width, closed = false) {
   const page = await browser.newPage({ viewport: { width: Math.max(width, 960), height: 800 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(([w, c]) => window.logsLayout.setup(w, c), [width, closed]);
   await page.waitForFunction(() => window.logsLayout.ready());

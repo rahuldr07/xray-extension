@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // This is deliberately the real App, rather than a hand-built Console shell.
 // It catches both document mounts and the closed-shadow mount used by the
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const request = (id, status=200, body='{"ok":true}') => ({
         id, type:'api', method:'GET', status, source:'fetch',
@@ -86,7 +88,7 @@ for (const shadow of [false, true]) {
         }
         await page.close();
       });
-      await page.setContent('<style>body{margin:0}</style>');
+      await setStandardsContent(page, '<style>body{margin:0}</style>');
       await page.addScriptTag({ content: outputFiles[0].text });
       await page.evaluate(({shadow, width, height}) => window.consoleLayout.setup(shadow, width, height), {shadow, width, height});
       await page.waitForFunction(() => {
@@ -108,7 +110,7 @@ for (const shadow of [false, true]) {
   test(`Console picker resolves current API status/body and explicit inspect (${shadow ? 'closed shadow' : 'document'})`, async t => {
     const page = await browser.newPage({ viewport: { width: 960, height: 700 } });
     t.after(() => page.close());
-    await page.setContent('<style>body{margin:0}</style>');
+    await setStandardsContent(page, '<style>body{margin:0}</style>');
     await page.addScriptTag({ content: outputFiles[0].text });
     await page.evaluate(shadow => window.consoleLayout.setup(shadow, 960, 700), shadow);
     // P1: the picker is a disclosure (Change ▾ / Pick request) with one button per request.

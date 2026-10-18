@@ -45,7 +45,7 @@ import { levelBucket, logLevelFilters, matchesLevel, type LevelFilter } from '..
 import { buildSessionIndex, type SessionIndex } from '../../models/sessionIndex';
 import { logEntryText } from '../../models/logValue';
 import type { ApiGroupingMode, ApiQuickFilter, SortField, XrayEntry } from '../../types';
-import { copyText, entryRequest, formatBytes, formatTime, methodClass, statusClass } from '../../utils';
+import { copyText, entryRequest, entryStatusClass, formatBytes, formatTime, methodClass } from '../../utils';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -700,9 +700,9 @@ function ApiSummaryLine({ summary, matchingCount }: { summary: ApiListSummary; m
       <span className="xray-api-summary-sep" aria-hidden="true"> · </span>
       {shortcut('slow', summary.slow, `${summary.slow} slow`)}
       <span className="xray-api-summary-sep" aria-hidden="true"> · </span>
-      <span className="xray-api-summary-stat">avg {Math.round(summary.avgDuration)}ms</span>
+      <span className="xray-api-summary-stat">avg <span className="xray-num">{Math.round(summary.avgDuration)}ms</span></span>
       <span className="xray-api-summary-sep" aria-hidden="true"> · </span>
-      <span className="xray-api-summary-stat">{formatBytes(summary.totalBytes)}</span>
+      <span className="xray-api-summary-stat"><span className="xray-num">{formatBytes(summary.totalBytes)}</span></span>
     </div>
   );
 }
@@ -932,7 +932,7 @@ const ApiRequestRow = React.memo(function ApiRequestRow({
           {isGroup ? `${stats.count} calls · ${stats.errors} errors · avg ${Math.round(stats.avgDuration)}ms` : `${showHostInPath ? domain : contentType} · ${sourceLabel} · ${formatBytes(displayBytes)} · ${formatTime(entry.timestamp)}`}
         </span>
       </span>
-      <span className={`xray-status ${statusClass(status)}`}>{entry.status || '---'}</span>
+      <span className={`xray-status ${entryStatusClass(entry)}`}>{entry.status || '---'}</span>
       <span className="xray-entry-duration">
         <span className="xray-bar-track"><span className={`xray-bar ${duration(entry) >= slowThresholdMs ? 'slow' : ''} ${status >= 400 ? 'error' : ''}`} style={{ width: `${pct}%` }} /></span>
         <span>{Math.round(duration(entry))}ms</span>
@@ -981,7 +981,6 @@ const RequestContextPane = React.memo(function RequestContextPane({ entry }: { e
     );
   }
 
-  const status = Number(entry.status) || 0;
   const path = entryPath(entry);
   const domain = getEntryDomain(entry) || 'local';
 
@@ -995,7 +994,7 @@ const RequestContextPane = React.memo(function RequestContextPane({ entry }: { e
         </div>
         <div className="xray-request-meta-grid">
           <span><strong>Host</strong>{domain}</span>
-          <span><strong>Status</strong><b className={`xray-status ${statusClass(status)}`}>{entry.status || '---'}</b></span>
+          <span><strong>Status</strong><b className={`xray-status ${entryStatusClass(entry)}`}>{entry.status || '---'}</b></span>
           <span><strong>Time</strong>{Math.round(duration(entry))}ms</span>
           <span><strong>Size</strong>{formatBytes(entry.size)}</span>
         </div>

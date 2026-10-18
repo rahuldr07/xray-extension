@@ -120,6 +120,8 @@ row's status.** Not a re-audit. Spec:
 
 **JSON fidelity — 16/10/2026.** Bodies, logs and Console values now show, search, replay and export what went over the wire, tracked as their own findings #1–#29 ([audit](superpowers/specs/assets/2026-10-14-json-audit.md)) under spec [2026-10-14-json-fidelity-design.md](superpowers/specs/2026-10-14-json-fidelity-design.md).
 
+**Visual refresh — 16/10/2026.** Nine presets (XRAY Dark default, XRAY Light, GitHub Dark/Light, Tokyo Night, Catppuccin Mocha, Dracula, Gruvbox Dark, High Contrast) with retired-theme migration, a calm accent, unboxed tokens, two type roles, themeable lines, state tokens and layering, under spec [2026-10-14-visual-refresh-themes-design.md](superpowers/specs/2026-10-14-visual-refresh-themes-design.md); real-extension screenshots per preset in `output/visual-refresh/<preset>/`.
+
 ---
 
 ## 1. Shell, navigation and overlays

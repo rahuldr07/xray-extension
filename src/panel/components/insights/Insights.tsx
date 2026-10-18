@@ -72,7 +72,7 @@ function InsightMetric({ label, value, tone = '' }: { label: string; value: stri
   return (
     <span className={`xray-insight-stat ${tone}`}>
       <span className="xray-insight-stat-label">{label}</span>
-      <strong>{value}</strong>
+      <strong className="xray-num">{value}</strong>
     </span>
   );
 }

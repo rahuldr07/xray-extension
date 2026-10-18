@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const { outputFiles } = await build({
@@ -107,20 +109,23 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-const css = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
+const css = PANEL_CSS;
 
 async function fixture(t, shadow = false, viewport = { width: 960, height: 800 }) {
   const page = await browser.newPage({ viewport });
   page.setDefaultTimeout(3000);
   t.after(() => page.close());
-  await page.setContent('<div></div>');
+  await setStandardsContent(page, '<div></div>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(({ shadow, css }) => window.settingsTest.setup(shadow, css), { shadow, css });
   return page;
 }
 
 const snapshot = page => page.evaluate(() => window.settingsTest.snapshot());
-const layout = page => page.evaluate(() => window.settingsTest.layout());
+// With tokens.css loaded the modal's entrance animation (scale .985 → 1) really runs; measure the
+// settled box, not a mid-animation frame.
+const settle = page => page.evaluate(() => Promise.all(window.settingsTest.root.getAnimations().filter(a => a.effect?.getComputedTiming().endTime !== Infinity).map(a => a.finished)));
+const layout = async page => { await settle(page); return page.evaluate(() => window.settingsTest.layout()); };
 const click = (page, label) => page.evaluate(label => window.settingsTest.click(label), label);
 
 test('settings keeps responsive nav, scrollable content, and footer inside the modal shell', async t => {
@@ -245,7 +250,7 @@ for (const shadow of [false, true]) {
     assert.ok(!choices.swatches.includes('Use blue accent'));
     assert.match(choices.text, /Compact API rows/);
     assert.match(choices.text, /Shorter rows in the API list\. Same as the list's row-height button\./);
-    assert.match(choices.text, /Monospace font for tables, JSON and console\. Uses fonts installed on this computer\./);
+    assert.match(choices.text, /Monospace font for data — URLs, JSON, console\. Uses fonts installed on this computer\./);
     assert.match(choices.text, /Accent-coloured glow on selected rows and buttons, plus the background grid\./);
     assert.doesNotMatch(choices.text, /Operator glow/);
   });

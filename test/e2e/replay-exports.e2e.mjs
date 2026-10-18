@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'jsx', contents: `
@@ -17,7 +19,7 @@ const { outputFiles } = await build({
     import { RequestDetail } from './src/panel/components/detail/RequestDetail';
     import { ReplayModal } from './src/panel/components/replay/ReplayModal';
     import { usePanelStore } from './src/panel/store';
-    import styles from './src/panel/styles.css';
+    const styles = ${JSON.stringify(PANEL_CSS)};
     const messages = [];
     window.XRAY_Store = { get: async () => undefined, set: async () => {} };
     window.postMessage = (message) => messages.push(JSON.parse(JSON.stringify(message)));
@@ -103,7 +105,7 @@ async function fixture(t, shadow) {
   page.setDefaultTimeout(4000);
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate((shadow) => window.replayTest.setup(shadow), shadow);
   const call = (name, ...args) => page.evaluate(({ name, args }) => window.replayTest[name](...args), { name, args });

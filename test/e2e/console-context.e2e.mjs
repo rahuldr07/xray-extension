@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // The request context line, picker and pins (spec P1–P2) on the real App, store,
 // panel keyboard and stylesheet. Only the evaluation bridge (XRAY_Console) and
@@ -21,7 +23,7 @@ const { outputFiles } = await build({
       import { usePanelStore } from './src/panel/store';
       import { serializePanelPreferences } from './src/panel/models/panelPersistence';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const USERS = {users:[{id:1,name:'Ada'},{id:2,name:'Lin'}]};
       const api = (id, path, extra = {}) => ({id,type:'api',method:'GET',status:200,source:'fetch',
         url:'https://example.test' + path,urlPath:path,timestamp:Date.now() - 60000,duration:40,size:512,
@@ -106,7 +108,7 @@ async function open(t, fixture, width = 960, selected = 'users', height = 760) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'page errors'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.cx.setup(args.shadow, args.mode, args.width, args.selected), { ...fixture, width, selected });
   await page.waitForFunction(() => window.cx.trigger());

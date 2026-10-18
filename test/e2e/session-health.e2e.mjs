@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: {
@@ -101,12 +103,12 @@ before(async () => {
   browser = await chromium.launch({ executablePath, headless: true });
 });
 after(async () => { await browser?.close(); });
-const css = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
+const css = PANEL_CSS;
 const entry = id => ({ id, type: 'api', timestamp: 1700000000000, method: 'GET', url: 'https://synthetic.test/api', urlPath: '/api', status: 200, responseRaw: '{}' });
 async function fixture(t, options = {}) {
   const page = await browser.newPage({ viewport: { width: options.width || 960, height: 800 } });
   t.after(() => page.close());
-  await page.setContent('<title>Synthetic session fixture</title>');
+  await setStandardsContent(page, '<title>Synthetic session fixture</title>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(options => window.sessionTest.setup(options), { css, stored: {}, ...options });
   return page;

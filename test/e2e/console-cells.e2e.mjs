@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Console command cells (spec C1–C5) and run state (P11) on the real App, store,
 // virtualized stream and stylesheet. Only the evaluation bridge (XRAY_Console),
@@ -17,7 +19,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const USERS = [{id:1,name:'Ada'},{id:2,name:'Linus'}];
       const RESPONSES = {
         answer: {type:'number',result:42},
@@ -128,7 +130,7 @@ async function open(t, fixture, width, height = 760, theme) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'page errors'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.cells.setup(args.shadow, args.mode, args.width, args.theme), { ...fixture, width, theme });
   await page.waitForFunction(() => window.cells.query('.xray-console-run'));

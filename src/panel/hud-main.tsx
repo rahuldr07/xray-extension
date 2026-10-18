@@ -88,7 +88,7 @@ async function mountHud(): Promise<void> {
 // PanelShell sets inline on the panel don't reach it. Mirror the resolved values
 // onto the host element so the frame's corners, border, and background always
 // match the active theme and radius (works for presets and custom themes alike).
-const HOST_MIRROR_VARS = ['--xray-radius', '--xray-bg', '--xray-surface', '--xray-surface2', '--xray-text', '--xray-accent'];
+const HOST_MIRROR_VARS = ['--xray-radius', '--xray-bg', '--xray-surface', '--xray-surface2', '--xray-text', '--xray-accent', '--xray-border', '--xray-shadow'];
 
 let unsubscribeHostTheme: (() => void) | null = null;
 

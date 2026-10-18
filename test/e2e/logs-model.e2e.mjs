@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // The typed log model (spec J7) in the real App, document and closed shadow. The page runs
 // the real content/console-capture.js; its capture batches feed the store the way the HUD's
@@ -25,7 +27,7 @@ const { outputFiles } = await build({
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
       import { exportText } from './src/panel/models/export';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       window.logModel = {
         root: null, batches: 0,
@@ -152,7 +154,7 @@ async function open(t, fixture) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'no error may escape to the page'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: CAPTURE_SOURCE });
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate((args) => window.logModel.setup(args.shadow, args.mode), fixture);

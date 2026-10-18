@@ -28,6 +28,20 @@
   };
   const THEMES = THEME_PRESETS.map(([id]) => id).concat('custom');
   const ACCENTS = ['blue', 'mauve', 'teal', 'green', 'peach', 'coral'];
+  // What each accent swatch (in ACCENTS order) paints on each preset: the panel's
+  // accentSwatchValue (the swatch solved for that preset's surfaces). This page cannot run the
+  // solver, so it keeps the solved values, pinned value for value by settingsContent.test.mjs.
+  const ACCENT_SWATCHES = {
+    'xray-dark': ['#d99a2b', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    'xray-light': ['#845600', '#7418ec', '#0d696e', '#226d15', '#6e6200', '#a23f1e'],
+    'github-dark': ['#d99a2b', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    'github-light': ['#845600', '#7418ec', '#0d696e', '#226d15', '#6e6200', '#a23f1e'],
+    'tokyo-night': ['#d99a2b', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    'catppuccin-mocha': ['#e5a53a', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    dracula: ['#e3a338', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    'gruvbox-dark': ['#e6a73c', '#cba6f7', '#94e2d5', '#a6e3a1', '#f2d457', '#eaa388'],
+    midnight: ['#edad43', '#cea9fa', '#94e2d5', '#a6e3a1', '#f2d457', '#efa88d'],
+  };
   // The accent select's first choice: no swatch picked, so the preset shows its own accent.
   const THEME_ACCENT = 'theme';
   const FONTS = ['jetbrains', 'cascadia', 'iosevka', 'system'];
@@ -60,9 +74,10 @@
     select.appendChild(option);
   }
 
-  // A theme/accent added to the panel but not yet mirrored here must survive a
-  // round-trip through this page: surface it as a real option instead of
-  // silently rewriting it to the fallback on Save.
+  // A theme added to the panel but not yet mirrored here must survive a round-trip
+  // through this page: surface it as a real option instead of silently rewriting it
+  // to the fallback on Save. (An unknown accent is not kept: it reads as the panel's
+  // fallback, see migrate.)
   function ensureOption(select, value, options) {
     if (typeof value !== 'string' || !value || options.includes(value)) return options;
     addOption(select, value, value);
@@ -84,7 +99,10 @@
       : typeof settings.accentChosen === 'boolean' ? settings.accentChosen
         : valid && settings.accent !== 'blue';
     const themeRefreshPending = Boolean(settings.themeRefreshPending) || retired !== null || (formerDefault !== null && !accentChosen);
-    return Object.assign({}, settings, { theme, accentChosen, themeRefreshPending });
+    // A corrupt accent reads as the panel's fallback (Amber), so this page shows what the panel
+    // paints and Save never writes the corrupt value back.
+    const accent = valid ? settings.accent : DEFAULT_SETTINGS.accent;
+    return Object.assign({}, settings, { theme, accent, accentChosen, themeRefreshPending });
   }
 
   async function loadPreferences() {
@@ -117,15 +135,27 @@
   for (const [id, label] of THEME_PRESETS) addOption(themeSelect, id, id === DEFAULT_SETTINGS.theme ? `${label} (default)` : label);
   addOption(themeSelect, 'custom', 'Custom (Theme Studio)');
   const themeOptions = ensureOption(themeSelect, settings.theme, THEMES);
-  const accentOptions = ensureOption(accentSelect, settings.accent, ACCENTS);
   themeSelect.value = pick(settings.theme, themeOptions, DEFAULT_SETTINGS.theme);
-  accentSelect.value = settings.accentChosen ? pick(settings.accent, accentOptions, DEFAULT_SETTINGS.accent) : THEME_ACCENT;
+  accentSelect.value = settings.accentChosen ? settings.accent : THEME_ACCENT;
   fontSelect.value = pick(settings.font, FONTS, DEFAULT_SETTINGS.font);
   densitySelect.value = pick(settings.density, DENSITIES, DEFAULT_SETTINGS.density);
   maxEntriesInput.value = String(clamp(settings.maxEntries, DEFAULT_SETTINGS.maxEntries, 50, 5000));
   slowThresholdInput.value = String(clamp(settings.slowThresholdMs, DEFAULT_SETTINGS.slowThresholdMs, 100, 5000));
   captureFetchInput.checked = settings.captureFetch !== false;
   captureXhrInput.checked = settings.captureXhr !== false;
+
+  // A picked swatch is painted here as in the panel: the swatch solved for the shown preset, set
+  // on :root over the preset's :has() block (setProperty: the CSP rules out inline script). The
+  // preset's own accent applies otherwise, and on Custom, which has no static palette here.
+  function applyAccent() {
+    const swatches = ACCENT_SWATCHES[themeSelect.value];
+    const index = ACCENTS.indexOf(accentSelect.value);
+    if (swatches && index >= 0) document.documentElement.style.setProperty('--xray-accent', swatches[index]);
+    else document.documentElement.style.removeProperty('--xray-accent');
+  }
+  applyAccent();
+  themeSelect.addEventListener('change', applyAccent);
+  accentSelect.addEventListener('change', applyAccent);
 
   saveBtn.addEventListener('click', async () => {
     const latest = await loadPreferences();
@@ -138,7 +168,7 @@
     const merged = Object.assign({}, latest, {
       settings: Object.assign({}, latestSettings, {
         theme: pick(themeSelect.value, themeOptions, DEFAULT_SETTINGS.theme),
-        accent: themeAccent ? settings.accent : pick(accentSelect.value, accentOptions, DEFAULT_SETTINGS.accent),
+        accent: themeAccent ? settings.accent : pick(accentSelect.value, ACCENTS, DEFAULT_SETTINGS.accent),
         accentChosen: !themeAccent,
         themeRefreshPending,
         font: pick(fontSelect.value, FONTS, DEFAULT_SETTINGS.font),

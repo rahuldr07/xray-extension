@@ -272,7 +272,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
           taken theirs, the tablist's share was zero. The summary pushes itself right
           with `margin-left: auto` instead, which costs no flex child.
         */}
-        <div className="xray-summary">{apiCount} APIs · {errorCount} {errorCount === 1 ? 'Error' : 'Errors'} · {formatBytes(totalBytes)}</div>
+        <div className="xray-summary"><span className="xray-num">{apiCount}</span> APIs · <span className="xray-num">{errorCount}</span> {errorCount === 1 ? 'Error' : 'Errors'} · <span className="xray-num">{formatBytes(totalBytes)}</span></div>
         <div className="xray-mode-switcher" aria-label="XRAY display mode">
           <button className={`xray-icon-btn ${mode === 'devtools' ? 'active' : ''}`} title="Open in DevTools" aria-label="Open in DevTools" onClick={openDevtoolsHint}>
             <IconDeviceLaptop {...modeIconProps} />
@@ -304,6 +304,7 @@ export function PanelShell({ children, mode }: { children: React.ReactNode; mode
         )}
       </header>
       <SessionSaveNotice />
+      <ThemeRefreshNotice />
       <main className="xray-body" id="xray-tabpanel" role="tabpanel" aria-labelledby={`xray-tab-${activeTab}`}>
         {children}
       </main>
@@ -330,14 +331,14 @@ function SessionSaveNotice(): React.ReactElement | null {
   );
 }
 
-// Mounted by App after modal siblings so a receipt remains actionable above a
-// backdrop. The region itself stays mounted for reliable polite announcements.
 /**
  * The theme-refresh notice (spec V2) in its own slot: a receipt toast never replaces it, it
  * does not time out, and it shows only while the panel is open, so a surface restored in the
- * background cannot spend it. Dismissing it is the only thing that clears it.
+ * background cannot spend it. Dismissing it is the only thing that clears it. A strip inside the
+ * panel between the header and the body (final review I-4): it never covers the console prompt or,
+ * from a HUD, the host page. The region stays mounted for reliable polite announcements.
  */
-export function ThemeRefreshNotice(): React.ReactElement {
+function ThemeRefreshNotice(): React.ReactElement {
   const pending = usePanelStore((state) => state.settings.themeRefreshPending);
   const theme = usePanelStore((state) => state.settings.theme);
   const open = usePanelStore((state) => state.open);
@@ -345,7 +346,7 @@ export function ThemeRefreshNotice(): React.ReactElement {
   return (
     <div className="xray-notice-region" role="status" aria-live="polite">
       {pending && open && (
-        <div className="xray-notice">
+        <div className="xray-theme-notice">
           <span>{themeRefreshNotice(theme)}</span>
           <button type="button" className="xray-notice-dismiss" aria-label="Dismiss theme notice" onClick={dismiss}>Dismiss</button>
         </div>
@@ -354,6 +355,8 @@ export function ThemeRefreshNotice(): React.ReactElement {
   );
 }
 
+// Mounted by App after modal siblings so a receipt remains actionable above a
+// backdrop. The region itself stays mounted for reliable polite announcements.
 export function ToastRegion(): React.ReactElement {
   const toastMessage = usePanelStore((state) => state.toastMessage);
   const clearToast = usePanelStore((state) => state.clearToast);

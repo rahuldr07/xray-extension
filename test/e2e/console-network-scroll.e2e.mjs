@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: {
@@ -14,7 +16,7 @@ const { outputFiles } = await build({
       import {flushSync} from 'react-dom';
       import {App} from './src/panel/App';
       import {usePanelStore} from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const api=(id,body)=>({id,type:'api',method:'GET',status:200,url:'https://example.test/'+id,urlPath:'/item/'+id,timestamp:1700000000000,duration:20,size:body.length,responseHeaders:{'content-type':'application/json'},responseRaw:body});
       const event=(id,message,type='log')=>({id,type,level:'info',timestamp:1700000000000,message,args:[message]});
       window.consoleScroll={root:null,setup(shadow){
@@ -44,7 +46,7 @@ after(async()=>{await browser?.close()});
 
 async function fixture(t, shadow) {
   const page=await browser.newPage({viewport:{width:960,height:700}});t.after(()=>page.close());
-  await page.setContent('<style>body{margin:0}</style>');await page.addScriptTag({content:outputFiles[0].text});await page.evaluate(shadow=>window.consoleScroll.setup(shadow),shadow);await page.waitForTimeout(160);return page;
+  await setStandardsContent(page, '<style>body{margin:0}</style>');await page.addScriptTag({content:outputFiles[0].text});await page.evaluate(shadow=>window.consoleScroll.setup(shadow),shadow);await page.waitForTimeout(160);return page;
 }
 
 for(const shadow of [false,true]) {

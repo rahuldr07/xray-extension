@@ -418,7 +418,7 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
             <button className="xray-action-btn xray-detail-action" aria-expanded={metadataOpen} aria-controls={metadataId} title="Metadata" onClick={() => setMetadataOpen((open) => !open)}><IconInfoCircle {...iconProps} /><span className="xray-detail-action-label">Metadata</span></button>
             <div className="xray-detail-actions" role="group" aria-label="Request actions">
               <button className="xray-action-btn xray-detail-action" title="Copy the inspected content" onClick={() => void copyActiveValue()}><IconCopy {...iconProps} /><span className="xray-detail-action-label">Copy</span></button>
-              <button className="xray-action-btn xray-detail-action primary" title="Export" onClick={() => setExportOpen(true)}><IconDownload {...iconProps} /><span className="xray-detail-action-label">Export</span></button>
+              <button className="xray-action-btn xray-detail-action" title="Export" onClick={() => setExportOpen(true)}><IconDownload {...iconProps} /><span className="xray-detail-action-label">Export</span></button>
               <button className="xray-action-btn xray-detail-action" title="Send to Console" onClick={prepareConsole}><IconSend {...iconProps} /><span className="xray-detail-action-label">Console</span></button>
               <div ref={moreRef} className="xray-detail-more">
                 <button ref={moreTriggerRef} className="xray-action-btn xray-detail-action" aria-label="More actions" title="More actions" aria-expanded={moreOpen} aria-controls={moreId} onClick={() => setMoreOpen((open) => !open)}><IconDots {...iconProps} /><span className="xray-detail-action-label">More actions</span></button>
@@ -446,7 +446,7 @@ export function RequestDetail({ entry, compact = false, onClose }: { entry: Xray
             {onClose && <button className="xray-icon-btn xray-detail-close" aria-label="Close selected request detail" onClick={onClose}><IconX {...iconProps} /></button>}
           </div>
           {metadataOpen && <div id={metadataId} className="xray-detail-metadata">
-            <label>Full URL<input className="xray-input" aria-label="Full request URL" readOnly value={String(entry.url || entry.urlPath || '')} /></label>
+            <label>Full URL<input className="xray-input xray-input-data" aria-label="Full request URL" readOnly value={String(entry.url || entry.urlPath || '')} /></label>
             <span className="xray-muted">{entry.source || 'fetch'} · {formatTime(entry.timestamp)}{entry.graphql?.operationName ? ` · ${entry.graphql.operationName}` : ''}</span>
             {entry.replayOf && <span className="xray-muted">Replay of {entry.replayOf}</span>}
             {entry.mockRuleId && <span className="xray-muted">Mock rule {entry.mockRuleId}</span>}
@@ -960,7 +960,7 @@ function WaterfallView({ entry }: { entry: XrayEntry }): React.ReactElement {
     <div className="xray-card xray-waterfall-card">
       <div className="xray-waterfall-head">
         <h3>Timing</h3>
-        <span className="xray-muted">{real ? 'Resource Timing' : 'Wall clock'} · {Math.round(totalMs)}ms</span>
+        <span className="xray-muted">{real ? 'Resource Timing' : 'Wall clock'} · <span className="xray-num">{Math.round(totalMs)}ms</span></span>
       </div>
       <div className="xray-waterfall-track">
         {phases.map((phase) => (
@@ -981,7 +981,7 @@ function WaterfallView({ entry }: { entry: XrayEntry }): React.ReactElement {
           </li>
         ))}
       </ul>
-      {entry.timing?.transferSize ? <p className="xray-muted">Transfer size {formatBytes(entry.timing.transferSize)}</p> : null}
+      {entry.timing?.transferSize ? <p className="xray-muted">Transfer size <span className="xray-num">{formatBytes(entry.timing.transferSize)}</span></p> : null}
     </div>
   );
 }

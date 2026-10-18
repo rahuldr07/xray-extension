@@ -112,17 +112,30 @@ test('FIXED an explicit undefined no longer turns booleans off', () => {
   // default, and Boolean(undefined) is false — so every boolean defaulting to true
   // silently switched off on a partial in-memory update. captureWs had a bespoke
   // guard; now undefined is filtered out of the input for every key alike.
-  const trueByDefault = ['captureFetch', 'captureXhr', 'showHostInPath', 'glow', 'confirmDestructiveActions'];
+  // (glow left this list when it became opt-in, spec A3; its undefined case is below.)
+  const trueByDefault = ['captureFetch', 'captureXhr', 'showHostInPath', 'confirmDestructiveActions'];
   for (const key of trueByDefault) {
     assert.equal(DEFAULT_PANEL_SETTINGS[key], true, `${key} default`);
     assert.equal(at(key, undefined), true, `${key} = undefined keeps its default`);
   }
   assert.equal(at('captureWs', undefined), true, 'captureWs behaves like the rest now');
+  assert.equal(at('glow', undefined), DEFAULT_PANEL_SETTINGS.glow, 'glow = undefined keeps its default too');
 
   // An explicit false is still an explicit false, not a missing value.
   for (const key of [...trueByDefault, 'captureWs']) {
     assert.equal(at(key, false), false, `${key} = false is honoured`);
   }
+});
+
+test('Glow is opt-in (spec A3): off for a fresh install, a stored value is kept', () => {
+  assert.equal(DEFAULT_PANEL_SETTINGS.glow, false, 'the default is off');
+  assert.equal(normalizePanelSettings(undefined).glow, false, 'nothing stored: a fresh install starts without Glow');
+  assert.equal(normalizePanelSettings({}).glow, false);
+  // Every writer stores the whole settings object, so a user from before the refresh has glow: true
+  // (the old default) or their own false — either way it is kept.
+  assert.equal(normalizePanelSettings({ theme: 'operator', glow: true }).glow, true, 'a stored true survives the theme migration');
+  assert.equal(normalizePanelSettings({ glow: true }).glow, true);
+  assert.equal(normalizePanelSettings({ glow: false }).glow, false);
 });
 
 // --------------------------------------------------------------- enum fields

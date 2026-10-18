@@ -75,7 +75,8 @@ export function LogDetail({ entry, onClose }: { entry: XrayEntry; onClose?: () =
     <div className="xray-log-detail">
       <div className="xray-log-detail-head">
         <span className={`xray-log-level ${level}`}><IconTerminal2 {...iconProps} />{level}</span>
-        <span className="xray-muted">{formatTime(entry.timestamp)}</span>
+        {/* The clock time is data (spec S2), mono like the row timestamps. */}
+        <span className="xray-muted xray-num">{formatTime(entry.timestamp)}</span>
         {canExpand && (
           <button className="xray-btn xray-log-load" disabled={loading} onClick={(event) => { event.stopPropagation(); void loadFull(); }}>
             <IconDatabaseImport {...iconProps} />{loading ? 'Loading…' : full === undefined ? 'Load full object' : 'Reload'}

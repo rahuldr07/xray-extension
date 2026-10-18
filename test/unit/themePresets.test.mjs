@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { panelSettings as P } from './harness.mjs';
+import { lab, deltaE2000 } from './colourDistance.mjs';
 
 const styles = readFileSync(new URL('../../src/panel/styles.css', import.meta.url), 'utf8');
 
@@ -34,7 +35,6 @@ const presets = () => {
   return P.THEME_PRESETS;
 };
 const settings = (patch) => ({ ...P.DEFAULT_PANEL_SETTINGS, ...patch });
-const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 test('THEME_PRESETS is the P1 lineup in picker order', () => {
   assert.deepEqual(presets().map(({ id, label, kind }) => [id, label, kind]), LINEUP);
@@ -77,50 +77,33 @@ test('retired ids are not themes: they leave the picker, migrate on load, and th
   assert.equal(ids.includes('custom'), false, 'Custom is not a preset');
 });
 
-test('each block\'s background grid is tinted with its own accent', () => {
+test('each block\'s focus ring follows the effective accent (the block\'s own, or a swatch set inline over it)', () => {
+  // The inline --xray-accent sits on the same elements as the theme class, so var() resolves to it.
+  for (const { id } of presets()) assert.equal(themeBlock(id)['--xray-focus'], 'var(--xray-accent)', id);
+});
+
+// The accent-derived state tints follow the effective accent like the focus ring: a swatch picked
+// over a preset re-tints the selected row, the pressed state, the active tab's fill and the Glow
+// grid (Task 3 ruling: Glow follows a picked swatch). Each is a color-mix of var(--xray-accent);
+// the percentages reproduce the lineup's own values (assets/2026-10-14-theme-lineup.css).
+test('each block\'s selection, active, accent-soft and Glow grid tints follow the effective accent', () => {
   for (const { id } of presets()) {
     const block = themeBlock(id);
-    const grid = block['--xray-operator-grid']?.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)$/);
-    assert.ok(grid, `${id}: --xray-operator-grid is an rgba() of the accent`);
-    assert.deepEqual(grid.slice(1, 4).map(Number), rgb(block['--xray-accent']), `${id}: grid RGB = accent ${block['--xray-accent']}`);
+    for (const key of ['selection', 'active']) {
+      assert.match(block[`--xray-${key}`] ?? '', /^color-mix\(in srgb, var\(--xray-accent\) [\d.]+%, var\(--xray-bg\)\)$/, `${id}: --xray-${key} is a tint of the effective accent`);
+    }
+    assert.equal(block['--xray-accent-soft'], 'var(--xray-selection)', `${id}: the active tab's fill is the selection tint`);
+    assert.match(block['--xray-operator-grid'] ?? '', /^color-mix\(in srgb, var\(--xray-accent\) [\d.]+%, transparent\)$/, `${id}: the Glow grid is the effective accent`);
   }
 });
 
 // ── Distinct meanings (CIEDE2000) ───────────────────────────────────────────
-// The accent marks state (active tab, selection, focus); red, peach, yellow, green, blue and
-// teal carry status and data meanings (blue: POST and info; teal: JSON numbers, WebSocket).
+// The accent marks state (active tab, selection, focus); red, peach, yellow, green, blue, teal
+// and mauve carry status and data meanings (blue: POST and info; teal: JSON numbers, WebSocket;
+// mauve: JSON booleans, syntax keywords).
 // Within a preset each of these pairs must be clearly different (ΔE2000 ≥ 10): an accent that
 // is also the warning colour is exactly the retired Signal Gray defect (the active tab read as
 // "slow"), so no pair may share a colour.
-function lab(hex) {
-  const lin = (c) => { const s = c / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
-  const [r, g, b] = rgb(hex).map(lin);
-  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
-  const x = f((0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047);
-  const y = f(0.2126729 * r + 0.7151522 * g + 0.0721750 * b);
-  const z = f((0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883);
-  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
-}
-function deltaE2000([L1, a1, b1], [L2, a2, b2]) {
-  const rad = Math.PI / 180;
-  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cm = (C1 + C2) / 2;
-  const G = 0.5 * (1 - Math.sqrt(Cm ** 7 / (Cm ** 7 + 25 ** 7)));
-  const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
-  const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
-  const hue = (b, a) => (a === 0 && b === 0 ? 0 : (Math.atan2(b, a) / rad + 360) % 360);
-  const h1 = hue(b1, a1p), h2 = hue(b2, a2p);
-  let dh = 0;
-  if (C1p * C2p !== 0) { dh = h2 - h1; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
-  const dH = 2 * Math.sqrt(C1p * C2p) * Math.sin((dh * rad) / 2);
-  const Lm = (L1 + L2) / 2, Cmp = (C1p + C2p) / 2;
-  let hm = h1 + h2;
-  if (C1p * C2p !== 0) hm = Math.abs(h1 - h2) <= 180 ? hm / 2 : (hm < 360 ? (hm + 360) / 2 : (hm - 360) / 2);
-  const T = 1 - 0.17 * Math.cos((hm - 30) * rad) + 0.24 * Math.cos(2 * hm * rad) + 0.32 * Math.cos((3 * hm + 6) * rad) - 0.2 * Math.cos((4 * hm - 63) * rad);
-  const SL = 1 + (0.015 * (Lm - 50) ** 2) / Math.sqrt(20 + (Lm - 50) ** 2), SC = 1 + 0.045 * Cmp, SH = 1 + 0.015 * Cmp * T;
-  const RT = -Math.sin(2 * 30 * Math.exp(-(((hm - 275) / 25) ** 2)) * rad) * 2 * Math.sqrt(Cmp ** 7 / (Cmp ** 7 + 25 ** 7));
-  return Math.sqrt(((L2 - L1) / SL) ** 2 + ((C2p - C1p) / SC) ** 2 + (dH / SH) ** 2 + RT * ((C2p - C1p) / SC) * (dH / SH));
-}
-
 test('the CIEDE2000 evaluator matches the published reference pairs', () => {
   // Sharma, Wu & Dalal (2005), pairs 1, 2, 7 and 17–20.
   for (const [a, b, expected] of [
@@ -131,7 +114,7 @@ test('the CIEDE2000 evaluator matches the published reference pairs', () => {
 });
 
 test('accent, error, warning and status colours stay distinct in every preset (ΔE2000 ≥ 10)', () => {
-  const PAIRS = [['accent', 'red'], ['accent', 'peach'], ['accent', 'yellow'], ['accent', 'green'], ['accent', 'blue'], ['accent', 'teal'], ['red', 'peach'], ['red', 'yellow'], ['blue', 'teal']];
+  const PAIRS = [['accent', 'red'], ['accent', 'peach'], ['accent', 'yellow'], ['accent', 'green'], ['accent', 'blue'], ['accent', 'teal'], ['accent', 'mauve'], ['red', 'peach'], ['red', 'yellow'], ['blue', 'teal']];
   const problems = [];
   for (const { id } of presets()) {
     const block = themeBlock(id);
@@ -151,10 +134,34 @@ test('accent, error, warning and status colours stay distinct in every preset (�
 
 // The pop-out window paints its document behind the panel; window.html reads the theme back
 // with :has() and must use each block's own --xray-bg (no dark slab around a light preset).
-test('the pop-out window background follows every preset', () => {
-  const html = readFileSync(new URL('../../window.html', import.meta.url), 'utf8');
-  const bgs = Object.fromEntries([...html.matchAll(/:root:has\(\.xray-theme-([a-z0-9-]+)\)\s*\{\s*--xray-window-bg:\s*(#[0-9a-f]{6});\s*\}/g)].map(([, id, bg]) => [id, bg]));
-  assert.deepEqual(Object.keys(bgs), presets().map(({ id }) => id), 'one rule per preset, in lineup order');
-  for (const { id, preview } of presets()) assert.equal(bgs[id], preview.bg, id);
-  assert.match(html, /:root \{ --xray-window-bg: #141517; \}/, 'before the panel mounts: the XRAY Dark default');
+// The DevTools page is its twin (final review M-1): the same table, no frozen dark slab.
+for (const [surfaceName, file] of [['pop-out window', 'window.html'], ['DevTools page', 'devtools/devtools-panel.html']]) {
+  test(`the ${surfaceName} background follows every preset`, () => {
+    const html = readFileSync(new URL('../../' + file, import.meta.url), 'utf8');
+    const bgs = Object.fromEntries([...html.matchAll(/:root:has\(\.xray-theme-([a-z0-9-]+)\)\s*\{\s*--xray-window-bg:\s*(#[0-9a-f]{6});\s*\}/g)].map(([, id, bg]) => [id, bg]));
+    assert.deepEqual(Object.keys(bgs), presets().map(({ id }) => id), 'one rule per preset, in lineup order');
+    for (const { id, preview } of presets()) assert.equal(bgs[id], preview.bg, id);
+    assert.match(html, /:root \{ --xray-window-bg: #141517; \}/, 'before the panel mounts: the XRAY Dark default');
+    assert.match(html, /background: var\(--xray-window-bg\);/, 'the document paints it');
+    assert.doesNotMatch(html.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/:root[^{]*\{[^}]*\}/g, ''), /#[0-9a-f]{3,6}\b/i, 'no other literal colour');
+  });
+}
+
+// Spec P2 + final-review ruling: the six accent swatches stay mutually distinct (ΔE2000 ≥ 10)
+// after each is solved for a preset, so no two swatches in Settings → Appearance paint the same
+// colour. Only swatch-vs-swatch pairs count: a swatch that lands on the preset's own accent
+// (Lavender on Catppuccin Mocha) is accepted — picking the theme's own colour is a valid pick.
+test('the accent swatches stay mutually distinct after solving on every preset (ΔE2000 ≥ 10)', () => {
+  const swatches = Object.keys(P.PANEL_ACCENT_VALUES);
+  const problems = [];
+  for (const { id } of presets()) {
+    const solved = swatches.map((accent) => [accent, P.accentSwatchValue(settings({ theme: id }), accent)]);
+    for (let i = 0; i < solved.length; i += 1) {
+      for (let j = i + 1; j < solved.length; j += 1) {
+        const d = deltaE2000(lab(solved[i][1]), lab(solved[j][1]));
+        if (d < 10) problems.push(`${id}: ${solved[i][0]} ${solved[i][1]} vs ${solved[j][0]} ${solved[j][1]} ΔE2000 ${d.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
 });

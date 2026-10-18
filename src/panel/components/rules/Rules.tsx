@@ -189,7 +189,7 @@ function RuleCard({ rule }: { rule: TrafficRule }): React.ReactElement {
       <div className="xray-rule-grid">
         <label className="xray-field">
           <span>URL contains / re:pattern</span>
-          <input className="xray-input" value={rule.match.url} onChange={(event) => updateRule(rule.id, { match: { ...rule.match, url: event.currentTarget.value } })} placeholder="/api/users or re:\\/v2\\/.*" />
+          <input className="xray-input xray-input-data" value={rule.match.url} onChange={(event) => updateRule(rule.id, { match: { ...rule.match, url: event.currentTarget.value } })} placeholder="/api/users or re:\\/v2\\/.*" />
         </label>
         <label className="xray-field xray-field-narrow">
           <span>Method</span>

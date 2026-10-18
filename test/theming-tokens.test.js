@@ -15,25 +15,17 @@ test('fallback semantic tokens are scoped to Shadow DOM and avoid web font loadi
 
   assert.match(tokens, /:host/);
   assert.doesNotMatch(tokens, /:root/);
-  for (const token of [
-    '--xray-bg: #181a1f',
-    '--xray-surface: #202329',
-    '--xray-surface2: #292e36',
-    '--xray-surface3: #333943',
-    '--xray-text: #f3f4f6',
-    '--xray-green: #43b581',
-    '--xray-blue: #5aa9e6',
-    '--xray-yellow: #d99a2b',
-    '--xray-red: #e8858d',
-    '--xray-mauve: #b694d7',
-    '--xray-teal: #4fb3a4',
-    '--xray-peach: #da9064',
-    '--xray-hint: #8e98a8',
-    '--xray-subtext: #c1c7d0',
-    "--xray-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-  ]) {
-    assert.ok(tokens.includes(token), `${token} token is required`);
-  }
+  // The fallback contract is the XRAY Dark default's palette (final review M-2): the first paint of
+  // the HUD and window before mount matches the default preset, and its accent is not its yellow
+  // (the retired Signal Gray defect). Every colour token the fallback defines is the block's value.
+  const declarations = body => Object.fromEntries([...body.matchAll(/(--xray-[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+  const fallback = declarations(tokens.match(/:host,\s*\.xray-app-root\s*\{([^}]*)\}/)[1]);
+  const xrayDark = declarations(panelCss.match(/\.xray-theme-xray-dark\s*\{([^}]*)\}/)[1]);
+  const colours = Object.keys(fallback).filter(name => !/^--xray-(?:radius|ease|dur|font)/.test(name));
+  assert.ok(colours.length >= 30, `the fallback defines the colour tokens (${colours.length})`);
+  for (const name of colours) assert.equal(fallback[name], xrayDark[name], `${name}: the fallback is XRAY Dark's value`);
+  assert.notEqual(fallback['--xray-accent'], fallback['--xray-yellow'], 'the fallback accent is not the warning yellow');
+  assert.equal(fallback['--xray-font'], "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace");
   assert.doesNotMatch(combined, /@import/i);
   assert.doesNotMatch(combined, /fonts\.googleapis|fonts\.gstatic|<link/i);
   assert.match(main, /plainDomTokensCss/);
@@ -57,7 +49,8 @@ test('Operator UI exposes configurable theme, font, density, and glow controls',
   assert.match(settingsModel, /PANEL_FONT_VALUES/);
   assert.match(settingsModel, /theme: 'xray-dark'/);
   assert.match(settingsModel, /density: 'compact'/);
-  assert.match(settingsModel, /glow: true/);
+  // Glow is an opt-in effect since the calm-accent refresh (spec A3): off for new installs and Reset.
+  assert.match(settingsModel, /glow: false/);
   assert.match(settingsModal, /label="Theme"/);
   assert.match(settingsModal, /label="Font stack"/);
   assert.match(settingsModal, /label="Density"/);

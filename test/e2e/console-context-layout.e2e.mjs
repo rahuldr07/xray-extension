@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Catch prompt/context tracks stealing the command width or output height. Use
 // the real App, virtualized stream, store and stylesheet at both supported roots.
@@ -16,7 +18,7 @@ const { outputFiles } = await build({
       import { flushSync } from 'react-dom';
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       window.consoleLayout = {
         setup(shadow, selected, mode = 'window', theme = 'xray-dark') {
           const host = document.body.appendChild(document.createElement('div'));
@@ -136,7 +138,7 @@ for (const [theme, label] of [['xray-light', 'light'], ['midnight', 'dark']]) {
   test(`captures ${label} narrow dragged panel`, async t => {
     const page = await browser.newPage({ viewport: { width: 1800, height: 700 } });
     t.after(() => page.close());
-    await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+    await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
     await page.addScriptTag({ content: outputFiles[0].text });
     await page.evaluate(args => window.consoleLayout.setup(args.shadow, true, args.mode, args.theme), { shadow:true, selected:true, mode:'hud', theme });
     const drag = await page.evaluate(() => window.consoleLayout.dragPanel(360));
@@ -177,7 +179,7 @@ for (const throws of [false, true]) {
 test('legacy network mini-tab state keeps Console output-first without a request ledger', async t => {
   const page = await browser.newPage({ viewport: { width: 960, height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(() => window.consoleLayout.setup(false, false));
   await page.evaluate(() => window.consoleLayout.network());
@@ -196,7 +198,7 @@ for (const fixtureRoot of [
   test(`console filtering searches bounded nested data and args (${fixtureRoot.label})`, async t => {
     const page = await browser.newPage({ viewport: { width: 960, height: 700 } });
     t.after(() => page.close());
-    await page.setContent('<style>body{margin:0}</style>');
+    await setStandardsContent(page, '<style>body{margin:0}</style>');
     await page.addScriptTag({ content: outputFiles[0].text });
     await page.evaluate(args => window.consoleLayout.setup(args.shadow, false, args.mode), fixtureRoot);
     await page.evaluate(() => window.consoleLayout.structured());
@@ -221,7 +223,7 @@ for (const fixtureRoot of [
   test(`console filtering keeps data and args searchable beside a long message (${fixtureRoot.label})`, async t => {
     const page = await browser.newPage({ viewport: { width: 960, height: 700 } });
     t.after(() => page.close());
-    await page.setContent('<style>body{margin:0}</style>');
+    await setStandardsContent(page, '<style>body{margin:0}</style>');
     await page.addScriptTag({ content: outputFiles[0].text });
     await page.evaluate(args => window.consoleLayout.setup(args.shadow, false, args.mode), fixtureRoot);
     await page.evaluate(() => window.consoleLayout.budgeted());
@@ -258,7 +260,7 @@ for (const fixture of [
         t.after(() => page.close());
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
-        await page.setContent('<style>body{margin:0;min-height:3000px}</style>');
+        await setStandardsContent(page, '<style>body{margin:0;min-height:3000px}</style>');
         await page.addScriptTag({ content: outputFiles[0].text });
         await page.evaluate(args => window.consoleLayout.setup(args.shadow, args.selected, args.mode), { ...fixture, selected });
         await page.waitForTimeout(250);
@@ -340,7 +342,7 @@ test('Console example commands only fill the prompt; Snippets menu renames by ke
   t.after(() => page.close());
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(() => {
     window.consoleLayout.setup(false, false);
@@ -399,7 +401,7 @@ test('level chips: the overflow fade follows scroll and count changes; listeners
   // At 640 the five chips just fit; more messages widen the counts until they do not.
   const page = await browser.newPage({ viewport: { width: 640, height: 700 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(() => window.consoleLayout.setup(false, true));
   await page.waitForFunction(() => window.consoleLayout.query('.xray-console-levels'));
@@ -423,7 +425,7 @@ for (const width of [420, 760]) {
   test(`Console level chips and status bar stay on one line at ${width}`, async t => {
     const page = await browser.newPage({ viewport: { width, height: 700 } });
     t.after(() => page.close());
-    await page.setContent('<style>body{margin:0}</style>');
+    await setStandardsContent(page, '<style>body{margin:0}</style>');
     await page.addScriptTag({ content: outputFiles[0].text });
     await page.evaluate(() => window.consoleLayout.setup(false, true));
     const chips = await page.evaluate(() => {

@@ -381,3 +381,55 @@ test('themePackageToSettings maps only the fields the package carries', () => {
     hacker: false,
   }, 'radius 0 and hacker false are carried, not treated as absent');
 });
+
+// Task 6 fix round: a custom theme's Glow grid is its accent, the same mix the presets use
+// (3.5 % dark, 4 % light), so Glow follows the accent picked in Theme Studio.
+test('custom themes derive the Glow grid from the accent, like the presets', () => {
+  const dark = T.buildCustomThemeVars({ ...T.DEFAULT_CUSTOM_THEME, accent: '#f5a623' });
+  assert.equal(dark['--xray-operator-grid'], 'color-mix(in srgb, #f5a623 3.5%, transparent)');
+  const light = T.buildCustomThemeVars({ bg: '#faf9f6', surface: '#ffffff', text: '#1c1b19', accent: '#2563eb' });
+  assert.equal(light['--xray-operator-grid'], 'color-mix(in srgb, #2563eb 4%, transparent)');
+});
+
+// Final review I-6: a custom theme's selection tint (the selected row, and the active tab's
+// accent-soft fill) is as strong as the lineup's for its kind — about 12 % accent over a dark
+// background and 9 % over a light one (the presets solve 10.5–14 % dark, 8–9.5 % light) — not a
+// fixed 18 %, which made the active tab and selected row heavier on every custom theme. A pinned
+// selection still wins.
+test('custom selection and accent-soft follow the theme kind (≈12 % dark, ≈9 % light)', () => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  // The accent share t in `selection = accent·t + bg·(1 − t)`, per channel where they differ.
+  const share = (sel, accent, bg) => {
+    const [s, a, b] = [hex(sel), hex(accent), hex(bg)];
+    const i = [0, 1, 2].reduce((best, k) => (Math.abs(a[k] - b[k]) > Math.abs(a[best] - b[best]) ? k : best), 0);
+    return (s[i] - b[i]) / (a[i] - b[i]);
+  };
+  for (const [theme, kind] of [
+    [DEFAULT_CUSTOM_THEME, 'dark'],
+    [generateFromAccent('#22d3ee', 'dark'), 'dark'],
+    [generateFromAccent('#7c5cff', 'light'), 'light'],
+    [generateFromAccent('#fb7185', 'light'), 'light'],
+  ]) {
+    const vars = buildCustomThemeVars(theme);
+    const want = kind === 'dark' ? 0.12 : 0.09;
+    for (const key of ['--xray-selection', '--xray-accent-soft']) {
+      const t = share(vars[key], theme.accent, vars['--xray-bg']);
+      assert.ok(Math.abs(t - want) < 0.015, `${kind} ${theme.accent}: ${key} ${vars[key]} is ${(t * 100).toFixed(1)} % accent, want ≈${want * 100} %`);
+    }
+  }
+  const pinned = buildCustomThemeVars({ ...DEFAULT_CUSTOM_THEME, selection: '#334455' });
+  assert.equal(pinned['--xray-selection'], '#334455', 'a pinned selection wins');
+});
+
+// The model's CIEDE2000 (the selection-vs-hover check above) agrees with the test oracle
+// (colourDistance.mjs, itself pinned to the published reference pairs), greys and wrapped hues included.
+test('deltaE2000 matches the reference evaluator', async () => {
+  const { lab, deltaE2000: oracle } = await import('./colourDistance.mjs');
+  const rand = makeRandom(11);
+  const hexOf = (rgb) => '#' + rgb.map((c) => c.toString(16).padStart(2, '0')).join('');
+  const pairs = [[[0, 0, 0], [0, 0, 0]], [[128, 128, 128], [200, 200, 200]], [[255, 0, 40], [255, 0, 200]], [[20, 40, 255], [255, 30, 20]]];
+  for (let i = 0; i < 200; i += 1) pairs.push([[0, 1, 2].map(() => Math.floor(rand() * 256)), [0, 1, 2].map(() => Math.floor(rand() * 256))]);
+  for (const [a, b] of pairs) {
+    assert.ok(Math.abs(T.deltaE2000(a, b) - oracle(lab(hexOf(a)), lab(hexOf(b)))) < 1e-9, `${hexOf(a)} vs ${hexOf(b)}`);
+  }
+});

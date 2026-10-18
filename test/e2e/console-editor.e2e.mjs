@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // The prompt editor (spec P3–P7, P9) on the real App, store, panel keyboard and
 // stylesheet. Only the evaluation bridge (XRAY_Console) and persistence are stubbed;
@@ -19,7 +21,7 @@ const { outputFiles } = await build({
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const BODY = {users:[{id:1,name:'Ada',email:'ada@x.io'},{id:2,name:'Lin',email:'lin@x.io'}], meta:{page:1}};
       const BIG = Array.from({length:200}, (_, i) => ({id:i, name:'User ' + i}));
       window.ed = {
@@ -208,7 +210,7 @@ async function open(t, fixture, width, height = 760, theme, hidden = false) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'page errors'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.ed.setup(args.shadow, args.mode, args.width, args.theme, args.hidden), { ...fixture, width, theme, hidden });
   await page.waitForFunction(() => window.ed.field());

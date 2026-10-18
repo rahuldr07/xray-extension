@@ -16,16 +16,20 @@ All colour, radius and motion values come from CSS custom properties defined in
 
 | Group | Tokens |
 |---|---|
-| Surfaces | `--xray-bg`, `--xray-surface`, `--xray-surface2` |
+| Surfaces | `--xray-bg` (content panes), `--xray-surface` (chrome, menus, modals), `--xray-surface2` (wells, inputs), `--xray-surface3` |
 | RGB triples | `--xray-bg-rgb`, `--xray-surface-rgb`, `--xray-surface2-rgb`, `--xray-text-rgb` |
-| Text | `--xray-text`, `--xray-subtext`, `--xray-hint` |
-| Accents | `--xray-green`, `--xray-blue`, `--xray-yellow`, `--xray-red`, `--xray-mauve`, `--xray-teal`, `--xray-peach` |
+| Text | `--xray-text`, `--xray-subtext`, `--xray-hint`, `--xray-disabled` |
+| Lines | `--xray-border` (dividers, card edges), `--xray-border-control` (inputs), `--xray-focus` (focus rings; follows the effective accent) |
+| Accent | `--xray-accent` (the preset's own, or a picked swatch set inline), `--xray-accent-soft` (= `--xray-selection`) |
+| States | `--xray-selection` (selected row), `--xray-hover` (hovered row), `--xray-active` (pressed control), `--xray-pending` (in-flight), `--xray-neutral` (JSON null, plain flags) |
+| Status and data | `--xray-green`, `--xray-blue`, `--xray-yellow`, `--xray-red`, `--xray-mauve`, `--xray-teal`, `--xray-peach` |
+| Depth | `--xray-shadow`, `--xray-overlay` |
 | Radius | `--xray-radius` (set inline from `settings.radius`), `--xray-radius-sm` = ×0.6, `--xray-radius-lg` = ×1.4 |
 | Motion | `--xray-ease`, `--xray-ease-out`, `--xray-dur-fast` (120ms), `--xray-dur` (180ms) |
-| Type | `--xray-font` |
+| Type | `--xray-font-ui` (chrome: the platform UI sans), `--xray-font` (data: the mono Font stack setting) |
 
 **Never hardcode a colour.** A literal hex in a rule is a bug: it will not change with the
-theme, so it looks correct in the default theme and wrong in the other five.
+theme, so it looks correct in the default theme and wrong in the other eight presets.
 
 **Never write a literal `rgba(...)` either.** This was the single largest source of broken
 theming — 178 declarations painted Catppuccin pastels that could not respond to a theme at
@@ -37,8 +41,8 @@ all and simply vanished on light backgrounds. Two correct forms:
   accent colours deliberately have no RGB triples, and `color-mix` is the idiom used
   throughout the file.
 
-**If you use an accent token, confirm every theme defines it.** Light Lab and the three
-dark themes were missing `--xray-teal` and `--xray-peach`, so routing colours through
+**If you use an accent token, confirm every theme defines it.** Earlier presets were
+missing `--xray-teal` and `--xray-peach`, so routing colours through
 those tokens silently resolved straight back to the default pastels. Every
 `.xray-theme-*` block must define every token it is asked for.
 

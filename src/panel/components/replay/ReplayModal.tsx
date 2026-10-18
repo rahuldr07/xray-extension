@@ -116,7 +116,7 @@ export function ReplayModal(): React.ReactElement | null {
           <select className="xray-select" aria-label="Replay method" value={method} onChange={(event) => setMethod(event.currentTarget.value)}>
             {METHODS.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <input className="xray-input" aria-label="Replay URL" value={url} onChange={(event) => {
+          <input className="xray-input xray-input-data" aria-label="Replay URL" value={url} onChange={(event) => {
             const next = event.currentTarget.value;
             // An acknowledgement belongs to one target origin; a new origin needs a fresh one.
             if (originOf(next.trim()) !== originOf(url.trim())) setRetargetAcknowledged(false);

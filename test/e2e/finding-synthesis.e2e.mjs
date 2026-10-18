@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import test, { after, before } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const { outputFiles } = await build({
@@ -82,7 +83,7 @@ async function fixture(t, shadow = false) {
   const page = await browser.newPage();
   page.setDefaultTimeout(5000);
   t.after(() => page.close());
-  await page.setContent('<div></div>');
+  await setStandardsContent(page, '<div></div>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(shadowRoot => window.synthesisTest.setup(shadowRoot), shadow);
   return page;

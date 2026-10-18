@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Real search model, store, modal and stylesheet. Synthetic retained traffic only.
 // Closed-shadow controls are focused through the fixture, then operated by keyboard.
@@ -18,7 +20,7 @@ const { outputFiles } = await build({
        import { EntriesWorkspace } from './src/panel/components/api/EntriesWorkspace';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
       const api=(id,extra={})=>({id,type:'api',method:'GET',status:200,url:'https://example.test/'+id,
         urlPath:'/'+id,source:'fetch',timestamp:1,duration:12,size:80,responseRaw:'{}',...extra});
       const entries=[
@@ -111,7 +113,7 @@ async function fixture(t, shadow, width) {
   const page = await browser.newPage({ viewport: { width, height: 800 } });
   t.after(() => page.close());
   page.on('pageerror', error => assert.fail(error.message));
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(shadow => window.searchFieldsTest.setup(shadow), shadow);
   return page;

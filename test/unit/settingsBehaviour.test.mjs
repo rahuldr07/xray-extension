@@ -100,6 +100,13 @@ test('reset keeps layout and evicts to the restored max immediately', () => {
   assert.equal(s.entries.length, 1000);
 });
 
+test('Reset turns Glow off: it is opt-in (spec A3)', () => {
+  seed(3, { glow: true, theme: 'gruvbox-dark' });
+  assert.equal(usePanelStore.getState().settings.glow, true);
+  usePanelStore.getState().resetSettings();
+  assert.equal(usePanelStore.getState().settings.glow, false);
+});
+
 test('legacy settings load unchanged: old keys survive a normalize round-trip', () => {
   const stored = { maxEntries: 750, verySlowThresholdMs: 3000, defaultDetailView: 'raw', slowThresholdMs: 900 };
   const loaded = normalizePanelSettings(JSON.parse(JSON.stringify(stored)));

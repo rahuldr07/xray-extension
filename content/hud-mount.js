@@ -113,21 +113,22 @@
       /* hud-main.tsx's syncHostTheme mirrors the panel's resolved --xray-radius,
          --xray-surface/-2, --xray-text and --xray-bg onto this host element, so
          the collapsed pill inherits them here. The literals are pre-mount
-         fallbacks only — hardcoding them left a dark Catppuccin box floating on
-         the page in Light Lab and Claude. */
+         fallbacks only, the XRAY Dark default's values (src/panel/styles.css),
+         like tokens.css — hardcoding them left a dark box floating on the page
+         on the light presets. */
       .xray-hud-pill {
         width: 100%;
         height: 100%;
         display: none;
         align-items: center;
         justify-content: center;
-        border: 1px solid var(--xray-surface2, #313244);
+        border: 1px solid var(--xray-surface2, #25272a);
         border-radius: var(--xray-radius, 10px);
-        color: var(--xray-text, #cdd6f4);
-        background: var(--xray-surface, #181825);
-        box-shadow: 0 14px 40px rgba(0,0,0,.36);
+        color: var(--xray-text, #eeeff1);
+        background: var(--xray-surface, #1b1c1f);
+        box-shadow: 0 14px 40px var(--xray-shadow, rgba(0, 0, 0, .40));
         cursor: pointer;
-        font: 800 12px/1 var(--xray-font, 'JetBrains Mono','Fira Code','Cascadia Code',monospace);
+        font: 700 12px/1 var(--xray-font, 'JetBrains Mono','Fira Code','Cascadia Code',monospace);
       }
       :host(.xray-collapsed) .xray-hud-pill { display: flex; }
       :host(.xray-collapsed) #xray-hud-root { display: none; }

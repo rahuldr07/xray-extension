@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const screenshotDir = '/tmp/omnirush/ui-hardening';
@@ -22,7 +24,7 @@ const { outputFiles } = await build({
       import { ReplayModal } from './src/panel/components/replay/ReplayModal';
       import { ExperimentPanel } from './src/panel/components/experiments/ExperimentPanel';
       import { usePanelStore } from './src/panel/store';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       const apiEntry = {
         id: 'responsive-api', type: 'api', method: 'GET', status: 200,
@@ -113,7 +115,7 @@ async function fixture(t, kind, width, height) {
     }
     await page.close();
   });
-  await page.setContent('<style>html,body{margin:0;min-height:100%;background:#1e1e2e}</style>');
+  await setStandardsContent(page, '<style>html,body{margin:0;min-height:100%;background:#1e1e2e}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(kindName => window.uiHardening.setup(kindName), kind);
   const activationKind = kind.startsWith('export') ? 'export' : kind.startsWith('replay') ? 'replay' : kind.startsWith('logs') || kind.startsWith('pin') ? 'logs' : null;
@@ -189,12 +191,14 @@ test('log rows keep timestamp, message, and pin action in non-overlapping tracks
   }
 });
 
-test('pin buttons expose accent hover and focus treatment', async t => {
+// The hover is neutral since the calm accent (spec A1); it is read once its transition has run.
+test('pin buttons expose hover and focus treatment', async t => {
   const page = await fixture(t, 'pin-interaction', 960, 700);
   const pin = page.locator('.xray-pin').first();
   await pin.waitFor();
   const before = await pin.evaluate(element => ({ border: getComputedStyle(element).borderColor, background: getComputedStyle(element).backgroundColor }));
   await pin.hover();
+  await pin.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
   const hovered = await pin.evaluate(element => ({ border: getComputedStyle(element).borderColor, background: getComputedStyle(element).backgroundColor }));
   await pin.focus();
   const focused = await pin.evaluate(element => ({ outline: getComputedStyle(element).outlineStyle, outlineColor: getComputedStyle(element).outlineColor }));
@@ -211,18 +215,20 @@ test('spinner animation is disabled when Chromium prefers reduced motion', async
   assert.equal(await page.locator('.xray-spinner').evaluate(element => getComputedStyle(element).animationName), 'none');
 });
 
-test('tab badge border and background resolve from the accent token', async t => {
+// Badges are neutral since the calm accent (spec A1): their outline and fill come from theme tokens.
+test('tab badge is unboxed and its background resolves from theme tokens', async t => {
   const page = await fixture(t, 'accent-badge', 960, 700);
   await page.evaluate(() => window.uiHardening.state().addEntry({ ...window.uiHardening.state().entries[0], id: 'badge-api', type: 'api', url: 'https://example.test/badge', urlPath: '/badge' }));
   const badge = page.locator('.xray-badge').first();
   await badge.waitFor();
   const state = await badge.evaluate(element => {
     const style = getComputedStyle(element);
-    return { border: style.borderColor, background: style.backgroundColor, text: style.color, accent: style.getPropertyValue('--xray-accent').trim(), surface: style.getPropertyValue('--xray-surface').trim() };
+    return { borderWidth: parseFloat(style.borderTopWidth), borderStyle: style.borderTopStyle, background: style.backgroundColor, text: style.color, accent: style.getPropertyValue('--xray-accent').trim(), surface: style.getPropertyValue('--xray-surface').trim() };
   });
-  assert.notEqual(state.border, 'rgba(0, 0, 0, 0)');
+  // Spec S1: badges are unboxed — a soft token tint, no outline.
+  assert.ok(state.borderStyle === 'none' || state.borderWidth === 0, `badge draws no outline: ${JSON.stringify(state)}`);
   assert.notEqual(state.background, 'rgba(0, 0, 0, 0)');
-  assert.notEqual(state.border, state.text);
+  assert.notEqual(state.background, state.text);
   assert.notEqual(state.background, state.surface);
   assert.ok(state.accent);
 });

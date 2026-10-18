@@ -235,6 +235,35 @@ export function oklchInGamut(L: number, C: number, h: number): RGB {
   }
   return oklchToLinear(L, hi, h).map((v) => encodeChannel(Math.min(1, Math.max(0, v)))) as RGB;
 }
+// ── CIEDE2000 (how different two fills look; the row-state check the contrast matrix runs) ──
+function rgbToLab(rgb: RGB): [number, number, number] {
+  const [r, g, b] = rgb.map(linearChannel) as RGB;
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+  const x = f((0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047);
+  const y = f(0.2126729 * r + 0.7151522 * g + 0.0721750 * b);
+  const z = f((0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+/** CIEDE2000 colour difference (Sharma, Wu & Dalal 2005) between two sRGB colours. */
+export function deltaE2000(a: RGB, b: RGB): number {
+  const [L1, a1, b1] = rgbToLab(a), [L2, a2, b2] = rgbToLab(b);
+  const rad = Math.PI / 180;
+  const Cm = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Cm ** 7 / (Cm ** 7 + 25 ** 7)));
+  const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
+  const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+  const hue = (y: number, x: number) => (x === 0 && y === 0 ? 0 : (Math.atan2(y, x) / rad + 360) % 360);
+  const h1 = hue(b1, a1p), h2 = hue(b2, a2p);
+  const chromatic = C1p * C2p !== 0;
+  const dh = !chromatic ? 0 : h2 - h1 > 180 ? h2 - h1 - 360 : h2 - h1 < -180 ? h2 - h1 + 360 : h2 - h1;
+  const dH = 2 * Math.sqrt(C1p * C2p) * Math.sin((dh * rad) / 2);
+  const Lm = (L1 + L2) / 2, Cmp = (C1p + C2p) / 2;
+  const hm = !chromatic ? h1 + h2 : Math.abs(h1 - h2) <= 180 ? (h1 + h2) / 2 : h1 + h2 < 360 ? (h1 + h2 + 360) / 2 : (h1 + h2 - 360) / 2;
+  const T = 1 - 0.17 * Math.cos((hm - 30) * rad) + 0.24 * Math.cos(2 * hm * rad) + 0.32 * Math.cos((3 * hm + 6) * rad) - 0.2 * Math.cos((4 * hm - 63) * rad);
+  const SL = 1 + (0.015 * (Lm - 50) ** 2) / Math.sqrt(20 + (Lm - 50) ** 2), SC = 1 + 0.045 * Cmp, SH = 1 + 0.015 * Cmp * T;
+  const RT = -Math.sin(2 * 30 * Math.exp(-(((hm - 275) / 25) ** 2)) * rad) * 2 * Math.sqrt(Cmp ** 7 / (Cmp ** 7 + 25 ** 7));
+  return Math.sqrt(((L2 - L1) / SL) ** 2 + ((C2p - C1p) / SC) ** 2 + (dH / SH) ** 2 + RT * ((C2p - C1p) / SC) * (dH / SH));
+}
 /** Smallest OKLCH-lightness move (in `dir`) at which `start` reaches `target` on every host. */
 function solveLightness(start: RGB, dir: 1 | -1, hosts: (fg: RGB) => RGB[], target: number, extra: (fg: RGB) => boolean = () => true): RGB {
   const passes = (fg: RGB) => Math.min(...hosts(fg).map((h) => ratioRgb(fg, h))) >= target && extra(fg);
@@ -392,10 +421,22 @@ export function resolveThemeColors(theme: CustomTheme): Record<CustomTokenKey, s
     return isHex(value) ? toRgb(clampHex(value, '#000000')) : null;
   };
   const s2 = pinned('surface2') ?? toRgb(toHex(mix(surface, text, 0.10)));
-  const sink: RGB = light ? [255, 255, 255] : [0, 0, 0];
-  const input = mix(s2, sink, 0.12);
-  const well = mix(bg, sink, 0.14);
-  const selectedRow = mix(bg, toRgb(accent), 0.10);
+  // Pane layering (spec S6): inputs and the JSON well are --xray-surface2; rows sit on --xray-bg,
+  // selected (--xray-selection, an accent tint as strong as the lineup's for this kind: ≈12 % over
+  // a dark background, ≈9 % over a light one; the presets solve 10.5–14 % and 8–9.5 %) or hovered
+  // (--xray-hover). The solve hosts below are those exact fills, so a solved colour reads where
+  // the stylesheet paints it.
+  const input = s2;
+  const well = s2;
+  const hoverRow = pinned('hover') ?? toRgb(toHex(mix(bg, text, 0.08)));
+  // A selected row must not read as a hovered one (ΔE2000 ≥ 3.5, the matrix's row-state check):
+  // where the kind's strength lands too close to the hover fill (a muted accent), the tint
+  // strengthens in 1 % steps, never past the former 18 %.
+  const selectionAt = (share: number): RGB => toRgb(toHex(mix(toRgb(accent), bg, 1 - share)));
+  let selectedRow = pinned('selection') ?? selectionAt(light ? 0.09 : 0.12);
+  for (let share = light ? 0.10 : 0.13; !pinned('selection') && share <= 0.18 + 1e-9 && deltaE2000(selectedRow, hoverRow) < 3.6; share += 0.01) {
+    selectedRow = selectionAt(share);
+  }
   const dir: 1 | -1 = rgbToOklch(text)[0] > rgbToOklch(bg)[0] ? 1 : -1;
   const TEXT_TARGET = 4.51;
   const hint = solveLightness(toRgb(toHex(mix(text, bg, light ? 0.32 : 0.38))), dir, () => [bg, surface, s2, input], TEXT_TARGET);
@@ -405,9 +446,9 @@ export function resolveThemeColors(theme: CustomTheme): Record<CustomTokenKey, s
   const neutral = solveLightness(toRgb(toHex(mix(text, bg, light ? 0.34 : 0.46))), dir, () => [bg, surface, well], TEXT_TARGET);
   const borderControl = solveLightness(toRgb(toHex(mix(surface, text, light ? 0.56 : 0.44))), dir, () => [input, bg], 3.01);
   // Status colours also sit on their own 10 % tint (chips, badges, flags), on a
-  // plain row, a surface, the elevated surface and the selected-row tint.
+  // plain row, a surface, the elevated surface and the selected and hovered rows.
   const statusHosts = (fg: RGB): RGB[] => [
-    bg, surface, s2, well, selectedRow,
+    bg, surface, s2, well, selectedRow, hoverRow,
     mix(bg, fg, 0.10), mix(surface, fg, 0.10), mix(s2, fg, 0.10), mix(selectedRow, fg, 0.10),
   ];
   const readable = (hex: string): string => toHex(solveLightness(toRgb(hex), dir, statusHosts, TEXT_TARGET));
@@ -425,12 +466,13 @@ export function resolveThemeColors(theme: CustomTheme): Record<CustomTokenKey, s
     border: toHex(mix(surface, text, 0.16)),
     'border-control': toHex(borderControl),
     focus: accent,
-    selection: toHex(mix(toRgb(accent), bg, 0.82)),
-    hover: toHex(mix(bg, text, 0.08)),
+    selection: toHex(selectedRow),
+    hover: toHex(hoverRow),
     active: toHex(mix(toRgb(accent), bg, 0.68)),
     disabled: toHex(mix(text, bg, 0.62)),
     accent,
-    'accent-soft': toHex(mix(toRgb(accent), bg, 0.82)),
+    // The active tab's fill is the selection tint, as in every preset block.
+    'accent-soft': toHex(selectedRow),
     green: readable(status.green),
     red: readable(status.red),
     yellow: readable(status.yellow),
@@ -513,7 +555,8 @@ export function buildCustomThemeVars(theme: CustomTheme): Record<string, string>
     '--xray-neutral': c.neutral,
     '--xray-shadow': isTokenOverridden(theme, 'shadow') ? c.shadow : 'rgba(0, 0, 0, .38)',
     '--xray-overlay': isTokenOverridden(theme, 'overlay') ? c.overlay : `rgba(${rgbStr(bg)}, .74)`,
-    '--xray-operator-grid': `rgba(${rgbStr(text)}, 0.03)`,
+    // The Glow grid is the accent, the same mix as the preset blocks (3.5 % dark, 4 % light).
+    '--xray-operator-grid': `color-mix(in srgb, ${c.accent} ${light ? '4%' : '3.5%'}, transparent)`,
     // Composite wells (inputs, JSON, table head, status bar) lighten on a light
     // theme instead of greying toward black.
     '--xray-sink': light ? '#ffffff' : '#000000',

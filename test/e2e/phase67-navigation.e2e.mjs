@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
 import { fileURLToPath } from 'node:url';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 const { outputFiles } = await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'jsx', contents: `
@@ -12,12 +14,12 @@ const { outputFiles } = await build({
     import { App } from './src/panel/App';
     import { usePanelStore } from './src/panel/store';
     import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-    import css from './src/panel/styles.css';
+    const css = ${JSON.stringify(PANEL_CSS)};
     const entry={id:'evidence',type:'api',method:'GET',url:'https://fixture.test/api?token=secret',urlPath:'/api',status:500,duration:700,responseRaw:'{}'};
     window.navTest={messages:[],setup(shadow){
       const host=document.body.appendChild(document.createElement('div'));this.root=shadow?host.attachShadow({mode:'closed'}):document;
       const style=document.createElement('style');style.textContent=css;(shadow?this.root:document.head).appendChild(style);
-      const mount=shadow?this.root.appendChild(document.createElement('div')):host;
+      const mount=shadow?this.root.appendChild(document.createElement('div')):host;mount.className='xray-app-root';
       window.XRAY_Store={get:async()=>null,set:async()=>{}};window.__XRAY_bridgeToken='fixture';window.postMessage=m=>this.messages.push(m);
       usePanelStore.setState({open:true,activeTab:'api'});usePanelStore.getState().addEntry(entry);usePanelStore.getState().selectEntry(entry.id);
       installPanelKeyboard({dismissible:false,getRoot:()=>this.root});flushSync(()=>createRoot(mount).render(<App mode='window'/>));
@@ -36,7 +38,7 @@ after(async () => { await browser?.close(); });
 async function fixture(t, shadow) {
   const page = await browser.newPage({ viewport: { width: 960, height: 800 } });
   t.after(() => page.close());
-  await page.setContent('<style>body{margin:0}</style>');
+  await setStandardsContent(page, '<style>body{margin:0}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(shadow => window.navTest.setup(shadow), shadow);
   return page;

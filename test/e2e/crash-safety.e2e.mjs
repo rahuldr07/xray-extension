@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import test, { before, after } from 'node:test';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
+import { PANEL_CSS } from '../helpers/panel-css.mjs';
+import { setStandardsContent } from '../helpers/standards-page.mjs';
 
 // Crash safety (spec J12) on the real App, store and stylesheet: one bad value never
 // unmounts the panel. A NaN log used to send JsonView into an endless re-render; a value
@@ -20,7 +22,7 @@ const { outputFiles } = await build({
       import { App } from './src/panel/App';
       import { usePanelStore } from './src/panel/store';
       import { installPanelKeyboard } from './src/panel/runtime/panelKeyboard';
-      import styles from './src/panel/styles.css';
+      const styles = ${JSON.stringify(PANEL_CSS)};
 
       // Renders like any object until armed; then reading 'boom' throws, as a view
       // walking its keys would. toJSON keeps every JSON.stringify path (row previews,
@@ -108,7 +110,7 @@ async function open(t, fixture, width = 1400) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'no error may escape to the page'));
-  await page.setContent('<style>body{margin:0;min-height:100vh}</style>');
+  await setStandardsContent(page, '<style>body{margin:0;min-height:100vh}</style>');
   await page.addScriptTag({ content: outputFiles[0].text });
   await page.evaluate(args => window.crash.setup(args.shadow, args.mode, args.width), { ...fixture, width });
   await page.waitForFunction(() => window.crash.has('[role="tablist"]'));
