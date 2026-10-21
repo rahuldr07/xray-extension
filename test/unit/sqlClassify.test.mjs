@@ -68,8 +68,26 @@ test('unknown or maintenance statements are write', () => {
   ]);
 });
 
-test('only the first statement is classified', () => {
-  assert.deepEqual(classifyStatement('select 1; drop table t', 'sqlite'), { kind: 'read', reason: '' });
+test('every statement is classified; the most severe wins', () => {
+  rows('dangerous', 'sqlite', [['select 1; drop table t', 'DROP']]);
+  rows('write', 'sqlite', [
+    ['pragma table_info(t); pragma query_only=0', 'PRAGMA assignment'],
+    ['select 1; insert into t values (1)', 'INSERT'],
+  ]);
+  rows('dangerous', 'mysql', [['show tables; drop table t', 'DROP']]);
+});
+
+test('bare pragmas are read only when allowlisted', () => {
+  rows('write', 'sqlite', [
+    ['pragma optimize', 'PRAGMA'],
+    ['pragma incremental_vacuum', 'PRAGMA'],
+    ['pragma main.incremental_vacuum', 'PRAGMA'],
+    ['pragma wal_checkpoint', 'PRAGMA'],
+  ]);
+  rows('read', 'sqlite', [
+    ['pragma schema_version', ''],
+    ['pragma main.user_version', ''],
+  ]);
 });
 
 test('words inside strings, comments and quoted identifiers are not keywords', () => {

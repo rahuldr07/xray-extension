@@ -2,7 +2,7 @@
 // parse tree. A read-only connection refuses everything but `read`, and
 // `dangerous` statements need a confirmation. When unsure this errs towards
 // the stricter answer. Pure; no React.
-import { sqlLanguage } from './sqlStatements';
+import { splitStatements, sqlLanguage } from './sqlStatements';
 import type { SqlDialect } from './sqlTypes';
 
 export type StatementKind = 'read' | 'write' | 'dangerous';
@@ -39,6 +39,16 @@ const READ_PRAGMAS = new Set([
 ]);
 // Used to catch a typo of a statement keyword (`selec`), which is not safe to guess at.
 const KNOWN_FIRST = [...DANGEROUS, ...WRITE, ...READ, 'begin', 'commit', 'rollback', 'savepoint', 'release'];
+
+// Bare PRAGMAs (no `=`, no argument) that only report a value. Any other bare
+// pragma can act (optimize, wal_checkpoint, incremental_vacuum ...).
+const READ_BARE_PRAGMAS = new Set([
+  'table_info', 'table_xinfo', 'index_list', 'index_info', 'index_xinfo', 'foreign_key_list',
+  'database_list', 'collation_list', 'function_list', 'module_list', 'pragma_list', 'compile_options',
+  'schema_version', 'user_version', 'application_id', 'page_count', 'page_size', 'freelist_count',
+  'encoding', 'journal_mode', 'foreign_keys', 'query_only', 'integrity_check', 'quick_check',
+  'foreign_key_check', 'data_version',
+]);
 
 const COULD_NOT_PARSE: Classification = { kind: 'dangerous', reason: 'could not parse' };
 
@@ -105,7 +115,7 @@ function tokenize(text: string, dialect: SqlDialect): Tok[] | null {
   return toks.filter((t) => t.text !== '(' && t.text !== ')');
 }
 
-export function classifyStatement(text: string, dialect: SqlDialect): Classification {
+function classifyOne(text: string, dialect: SqlDialect): Classification {
   const toks = tokenize(text, dialect);
   if (!toks || toks.length === 0) return COULD_NOT_PARSE;
   const words = toks.filter((t) => t.word);
@@ -174,7 +184,28 @@ export function classifyStatement(text: string, dialect: SqlDialect): Classifica
     }
   }
 
+  if (first.word === 'pragma' && !toks.some((t) => t.depth > 0)) {
+    const name = [...toks].reverse().find((t) => t.depth === 0 && t.word);
+    if (!name || name === first || !READ_BARE_PRAGMAS.has(name.word)) return { kind: 'write', reason: 'PRAGMA' };
+  }
+
   if (READ.has(first.word)) return { kind: 'read', reason: '' };
   if (words.length > 1 && isTypoOfKeyword(first.word)) return COULD_NOT_PARSE;
   return { kind: 'write', reason: 'unrecognized statement' };
+}
+
+const SEVERITY: Record<StatementKind, number> = { read: 0, write: 1, dangerous: 2 };
+
+// Classifies every statement in `text` and returns the most severe result (the
+// first one at that level), so a multi-statement run cannot hide a DROP behind
+// a SELECT.
+export function classifyStatement(text: string, dialect: SqlDialect): Classification {
+  const stmts = splitStatements(text, dialect);
+  if (stmts.length === 0) return COULD_NOT_PARSE;
+  let worst: Classification | null = null;
+  for (const s of stmts) {
+    const c = classifyOne(s.text, dialect);
+    if (!worst || SEVERITY[c.kind] > SEVERITY[worst.kind]) worst = c;
+  }
+  return worst ?? COULD_NOT_PARSE;
 }
