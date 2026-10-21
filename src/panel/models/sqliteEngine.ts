@@ -217,9 +217,13 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
     const started = performance.now();
     const handle = current();
     const statements = splitStatements(sql, 'sqlite').filter((s) => s.text.trim() !== '');
-    const kinds = statements.map((s) => classifyStatement(s.text, 'sqlite').kind);
+    const classes = statements.map((s) => classifyStatement(s.text, 'sqlite'));
+    const kinds = classes.map((c) => c.kind);
     // Refuse the whole script before anything runs, so a read-only script never half-applies.
-    if (readOnly && kinds.some((k) => k !== 'read')) throw readOnlyError();
+    // Input the parser cannot read goes to SQLite (Ruling R10): the database itself is read-only
+    // (DESERIALIZE_READONLY and query_only), so a write still fails, and a typo gets its real syntax error.
+    const refused = (c: { kind: string; reason: string }) => c.kind !== 'read' && c.reason !== 'could not parse';
+    if (readOnly && classes.some(refused)) throw readOnlyError();
 
     let result: QueryResult = {
       columns: [],
@@ -272,7 +276,9 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
           truncatedCells,
         };
       } catch (err) {
-        throw normalizeSqlError(err, statement.text);
+        const e = normalizeSqlError(err, statement.text);
+        // The position is within the statement; the editor needs it within the submitted script.
+        throw e.position === undefined ? e : { ...e, position: e.position + statement.from };
       } finally {
         stmt?.finalize();
       }

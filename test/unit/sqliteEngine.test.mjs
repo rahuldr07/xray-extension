@@ -136,3 +136,20 @@ test('SQL errors are normalized', () => {
   rejectsWith(() => engine.execute('select * from nope', { maxRows: 10 }), 'server');
   engine.close();
 });
+
+test('a syntax error position is an offset into the whole script', () => {
+  const engine = openShop(false);
+  const sql = 'select 1; select * frm orders';
+  assert.throws(
+    () => engine.execute(sql, { maxRows: 10 }),
+    (err) => err.code === 'syntax' && err.position === sql.indexOf('frm') && err.position === 19,
+  );
+  engine.close();
+});
+
+test('input the parser cannot read reaches SQLite on a read-only engine and fails as syntax', () => {
+  const engine = openShop(true);
+  rejectsWith(() => engine.execute('selec * from orders', { maxRows: 10 }), 'syntax');
+  rejectsWith(() => engine.execute('select 1; selec * from orders', { maxRows: 10 }), 'syntax');
+  engine.close();
+});
