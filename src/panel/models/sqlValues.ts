@@ -90,6 +90,40 @@ export function toInsertStatements(
   return rows.map((row) => `${head}${row.map(sqlLiteral).join(', ')});`).join('\n');
 }
 
+// R9: a blob preview is cut at BLOB_PREVIEW_BYTES, so a cut blob carries less hex than its length.
+export function isTruncatedBlob(cell: SqlCell): cell is Blob {
+  return isBlob(cell) && cell.hex.length < cell.length * 2;
+}
+
+export function countTruncatedBlobs(rows: SqlCell[][]): number {
+  let n = 0;
+  for (const row of rows) for (const cell of row) if (isTruncatedBlob(cell)) n++;
+  return n;
+}
+
+export function truncatedBlobNotice(count: number): string {
+  return `${count} blob values were truncated to ${BLOB_PREVIEW_BYTES} bytes`;
+}
+
+// INSERT copy: one statement per row, each row with cut blobs preceded by one comment line listing
+// their full sizes. Built per row, so a text literal containing a newline is never split.
+export function toInsertCopy(
+  table: string,
+  columns: ResultColumn[],
+  rows: SqlCell[][],
+  dialect: SqlDialect,
+): { text: string; truncatedBlobs: number } {
+  const lines: string[] = [];
+  let truncatedBlobs = 0;
+  for (const row of rows) {
+    const sizes = row.filter(isTruncatedBlob).map((cell) => `${cell.length} bytes`);
+    if (sizes.length) lines.push(`-- blob truncated: ${sizes.join(', ')}`);
+    truncatedBlobs += sizes.length;
+    lines.push(toInsertStatements(table, columns, [row], dialect));
+  }
+  return { text: lines.join('\n'), truncatedBlobs };
+}
+
 export function clampMaxRows(n: number): number {
   if (Number.isNaN(n)) return DEFAULT_MAX_ROWS;
   return Math.min(MAX_MAX_ROWS, Math.max(1, Math.trunc(n)));

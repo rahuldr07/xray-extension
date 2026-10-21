@@ -280,6 +280,9 @@
 }
 
 .xray-sql-toast {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
   color: var(--xray-green);
   font-size: 12px;
 }

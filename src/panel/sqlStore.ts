@@ -108,6 +108,9 @@ let client: SqliteClient | null = null;
 // The bytes a re-open starts from: the file as opened, or as last saved.
 let bytes: Uint8Array | null = null;
 let fileHandle: FileSystemFileHandle | null = null;
+// Set when a save exported the database but the disk write failed: the client no longer counts the
+// changes as unsaved (its re-open bytes include them), but the file on disk is still behind.
+let diskBehind = false;
 let selectionReader: (() => EditorSelection) | null = null;
 let queue: RunQueue | null = null;
 let promptAction: (() => Promise<void> | void) | null = null;
@@ -120,6 +123,11 @@ const persistWriters = new Map<string, () => void>();
 function sqlClient(): SqliteClient {
   client ??= createSqliteClient(spawnSqliteWorker);
   return client;
+}
+
+// What the UI calls unsaved: changes only the worker holds, or a save that never reached the disk.
+function unsaved(): boolean {
+  return sqlClient().dirty || diskBehind;
 }
 
 /** The editor registers how to read its selection; run('current') needs it. */
@@ -241,10 +249,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
   async function refreshSchema(): Promise<void> {
     try {
       const schema = await sqlClient().introspect();
-      set({ schema, dirty: sqlClient().dirty });
+      set({ schema, dirty: unsaved() });
     } catch (raw) {
       const err = friendly(normalizeSqlError(raw));
-      set({ dirty: sqlClient().dirty });
+      set({ dirty: unsaved() });
       say(err.message);
     }
   }
@@ -276,7 +284,11 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const err = friendly(normalizeSqlError(raw));
       bytes = null;
       fileHandle = null;
+      diskBehind = false;
+      // The previous file's tabs were persisted under its key; they must not follow into the next file.
+      const blank = hadConnection ? restoreEditorTabs(undefined, '') : null;
       set({
+        ...(blank ? { tabs: blank, activeTabId: blank[0].id, errorAt: null } : {}),
         opening: false,
         connection: null,
         schema: null,
@@ -293,6 +305,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     }
     bytes = data;
     fileHandle = handle ?? null;
+    diskBehind = false;
     const key = connectionKeyForFile(file.name, file.size);
     // A scratch query typed before the first open carries over when the file has no saved tabs.
     const tabs = storedTabs[key] || hadConnection ? restoreEditorTabs(storedTabs, key) : get().tabs;
@@ -335,10 +348,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const err = friendly(normalizeSqlError(raw));
       bytes = null;
       fileHandle = null;
+      diskBehind = false;
       set({ connection: null, schema: null, dirty: false, error: err, bottomTab: 'messages' });
       say(err.message);
       return;
     }
+    // Re-opened from the last bytes that reached the disk (or were opened), so nothing is behind.
+    diskBehind = false;
     set({ connection: { ...conn, readOnly }, readOnlyChoice: readOnly, dirty: false });
     say(readOnly ? `${conn.name} is read-only.` : `${conn.name} is open for writing. Save writes changes back.`);
     await refreshSchema();
@@ -364,7 +380,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         running: null,
         result,
         resultTable: q.resultTable,
-        dirty: sqlClient().dirty,
+        dirty: unsaved(),
         bottomTab: 'results',
         messages: withMessage(get().messages, resultSummary(result), ...extra),
       });
@@ -377,7 +393,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         running: null,
         error: err,
         errorAt: err.position === undefined ? null : { tabId: q.tabId, position: err.position + item.from },
-        dirty: sqlClient().dirty,
+        dirty: unsaved(),
         bottomTab: 'messages',
         messages: withMessage(get().messages, err.message),
       });
@@ -485,7 +501,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     stop() {
       const running = get().running;
       if (!running) return;
-      if (sqlClient().dirty || get().dirty) {
+      // Only worker-held changes are lost: after a failed disk write the restart keeps the export.
+      if (sqlClient().dirty) {
         ask(
           {
             title: 'Stop the query?',
@@ -541,7 +558,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         return;
       }
       if (on === s.connection.readOnly || s.running || s.opening) return;
-      if (on && (s.dirty || sqlClient().dirty)) {
+      if (on && (s.dirty || unsaved())) {
         ask(
           {
             title: 'Discard unsaved changes?',
@@ -592,10 +609,12 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           say(`Downloaded ${conn.name}.`);
         }
         bytes = out;
-        set({ dirty: sqlClient().dirty });
+        diskBehind = false;
+        set({ dirty: unsaved() });
       } catch (raw) {
         // The export succeeded, so nothing is lost in memory; the file on disk is still behind.
         const message = raw instanceof Error ? raw.message : String(raw);
+        diskBehind = true;
         set({ dirty: true, bottomTab: 'messages' });
         say(`Could not save ${conn.name}: ${message}`);
       }

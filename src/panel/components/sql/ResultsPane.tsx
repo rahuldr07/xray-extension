@@ -1,35 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IconX } from '@tabler/icons-react';
 import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
-import { displayCell, toCsv, toInsertStatements, toJsonRows } from '../../models/sqlValues';
+import { countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
-import type { QueryResult, SqlCell } from '../../models/sqlTypes';
+import type { QueryResult } from '../../models/sqlTypes';
 import { JsonView } from '../detail/JsonView';
 import { ResultGrid, type SelectedCell } from './ResultGrid';
 
 type CopyFormat = 'CSV' | 'JSON' | 'INSERT';
 
-// R9: a blob preview is cut at 256 bytes, so its hex is shorter than the blob.
-function truncatedBlobLength(cell: SqlCell): number | null {
-  if (typeof cell !== 'object' || cell === null) return null;
-  return cell.hex.length < cell.length * 2 ? cell.length : null;
-}
-
 function copyText(format: CopyFormat, result: QueryResult, table: string): { text: string; truncated: number } {
-  let truncated = 0;
-  for (const row of result.rows) for (const cell of row) if (truncatedBlobLength(cell) !== null) truncated++;
-  if (format === 'CSV') return { text: toCsv(result.columns, result.rows), truncated };
-  if (format === 'JSON') return { text: toJsonRows(result.columns, result.rows), truncated };
-  // INSERT: one statement per row, so a comment can flag exactly the rows whose blobs were cut.
-  const lines: string[] = [];
-  for (const row of result.rows) {
-    for (const cell of row) {
-      const length = truncatedBlobLength(cell);
-      if (length !== null) lines.push(`-- blob truncated: ${length} bytes`);
-    }
-    lines.push(toInsertStatements(table, result.columns, [row], 'sqlite'));
+  if (format === 'INSERT') {
+    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, 'sqlite');
+    return { text, truncated: truncatedBlobs };
   }
-  return { text: lines.join('\n'), truncated };
+  const text = format === 'CSV' ? toCsv(result.columns, result.rows) : toJsonRows(result.columns, result.rows);
+  return { text, truncated: countTruncatedBlobs(result.rows) };
 }
 
 function Inspector({ result, cell, onClose }: { result: QueryResult; cell: SelectedCell; onClose(): void }): React.ReactElement {
@@ -63,7 +49,7 @@ function ResultsView(): React.ReactElement {
   const result = usePanelSqlStore((s) => s.result);
   const resultTable = usePanelSqlStore((s) => s.resultTable);
   const [selection, setSelection] = useState<{ result: QueryResult; cell: SelectedCell } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -72,8 +58,8 @@ function ResultsView(): React.ReactElement {
   if (!result) return <p className="xray-sql-empty">Run a query to see results here.</p>;
   const cell = selection && selection.result === result ? selection.cell : null;
 
-  function showToast(text: string): void {
-    setToast(text);
+  function showToast(...lines: string[]): void {
+    setToast(lines);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }
@@ -87,8 +73,10 @@ function ResultsView(): React.ReactElement {
       showToast('Could not copy to the clipboard.');
       return;
     }
-    const base = `Copied ${result.rows.length} rows as ${format}.`;
-    showToast(format !== 'INSERT' && truncated ? `${base} ${truncated} blob values were truncated to 256 bytes` : base);
+    const copied = `Copied ${result.rows.length} rows as ${format}.`;
+    // R9/R14: the truncation notice is its own message, word for word.
+    if (truncated) showToast(copied, truncatedBlobNotice(truncated));
+    else showToast(copied);
   }
 
   const hasColumns = result.columns.length > 0;
@@ -102,7 +90,11 @@ function ResultsView(): React.ReactElement {
         <span className="xray-spacer" />
         {toast && (
           <span className="xray-sql-toast" role="status">
-            {toast}
+            {toast.map((line) => (
+              <span key={line} className="xray-sql-toast-line">
+                {line}
+              </span>
+            ))}
           </span>
         )}
         {hasColumns && (

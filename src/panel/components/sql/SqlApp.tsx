@@ -124,6 +124,11 @@ function EditorTabs(): React.ReactElement {
   );
 }
 
+// "Run could not parse?" reads badly; the classifier's reason is phrased for the other kinds.
+function confirmTitle(reason: string): string {
+  return reason === 'could not parse' ? 'Run a statement that could not be parsed?' : `Run ${reason}?`;
+}
+
 function Dialogs(): React.ReactElement | null {
   const pendingConfirm = usePanelSqlStore((s) => s.pendingConfirm);
   const pendingPrompt = usePanelSqlStore((s) => s.pendingPrompt);
@@ -133,7 +138,7 @@ function Dialogs(): React.ReactElement | null {
   if (pendingConfirm) {
     return (
       <ModalShell
-        title={`Run ${pendingConfirm.reason}?`}
+        title={confirmTitle(pendingConfirm.reason)}
         icon={<IconAlertTriangle size={17} stroke={1.8} />}
         className="xray-confirm-modal"
         initialFocusRef={cancelRef}

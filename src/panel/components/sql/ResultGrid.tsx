@@ -25,6 +25,9 @@ export function ResultGrid({
   onSelect(cell: SelectedCell): void;
 }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // The virtualizers return fresh functions each render, so the compiler skips this component; the
+  // grid is not memoized by design (the rule reports only the first call).
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rows = useVirtualizer({
     count: result.rows.length,
     getScrollElement: () => scrollRef.current,
