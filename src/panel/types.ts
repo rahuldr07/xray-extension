@@ -1,5 +1,5 @@
 export type EntryType = 'api' | 'log';
-export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights';
+export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights' | 'sql';
 export type XrayAppMode = 'devtools' | 'hud' | 'window';
 export type DetailView = 'tree' | 'grid' | 'raw' | 'schema' | 'diff' | 'viz' | 'waterfall' | 'headers';
 export type PanelAccent = 'blue' | 'mauve' | 'teal' | 'green' | 'peach' | 'coral';

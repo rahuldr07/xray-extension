@@ -95,7 +95,7 @@ test('applyPanelPreferences returns an empty patch for an empty blob', () => {
 });
 
 test('applyPanelPreferences rejects an unknown activeTab but keeps the known ones', () => {
-  for (const tab of ['console', 'api', 'logs', 'rules', 'insights']) {
+  for (const tab of ['console', 'api', 'logs', 'rules', 'insights', 'sql']) {
     assert.equal(applyPanelPreferences({ activeTab: tab }).activeTab, tab);
   }
   for (const tab of ['settings', '', 'API', 42, null]) {

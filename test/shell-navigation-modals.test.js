@@ -19,6 +19,9 @@ test('React shell navigation and command palette share tab metadata', () => {
   assert.match(tabs, /id:\s*'logs'/);
   assert.match(tabs, /id:\s*'rules'/);
   assert.match(tabs, /id:\s*'insights'/);
+  // SQL frames sql.html in the DevTools panel and pop-out; the HUD opens it in a window.
+  assert.match(tabs, /id:\s*'sql', label: 'SQL', icon: <IconDatabase/);
+  assert.match(app, /activeTab === 'sql' && <SqlFrame mode=\{mode\} \/>/);
   // Notebook and Settings are no longer top-level tabs
   assert.doesNotMatch(tabs, /id:\s*'notebook'/);
   assert.doesNotMatch(tabs, /id:\s*'settings'/);

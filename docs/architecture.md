@@ -158,7 +158,8 @@ Console results and the command context use the same typed model, as text both w
 ### ISOLATED / panel → service worker (`chrome.runtime.sendMessage`)
 
 `xray:capture`, `xray:capture-batch`, `xray:capture-update`, `xray:console-eval`,
-`xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`.
+`xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`,
+`XRAY_OPEN_SQL_WINDOW`.
 
 ### DevTools panel ↔ service worker
 

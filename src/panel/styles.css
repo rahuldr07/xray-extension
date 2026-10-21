@@ -4592,6 +4592,17 @@ ul.xray-compare-notice {
   }
 }
 
+/* Six icon-only tabs (SQL joined the strip) fit a 420px HUD: 28px targets, 2px apart. */
+@container xray (max-width: 420px) {
+  .xray-tabs {
+    gap: 2px;
+  }
+
+  .xray-tab {
+    padding: 0 5px;
+  }
+}
+
 @container xray (max-width: 420px) {
   .xray-detail-footer {
     flex-wrap: wrap;
@@ -9879,4 +9890,14 @@ ul.xray-compare-notice {
 .xray-app-root .xray-truncated-badge,
 .xray-app-root .xray-editor-hint-note {
   font-family: var(--xray-font-ui);
+}
+
+/* SQL tab: the extension's sql.html framed in the DevTools panel and pop-out window. */
+.xray-sql-frame {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--xray-bg);
 }

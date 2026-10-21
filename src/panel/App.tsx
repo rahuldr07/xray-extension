@@ -9,6 +9,7 @@ import { ConfirmationModal } from './components/common/ConfirmationModal';
 import { RootErrorBoundary } from './components/common/RootErrorBoundary';
 import { Insights } from './components/insights/Insights';
 import { Rules } from './components/rules/Rules';
+import { SqlFrame } from './components/sql/SqlFrame';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ReplayModal } from './components/replay/ReplayModal';
 import { ExplainModal } from './components/ai/ExplainModal';
@@ -48,6 +49,7 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
           {activeTab === 'logs' && <EntriesWorkspace mode="logs" />}
           {activeTab === 'rules' && <Rules />}
           {activeTab === 'insights' && <Insights />}
+          {activeTab === 'sql' && <SqlFrame mode={mode} />}
         </PanelShell>
         <ExportModal />
         <SettingsModal />

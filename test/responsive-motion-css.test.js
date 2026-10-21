@@ -74,6 +74,9 @@ test('the header gives the tablist a growth contract instead of leaving it to le
   // Below 420px the strip scrolls and gets its scrollbar BACK. Suppressing the
   // scrollbar on a strip that overflows is what made clipped tabs unreachable.
   assert.match(styles, /@container xray \(max-width: 420px\) \{\n {2}\.xray-tabs \{\n {4}scrollbar-width: thin;/);
+  // Six icon-only tabs since the SQL tab: at 420px the strip tightens its gap and padding so
+  // all six fit without scrolling (theme-visual-system e2e "chrome fits at 420").
+  assert.match(styles, /@container xray \(max-width: 420px\) \{\n {2}\.xray-tabs \{\n {4}gap: 2px;\n {2}\}\n\n {2}\.xray-tab \{\n {4}padding: 0 5px;/);
   assert.match(styles, /\.xray-tabs::-webkit-scrollbar \{\n {4}display: block;/);
   // ...and the active tab is scrolled into view, resolved through the tablist ref
   // rather than `document` (the panel mounts in a closed shadow root).
