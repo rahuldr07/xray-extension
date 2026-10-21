@@ -62,7 +62,8 @@ regress.
   found exactly one hit: `content/console-executor.js:130`, which is the console feature
   itself operating on user-typed code. Captured response bodies — attacker-controlled by
   definition — are rendered exclusively through React children and `textContent`.
-- **The extension CSP has no `unsafe-eval` and no `wasm-unsafe-eval`.**
+- **The extension CSP has no `unsafe-eval`.** Its only `'wasm-unsafe-eval'` is scoped to
+  extension pages, for SQLite-WASM on `sql.html` (see §5).
 - **No `externally_connectable`**, so web pages cannot message the service worker directly.
 - **Theme values reaching `style.setProperty` are strictly hex-validated**
   (`src/panel/models/customTheme.ts:34-50`). Checked specifically for `url()`-based CSS
@@ -144,6 +145,7 @@ submission-ready wording lives in [store-listing.md](store-listing.md).
 | `debugger` | CDP `Runtime.evaluate` for console execution on CSP-strict sites | Required (Chrome cannot make `debugger` optional — see C-8) |
 | `windows` | The pop-out window | No |
 | `<all_urls>` | Capture is the product; it cannot know in advance which origins matter | No, but see C-14 on scoping *retention* |
+| CSP `'wasm-unsafe-eval'` (`extension_pages` only) | Lets SQLite-WASM compile in the SQL client's worker on `sql.html`. It does not apply to content scripts or to any web page, and allows no JS `eval`. `sql.html`, `dist/sql-ui.js`, `dist/sql-worker.js` and `dist/sqlite3.wasm` are deliberately not web-accessible, so no page can frame or load them | No, while the SQL client runs SQLite in the browser |
 
 ---
 

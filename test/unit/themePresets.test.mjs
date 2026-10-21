@@ -135,7 +135,8 @@ test('accent, error, warning and status colours stay distinct in every preset (Î
 // The pop-out window paints its document behind the panel; window.html reads the theme back
 // with :has() and must use each block's own --xray-bg (no dark slab around a light preset).
 // The DevTools page is its twin (final review M-1): the same table, no frozen dark slab.
-for (const [surfaceName, file] of [['pop-out window', 'window.html'], ['DevTools page', 'devtools/devtools-panel.html']]) {
+// The SQL page (sql.html) copies the same block.
+for (const [surfaceName, file] of [['pop-out window', 'window.html'], ['DevTools page', 'devtools/devtools-panel.html'], ['SQL page', 'sql.html']]) {
   test(`the ${surfaceName} background follows every preset`, () => {
     const html = readFileSync(new URL('../../' + file, import.meta.url), 'utf8');
     const bgs = Object.fromEntries([...html.matchAll(/:root:has\(\.xray-theme-([a-z0-9-]+)\)\s*\{\s*--xray-window-bg:\s*(#[0-9a-f]{6});\s*\}/g)].map(([, id, bg]) => [id, bg]));
