@@ -1,0 +1,172 @@
+import React, { useEffect, useRef } from 'react';
+import { Compartment, EditorState, Prec, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, highlightActiveLine, keymap, lineNumbers, type DecorationSet } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
+import { bracketMatching, defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { sql } from '@codemirror/lang-sql';
+import { setSelectionReader, usePanelSqlStore } from '../../sqlStore';
+import { sqlLanguage } from '../../models/sqlStatements';
+import { toCompletionSchema } from '../../models/sqlSchema';
+import type { SchemaTree } from '../../models/sqlTypes';
+
+// The error underline: one mark at the engine's error position, dropped on the next edit.
+const setErrorMark = StateEffect.define<{ from: number; to: number } | null>();
+const errorMark = Decoration.mark({ class: 'xray-sql-error-mark' });
+const errorField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(marks, tr) {
+    let next = tr.docChanged ? Decoration.none : marks;
+    for (const effect of tr.effects) {
+      if (effect.is(setErrorMark)) next = effect.value ? Decoration.set([errorMark.range(effect.value.from, effect.value.to)]) : Decoration.none;
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+// Token colours from the theme. The tags come from CodeMirror's default style (its specs carry
+// them), so no extra highlighting package is needed; each default colour maps to an --xray token.
+const TOKEN_COLOURS: Record<string, string> = {
+  '#708': 'var(--xray-mauve)',
+  '#219': 'var(--xray-peach)',
+  '#164': 'var(--xray-peach)',
+  '#a11': 'var(--xray-green)',
+  '#e40': 'var(--xray-yellow)',
+  '#00f': 'var(--xray-blue)',
+  '#30a': 'var(--xray-blue)',
+  '#085': 'var(--xray-teal)',
+  '#167': 'var(--xray-teal)',
+  '#256': 'var(--xray-blue)',
+  '#00c': 'var(--xray-blue)',
+  '#940': 'var(--xray-hint)',
+  '#f00': 'var(--xray-red)',
+  '#404740': 'var(--xray-subtext)',
+};
+const xrayHighlight = HighlightStyle.define(
+  defaultHighlightStyle.specs.map((spec) => (spec.color ? { ...spec, color: TOKEN_COLOURS[spec.color] ?? 'var(--xray-text)' } : spec)),
+);
+
+const xrayTheme = EditorView.theme({
+  '&': { height: '100%', color: 'var(--xray-text)', backgroundColor: 'var(--xray-bg)', fontSize: '13px' },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-scroller': { fontFamily: 'var(--xray-font)', lineHeight: '1.55' },
+  '.cm-content': { caretColor: 'var(--xray-accent)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--xray-accent)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, ::selection': {
+    backgroundColor: 'var(--xray-active)',
+  },
+  '.cm-activeLine': { backgroundColor: 'rgba(var(--xray-text-rgb), .04)' },
+  '.cm-gutters': { backgroundColor: 'var(--xray-surface)', color: 'var(--xray-hint)', border: 'none', borderRight: '1px solid var(--xray-border)' },
+  '.cm-activeLineGutter': { backgroundColor: 'rgba(var(--xray-text-rgb), .06)', color: 'var(--xray-subtext)' },
+  '.cm-matchingBracket': { backgroundColor: 'var(--xray-selection)', outline: '1px solid var(--xray-border-control)' },
+  '.cm-tooltip': { backgroundColor: 'var(--xray-surface2)', color: 'var(--xray-text)', border: '1px solid var(--xray-border)' },
+  '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--xray-font)' },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: 'var(--xray-active)', color: 'var(--xray-text)' },
+  '.xray-sql-error-mark': { textDecoration: 'underline wavy var(--xray-red)', textUnderlineOffset: '3px' },
+});
+
+function sqlExtension(schema: SchemaTree | null) {
+  return sql({
+    dialect: sqlLanguage('sqlite'),
+    schema: schema ? toCompletionSchema(schema, 'sqlite') : {},
+    upperCaseKeywords: false,
+  });
+}
+
+// From the error position to the end of the token there (at least one character).
+function errorRange(doc: string, position: number): { from: number; to: number } | null {
+  if (!doc.length) return null;
+  const from = Math.max(0, Math.min(position, doc.length - 1));
+  const word = /^[\w$"'`[\].]+/.exec(doc.slice(from, from + 200));
+  return { from, to: Math.min(doc.length, from + (word ? word[0].length : 1)) };
+}
+
+export function SqlEditor(): React.ReactElement {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const languageRef = useRef(new Compartment());
+  const activeTabId = usePanelSqlStore((s) => s.activeTabId);
+  const tabSql = usePanelSqlStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.sql ?? '');
+  const schema = usePanelSqlStore((s) => s.schema);
+  const errorAt = usePanelSqlStore((s) => s.errorAt);
+  // Read by the editor's callbacks, which outlive any one render.
+  const live = useRef({ tabId: activeTabId, schema });
+  const shownTabRef = useRef<string | null>(null);
+
+  function createState(doc: string): EditorState {
+    const { run } = usePanelSqlStore.getState();
+    return EditorState.create({
+      doc,
+      extensions: [
+        Prec.highest(
+          keymap.of([
+            { key: 'Mod-Enter', run: () => (void run('current'), true) },
+            { key: 'Mod-Shift-Enter', run: () => (void run('all'), true) },
+          ]),
+        ),
+        lineNumbers(),
+        highlightActiveLine(),
+        history(),
+        bracketMatching(),
+        autocompletion(),
+        keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
+        languageRef.current.of(sqlExtension(live.current.schema)),
+        syntaxHighlighting(xrayHighlight),
+        xrayTheme,
+        errorField,
+        EditorView.contentAttributes.of({ 'aria-label': 'SQL editor' }),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) usePanelSqlStore.getState().updateTabSql(live.current.tabId, update.state.doc.toString());
+        }),
+      ],
+    });
+  }
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
+    const view = new EditorView({ state: createState(tabSql), parent: host });
+    viewRef.current = view;
+    shownTabRef.current = activeTabId;
+    setSelectionReader(() => {
+      const main = view.state.selection.main;
+      return { from: main.from, to: main.to, head: main.head };
+    });
+    return () => {
+      setSelectionReader(null);
+      view.destroy();
+      viewRef.current = null;
+    };
+    // Mount once; the effects below follow the store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    live.current.tabId = activeTabId;
+    const view = viewRef.current;
+    if (!view) return;
+    if (shownTabRef.current !== activeTabId) {
+      // Each tab gets its own undo history.
+      shownTabRef.current = activeTabId;
+      view.setState(createState(tabSql));
+    } else if (view.state.doc.toString() !== tabSql) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: tabSql } });
+    }
+  }, [activeTabId, tabSql]);
+
+  useEffect(() => {
+    live.current.schema = schema;
+    viewRef.current?.dispatch({ effects: languageRef.current.reconfigure(sqlExtension(schema)) });
+  }, [schema]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const range = errorAt && errorAt.tabId === activeTabId ? errorRange(view.state.doc.toString(), errorAt.position) : null;
+    view.dispatch({ effects: setErrorMark.of(range) });
+    if (range) view.dispatch({ effects: EditorView.scrollIntoView(range.from, { y: 'nearest' }) });
+  }, [errorAt, activeTabId]);
+
+  return <div ref={hostRef} className="xray-sql-editor" />;
+}

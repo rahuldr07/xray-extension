@@ -265,8 +265,12 @@ test('the preference record has exactly the known writers', () => {
     }
   };
   walk('');
-  assert.deepEqual(found.sort(), ['content/content.js', 'settings/settings.js', 'src/panel/models/panelPersistence.ts', 'src/panel/store.ts']);
+  assert.deepEqual(found.sort(), ['content/content.js', 'settings/settings.js', 'src/panel/models/panelPersistence.ts', 'src/panel/sql-main.tsx', 'src/panel/store.ts']);
   const read = (path) => readFileSync(new URL(path, root), 'utf8');
+  // The SQL page reads the record for theme, accent and font; it never writes it.
+  const sqlMain = read('src/panel/sql-main.tsx');
+  assert.match(sqlMain, /getStoredValue<SerializedPanelPreferences>\(REACT_PANEL_PREFERENCES_KEY, \{\}\)/);
+  assert.doesNotMatch(sqlMain, /setStoredValue|XRAY_Store|chrome\.storage/);
   // content.js reads the capture toggles before the panel mounts; it never writes the record.
   const content = read('content/content.js');
   assert.deepEqual([...content.matchAll(/.{0,12}react_panel_preferences/g)].map(([m]) => m.trim()), ["store.get('react_panel_preferences"]);
