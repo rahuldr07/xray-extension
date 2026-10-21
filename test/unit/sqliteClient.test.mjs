@@ -11,12 +11,19 @@ const shop = await shopDatabaseBytes();
 // A WorkerLike that runs the real engine and answers on a later turn, like a real worker: a
 // request stays pending until then, and a terminated worker never answers. It also enforces the
 // transfer list, so a client that transferred its stored bytes would see them detached here too.
-function fakeWorkers() {
+// `faults.throwOnSpawn` / `faults.failOpenOn` (1-based spawn numbers) inject recovery failures.
+function fakeWorkers(faults = {}) {
   const spawned = [];
   const spawn = () => {
+    if (faults.throwOnSpawn === spawned.length + 1) {
+      spawned.push(null);
+      throw new Error('spawn failed');
+    }
     const engine = createSqliteEngine(sqlite3);
+    const failOpen = faults.failOpenOn === spawned.length + 1;
     const worker = {
       onmessage: null,
+      onerror: null,
       terminated: false,
       requests: [],
       postMessage(msg, transfer) {
@@ -27,6 +34,7 @@ function fakeWorkers() {
           let reply;
           try {
             let value;
+            if (data.op === 'open' && failOpen) throw { code: 'server', message: 'out of memory' };
             if (data.op === 'open') value = engine.open(data.bytes, data.readOnly);
             else if (data.op === 'introspect') value = engine.introspect();
             else if (data.op === 'execute') value = engine.execute(data.sql, data.opts);
@@ -50,9 +58,13 @@ function fakeWorkers() {
 }
 
 // Resolves once the client has posted an `op` request, before the fake worker can answer it.
-async function posted(worker, op) {
-  for (let i = 0; i < 100 && !worker.requests.some((r) => r.op === op); i++) await Promise.resolve();
-  assert.ok(worker.requests.some((r) => r.op === op), `${op} was posted`);
+// `worker` may be a getter, for a worker the client spawns on a later turn.
+// `sql`, when given, picks out one execute among several.
+async function posted(worker, op, sql) {
+  const get = typeof worker === 'function' ? worker : () => worker;
+  const has = () => Boolean(get()?.requests.some((r) => r.op === op && (sql === undefined || r.sql === sql)));
+  for (let i = 0; i < 100 && !has(); i++) await Promise.resolve();
+  assert.ok(has(), `${op} was posted`);
 }
 
 const count = async (client) => (await client.execute('select count(*) from orders', { maxRows: 10 })).rows[0][0];
@@ -83,9 +95,9 @@ test('aborting a pending execute cancels it and re-opens the same data in a new 
   await posted(spawned[0], 'execute');
   controller.abort();
   await assert.rejects(pending, (err) => err.code === 'cancelled');
-  assert.equal(spawned.length, 2);
   assert.equal(spawned[0].terminated, true);
   assert.equal(await count(client), 2500);
+  assert.equal(spawned.length, 2, 'the re-open spawns on a later turn, before the next call runs');
   const reopen = spawned[1].requests[0];
   assert.equal(reopen.op, 'open');
   assert.equal(reopen.readOnly, true);
@@ -129,11 +141,11 @@ test('a cancel after export re-opens the exported bytes, read-write', async () =
   await client.exportBytes();
   const controller = new AbortController();
   const pending = client.execute('select * from orders', { maxRows: 10 }, controller.signal);
-  await posted(spawned[0], 'execute');
+  await posted(spawned[0], 'execute', 'select * from orders');
   controller.abort();
   await assert.rejects(pending, (err) => err.code === 'cancelled');
-  assert.equal(spawned.length, 2);
   assert.equal(await count(client), 5);
+  assert.equal(spawned.length, 2);
   await client.execute('delete from orders where id = 5', { maxRows: 1 });
   assert.equal(client.dirty, true, 'still read-write after the re-open');
   await client.close();
@@ -160,4 +172,97 @@ test('calls before open and after close fail as connection-lost', async () => {
   await client.open(shop, true);
   await client.close();
   await assert.rejects(client.introspect(), (err) => err.code === 'connection-lost');
+});
+
+test('a read-write script that fails part-way still marks its applied writes as unsaved', async () => {
+  const { spawn } = fakeWorkers();
+  const client = createSqliteClient(spawn);
+  await client.open(shop, false);
+  await assert.rejects(client.execute('delete from orders where id > 10; select * from nope', { maxRows: 10 }),
+    (err) => err.code === 'server');
+  assert.equal(client.dirty, true);
+  assert.equal(await count(client), 10, 'the delete was applied');
+  await client.close();
+});
+
+test('a failed read on a read-write connection stays clean', async () => {
+  const { spawn } = fakeWorkers();
+  const client = createSqliteClient(spawn);
+  await client.open(shop, false);
+  await assert.rejects(client.execute('select * from nope', { maxRows: 10 }));
+  assert.equal(client.dirty, false);
+  await client.close();
+});
+
+test('the re-open source is a private copy: callers cannot detach or mutate it', async () => {
+  const { spawn, spawned } = fakeWorkers();
+  const client = createSqliteClient(spawn);
+  const input = shop.slice();
+  await client.open(input, false);
+  input.fill(0);
+  const exported = await client.exportBytes();
+  structuredClone(exported, { transfer: [exported.buffer] });
+  assert.equal(exported.byteLength, 0, 'the caller detached its own copy');
+  const controller = new AbortController();
+  const pending = client.execute('select * from orders', { maxRows: 10 }, controller.signal);
+  await posted(spawned[0], 'execute', 'select * from orders');
+  controller.abort();
+  await assert.rejects(pending, (err) => err.code === 'cancelled');
+  assert.equal(await count(client), 2500);
+  await client.close();
+});
+
+async function cancelOnce(client, worker) {
+  const controller = new AbortController();
+  const pending = client.execute('select * from orders', { maxRows: 10 }, controller.signal);
+  await posted(worker, 'execute', 'select * from orders');
+  controller.abort();
+  await assert.rejects(pending, (err) => err.code === 'cancelled');
+}
+
+const notReopened = (err) =>
+  err.code === 'connection-lost' && /could not be reopened/.test(err.message);
+
+test('a spawn that throws during cancel recovery leaves the client refusing calls, not throwing', async () => {
+  const { spawn, spawned } = fakeWorkers({ throwOnSpawn: 2 });
+  const client = createSqliteClient(spawn);
+  await client.open(shop, true);
+  await cancelOnce(client, spawned[0]);
+  await assert.rejects(client.execute('select 1', { maxRows: 1 }), notReopened);
+  await assert.rejects(client.introspect(), notReopened);
+  await assert.rejects(client.exportBytes(), notReopened);
+  await client.open(shop, true);
+  assert.equal(await count(client), 2500, 'a new open recovers');
+  await client.close();
+});
+
+test('a re-open that fails after cancel terminates the empty worker and refuses calls', async () => {
+  const { spawn, spawned } = fakeWorkers({ failOpenOn: 2 });
+  const client = createSqliteClient(spawn);
+  await client.open(shop, true);
+  await cancelOnce(client, spawned[0]);
+  await assert.rejects(client.execute('select 1', { maxRows: 1 }), notReopened);
+  assert.equal(spawned[1].terminated, true);
+  await client.open(shop, true);
+  assert.equal(await count(client), 2500);
+  await client.close();
+});
+
+test('a worker error rejects pending calls, including open, as connection-lost', async () => {
+  const { spawn, spawned } = fakeWorkers();
+  const client = createSqliteClient(spawn);
+  const opening = client.open(shop, true);
+  await posted(() => spawned[0], 'open');
+  spawned[0].onerror?.(new Error('script failed to load'));
+  await assert.rejects(opening, (err) => err.code === 'connection-lost');
+  assert.equal(spawned[0].terminated, true);
+  await assert.rejects(client.execute('select 1', { maxRows: 1 }), (err) => err.code === 'connection-lost');
+
+  await client.open(shop, true);
+  const running = client.execute('select * from orders', { maxRows: 10 });
+  await posted(spawned[1], 'execute', 'select * from orders');
+  spawned[1].onerror?.(new Error('worker crashed'));
+  await assert.rejects(running, (err) => err.code === 'connection-lost' && /stopped/.test(err.message));
+  await assert.rejects(client.execute('select 1', { maxRows: 1 }), (err) => err.code === 'connection-lost');
+  await client.close();
 });
