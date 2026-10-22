@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { evictEntries, pinnedAndSelected } from './models/entries';
 import { isCommandItem } from './models/logLevels';
-import { clearConsoleVariables, executeConsoleCommand, setConsoleContext, syncConsolePins, type ConsoleExecutionResult } from './runtime/consoleBridge';
+import { clearCompletionRecency } from './runtime/completionRecency';
+import { clearConsoleVariables, executeConsoleCommand, previewCommand, setConsoleContext, syncConsolePins, type ConsoleExecutionResult, type PreviewAnswer } from './runtime/consoleBridge';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
 import {
   REACT_PANEL_PREFERENCES_KEY,
@@ -1132,6 +1133,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     if (scope !== 'commands' && scope !== 'page') {
       _pausedEvents = [];
       clearConsoleVariables();
+      clearCompletionRecency();
       // Dropping consoleRun abandons an in-flight command: its cell is gone, the
       // prompt is free at once, and the run's late result is discarded (ConsolePrompt
       // only reports for the run the store still names).
@@ -1154,6 +1156,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
     };
     if (scope === 'commands') {
       clearConsoleVariables();
+      clearCompletionRecency();
       next.consoleRun = null;
     }
     set(next);
@@ -1732,6 +1735,17 @@ export function evaluateConsoleCommand(code: string): Promise<ConsoleExecutionRe
   setConsoleContext(state.selectedId ? state.entries.find((entry) => entry.id === state.selectedId) ?? null : null);
   syncConsolePins(consolePinMap(state));
   return executeConsoleCommand(code, consoleBodyValue);
+}
+
+/**
+ * Eager preview (Task 8, spec §4) of a draft with THIS store's request context and pins, as a Run
+ * would see them (the surfaces share one engine; see evaluateConsoleCommand).
+ */
+export function previewConsoleDraft(code: string, requestId: number, attach: boolean): Promise<PreviewAnswer | null> {
+  const state = usePanelStore.getState();
+  setConsoleContext(state.selectedId ? state.entries.find((entry) => entry.id === state.selectedId) ?? null : null);
+  syncConsolePins(consolePinMap(state));
+  return previewCommand(code, requestId, { attach, readBody: consoleBodyValue });
 }
 
 // Adapt only authoritative experiment transitions. No new traffic observer or executor.

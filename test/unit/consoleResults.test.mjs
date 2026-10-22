@@ -72,11 +72,14 @@ test('~25 kb object is big and carries its size', () => {
   assert.ok(d.badge.endsWith('· 25 kb'), d.badge);
 });
 
-test('object summary is shaped and ≤ 80 chars', () => {
+test('object summary is the console one-line preview, ≤ 80 chars', () => {
+  // One one-line format (fix round 1 ruling): every summary is consolePreview.previewLine.
   const d = describeResult({ users: new Array(500).fill({}), meta: { a: 1 }, extra: 'z', more: 1, evenMore: 2, andMore: 3, last: 4 }, 'object');
-  assert.ok(d.summary.startsWith('{ users: Array(500), meta: {…}'), d.summary);
+  assert.ok(d.summary.startsWith('{users: Array(500), meta: {…}'), d.summary);
   assert.ok(d.summary.length <= 80);
-  assert.ok(d.summary.endsWith('… }'));
+  assert.ok(d.summary.endsWith(', …}'), d.summary);
+  assert.equal(describeResult([1, 2, 3], 'array').summary, 'Array(3) [1, 2, 3]');
+  assert.equal(describeResult('hi', 'string').summary, "'hi'");
 });
 
 test('cyclic and unserializable values do not throw', () => {
@@ -139,7 +142,7 @@ test('Map, Set, Error, listed objects and cut strings describe as what they are'
   assert.equal(map.badge, 'Map · 5000 entries');
   assert.equal(map.count, 5000);
   assert.equal(map.notice, 'Showing 1 of 5,000 entries');
-  assert.equal(map.summary, 'Map(5000) {1 => {"a":1}, …}');
+  assert.equal(map.summary, 'Map(5000) {1 => {…}, …}');
   const set = describeResult(T('set', { size: 2, values: [1, 'x'] }), 'object');
   assert.equal(set.badge, 'Set · 2 values');
   assert.equal(set.notice, null);
@@ -156,7 +159,7 @@ test('Map, Set, Error, listed objects and cut strings describe as what they are'
   assert.equal(long.kind, 'text');
   assert.equal(long.notice, 'Showing the first 3 of 300,000 characters');
   const nested = describeResult({ id: BIG, n: 1, list: T('array', { items: [], length: 4 }) }, 'object');
-  assert.equal(nested.summary, '{ id: 9007199254740993n, n: 1, list: Array(4) }');
+  assert.equal(nested.summary, '{id: 9007199254740993n, n: 1, list: Array(4)}');
   for (const d of [map, set, error, point, long, nested]) assert.equal(JSON.stringify(d).includes('$xray'), false);
 });
 
@@ -247,7 +250,7 @@ test('edge shapes: typed arrays, unknown kinds and hand-built values describe, l
   assert.deepEqual([buffer.kind, buffer.notice, buffer.summary], ['scalar', null, 'ArrayBuffer(8)']);
   assert.equal(results.cellText(bytes), 'Uint8Array(4)');
   assert.equal(describeResult(T('circular'), 'object').badge, 'circular');
-  assert.equal(describeResult({ e: T('error', { name: 'RangeError', message: 'x' }), b: bytes }, 'object').summary, '{ e: RangeError, b: Uint8Array(4) }');
+  assert.equal(describeResult({ e: T('error', { name: 'RangeError', message: 'x' }), b: bytes }, 'object').summary, '{e: RangeError: x, b: Uint8Array(4)}');
   assert.equal(results.resultCopyText(null), 'null');
   assert.equal(results.resultCopyText(7), '7');
   assert.equal(results.resultCopyText(T('error', { name: 'E', message: 'm' })), '{\n  "name": "E",\n  "message": "m"\n}');
@@ -255,4 +258,219 @@ test('edge shapes: typed arrays, unknown kinds and hand-built values describe, l
   // A hand-built value whose getter throws: the JSON view falls back to the value's own JSON.
   const trap = { toJSON() { return { raw: 1 }; }, get boom() { throw new Error('no'); } };
   assert.equal(results.resultJsonText(trap), '{\n  "raw": 1\n}');
+});
+
+// ── Console round 2, Task 1: the encoder's new tags have a working fallback display ────────────
+const logValue = await import('../../src/panel/models/logValue.ts');
+const { TreeBranch, TreeLeaf } = await import('../../src/panel/models/treeDisplay.ts');
+
+test('round-2 tags: web, promise and instance results are trees badged with their class', () => {
+  const headers = T('web', { cls: 'Headers', fields: {}, entries: [['a', '1'], ['b', '2']] });
+  const response = T('web', { cls: 'Response', fields: { status: 200, ok: true, headers } });
+  const d = results.describeResult(response, 'object');
+  assert.equal(d.kind, 'tree');
+  assert.equal(d.badge, 'Response');
+  assert.equal(d.summary, 'Response {status: 200, ok: true, headers: Headers(2)}');
+  assert.equal(results.describeResult(headers, 'object').badge, 'Headers · 2 entries');
+  assert.equal(results.describeResult(T('promise', { state: 'fulfilled', value: 5 }), 'object').summary, 'Promise {<fulfilled>: 5}');
+  const account = T('instance', { cls: 'Account', entries: [['id', 7]], getters: ['x'] });
+  assert.equal(results.describeResult(account, 'object').badge, 'Account');
+  assert.equal(results.resultText(account), 'Account {"id":7,"x":(…)}');
+  assert.deepEqual(JSON.parse(results.resultJsonText(account)), { id: 7, x: '(…)' });
+  const plainGetter = T('instance', { cls: '', entries: [['a', 1]], getters: ['x'] });
+  assert.equal(results.describeResult(plainGetter, 'object').badge, 'object');
+  assert.equal(results.resultText(plainGetter), '{"a":1,"x":(…)}');
+  assert.equal(results.resultText([1, T('accessor')]), '[1,(…)]');
+  assert.deepEqual(JSON.parse(results.resultJsonText([1, T('accessor')])), [1, '(…)']);
+  const regexp = results.describeResult(T('web', { cls: 'RegExp', fields: { source: 'ab+c', flags: 'gi' } }), 'object');
+  assert.equal(regexp.kind, 'scalar');
+  assert.equal(regexp.summary, '/ab+c/gi');
+  // Never an envelope on screen: the tree, the text and the JSON view read the fields.
+  const tree = logValue.logDisplay(response);
+  assert.ok(tree instanceof TreeBranch);
+  assert.equal(results.resultText(response), 'Response {"status":200,"ok":true,"headers":Headers(2) {"a" => "1", "b" => "2"}}');
+  assert.deepEqual(JSON.parse(results.resultJsonText(response)), { status: 200, ok: true, headers: { a: '1', b: '2' } });
+  assert.equal(results.resultJsonText(response).includes('$xray'), false);
+});
+
+test('round-2 tags: functions and DOM snapshots keep a one-line text', () => {
+  const fn = T('function', { name: 'formatPrice', params: "cents, currency = 'EUR'", async: false, kind: 'function', source: 'function formatPrice() {}' });
+  assert.equal(results.resultText(fn), "ƒ formatPrice(cents, currency = 'EUR')");
+  assert.equal(results.describeResult(fn, 'function').badge, 'function');
+  assert.equal(results.resultText(T('function', { name: 'fetch', params: '...args', async: true, kind: 'function', wrappedByXray: true })), 'ƒ fetch() — wrapped by XRAY');
+  assert.equal(results.resultText(T('function', { name: 'old' })), 'ƒ old()', 'a Logs envelope reads as before');
+  // One arrow label everywhere: text, Copy and the collapsed preview agree.
+  const arrow = T('function', { name: 'f', params: 'a', async: true, kind: 'arrow' });
+  assert.equal(results.resultText(arrow), 'async (a) => {…}');
+  assert.equal(results.describeResult(arrow, 'function').summary, 'async (a) => {…}');
+  const dom = T('dom', { tag: 'div', id: 'app', classes: ['main'], attrs: [['id', 'app']], text: 'hello', children: [], more: 0 });
+  assert.equal(results.resultText(dom), '<div#app.main>');
+  assert.equal(results.resultText(T('dom', { text: '<body>' })), '<body>');
+  assert.equal(results.describeResult(dom, 'object').badge, 'element');
+});
+
+test('round-2 tags: an Error whose fields are page accessors lists them lazily', () => {
+  const error = T('error', { name: 'Error', message: '', getters: ['message', 'stack'] });
+  const tree = logValue.logDisplay(error);
+  assert.ok(tree instanceof TreeBranch);
+  const names = tree.children.map((child) => child.name);
+  assert.deepEqual(names, ['message', 'stack']);
+  assert.deepEqual(tree.children.map((child) => child.value.text), ['(…)', '(…)']);
+});
+
+// ── Console round 2, Task 2: the console Tree (spec §1) ───────────────────────────────────────
+
+test('console tree: > 5 keys/items collapse to their one-line preview; ≤ 5 stay open', () => {
+  const six = { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6 };
+  const tree = results.resultDisplay(six);
+  assert.ok(tree instanceof TreeBranch);
+  assert.equal(results.consoleBranchOpen(tree), false);
+  assert.equal(results.consoleBranchPreview(tree), '{a: 1, b: 2, c: 3, d: 4, e: 5, …}');
+  const five = results.resultDisplay({ a: 1, b: 2, c: 3, d: 4, e: 5 });
+  assert.equal(results.consoleBranchOpen(five), true);
+  const items = results.resultDisplay([1, 2, 3, 4, 5, 6]);
+  assert.equal(results.consoleBranchOpen(items), false);
+  assert.equal(results.consoleBranchPreview(items), 'Array(6) [1, 2, 3, 4, 5, …]');
+  assert.equal(results.consoleBranchOpen(results.resultDisplay([1, 2])), true);
+  // Nested containers carry their own previews.
+  const nested = results.resultDisplay({ user: six });
+  assert.equal(results.consoleBranchPreview(nested.children[0].value), '{a: 1, b: 2, c: 3, d: 4, e: 5, …}');
+  // Typed containers too (a cut array, a Map).
+  const cut = results.resultDisplay(T('array', { items: [1, 2, 3, 4, 5, 6], length: 9 }));
+  assert.equal(results.consoleBranchOpen(cut), false);
+  assert.match(results.consoleBranchPreview(cut), /^Array\(9\) \[1, 2, 3, 4, 5, …\]$/);
+});
+
+test('console tree: identifier keys are bare, other keys quoted', () => {
+  assert.equal(results.consoleKey('id'), 'id');
+  assert.equal(results.consoleKey('$_x1'), '$_x1');
+  assert.equal(results.consoleKey('content-type'), '"content-type"');
+  assert.equal(results.consoleKey(''), '""');
+  assert.equal(results.consoleKey('a b'), '"a b"');
+  // Plain objects become named children, so the key is shown by name.
+  const tree = results.resultDisplay({ id: 1, 'content-type': 'x' });
+  assert.deepEqual(tree.children.map((child) => child.name), ['id', 'content-type']);
+});
+
+test('console tree: Set entries have no indices', () => {
+  const tree = results.resultDisplay(T('set', { size: 2, values: [1, 'a'] }));
+  assert.ok(tree instanceof TreeBranch);
+  assert.equal(tree.label, 'Set(2)');
+  assert.deepEqual(tree.children.map((child) => child.label), ['', '']);
+  assert.deepEqual(tree.children.map((child) => child.value), [1, 'a']);
+});
+
+test('console tree: Array(500) expands to buckets [0 … 99] … [400 … 499] keyed by their real indices', () => {
+  const tree = results.resultDisplay(Array.from({ length: 500 }, (_, i) => i));
+  assert.equal(tree.count, 500);
+  assert.deepEqual(tree.children.map((child) => child.label), ['[0 … 99]', '[100 … 199]', '[200 … 299]', '[300 … 399]', '[400 … 499]']);
+  const last = tree.children[4].value;
+  assert.ok(last instanceof TreeBranch);
+  assert.equal(last.bucket, true);
+  assert.equal(last.count, 100);
+  assert.equal(last.children[0].key, 400);
+  assert.equal(last.children[0].value, 400);
+  assert.equal(results.consoleBranchOpen(last), false, 'a bucket opens on demand');
+  // Up to 100 items there are no buckets; a cut array buckets what it has and notes the rest.
+  assert.equal(results.resultDisplay(Array.from({ length: 100 }, (_, i) => i)).children.length, 100);
+  const cut = results.resultDisplay(T('array', { items: Array.from({ length: 150 }, (_, i) => i), length: 5000 }));
+  assert.deepEqual(cut.children.map((child) => child.label), ['[0 … 99]', '[100 … 149]', '']);
+  assert.equal(cut.children[2].value.text, '… 4850 more');
+  // The flat-text fallback still prints one array.
+  assert.equal(JSON.stringify(tree).startsWith('[0,1,2'), true);
+});
+
+test('console tree: DOM snapshots and functions with source expand; Logs envelopes stay one line', () => {
+  const child = T('dom', { tag: 'p', id: '', classes: [], attrs: [], text: 'hi', children: [], more: 0 });
+  const dom = T('dom', { tag: 'div', id: 'app', classes: ['main'], attrs: [['id', 'app'], ['class', 'main']], text: 'hi there', children: [child], more: 3 });
+  const tree = results.resultDisplay(dom);
+  assert.ok(tree instanceof TreeBranch);
+  assert.equal(tree.label, '<div#app.main>');
+  assert.equal(results.consoleBranchOpen(tree), false, 'collapsed until asked, as DevTools');
+  assert.equal(results.consoleBranchPreview(tree), '<div#app.main>');
+  const names = tree.children.map((item) => item.name ?? item.label);
+  assert.deepEqual(names, ['attributes', 'text', 'children']);
+  const kids = tree.children[2].value;
+  assert.equal(kids.children[0].value.label, '<p>');
+  assert.equal(kids.children.at(-1).value.text, '… 3 more');
+  const described = results.describeResult(dom, 'object');
+  assert.equal(described.kind, 'tree');
+  assert.equal(described.badge, 'element');
+  // A Logs DOM envelope (text only) is still a one-line scalar.
+  assert.equal(results.describeResult(T('dom', { text: '<body>' }), 'object').kind, 'scalar');
+
+  const fn = T('function', { name: 'formatPrice', params: "cents, currency = 'EUR'", async: false, kind: 'function', source: "function formatPrice(cents, currency = 'EUR') {\n  return cents;\n}" });
+  const fnTree = results.resultDisplay(fn);
+  assert.ok(fnTree instanceof TreeBranch);
+  assert.equal(fnTree.label, "ƒ formatPrice(cents, currency = 'EUR')");
+  assert.equal(results.consoleBranchOpen(fnTree), false);
+  assert.equal(fnTree.bare, true, 'its source is shown as written, without brackets around it');
+  assert.equal(fnTree.children.length, 1);
+  assert.equal(fnTree.children[0].label, '');
+  assert.equal(fnTree.children[0].value.tone, 'source');
+  assert.match(fnTree.children[0].value.text, /return cents;/);
+  assert.equal(results.describeResult(fn, 'function').kind, 'tree');
+  assert.equal(results.describeResult(fn, 'function').badge, 'function');
+  assert.equal(results.describeResult(T('function', { name: 'fetch', params: '', async: false, kind: 'native' }), 'function').kind, 'scalar', 'nothing to expand without source');
+});
+
+test('console tree: a lazy getter is "(…)" with a tooltip and nothing to open', () => {
+  const instance = T('instance', { cls: 'Account', entries: [['id', 7]], getters: ['balance'] });
+  const tree = results.resultDisplay(instance);
+  const lazy = tree.children.find((child) => child.name === 'balance').value;
+  assert.ok(lazy instanceof TreeLeaf, 'a leaf: there is no toggle that could run it');
+  assert.equal(lazy.text, '(…)');
+  assert.equal(lazy.hint, 'Getter — not run, to avoid side effects');
+  assert.equal(results.GETTER_HINT, 'Getter — not run, to avoid side effects');
+  assert.equal(results.resultDisplay([T('accessor')]).children[0].value.hint, results.GETTER_HINT);
+  // The Logs tree carries the same hint.
+  assert.equal(logValue.logDisplay(instance).children.find((child) => child.name === 'balance').value.hint, results.GETTER_HINT);
+});
+
+test('a pending top-level promise is one line: Promise {<pending>}', () => {
+  const pending = results.describeResult(T('promise', { state: 'pending' }), 'object');
+  assert.equal(pending.kind, 'scalar');
+  assert.equal(pending.badge, 'Promise');
+  assert.equal(results.resultText(T('promise', { state: 'pending' })), 'Promise {<pending>}');
+  assert.equal(results.describeResult(T('promise', { state: 'fulfilled', value: 5 }), 'object').kind, 'tree', 'a settled nested promise still opens');
+});
+
+test('cell header: promise label, pending note and the Uncaught prefix', () => {
+  assert.equal(results.promiseHeader({ promise: { state: 'fulfilled', ms: 120 } }), 'Promise · fulfilled in 120 ms');
+  assert.equal(results.promiseHeader({ promise: { state: 'rejected', ms: 3 } }), 'Promise · rejected in 3 ms');
+  assert.equal(results.promiseHeader({ promise: { state: 'pending', ms: 10000 } }), 'Promise · pending');
+  assert.equal(results.promiseHeader(undefined), null);
+  assert.equal(results.promiseHeader({ promise: { state: 'bogus', ms: 1 } }), null);
+  assert.equal(results.promiseNote({ promise: { state: 'pending', ms: 10000 } }), 'Still pending after 10 s');
+  assert.equal(results.promiseNote({ promise: { state: 'fulfilled', ms: 1 } }), null);
+  assert.equal(results.uncaughtPrefix({ thrown: true }, undefined), 'Uncaught');
+  assert.equal(results.uncaughtPrefix({ thrown: true }, { promise: { state: 'rejected', ms: 1 } }), 'Uncaught (in promise)');
+  assert.equal(results.uncaughtPrefix({ kind: 'detached' }, undefined), '', 'a debugger failure is not a page exception');
+  assert.equal(results.uncaughtPrefix({}, undefined), '');
+});
+
+test('cell note: declared variables were reset (spec §2), once, on results and errors', () => {
+  assert.equal(results.scopeResetNote({ scopeReset: true }), 'Declared variables were reset (page reloaded or debugger detached)');
+  assert.equal(results.scopeResetNote({ scopeReset: true, promise: { state: 'fulfilled', ms: 1 } }), results.SCOPE_RESET_NOTE);
+  assert.equal(results.scopeResetNote({ promise: { state: 'fulfilled', ms: 1 } }), null);
+  assert.equal(results.scopeResetNote(undefined), null);
+  assert.equal(results.scopeResetNote({ scopeReset: 'yes' }), null);
+});
+
+test('the error line: Uncaught Error: x, Uncaught 5, Uncaught {a: 1}; debugger and XRAY failures have no prefix', () => {
+  const { errorHeadline } = results;
+  assert.deepEqual(errorHeadline({ name: 'Error', message: 'x', thrown: true }), { lead: 'Uncaught Error:', text: 'x' });
+  assert.deepEqual(errorHeadline({ name: 'Error', message: '5', thrown: true, value: 5 }), { lead: 'Uncaught', text: '5' });
+  assert.deepEqual(errorHeadline({ name: 'Error', message: '[object Object]', thrown: true, value: { a: 1 } }), { lead: 'Uncaught', text: '{a: 1}' });
+  assert.deepEqual(errorHeadline({ name: 'Error', message: 'nope', thrown: true, value: 'nope' }, { promise: { state: 'rejected', ms: 1 } }), { lead: 'Uncaught (in promise)', text: "'nope'" });
+  // A thrown Error's own name wins over the guess from its message.
+  assert.deepEqual(errorHeadline({ name: 'Error', message: 'm', thrown: true, value: T('error', { name: 'MyError', message: 'm' }) }), { lead: 'Uncaught MyError:', text: 'm' });
+  assert.deepEqual(errorHeadline({ name: 'Error', message: 'Evaluation failed: x', kind: 'evaluation' }), { lead: '', text: 'Evaluation failed: x' });
+  assert.deepEqual(errorHeadline({ name: 'Error', message: "XRAY couldn't display this value: enc", internal: true }), { lead: '', text: "XRAY couldn't display this value: enc" });
+  assert.deepEqual(errorHeadline({ name: 'TypeError', message: 'old' }), { lead: 'TypeError:', text: 'old' });
+});
+
+test('a thrown value that cannot be read says so, with no invented Error name', () => {
+  assert.deepEqual(results.errorHeadline({ name: 'Error', message: 'Execution failed', thrown: true, unreadable: true }), { lead: 'Uncaught', text: '(value could not be read)' });
+  assert.deepEqual(results.errorHeadline({ name: 'Error', message: '', thrown: true, unreadable: true }, { promise: { state: 'rejected', ms: 1 } }), { lead: 'Uncaught (in promise)', text: '(value could not be read)' });
 });

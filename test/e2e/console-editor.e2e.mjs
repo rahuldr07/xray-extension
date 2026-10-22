@@ -48,6 +48,7 @@ const { outputFiles } = await build({
               else if (dir === 'down' && self.historyIndex > -1) self.historyIndex--;
               return self.historyIndex === -1 ? '' : self.history[self.historyIndex];
             },
+            getHistory(){ return [...self.history]; },
             setVar(name, value){ self.vars[name] = value; },
             getVar(name){ return self.vars[name]; },
             getScope(){ return {...self.vars}; },
@@ -171,7 +172,7 @@ const { outputFiles } = await build({
           panel.appendChild(probe);
           const token = name => { probe.style.color = 'var(' + name + ')'; return getComputedStyle(probe).color; };
           const expected = {keyword: token('--xray-mauve'), string: token('--xray-green'), number: token('--xray-peach'),
-            comment: token('--xray-hint'), punct: token('--xray-subtext'), plain: token('--xray-text')};
+            comment: token('--xray-hint'), punct: token('--xray-subtext'), plain: token('--xray-text'), regex: token('--xray-teal')};
           probe.remove();
           const actual = {};
           for (const kind of Object.keys(expected)) {
@@ -182,6 +183,50 @@ const { outputFiles } = await build({
           return { expected, actual, fieldColor: getComputedStyle(f).color, caret: getComputedStyle(f).caretColor };
         },
         inspector() { return this.root.querySelector('.xray-inspector'); },
+        // Task 5: the ghost span in the overlay, and one popup row's parts.
+        ghost() { return this.root.querySelector('.xray-editor-highlight .xray-editor-ghost')?.textContent ?? null; },
+        ghostStyle() {
+          const g = this.root.querySelector('.xray-editor-highlight .xray-editor-ghost');
+          if (!g) return null;
+          const cs = getComputedStyle(g);
+          const probe = document.createElement('span');
+          this.root.querySelector('.xray-panel').appendChild(probe);
+          probe.style.color = 'var(--xray-hint)';
+          const hint = getComputedStyle(probe).color;
+          probe.remove();
+          return { color: cs.color, hint, fontStyle: cs.fontStyle, animation: cs.animationName, transition: cs.transitionDuration,
+            decoration: cs.textDecorationLine, decorationStyle: cs.textDecorationStyle,
+            overlayHidden: g.closest('[aria-hidden="true"]') !== null, inField: this.field().value.includes(g.textContent) };
+        },
+        row(label) {
+          const box = this.root.querySelector('[role="listbox"]');
+          const o = [...box.querySelectorAll('[role="option"]')].find(x => x.querySelector('.xray-editor-option-label').textContent === label);
+          if (!o) return null;
+          const icon = o.querySelector('svg.xray-editor-option-icon');
+          const match = [...o.querySelectorAll('.xray-editor-option-label .xray-editor-option-match')];
+          const probe = document.createElement('span');
+          this.root.querySelector('.xray-panel').appendChild(probe);
+          probe.style.color = 'var(--xray-text)';
+          const text = getComputedStyle(probe).color;
+          probe.style.color = 'var(--xray-subtext)';
+          const subtext = getComputedStyle(probe).color;
+          probe.remove();
+          const labelEl = o.querySelector('.xray-editor-option-label');
+          const describedBy = o.getAttribute('aria-describedby');
+          const doc = describedBy ? this.root.querySelector('[id="' + describedBy + '"]') : null;
+          const list = box.getBoundingClientRect();
+          return {
+            iconHidden: icon?.getAttribute('aria-hidden') ?? null, iconKind: icon ? [...icon.classList].find(c => c.startsWith('kind-')) : null,
+            matched: match.map(m => m.textContent), matchTag: match[0]?.tagName ?? null, matchColour: match[0] ? getComputedStyle(match[0]).color : null,
+            matchWeight: match[0] ? getComputedStyle(match[0]).fontWeight : null, labelColour: getComputedStyle(labelEl).color, text, subtext,
+            params: o.querySelector('.xray-editor-option-params')?.textContent ?? null,
+            detail: o.querySelector('.xray-editor-option-detail')?.textContent ?? null,
+            active: o.getAttribute('aria-selected') === 'true',
+            doc: doc ? doc.textContent : null, docInsideListbox: doc ? box.contains(doc) : null,
+            docBelow: doc ? doc.getBoundingClientRect().top >= list.bottom - 1 : null,
+            docVisible: doc ? doc.getBoundingClientRect().height > 0 : null,
+          };
+        },
         cells() { return [...this.root.querySelectorAll('.xray-command-cell')]; },
         box(selector) {
           const el = this.root.querySelector(selector);
@@ -314,7 +359,8 @@ for (const fixture of FIXTURES) {
     await clearDraft(page);
     await ev(page, () => window.ed.draft('res.users[0].email'));
     await page.waitForFunction(() => window.ed.hint());
-    assert.match(await ev(page, () => window.ed.hint()), /→ "ada@x\.io"/);
+    // Final review M-2: the local preview is the Run's one line (previewLine: single quotes).
+    assert.match(await ev(page, () => window.ed.hint()), /→ 'ada@x\.io'/);
     assert.match(await ev(page, () => window.ed.hint()), /from captured data/);
     await ev(page, () => window.ed.draft('req.filter.active'));
     assert.match(await ev(page, () => window.ed.hint()), /→ true/);
@@ -481,7 +527,7 @@ for (const fixture of FIXTURES) {
 for (const [theme, label] of [['xray-light', 'light'], ['midnight', 'dark'], ['xray-dark', 'default']]) {
   test(`token colours come from theme tokens (${label})`, async t => {
     const page = await open(t, FIXTURES[1], 960, 760, theme);
-    await ev(page, () => window.ed.draft('const s = "x" + 1; // note\nfoo'));
+    await ev(page, () => window.ed.draft('const s = "x" + 1; /a\\//g; // note\nfoo'));
     const c = await ev(page, () => window.ed.colours());
     assert.deepEqual(c.actual, c.expected);
     assert.equal(c.fieldColor, 'rgba(0, 0, 0, 0)', 'textarea text is transparent over the overlay');
@@ -753,6 +799,8 @@ for (const fixture of FIXTURES) {
     const page = await open(t, fixture, 960);
     await page.keyboard.press('Control+Space');
     await page.waitForFunction(() => window.ed.listbox());
+    // Rows past the first batch render a frame later (#16): wait for the last group, then compare.
+    await page.waitForFunction(() => window.ed.queryAll('[role="listbox"] [role="group"]').length >= 4, null, { timeout: 2000 }).catch(() => {});
     assert.deepEqual(await groupNames(page), ['Request data', 'Find entries', 'Transform', 'Output']);
     const first = await ev(page, () => window.ed.listbox());
     assert.equal(first.activedescendant, first.selected[0]);
@@ -778,7 +826,8 @@ for (const fixture of FIXTURES) {
     await page.waitForFunction(() => window.ed.listbox());
     const labels = await optionLabels(page);
     assert.ok(labels.includes('[0]'), `[0] offered: ${labels}`);
-    assert.deepEqual(await groupNames(page), ['keys across 2 items']);
+    // Task 4: the less common array methods (catalogue) follow the item keys under their own header.
+    assert.deepEqual(await groupNames(page), ['keys across 2 items', 'more array methods']);
     const target = await ev(page, () => window.ed.queryAll('[role="listbox"] [role="group"] [role="option"] .xray-editor-option-label').map(e => e.textContent).indexOf('email'));
     assert.ok(target >= 0);
     const flat = await ev(page, () => window.ed.queryAll('[role="listbox"] [role="option"]').map(o => o.querySelector('.xray-editor-option-label').textContent));
@@ -996,5 +1045,437 @@ for (const fixture of FIXTURES) {
     await page.waitForTimeout(100);
     assert.equal(await ev(page, () => window.ed.listbox()), null);
     assert.equal(await calls(page), 0);
+  });
+}
+
+// Round 2, Task 3: the Enter rule (issue #5), helper inserts (bug 3), `$` (G18), recency.
+for (const fixture of FIXTURES) {
+  test(`issue #5: a finished identifier or keyword argument keeps the list shut and Enter runs (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await ev(page, () => window.ed.seedCaptured());
+    for (const [index, code] of ['$status(res ', '$status(true '].entries()) {
+      await clearDraft(page);
+      await page.keyboard.type(code);
+      await page.waitForTimeout(100);
+      assert.equal(await ev(page, () => window.ed.listbox()), null, `no value list after ${JSON.stringify(code)}`);
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(n => window.ed.calls.length === n, index + 1);
+      assert.equal((await ev(page, () => window.ed.calls))[index].trim(), code.trim());
+    }
+  });
+
+  test(`Enter: an unfinished token accepts, a complete command runs with the list open, ↓ then Enter accepts (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('res.us');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), 'res.users', 'res.us + Enter accepts users');
+    assert.equal(await calls(page), 0);
+
+    // `map` is typed in full; its template row stays listed, but the command is complete.
+    await clearDraft(page);
+    await page.keyboard.type('res.users.map');
+    await page.waitForFunction(() => window.ed.listbox());
+    assert.ok((await optionLabels(page)).includes('map'), 'the list is open');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    assert.equal((await ev(page, () => window.ed.calls))[0].trim(), 'res.users.map', 'Enter ran the complete command');
+
+    // A moved selection is a choice: Enter accepts it.
+    await clearDraft(page);
+    await page.keyboard.type('res.users.map');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), 'res.users.map(x => x.)');
+    assert.equal(await calls(page), 1, 'no second run');
+  });
+
+  test(`bug 3: accepting $endpoint by Enter, Tab or click inserts $endpoint( with the caret inside (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    for (const how of ['Enter', 'Tab', 'click']) {
+      await clearDraft(page);
+      await page.keyboard.type('$en');
+      await page.waitForFunction(() => window.ed.listbox()?.options.includes('$endpoint'));
+      if (how === 'click') {
+        const box = await ev(page, () => {
+          const o = window.ed.queryAll('[role="listbox"] [role="option"]').find(x => x.querySelector('.xray-editor-option-label').textContent === '$endpoint');
+          const r = o.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        });
+        await page.mouse.click(box.x, box.y);
+      } else {
+        await page.keyboard.press(how);
+      }
+      assert.equal(await draft(page), '$endpoint(', how);
+      assert.deepEqual(await ev(page, () => window.ed.caret()), [10, 10], how);
+      assert.equal(await ev(page, () => window.ed.focusedIsField()), true, how);
+    }
+    assert.equal(await calls(page), 0);
+  });
+
+  test(`G18: \`$\` alone opens the $-helper list (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('$');
+    await page.waitForFunction(() => window.ed.listbox());
+    const labels = await optionLabels(page);
+    assert.ok(labels.length >= 10, String(labels));
+    assert.ok(labels.every(l => l.startsWith('$')), String(labels));
+    assert.ok(labels.includes('$status') && labels.includes('$endpoint'), String(labels));
+    // A one-letter identifier still waits for a second character.
+    await clearDraft(page);
+    await page.keyboard.type('s');
+    await page.waitForTimeout(100);
+    assert.equal(await ev(page, () => window.ed.listbox()), null);
+    assert.equal(await calls(page), 0);
+  });
+
+  test(`recency: an accepted name leads its tier next time and is persisted (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await ev(page, () => {
+      window.ed.recencyWrites = [];
+      const store = window.XRAY_Store;
+      window.XRAY_Store = { ...store, set: async (key, value, ...rest) => { window.ed.recencyWrites.push([key, value]); return store.set(key, value, ...rest); } };
+    });
+    await page.keyboard.type('$e');
+    await page.waitForFunction(() => window.ed.listbox());
+    const before = await optionLabels(page);
+    assert.deepEqual(before.slice(0, 2), ['$errors', '$endpoint'], 'shorter first');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), '$endpoint(');
+    await clearDraft(page);
+    await page.keyboard.type('$e');
+    await page.waitForFunction(() => window.ed.listbox());
+    assert.deepEqual((await optionLabels(page)).slice(0, 2), ['$endpoint', '$errors'], 'recently accepted first');
+    const writes = await ev(page, () => window.ed.recencyWrites);
+    assert.deepEqual(writes.at(-1), ['console_completion_recency', ['$endpoint']]);
+  });
+}
+
+// Task 3 fix round 1: exact tokens never take Enter; `$` + Enter runs; a call reuses an existing `(`.
+for (const fixture of FIXTURES) {
+  test(`Enter: an exact name in an unfinished draft runs, not a longer name (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('copy(csv');
+    await page.waitForFunction(() => window.ed.listbox());
+    assert.deepEqual(await optionLabels(page), ['csv', 'toCSV'], 'the list is open with a longer name');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    assert.equal((await ev(page, () => window.ed.calls))[0].trim(), 'copy(csv');
+  });
+
+  test(`\`$\` + Enter runs; ↓ then Enter accepts a $-helper (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('$');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    assert.equal((await ev(page, () => window.ed.calls))[0].trim(), '$');
+    await clearDraft(page);
+    await page.keyboard.type('$');
+    await page.waitForFunction(() => window.ed.listbox());
+    const first = (await optionLabels(page))[1];
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    assert.ok((await draft(page)).startsWith(first), `${await draft(page)} from ${first}`);
+    assert.equal(await calls(page), 1);
+  });
+
+  test(`accepting a call in front of an existing ( reuses it (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await ev(page, () => window.ed.draft('(res)'));
+    await ev(page, () => window.ed.setCaret(0));
+    await page.keyboard.type('pic');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('pick'));
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 'pick(res)');
+    assert.deepEqual(await ev(page, () => window.ed.caret()), [5, 5]);
+  });
+
+  test(`expanded editor: the Enter rule — unfinished accepts, exact breaks the line, Tab accepts (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 1600, 900);
+    await page.keyboard.press('Control+ArrowUp');
+    assert.equal(await ev(page, () => window.ed.expanded()), true);
+    await page.keyboard.type('res.us');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), 'res.users', 'res.us + Enter accepts');
+    await ev(page, () => window.ed.draft(''));
+    await ev(page, () => window.ed.setCaret(0));
+    await page.keyboard.type('res.users.map');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('map'));
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), 'res.users.map\n', 'an exact token: Enter is a newline');
+    assert.equal(await ev(page, () => window.ed.listbox()), null);
+    await ev(page, () => window.ed.draft(''));
+    await ev(page, () => window.ed.setCaret(0));
+    await page.keyboard.type('res.users.map');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('map'));
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 'res.users.map(x => x.)', 'Tab accepts');
+    // An unbalanced multi-line draft: an exact name still gets the newline, not a longer name.
+    const code = 'if (ok) {\n  copy(cs';
+    await ev(page, c => window.ed.draft(c), code);
+    await ev(page, n => window.ed.setCaret(n), code.length);
+    await page.keyboard.type('v');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('toCSV'));
+    await page.keyboard.press('Enter');
+    assert.equal(await draft(page), 'if (ok) {\n  copy(csv\n');
+    assert.equal(await calls(page), 0);
+  });
+}
+
+/* ── Task 5: popup row, doc line, ghost text (spec §3, G9, G14) ───────────── */
+
+for (const fixture of FIXTURES) {
+  test(`popup row: kind icon, matched characters, (params), detail; doc line under the list (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('stringify'));
+    const row = await ev(page, () => window.ed.row('stringify'));
+    assert.equal(row.active, true);
+    assert.equal(row.iconHidden, 'true', 'the kind icon is decorative');
+    assert.equal(row.iconKind, 'kind-method');
+    assert.deepEqual(row.matched, ['str'], 'the typed characters are emphasised');
+    assert.equal(row.matchTag, 'SPAN', 'a span with a class, not <mark>');
+    assert.equal(row.matchColour, row.text, 'matched characters keep the text colour (no data hue)');
+    assert.equal(row.matchWeight, '600', 'matched characters are emphasised by weight');
+    assert.equal(row.labelColour, row.subtext, 'the unmatched rest of the label is dimmed');
+    assert.equal(row.params, '(value, replacer?, space?)');
+    assert.equal(row.detail, 'string', 'the right-side detail (return type) is kept');
+    assert.match(row.doc, /JSON/, 'the active row is described by its doc line');
+    assert.equal(row.docInsideListbox, false, 'the doc line is not inside the listbox');
+    assert.equal(row.docBelow, true, 'the doc line sits under the list');
+    assert.equal(row.docVisible, true);
+    // A captured member keeps its value detail; an XRAY helper shows its parameters.
+    await clearDraft(page);
+    await page.keyboard.type('res.');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('users'));
+    const users = await ev(page, () => window.ed.row('users'));
+    assert.equal(users.iconKind, 'kind-property');
+    assert.ok(users.detail, 'captured detail kept');
+    assert.equal(users.doc, null, 'no doc, no description');
+    await clearDraft(page);
+    await page.keyboard.type('sche');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('schema'));
+    const schema = await ev(page, () => window.ed.row('schema'));
+    assert.equal(schema.iconKind, 'kind-helper');
+    assert.equal(schema.params, '(x)');
+    assert.deepEqual(schema.matched, ['sche']);
+  });
+
+  test(`ghost text: JSON.str shows ingify; → at line end accepts; Tab accepts; other keys type on (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.ghost() === 'ingify');
+    const style = await ev(page, () => window.ed.ghostStyle());
+    assert.equal(style.overlayHidden, true, 'the ghost is inside the aria-hidden overlay');
+    assert.equal(await draft(page), 'JSON.str', 'the ghost is never part of the value');
+    assert.equal(style.color, style.hint, 'ghost text is --xray-hint');
+    assert.equal(style.fontStyle, 'normal', 'upright, unlike a comment');
+    assert.equal(style.decoration, 'underline', 'a non-colour cue: underlined');
+    assert.equal(style.decorationStyle, 'dotted');
+    await page.keyboard.type('i');
+    assert.equal(await ev(page, () => window.ed.ghost()), 'ngify', 'typing continues the ghost');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await draft(page), 'JSON.stringify(', '→ at line end accepts (a callable inserts name()');
+    assert.deepEqual(await ev(page, () => window.ed.caret()), [15, 15]);
+    await clearDraft(page);
+    await page.keyboard.type('JSON.par');
+    await page.waitForFunction(() => window.ed.ghost() === 'se');
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 'JSON.parse(');
+    assert.equal(await calls(page), 0);
+  });
+
+  test(`ghost text: hidden with the caret mid-token; → there only moves the caret (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.ghost() === 'ingify');
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForFunction(() => window.ed.ghost() === null);
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await draft(page), 'JSON.str', '→ moved the caret back to the end without accepting');
+    assert.deepEqual(await ev(page, () => window.ed.caret()), [8, 8]);
+    // Code after the caret on the line: no ghost.
+    await ev(page, () => window.ed.draft('JSON.str + 1'));
+    await ev(page, () => window.ed.setCaret(8));
+    await page.keyboard.type('i');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('stringify'));
+    assert.equal(await ev(page, () => window.ed.ghost()), null);
+  });
+
+  test(`history ghost: schema(res) after sch with the list closed; → accepts without running (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('schema(res)');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    await clearDraft(page);
+    await page.keyboard.type('sch');
+    await page.waitForFunction(() => window.ed.ghost() === 'ema', null, { timeout: 2000 });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.listbox() === null && window.ed.ghost() === 'ema(res)');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await draft(page), 'schema(res)');
+    assert.equal(await calls(page), 1, 'accepting a ghost never runs');
+    // Tab accepts a history ghost too; Shift+Tab does not.
+    await clearDraft(page);
+    await page.keyboard.type('sch');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.ghost() === 'ema(res)');
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 'schema(res)');
+    assert.equal(await ev(page, () => window.ed.focusedIsField()), true, 'Tab stayed in the field');
+  });
+
+  test(`ghost text: no animation under reduced motion (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.ghost() === 'ingify');
+    const style = await ev(page, () => window.ed.ghostStyle());
+    assert.equal(style.animation, 'none');
+    assert.equal(style.transition, '0s');
+  });
+
+  test(`regex literals: one overlay token; completion still works after one (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await ev(page, () => window.ed.draft("res.path.replace(/\\//g, '-'); "));
+    await ev(page, () => window.ed.setCaret(window.ed.field().value.length));
+    await page.keyboard.type('aw');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('await'));
+    const kinds = await ev(page, () => window.ed.queryAll('.xray-editor-highlight [class^="xray-tok-"]').map(s => [s.className, s.textContent]));
+    assert.ok(kinds.some(([c, text]) => c === 'xray-tok-regex' && text === '/\\//g'), JSON.stringify(kinds));
+    assert.ok(!kinds.some(([c]) => c === 'xray-tok-comment'), 'no comment token');
+  });
+}
+
+/* ── Task 5 fix round 1: Escape dismisses a ghost, help, closers, soft wrap ─── */
+
+for (const fixture of FIXTURES) {
+  test(`Escape dismisses a history ghost; then Tab leaves the field; an edit brings it back (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('schema(res)');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    await clearDraft(page);
+    await page.keyboard.type('sch');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.listbox() === null && window.ed.ghost() === 'ema(res)');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.ghost() === null);
+    assert.equal(await ev(page, () => window.ed.focusedIsField()), true, 'Escape stayed in the field');
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 'sch', 'Tab inserted nothing');
+    assert.equal(await ev(page, () => window.ed.focusedIsField()), false, 'Tab moved focus out of the editor');
+    await ev(page, () => window.ed.field().focus());
+    await page.keyboard.type('e');
+    await page.waitForFunction(() => window.ed.ghost() !== null);
+  });
+
+  test(`no history ghost for a 1-character draft; Tab then moves focus (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await page.keyboard.type('schema(res)');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.ed.calls.length === 1);
+    await clearDraft(page);
+    await page.keyboard.type('s');
+    assert.equal(await ev(page, () => window.ed.ghost()), null);
+    await page.keyboard.press('Tab');
+    assert.equal(await draft(page), 's');
+    assert.equal(await ev(page, () => window.ed.focusedIsField()), false);
+  });
+
+  test(`the field's tooltip and description name the ghost keys (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    const help = await ev(page, () => {
+      const f = window.ed.field();
+      const ids = (f.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+      return { title: f.getAttribute('title'), described: ids.map(id => window.ed.root.querySelector('[id="' + id + '"]')?.textContent ?? '').join(' ') };
+    });
+    assert.match(help.title, /Tab or → accepts the grey suggestion; Esc dismisses it/);
+    assert.match(help.described, /Tab or → accepts the grey suggestion; Esc dismisses it/);
+  });
+
+  test(`a ghost never pushes text after the caret: closers hide it (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    await ev(page, () => window.ed.draft('log()'));
+    await ev(page, () => window.ed.setCaret(4));
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.listbox()?.options.includes('stringify'));
+    assert.equal(await ev(page, () => window.ed.ghost()), null);
+  });
+
+  test(`a ghost at the right edge never wraps the overlay (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    // Fill the line so that `JSON.str` ends a few columns before the edge: `ingify` would not fit.
+    const cols = await ev(page, () => {
+      const f = window.ed.field(); const cs = getComputedStyle(f);
+      const probe = document.createElement('span'); probe.textContent = 'x'.repeat(100);
+      probe.style.font = cs.font; probe.style.whiteSpace = 'pre';
+      window.ed.query('.xray-editor-highlight').appendChild(probe);
+      const w = probe.getBoundingClientRect().width / 100; probe.remove();
+      return Math.floor((f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / w);
+    });
+    await ev(page, d => window.ed.draft(d), 'x'.repeat(cols - 12) + ' ');
+    await ev(page, () => window.ed.setCaret(window.ed.field().value.length));
+    await page.keyboard.type('JSON.str');
+    await page.waitForFunction(() => window.ed.ghost() === 'ingify');
+    const geo = await ev(page, () => {
+      const pre = window.ed.query('.xray-editor-highlight'); const f = window.ed.field();
+      const spans = [...pre.querySelectorAll('[class^="xray-tok-"]')];
+      const last = spans[spans.length - 1].getBoundingClientRect();
+      const first = spans[0].getBoundingClientRect();
+      const g = window.ed.query('.xray-editor-ghost').getBoundingClientRect();
+      return { lastTop: last.top, firstTop: first.top, ghostTop: g.top, preH: pre.scrollHeight, fieldH: f.scrollHeight };
+    });
+    assert.equal(geo.lastTop, geo.firstTop, `the typed word stays on its line: ${JSON.stringify(geo)}`);
+    // The ghost is an out-of-flow block at the line top; a token is an inline box (1px lower).
+    assert.ok(Math.abs(geo.ghostTop - geo.lastTop) <= 2, `the ghost stays on the caret line: ${JSON.stringify(geo)}`);
+    assert.equal(geo.preH, geo.fieldH, 'the overlay is as tall as the textarea');
+  });
+}
+
+/* ── Task 9 (Task 5 minors): ghost geometry at the 420 px HUD; a lone Escape reaches the panel ── */
+
+test('ghost text at the 420 px HUD: on the caret line, inside the field, the overlay as tall as the textarea', async t => {
+  const page = await open(t, FIXTURES[1], 420, 760);
+  await page.keyboard.type('JSON.str');
+  await page.waitForFunction(() => window.ed.ghost() === 'ingify');
+  const geo = await ev(page, () => {
+    const pre = window.ed.query('.xray-editor-highlight'); const f = window.ed.field();
+    const spans = [...pre.querySelectorAll('[class^="xray-tok-"]')];
+    const last = spans[spans.length - 1].getBoundingClientRect();
+    const g = window.ed.query('.xray-editor-ghost').getBoundingClientRect();
+    const field = f.getBoundingClientRect();
+    return { lastTop: last.top, lastRight: last.right, ghostTop: g.top, ghostLeft: g.left, ghostRight: g.right, ghostW: g.width,
+      fieldLeft: field.left, fieldRight: field.right, preH: pre.scrollHeight, fieldH: f.scrollHeight, vw: innerWidth };
+  });
+  assert.equal(geo.vw, 420);
+  assert.ok(geo.ghostW > 0, `the ghost is painted: ${JSON.stringify(geo)}`);
+  assert.ok(Math.abs(geo.ghostTop - geo.lastTop) <= 2, `the ghost stays on the caret line: ${JSON.stringify(geo)}`);
+  assert.ok(Math.abs(geo.ghostLeft - geo.lastRight) <= 2, `the ghost starts where the typed text ends: ${JSON.stringify(geo)}`);
+  assert.ok(geo.ghostLeft >= geo.fieldLeft && geo.ghostRight <= geo.fieldRight + 1, `the ghost stays inside the field: ${JSON.stringify(geo)}`);
+  assert.equal(geo.preH, geo.fieldH, 'the overlay is as tall as the textarea');
+  assert.equal(await draft(page), 'JSON.str', 'the ghost is never part of the value');
+});
+
+for (const fixture of FIXTURES) {
+  test(`a lone Escape (no list, no ghost, empty prompt) reaches the panel and dismisses it (${fixture.label})`, async t => {
+    const page = await open(t, fixture, 960);
+    // Type, then clear: the list and any ghost are gone and the field is empty.
+    await page.keyboard.type('res.us');
+    await page.waitForFunction(() => window.ed.listbox());
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.listbox() === null);
+    assert.equal(await ev(page, () => window.ed.storeOpen()), true, 'the Escape that closed the list stayed in the editor');
+    await clearDraft(page);
+    assert.equal(await ev(page, () => window.ed.ghost()), null, 'no ghost on an empty prompt');
+    assert.equal(await ev(page, () => window.ed.focusedIsField()), true);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.ed.storeOpen() === false);
   });
 }

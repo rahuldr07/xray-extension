@@ -1293,6 +1293,20 @@
   flex: 0 0 auto;
 }
 
+.xray-result-expand {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+}
+
+.xray-result-expand .xray-json-chevron {
+  margin-top: 0;
+}
+
+.xray-result.is-big > .xray-result-body {
+  margin-top: 6px;
+}
+
 .xray-console-inspect {
   flex: 0 0 auto;
   width: 24px;
@@ -1715,6 +1729,30 @@
   color: var(--xray-text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Where a top-level throw happened in the command: `at <anonymous>:1:7`. */
+.xray-cell-error-loc {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+  font: 500 11px/1.6 var(--xray-font);
+}
+
+/* A top-level promise the run awaited: `Promise · fulfilled in 120 ms`. */
+.xray-cell-promise {
+  flex: 0 0 auto;
+  color: var(--xray-subtext);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.xray-cell-note {
+  margin: 0;
+  padding: 0 10px 8px 30px;
+  color: var(--xray-hint);
+  font-size: 11.5px;
+  font-style: italic;
 }
 
 .xray-cell-hint {
@@ -3084,6 +3122,25 @@
 .xray-json-muted {
   color: var(--xray-hint);
   font-style: italic;
+}
+
+/* Console Tree (console round 2): a collapsed branch reads as its one-line preview, a function
+   opens to its source as written. */
+.xray-json-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--xray-text);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xray-json-source {
+  display: block;
+  color: var(--xray-text);
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .xray-table {
@@ -9475,6 +9532,26 @@ ul.xray-compare-notice {
 .xray-tok-comment { color: var(--xray-hint); font-style: italic; }
 .xray-tok-punct { color: var(--xray-subtext); }
 .xray-tok-plain { color: var(--xray-text); }
+.xray-tok-regex { color: var(--xray-teal); }
+
+/* Ghost text (spec §3): the rest of the active suggestion or a history entry, painted in the
+   aria-hidden overlay after the caret. A faint hint, upright so it never reads as a comment,
+   with a dotted underline as a non-colour cue (High Contrast's hint is close to its text).
+   Out of flow (its static position is the caret): it never wraps or pushes the line, and the
+   overlay clips what does not fit. No animation (it changes on every keystroke). */
+.xray-panel .xray-prompt .xray-editor-ghost {
+  position: absolute;
+  color: var(--xray-hint);
+  font-style: normal;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--xray-hint);
+  text-underline-offset: 3px;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-panel .xray-prompt .xray-editor-ghost { animation: none; transition: none; }
+}
 
 /* P5: suggestions open above the field (the prompt sits at the bottom). */
 .xray-editor-suggestions {
@@ -9492,6 +9569,34 @@ ul.xray-compare-notice {
   border-radius: var(--xray-radius);
   background: var(--xray-surface);
   box-shadow: 0 10px 28px var(--xray-shadow);
+}
+
+/* The popup (spec §3): the scrolling listbox, then the active row's doc line under it. */
+.xray-editor-popup {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* At least one row stays visible (26px + padding), even in a short expanded pane. */
+.xray-editor-list {
+  flex: 1 1 auto;
+  min-height: 34px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.xray-editor-doc {
+  flex: none;
+  padding: 5px 10px 6px;
+  border-top: 1px solid var(--xray-border);
+  background: var(--xray-surface);
+  color: var(--xray-subtext);
+  font: 400 11px/16px var(--xray-font-ui);
+  overflow-wrap: anywhere;
 }
 
 /* Expanded (P10): the field is the tall pane, and at full height it starts at the top
@@ -9529,7 +9634,7 @@ ul.xray-compare-notice {
 .xray-editor-option {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   padding: 5px 8px;
   border-radius: var(--xray-radius-sm);
@@ -9549,18 +9654,59 @@ ul.xray-compare-notice {
 
 .xray-editor-option-label {
   flex: 0 0 auto;
-  font-weight: 700;
+  font-weight: 500;
 }
 
-.xray-editor-option-detail {
-  flex: 1 1 auto;
+/* The characters the typed text matched: weight and the text colour, no hue (spec A1); the
+   rest of a matched label dims to --xray-subtext. */
+.xray-editor-option-label.has-match {
+  color: var(--xray-subtext);
+}
+
+.xray-editor-option-match {
+  color: var(--xray-text);
+  font-weight: 600;
+}
+
+.xray-editor-option-params {
+  flex: 0 1 auto;
   min-width: 0;
+  margin-left: -8px;
   overflow: hidden;
   color: var(--xray-subtext);
-  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The detail (a type or value, short) keeps its width up to 45%; the params give way first. */
+.xray-editor-option-detail {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 45%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--xray-subtext);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kind icons (graphics, 3:1): one data hue per kind, keywords as the keyword token. */
+.xray-editor-option-icon {
+  flex: none;
+  align-self: center;
+}
+.xray-editor-option-icon.kind-helper { color: var(--xray-yellow); }
+.xray-editor-option-icon.kind-variable { color: var(--xray-peach); }
+.xray-editor-option-icon.kind-property { color: var(--xray-teal); }
+.xray-editor-option-icon.kind-index { color: var(--xray-teal); }
+.xray-editor-option-icon.kind-value { color: var(--xray-green); }
+.xray-editor-option-icon.kind-method { color: var(--xray-blue); }
+.xray-editor-option-icon.kind-function { color: var(--xray-blue); }
+.xray-editor-option-icon.kind-class { color: var(--xray-peach); }
+.xray-editor-option-icon.kind-namespace { color: var(--xray-subtext); }
+.xray-editor-option-icon.kind-keyword { color: var(--xray-mauve); }
 
 /* P6/P7: one muted line under the editor — a helper signature or a live preview. */
 .xray-editor-hint {
@@ -9583,6 +9729,8 @@ ul.xray-compare-notice {
   text-underline-offset: 3px;
 }
 .xray-editor-hint-note { color: var(--xray-hint); }
+/* Eager preview (Task 8): a complete expression that throws reads fainter than a value. */
+.xray-editor-hint.thrown .xray-editor-hint-main { color: var(--xray-hint); }
 
 /* Manual open (Ctrl+Space) with nothing to offer: a visible, non-interactive row. */
 .xray-editor-suggestions-empty {

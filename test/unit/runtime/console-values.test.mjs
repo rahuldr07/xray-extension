@@ -63,7 +63,10 @@ test('encodeResult: a repeated reference is not circular; only an ancestor is', 
 test('encodeResult: Map, Set, Date, Error (with cause), symbols, functions and class instances', () => {
   assert.deepEqual(encode('new Map([[1, { a: 1 }], ["k", [2]]])').value, T('map', { size: 2, entries: [[1, { a: 1 }], ['k', [2]]] }));
   assert.deepEqual(encode('new Set([1, "x", NaN])').value, T('set', { size: 3, values: [1, 'x', T('number', { value: 'NaN' })] }));
-  assert.deepEqual(encode('new Date(0)').value, T('date', { iso: '1970-01-01T00:00:00.000Z' }));
+  // The local text is the page's own Date#toString (its time zone), beside the ISO instant.
+  const date = encode('new Date(0)').value;
+  assert.deepEqual(date, T('date', { iso: '1970-01-01T00:00:00.000Z', local: date.local }));
+  assert.equal(typeof date.local, 'string');
   assert.deepEqual(encode('new Date(NaN)').value, T('date', { iso: null }));
   const error = encode('(() => { const e = new TypeError("boom", { cause: new Error("inner") }); e.code = "E_X"; return e; })()');
   assert.equal(error.type, 'object');
@@ -75,7 +78,9 @@ test('encodeResult: Map, Set, Date, Error (with cause), symbols, functions and c
   assert.equal(error.value.cause.$xray, 'error');
   assert.equal(error.value.cause.message, 'inner');
   assert.deepEqual(encode('Symbol("s")').value, T('symbol', { description: 's' }));
-  assert.deepEqual(encode('function named() {}').value, T('function', { name: 'named' }));
+  // A function carries its parameter list, kind and (capped) source (console round 2, G7).
+  assert.deepEqual(encode('function named() {}').value,
+    T('function', { name: 'named', params: '', async: false, kind: 'function', source: 'function named() {}' }));
   assert.equal(encode('function named() {}').type, 'function');
   assert.deepEqual(encode('new (class Point { constructor() { this.x = 1; } })()').value, T('object', { class: 'Point', entries: [['x', 1]] }));
   assert.deepEqual(encode('Object.assign(Object.create(null), { a: 1 })').value, { a: 1 }, 'a null-prototype object is plain');
@@ -154,8 +159,9 @@ test('encodeResult: an Error message and stack are cut at what is left of the bu
   assert.equal(short.value.message, 'ok');
 });
 
-test('encodeResult: a getter or a revoked proxy is unreadable; the walk never throws', () => {
-  assert.deepEqual(encode('({ ok: 1, get bad() { throw new Error("no"); } })').value, { ok: 1, bad: T('unreadable') });
+test('encodeResult: a getter is never called (listed lazily); a revoked proxy is unreadable; the walk never throws', () => {
+  // Console round 2 ruling: no accessor outside the web classes runs, own or inherited.
+  assert.deepEqual(encode('({ ok: 1, get bad() { throw new Error("no"); } })').value, T('instance', { cls: '', entries: [['ok', 1]], getters: ['bad'] }));
   assert.deepEqual(encode('(() => { const p = Proxy.revocable({}, {}); p.revoke(); return p.proxy; })()').value, T('unreadable'));
   assert.deepEqual(encode('(() => { const p = Proxy.revocable([], {}); p.revoke(); return [1, p.proxy]; })()').value, [1, T('unreadable')]);
 });

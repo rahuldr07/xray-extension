@@ -141,9 +141,11 @@ Console results and the command context use the same typed model, as text both w
   `req`, `prev`, `next` and pin `value`s — the running surface's lossless parse
   (`models/consoleResults.ts` `consoleBodyValue`: an integer past 2^53 is a `bigint`
   envelope), only for the names the code uses; without a reader the page parses the raw
-  text as before. `background.js` inlines the text as a string literal; the inlined
-  `shared/console-helpers.js` `reviveContext` parses it in the page: BigInt,
-  NaN/±Infinity/-0/undefined, Map, Set, Date, Error come back, `"__proto__"` stays a key.
+  text as before. `background.js` parses the text in the worker and hands the run only the
+  members the command names, as a `callFunctionOn` argument value of ordered key/value pairs
+  (`shared/console-scope.js` `encodeContext`; never source); the scope rebuilds them with syntax
+  only and revives the typed values: BigInt, NaN/±Infinity/-0/undefined, Map, Set, Date, Error
+  come back, `"__proto__"` stays a key. The page's `JSON.parse` never sees the text.
 - **Result out.** `encodeResult` serializes the value in the page into typed JSON text, in
   the page's key order (CDP's `returnByValue` dictionary sorted keys and dropped what JSON
   cannot hold; a string carries it intact). Cycles are found by ancestor stack, so a shared
@@ -158,7 +160,7 @@ Console results and the command context use the same typed model, as text both w
 ### ISOLATED / panel → service worker (`chrome.runtime.sendMessage`)
 
 `xray:capture`, `xray:capture-batch`, `xray:capture-update`, `xray:console-eval`,
-`xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`.
+`xray:console-focus`, `xray:console-complete`, `xray:console-preview`, `xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`.
 
 ### DevTools panel ↔ service worker
 
@@ -168,11 +170,76 @@ pushes capture messages back over it.
 
 ### Service worker → page
 
-`chrome.debugger.attach(tabId, '1.3')` + `Runtime.evaluate`, used for console execution.
-Sessions are cached per tab and detached after 30 s idle. The tab is always the sender's own
+`chrome.debugger.attach(tabId, '1.3')` + `Runtime.evaluate`/`Runtime.callFunctionOn`, used for
+console execution. Sessions are cached per tab and detached after 30 s idle (5 min while the
+Console prompt has focus: `xray:console-focus`; the deadline is kept in `chrome.storage.session`
+and re-armed by a restarted worker). The tab is always the sender's own
 (`xray:console-eval` pins `sender.tab.id`), so commands run from the in-page surfaces (docked
 panel, HUD). The pop-out loads no console engine (`panel/console.js`) and a DevTools panel page
 has no `sender.tab`, so a command there returns an error; their Console tab shows page logs.
+
+Live completion (`xray:console-complete`, console round 2 Task 7) uses the same session and
+scope: the editor asks for the names of a plain path (or the page globals) after a pause, only
+with Settings → "Preview results while typing" on; the scope's `walk` follows the path and lists
+names in the page with descriptor reads only (an accessor ends the walk) and answers one string by
+value — no remote object of a page value, nothing terminated: no answer in 250 ms is abandoned
+(threat model C-1).
+
+Eager preview (`xray:console-preview`, Task 8) shares that session, scope, setting and attach rule
+(≥ 2 characters and a 150 ms pause): a draft that is one complete expression
+(`models/consoleEager.ts` `previewEligible`, re-checked by the worker's `previewable`) runs in a
+strict function on the scope under `throwOnSideEffect`, and the scope's own projector (`preview`,
+`thrown`) turns its value — or what it threw — into typed-model text read by value; the panel
+draws it with `previewLine` (`→ Array(3) [1, 2, 3]`, faint `Uncaught TypeError: …`). The typing
+path never sends or refreshes context: a draft naming context members reads what the last explicit
+Run revived in the scope, only while the worker's per-member digest of it still matches. No answer in
+300 ms is abandoned, never terminated, and is the tab's one pending typing call (shared with
+completion). A plain path into captured data is still answered in the panel, without the page.
+
+### The console scope (console round 2, spec §2)
+
+Declarations persist between commands. Per tab, the worker creates one scope in the page with
+`Runtime.evaluate(returnByValue: false)` from `shared/console-scope.js` `buildScopeExpression`
+(loaded into the worker with `importScripts`): an object whose only member, `open(key)`, hands out
+the API (`global`, `begin`, `value`, `finish`, `take`, `get`, `set`, `define`) for a random key the
+worker keeps. It is strict and built with syntax only (threat model C-1): prototype-less literals,
+`in`, spread, its own closures — no page-realm function is called on its objects. It evaluates the
+helper module once, against a shadowed `window`; the result encoder in it takes its built-ins at
+that moment. The worker keeps `{objectId, key, suffix, declared}` in memory and in
+`chrome.storage.session` (`xray_console_scope:<tabId>`, so a restarted worker reuses it).
+
+A command is a short series of CDP calls, serialized per tab:
+1. `Runtime.callFunctionOn(objectId, planRun(code, known, suffix).text)` with the key and the
+   context members the command names (`contextFor`; nothing for `1+1`; parsed in the worker and
+   sent as ordered key/value pairs, `encodeContext`, because Chrome sorts argument-object keys) —
+   a strict, non-async function that starts the command and returns its promise once the
+   synchronous part is done. Still running at the cap, it is a loop: `Runtime.terminateExecution`
+   (`callFunctionOn` has no `timeout`).
+2. `Runtime.awaitPromise` on that promise (it resolves to `undefined`); `TAKE_FUNCTION` then says
+   whether the statements finished (still running at the cap: a timeout).
+3. `INSPECT_FUNCTION` returns the command's value as a RemoteObject: only `subtype: 'promise'` (a
+   native promise, as V8 classifies it) is awaited with `Runtime.awaitPromise` until the cap —
+   still pending, the promise itself is the answer. A thenable is shown as the object it is.
+4. `FINISH_FUNCTION` encodes the answer in the page — the value, the settled value or rejection
+   reason (passed back by objectId), or the pending promise — flushing nested promises with
+   `await undefined` only.
+5. `TAKE_FUNCTION`, synchronous, `returnByValue`: a prototype-less record — the encoded answer,
+   the top-level promise's state, the scope's declared names. The worker measures the time.
+
+Inside the run there is no `with`, and every wrapper name ends in the scope's random suffix: the
+scope names the command references become locals read from the scope — context names (`res`,
+`req`, pins, saved variables, helpers; read-only) and earlier declarations (`const` for consts,
+read live through the declaring command's closure). The body (strict, `this` undefined) hands its
+last expression to a closure; when it ends, its top-level declarations (`declaredNames`, incl.
+destructuring) are exported as live cells and the earlier declarations it assigned are written
+back. A bare top-level assignment sets the page global (on the creation script's own global
+object) when the page has one, otherwise it is a REPL declaration — never a new page global. A
+reload ("Cannot find context with specified id") or a new debugger session ("Could not find object
+with given id") loses the scope: the command runs on a new one — retried only when the first call
+itself failed — and, if the old one held declarations, the result carries `scopeReset: true` and
+its cell the note "Declared variables were reset (page reloaded or debugger detached)". Creating a
+scope is bounded by the run's cap (a late one is released). Tasks 7–8 reach the same scope through
+`_withConsoleScope`.
 
 ### The saved session (spec J9)
 
@@ -324,13 +391,16 @@ Recorded here so it is visible rather than rediscovered. None of it is fixed.
 
 **Duplicated logic that will drift**
 
-- `background.js` builds the evaluated console expression as a *string template* — the
-  wrapper that declares the helper names and calls `reviveContext`/`encodeResult` is not
-  linted or type checked (`test/background-service-worker.test.js` runs it). The result
+- `shared/console-scope.js` builds the console scope and each command's run function as
+  *string templates* — the wrapper that refreshes the helper names and calls
+  `reviveContext`/`encodeResult` is not linted or type checked (`test/unit/consoleScope.test.mjs`
+  and `test/background-service-worker.test.js` run it). The result
   serializer is no longer part of it: `encodeResult` is real source in
   `shared/console-helpers.js` (linted, unit-tested), inlined from that file (spec J8).
-- `background.js:9` `RUNTIME_HELPER_NAMES` hand-mirrors the keys `createRuntime` returns.
-  Adding a helper silently makes it undefined on the privileged path only.
+- ~~`background.js:9` `RUNTIME_HELPER_NAMES` hand-mirrors the keys `createRuntime` returns.~~
+  Resolved (console round 2 final fix wave): one list, `shared/console-helpers.js`
+  `RUNTIME_NAMES`, read by the worker and `panel/console.js`; a unit test checks it equals
+  `createRuntime`'s keys.
 - `escapeCSV` in the worker duplicates `toCSV` in `console-helpers.js` (kept identical by a
   parity test). The worker's own `inferSchema`/`computeDiff`/`gridRows` are gone: Table,
   Schema, Diff and Visualize run panel-side on every surface from the lossless parser's

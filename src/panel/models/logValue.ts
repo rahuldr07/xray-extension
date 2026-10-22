@@ -33,8 +33,22 @@ import { TreeBranch, TreeLeaf, type TreeChild, type TreeTone } from './treeDispl
  *        reads as data: the escape that makes the encoding unforgeable)
  *   {"$xray":"map","size":n,"entries":[[key,value],…]}                         first entries
  *   {"$xray":"set","size":n,"values":[…]}                                      first values
- *   {"$xray":"error","name":s,"message":s,"stack"?:s,"entries"?:[…],"omitted"?:n,"cause"?:value}
+ *   {"$xray":"error","name":s,"message":s,"stack"?:s,"entries"?:[…],"omitted"?:n,"cause"?:value,
+ *        "getters"?:["name"|"message"|"stack"]}                                 page accessors, never read
  *   {"$xray":"typedarray","type":"Uint8Array"|…|"ArrayBuffer"|"DataView","length":n,"values"?:[…]}
+ *
+ * Console results add (shared/console-helpers.js encodeResult, console round 2 — the Logs never
+ * emit these; `function` and `dom` gain optional fields, so a Logs envelope stays valid):
+ *   {"$xray":"function","name":s,"params":s,"async":b,"kind":"function"|"class"|"arrow"|"native",
+ *        "source"?:s,"wrappedByXray"?:true}                                   source: first 4,000 chars
+ *   {"$xray":"dom","tag":s,"id":s,"classes":[s],"attrs":[[name,value]],"text":s,"children":[dom],"more":n}
+ *        a snapshot: text content (200 chars), child elements (50, three levels), `more` left out
+ *   {"$xray":"web","cls":"Response"|"Headers"|…,"fields":{…},"entries"?:[[k,v],…],"size"?:n}
+ *   {"$xray":"promise","state":"fulfilled"|"rejected"|"pending","value"?:value}
+ *   {"$xray":"instance","cls":s,"entries":[[key,value],…],"omitted"?:n,"getters":[name,…]}
+ *        an object with accessors (cls "" when plain): its own data entries and its accessors' names,
+ *        own and inherited — never their values
+ *   {"$xray":"accessor"}                                                       an accessor member, never read: "(…)"
  *
  * Bounds belong to the encoder (per console call: values and characters; per value: depth,
  * items, string and key length); a cut is metadata (`length`, `size`, `omitted`, a `string`
@@ -52,11 +66,11 @@ export const LOG_TYPE_KEY = '$xray';
 
 export type LogKind =
   | 'undefined' | 'number' | 'bigint' | 'function' | 'symbol' | 'date' | 'dom' | 'circular' | 'unreadable'
-  | 'depth' | 'string' | 'array' | 'object' | 'map' | 'set' | 'error' | 'typedarray';
+  | 'depth' | 'string' | 'array' | 'object' | 'map' | 'set' | 'error' | 'typedarray' | 'web' | 'promise' | 'instance' | 'accessor';
 
 const KINDS = new Set<string>([
   'undefined', 'number', 'bigint', 'function', 'symbol', 'date', 'dom', 'circular', 'unreadable',
-  'depth', 'string', 'array', 'object', 'map', 'set', 'error', 'typedarray',
+  'depth', 'string', 'array', 'object', 'map', 'set', 'error', 'typedarray', 'web', 'promise', 'instance', 'accessor',
 ]);
 
 /** What LogDetail shows: nothing, one value, or a list of arguments. */
@@ -135,7 +149,61 @@ export function logHasDetail(value: unknown): boolean {
   const kind = logKind(value);
   if (kind === null) return true;
   if (kind === 'typedarray') return Array.isArray(own(value, 'values'));
-  return kind === 'array' || kind === 'object' || kind === 'map' || kind === 'set' || kind === 'error';
+  if (kind === 'web') return own(value, 'cls') !== 'RegExp';
+  // A pending promise has nothing but its state: `Promise {<pending>}` is all there is.
+  if (kind === 'promise') return has(value, 'value');
+  return kind === 'array' || kind === 'object' || kind === 'map' || kind === 'set' || kind === 'error' || kind === 'instance';
+}
+
+function record(value: unknown): Bag {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Bag) : {};
+}
+
+/** An accessor an instance lists by name only: its value was never read. */
+const LAZY: unique symbol = Symbol('lazy accessor');
+
+/** An instance's own entries, then its accessors (LAZY). */
+function instanceMembers(value: Bag): Array<[string, unknown]> {
+  const entries = pairs(own(value, 'entries')).map(([key, item]): [string, unknown] => [String(key), item]);
+  const getters = list(own(value, 'getters')).filter((name): name is string => typeof name === 'string');
+  return [...entries, ...getters.map((name): [string, unknown] => [name, LAZY])];
+}
+
+/** A console-result envelope's `fields` as [key, value] pairs, in order. */
+function fieldPairs(value: Bag): Array<[string, unknown]> {
+  const fields = record(own(value, 'fields'));
+  return Object.keys(fields).map((key): [string, unknown] => [key, fields[key]]);
+}
+
+/** `<div#app.main>`: a snapshot's tag, id and classes; a Logs envelope's own text. */
+export function domLabel(value: Bag): string {
+  const tag = own(value, 'tag');
+  if (typeof tag !== 'string') return str(own(value, 'text'), '<element>');
+  const id = str(own(value, 'id'));
+  const classes = list(own(value, 'classes')).filter((name): name is string => typeof name === 'string');
+  return `<${tag}${id ? '#' + id : ''}${classes.map((name) => '.' + name).join('')}>`;
+}
+
+/**
+ * A function's one line, the same in text, Copy and the collapsed preview: `ƒ f(a, b = 1)`,
+ * `async ƒ load(url)`, `(a) => {…}`, `class Foo`, `ƒ fetch() [native code]`, `ƒ fetch() — wrapped by XRAY`.
+ */
+export function functionLabel(value: Bag): string {
+  const name = str(own(value, 'name'));
+  const params = str(own(value, 'params'));
+  const kind = own(value, 'kind');
+  if (own(value, 'wrappedByXray') === true) return `ƒ ${name}() — wrapped by XRAY`;
+  if (kind === 'class') return `class ${name || 'anonymous'}`;
+  if (kind === 'native') return `ƒ ${name}() [native code]`;
+  const prefix = own(value, 'async') === true ? 'async ' : '';
+  if (kind === 'arrow') return `${prefix}(${params}) => {…}`;
+  return `${prefix}ƒ ${name || 'anonymous'}(${params})`;
+}
+
+/** `/ab+c/gi` from a RegExp projection. */
+export function regexpLabel(value: Bag): string {
+  const fields = record(own(value, 'fields'));
+  return `/${str(own(fields, 'source'), '(?:)')}/${str(own(fields, 'flags'))}`;
 }
 
 /** Whether the entry's logData is in the typed model (rather than a pre-model shape). */
@@ -374,11 +442,51 @@ function writeTyped(kind: LogKind, value: Bag, out: TextOut, top: boolean, depth
     case 'undefined': out.push('undefined'); return;
     case 'number': out.push(str(own(value, 'value'), 'NaN')); return;
     case 'bigint': out.push(`${str(own(value, 'value'), '0')}n`); return;
-    case 'function': out.push(`ƒ ${str(own(value, 'name')) || 'anonymous'}()`); return;
+    case 'function': out.push(functionLabel(value)); return;
     case 'symbol': out.push(`Symbol(${str(own(value, 'description'))})`); return;
     case 'date': out.push(typeof own(value, 'iso') === 'string' ? str(own(value, 'iso')) : 'Invalid Date'); return;
-    case 'dom': out.push(str(own(value, 'text'), '<element>')); return;
+    case 'dom': out.push(domLabel(value)); return;
     case 'circular': out.push('[Circular]'); return;
+    case 'accessor': out.push('(…)'); return;
+    case 'web':
+    case 'instance': {
+      if (kind === 'web' && own(value, 'cls') === 'RegExp') { out.push(regexpLabel(value)); return; }
+      const cls = str(own(value, 'cls'), 'Object');
+      const entries = own(value, 'entries');
+      if (kind === 'web' && Array.isArray(entries)) {
+        const items = pairs(entries);
+        out.push(`${cls}(${Math.max(count(own(value, 'size')) ?? items.length, items.length)}) {`);
+        items.forEach(([key, item], index) => {
+          if (index) out.push(', ');
+          writeText(key, out, false, depth + 1);
+          out.push(' => ');
+          writeText(item, out, false, depth + 1);
+        });
+        out.push('}');
+        return;
+      }
+      out.push(kind === 'instance' && !str(own(value, 'cls')) ? '{' : `${cls} {`);
+      const members: Array<[string, unknown]> = kind === 'instance' ? instanceMembers(value) : fieldPairs(value);
+      members.forEach(([key, item], index) => {
+        if (index) out.push(',');
+        out.push(`${JSON.stringify(key)}:`);
+        if (item === LAZY) out.push('(…)');
+        else writeText(item, out, false, depth + 1);
+      });
+      if (kind === 'instance' && (count(own(value, 'omitted')) ?? 0) > 0) out.push(`${members.length ? ',' : ''}…${count(own(value, 'omitted'))} more`);
+      out.push('}');
+      return;
+    }
+    case 'promise': {
+      const state = str(own(value, 'state'), 'pending');
+      out.push(`Promise {<${state}>`);
+      if (has(value, 'value') && state !== 'pending') {
+        out.push(': ');
+        writeText(own(value, 'value'), out, false, depth + 1);
+      }
+      out.push('}');
+      return;
+    }
     case 'unreadable': out.push('[unreadable]'); return;
     case 'depth': out.push(depthText(value)); return;
     case 'string': {
@@ -616,8 +724,66 @@ export function logCopyText(payload: LogPayload): string {
 }
 
 // ── Display tree (JSON viewer) ─────────────────────────────────────────────────
-function leaf(text: string, tone: TreeTone): TreeLeaf {
-  return new TreeLeaf(text, tone);
+function leaf(text: string, tone: TreeTone, hint?: string): TreeLeaf {
+  return new TreeLeaf(text, tone, hint);
+}
+
+/** The tooltip of a lazy accessor's "(…)": its value was never read, so nothing can run. */
+export const GETTER_HINT = 'Getter — not run, to avoid side effects';
+
+function lazyLeaf(): TreeLeaf {
+  return leaf('(…)', 'muted', GETTER_HINT);
+}
+
+/**
+ * How the display tree is built. `console` is the Console's result Tree (spec §1, console round
+ * 2): every container is a branch carrying its typed value (`source`, for its collapsed one-line
+ * preview), Set entries have no indices, arrays past BUCKET_SIZE items are grouped in `[0 … 99]`
+ * buckets, and a DOM snapshot or a function with source opens to its parts. The Logs and the
+ * inspector build the plain tree.
+ */
+export interface DisplayOptions {
+  console?: boolean;
+}
+
+const BUCKET_SIZE = 100;
+// A bucket's key (React key and path) cannot collide with an index or a real key.
+const BUCKET_KEY = '\u0000bucket';
+
+/** A big array's children grouped by 100, each group keyed apart and labelled `[start … end]`. */
+function bucketed(children: TreeChild[]): TreeChild[] {
+  if (children.length <= BUCKET_SIZE) return children;
+  const out: TreeChild[] = [];
+  for (let start = 0; start < children.length; start += BUCKET_SIZE) {
+    const slice = children.slice(start, start + BUCKET_SIZE);
+    out.push({
+      key: BUCKET_KEY + start,
+      label: `[${start} … ${start + slice.length - 1}]`,
+      value: new TreeBranch('array', '', slice, slice.length, { bucket: true }),
+    });
+  }
+  return out;
+}
+
+/** A DOM snapshot's parts: its attributes, its text and its child elements (each again a node). */
+function domDisplay(value: Bag, child: (item: unknown) => unknown): TreeBranch {
+  const parts: Array<{ name: string; value: unknown }> = [];
+  const attrs = pairs(own(value, 'attrs'));
+  if (attrs.length) {
+    const named = namedChildren(attrs.map(([name, item]) => ({ name: String(name), value: typeof item === 'string' ? item : child(item) })));
+    parts.push({ name: 'attributes', value: new TreeBranch('object', '', named, named.length) });
+  }
+  const text = own(value, 'text');
+  if (typeof text === 'string' && text) parts.push({ name: 'text', value: text });
+  const kids = list(own(value, 'children'));
+  const more = count(own(value, 'more')) ?? 0;
+  if (kids.length || more) {
+    parts.push({
+      name: 'children',
+      value: new TreeBranch('array', '', [...kids.map((item, index) => ({ key: index, value: child(item) })), ...moreChild(more)], kids.length + more),
+    });
+  }
+  return new TreeBranch('object', domLabel(value), namedChildren(parts), parts.length, { closed: true });
 }
 
 // The "… N more" note after a cut container's children. Its key (a React key and path
@@ -639,17 +805,55 @@ function namedChildren(children: Array<{ name: string; value: unknown }>): TreeC
   return children.map((child, index) => ({ key: unique ? child.name : index, name: child.name, value: child.value }));
 }
 
-function typedDisplay(kind: LogKind, value: Bag, depth: number, seen: object[]): unknown {
-  const child = (item: unknown): unknown => display(item, depth + 1, seen);
+function typedDisplay(kind: LogKind, value: Bag, depth: number, seen: object[], options: DisplayOptions): unknown {
+  const child = (item: unknown): unknown => display(item, depth + 1, seen, options);
   switch (kind) {
     case 'undefined': return leaf('undefined', 'null');
     case 'number': return leaf(str(own(value, 'value'), 'NaN'), 'number');
     case 'bigint': return leaf(`${str(own(value, 'value'), '0')}n`, 'number');
-    case 'function':
+    case 'function': {
+      const source = own(value, 'source');
+      if (options.console && typeof source === 'string' && source) {
+        return new TreeBranch('object', functionLabel(value), [{ key: 'source', label: '', value: leaf(source, 'source') }], 1, { closed: true, bare: true });
+      }
+      return leaf(logValueText(value), 'typed');
+    }
+    case 'dom':
+      if (options.console && typeof own(value, 'tag') === 'string') return domDisplay(value, child);
+      return leaf(logValueText(value), 'typed');
     case 'symbol':
     case 'date':
-    case 'dom':
       return leaf(logValueText(value), 'typed');
+    case 'web': {
+      if (own(value, 'cls') === 'RegExp') return leaf(regexpLabel(value), 'typed');
+      const cls = str(own(value, 'cls'), 'Object');
+      const entries = own(value, 'entries');
+      if (Array.isArray(entries)) {
+        const items = pairs(entries);
+        const size = Math.max(count(own(value, 'size')) ?? items.length, items.length);
+        return new TreeBranch('object', `${cls}(${size})`, [
+          ...items.map(([key, item], index) => ({ key: index, label: `${logValueText(key, { limit: 200 })} =>`, value: child(item) })),
+          ...moreChild(size - items.length),
+        ], size);
+      }
+      const fields = fieldPairs(value);
+      return new TreeBranch('object', cls, namedChildren(fields.map(([name, item]) => ({ name, value: child(item) }))), fields.length);
+    }
+    case 'instance': {
+      const members = instanceMembers(value);
+      const omitted = count(own(value, 'omitted')) ?? 0;
+      return new TreeBranch('object', str(own(value, 'cls')), [
+        ...namedChildren(members.map(([name, item]) => ({ name, value: item === LAZY ? lazyLeaf() : child(item) }))),
+        ...moreChild(omitted),
+      ], members.length + omitted);
+    }
+    case 'promise': {
+      const fields: Array<{ name: string; value: unknown }> = [{ name: '[[PromiseState]]', value: str(own(value, 'state'), 'pending') }];
+      if (has(value, 'value')) fields.push({ name: '[[PromiseResult]]', value: child(own(value, 'value')) });
+      return new TreeBranch('object', 'Promise', namedChildren(fields), fields.length);
+    }
+    case 'accessor':
+      return lazyLeaf();
     case 'circular':
     case 'unreadable':
     case 'depth':
@@ -662,7 +866,8 @@ function typedDisplay(kind: LogKind, value: Bag, depth: number, seen: object[]):
     case 'array': {
       const items = list(own(value, 'items'));
       const length = Math.max(count(own(value, 'length')) ?? items.length, items.length);
-      return new TreeBranch('array', '', [...items.map((item, index) => ({ key: index, value: child(item) })), ...moreChild(length - items.length)], length);
+      const children = items.map((item, index): TreeChild => ({ key: index, value: child(item) }));
+      return new TreeBranch('array', '', [...(options.console ? bucketed(children) : children), ...moreChild(length - items.length)], length);
     }
     case 'object': {
       const entries = pairs(own(value, 'entries'));
@@ -681,14 +886,20 @@ function typedDisplay(kind: LogKind, value: Bag, depth: number, seen: object[]):
     case 'set': {
       const values = list(own(value, 'values'));
       const size = Math.max(count(own(value, 'size')) ?? values.length, values.length);
-      return new TreeBranch('array', `Set(${size})`, [...values.map((item, index) => ({ key: index, value: child(item) })), ...moreChild(size - values.length)], size);
+      // The console shows a Set's values without indices, as DevTools does.
+      const label = options.console ? { label: '' } : {};
+      return new TreeBranch('array', `Set(${size})`, [...values.map((item, index) => ({ key: index, ...label, value: child(item) })), ...moreChild(size - values.length)], size);
     }
     case 'error': {
       // Keyed by position: an Error's own "message", "stack" or "cause" property sits beside
       // the fields of the same name.
-      const fields: Array<{ name: string; value: unknown }> = [{ name: 'message', value: str(own(value, 'message')) }];
+      // A page accessor for name, message or stack was never read: listed as "(…)" in its place.
+      const lazy = list(own(value, 'getters')).filter((name): name is string => typeof name === 'string');
+      const fields: Array<{ name: string; value: unknown }> = [];
+      if (!lazy.includes('message')) fields.push({ name: 'message', value: str(own(value, 'message')) });
       const stack = own(value, 'stack');
       if (typeof stack === 'string') fields.push({ name: 'stack', value: stack });
+      for (const name of lazy) fields.push({ name, value: lazyLeaf() });
       for (const [key, item] of pairs(own(value, 'entries'))) fields.push({ name: String(key), value: child(item) });
       if (has(value, 'cause')) fields.push({ name: 'cause', value: child(own(value, 'cause')) });
       const children = namedChildren(fields);
@@ -707,7 +918,7 @@ function typedDisplay(kind: LogKind, value: Bag, depth: number, seen: object[]):
   }
 }
 
-function display(value: unknown, depth: number, seen: object[]): unknown {
+function display(value: unknown, depth: number, seen: object[], options: DisplayOptions): unknown {
   switch (typeof value) {
     case 'string':
     case 'boolean':
@@ -727,10 +938,25 @@ function display(value: unknown, depth: number, seen: object[]): unknown {
   seen.push(object);
   try {
     const kind = logKind(object);
-    if (kind) return typedDisplay(kind, object as Bag, depth, seen);
-    if (Array.isArray(object)) return object.map((item) => display(item, depth + 1, seen));
+    if (kind) {
+      const shown = typedDisplay(kind, object as Bag, depth, seen, options);
+      // The console Tree previews a collapsed branch from the value it shows.
+      return options.console && shown instanceof TreeBranch
+        ? new TreeBranch(shown.kind, shown.label, shown.children, shown.count, { source: object, closed: shown.closed, bare: shown.bare })
+        : shown;
+    }
+    if (Array.isArray(object)) {
+      if (!options.console) return object.map((item) => display(item, depth + 1, seen, options));
+      const children = object.map((item, index): TreeChild => ({ key: index, value: display(item, depth + 1, seen, options) }));
+      return new TreeBranch('array', '', bucketed(children), object.length, { source: object });
+    }
+    if (options.console) {
+      const keys = Object.keys(object);
+      const named = namedChildren(keys.map((key) => ({ name: key, value: display((object as Bag)[key], depth + 1, seen, options) })));
+      return new TreeBranch('object', '', named, keys.length, { source: object });
+    }
     const out: Bag = {};
-    for (const key of Object.keys(object)) define(out, key, display((object as Bag)[key], depth + 1, seen));
+    for (const key of Object.keys(object)) define(out, key, display((object as Bag)[key], depth + 1, seen, options));
     return out;
   } finally {
     seen.pop();
@@ -741,8 +967,8 @@ function display(value: unknown, depth: number, seen: object[]): unknown {
  * The value the JSON viewer renders: plain JSON stays plain, typed values become display
  * nodes (`10n`, `ƒ load()`, `Map(3)` with `"k" =>` children, an Error with its cause).
  */
-export function logDisplay(value: unknown): unknown {
-  return display(value, 0, []);
+export function logDisplay(value: unknown, options: DisplayOptions = {}): unknown {
+  return display(value, 0, [], options);
 }
 
 /** LogDetail's tree: one value as itself; several arguments under an "arguments" branch. */
@@ -852,6 +1078,16 @@ function plainObject(value: object, mode: PlainMode, depth: number, seen: object
     }
     case 'typedarray':
       return Array.isArray(own(bag, 'values')) ? list(own(bag, 'values')).map(next) : logValueText(bag);
+    case 'web':
+      if (own(bag, 'cls') === 'RegExp') return logValueText(bag);
+      return Array.isArray(own(bag, 'entries')) ? record(pairs(own(bag, 'entries'))) : record(fieldPairs(bag));
+    case 'instance':
+      return record(instanceMembers(bag).map(([key, item]): [unknown, unknown] => [key, item === LAZY ? '(…)' : item]));
+    case 'promise': {
+      const out = record([['state', str(own(bag, 'state'), 'pending')]]);
+      if (has(bag, 'value')) define(out, 'value', next(own(bag, 'value')));
+      return out;
+    }
     default:
       return logValueText(bag);
   }

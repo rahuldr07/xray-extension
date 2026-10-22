@@ -10,6 +10,18 @@ export interface ConsoleError {
   stack: string;
   /** One-line text of the Error's cause (page logs, spec J7). */
   cause?: string;
+  /** Command errors: where the page threw, in the command (`<anonymous>:1:7`; background.js). */
+  location?: string;
+  /** Command errors: the page threw (or the command did not compile), so it reads `Uncaught …`. */
+  thrown?: boolean;
+  /** Command errors: a failure of the debugger itself (attach, detached, tab-closed, timeout, evaluation). */
+  kind?: string;
+  /** Command errors: XRAY could not display the value (its own failure, not the page's). */
+  internal?: boolean;
+  /** Command errors: the thrown value had no readable message and could not be encoded. */
+  unreadable?: boolean;
+  /** Command errors: the thrown value in the typed log model (`5`, `{a: 1}`, an Error envelope). */
+  value?: unknown;
 }
 
 // A console.error(new Error()) arrives as an error-level log whose argument is a typed
@@ -27,7 +39,18 @@ export function extractConsoleError(event: ConsoleEvent): ConsoleError | null {
   // REPL failures: event.data is the evaluator's { message, stack }.
   if (event.type === 'error' && event.data && typeof event.data === 'object') {
     const record = event.data as Record<string, unknown>;
-    return { name: 'Error', message: String(record.message || event.message || 'Execution failed'), stack: String(record.stack || '') };
+    return {
+      name: 'Error',
+      message: String(record.message || event.message || 'Execution failed'),
+      stack: String(record.stack || ''),
+      ...(typeof record.location === 'string' && record.location ? { location: record.location } : {}),
+      ...(record.thrown === true ? { thrown: true } : {}),
+      ...(typeof record.kind === 'string' ? { kind: record.kind } : {}),
+      ...(record.internal === true ? { internal: true } : {}),
+      ...(record.unreadable === true ? { unreadable: true } : {}),
+      // The thrown value, already revived from typed JSON text by panel/console.js.
+      ...(Object.prototype.hasOwnProperty.call(record, 'value') ? { value: record.value } : {}),
+    };
   }
   return null;
 }
@@ -50,10 +73,14 @@ export function stackFrames(error: ConsoleError): StackFrame[] {
   });
 }
 
-// Frames of an error thrown by a console command, minus the evaluation wrapper's own
-// `<anonymous>` frames (the debugger-evaluated expression). Empty means "no stack".
+// Frames of an error thrown by a console command. The background maps the command's own
+// frames to `<anonymous>:line:col` in the command and drops the evaluation wrapper's (spec §1),
+// so a located error keeps them; an unlocated one still loses every `<anonymous>` frame (the
+// debugger-evaluated expression). Empty means "no stack".
 export function commandStackFrames(error: ConsoleError): StackFrame[] {
-  return stackFrames(error).filter((frame) => !frame.loc.startsWith('<anonymous>'));
+  const frames = stackFrames(error);
+  if (error.location) return frames;
+  return frames.filter((frame) => !frame.loc.startsWith('<anonymous>'));
 }
 
 // `frames` lets a caller pass an already-filtered list (command cells drop the
