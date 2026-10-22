@@ -27,9 +27,14 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   // another tab is active). Removing an iframe never fires beforeunload, so unmounting it would drop
   // the open database and any unsaved writes without a prompt. The HUD's window card has no such
   // state, but with the inline option on the HUD frames the client too, so it is kept the same way.
+  // Once framed it stays framed, even if the option is turned off, until the HUD is reopened: turning
+  // it off would otherwise unmount the frame and drop its open database without a prompt.
   const [sqlOpened, setSqlOpened] = React.useState(false);
+  const [sqlInlineLatched, setSqlInlineLatched] = React.useState(false);
   if (activeTab === 'sql' && !sqlOpened) setSqlOpened(true);
-  const keepSqlFrame = (mode !== 'hud' || settings.sqlInlineInHud) && sqlOpened;
+  if (mode === 'hud' && settings.sqlInlineInHud && sqlOpened && !sqlInlineLatched) setSqlInlineLatched(true);
+  const hudSqlInline = settings.sqlInlineInHud || sqlInlineLatched;
+  const keepSqlFrame = (mode !== 'hud' || hudSqlInline) && sqlOpened;
 
   // The theme's color tokens (and accent/font/radius) live on this wrapper, not on
   // .xray-panel — because the modals below render as siblings of the panel. A
@@ -56,7 +61,7 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
           {activeTab === 'logs' && <EntriesWorkspace mode="logs" />}
           {activeTab === 'rules' && <Rules />}
           {activeTab === 'insights' && <Insights />}
-          {(activeTab === 'sql' || keepSqlFrame) && <SqlFrame mode={mode} active={activeTab === 'sql'} />}
+          {(activeTab === 'sql' || keepSqlFrame) && <SqlFrame mode={mode} active={activeTab === 'sql'} inlineInHud={hudSqlInline} />}
         </PanelShell>
         <ExportModal />
         <SettingsModal />

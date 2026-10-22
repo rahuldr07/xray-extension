@@ -2,11 +2,7 @@ import React from 'react';
 import { IconDatabase, IconExternalLink } from '@tabler/icons-react';
 import { usePanelStore } from '../../store';
 import { openSqlWindowSurface } from '../../runtime/surfaces';
-import {
-  nextSqlFrameReadiness,
-  SQL_FRAME_READY_TIMEOUT_MS,
-  type SqlFrameReadiness,
-} from '../../models/sqlFrameReady';
+import { nextSqlFrameReadiness, SQL_FRAME_READY_TIMEOUT_MS, type SqlFrameReadiness } from '../../models/sqlFrameReady';
 import type { XrayAppMode } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 
@@ -15,26 +11,16 @@ const BLOCKED_LINE = 'This site blocked the embedded client.';
 
 function sqlPageUrl(): string {
   // Fixture pages render the App without an extension runtime.
-  return typeof chrome !== 'undefined' && chrome.runtime?.getURL
-    ? chrome.runtime.getURL('sql.html')
-    : 'sql.html';
+  return typeof chrome !== 'undefined' && chrome.runtime?.getURL ? chrome.runtime.getURL('sql.html') : 'sql.html';
 }
 
 // The DevTools panel and the pop-out are extension pages, so the client is framed in place. The HUD
 // runs inside the inspected page: by default it opens a window, so database rows never render there.
-// With settings.sqlInlineInHud on, the HUD frames the client too (sql.html is web-accessible through
-// its dynamic URL for this); the page cannot read the cross-origin frame.
+// With the inline option (settings.sqlInlineInHud, latched by App once framed) the HUD frames the
+// client too, through sql.html's dynamic web-accessible URL; the page cannot read the frame.
 // `active` is false while another tab is showing: App keeps the frame mounted then (Ruling R16), and
 // it is hidden rather than removed so the client's open database survives the tab switch.
-export function SqlFrame({
-  mode,
-  active = true,
-}: {
-  mode: XrayAppMode;
-  active?: boolean;
-}): React.ReactElement {
-  const inlineInHud = usePanelStore((state) => state.settings.sqlInlineInHud);
-
+export function SqlFrame({ mode, active = true, inlineInHud = false }: { mode: XrayAppMode; active?: boolean; inlineInHud?: boolean }): React.ReactElement | null {
   if (mode === 'hud') {
     return inlineInHud ? <HudInlineSqlFrame active={active} /> : <SqlWindowCard hint={WINDOW_HINT} />;
   }
@@ -59,32 +45,25 @@ function SqlWindowCard({ hint }: { hint: string }): React.ReactElement {
   );
 }
 
-// A page can keep an extension frame from loading. sql.html posts a ready message to its parent once
-// it has rendered; without one in SQL_FRAME_READY_TIMEOUT_MS the frame gives way to the window card.
+// A page can keep an extension frame from loading. sql.html reports that it rendered through the
+// service worker, which relays it to this tab's top frame (sqlFrameReady.ts); without it within
+// SQL_FRAME_READY_TIMEOUT_MS the frame gives way to the window card.
 function HudInlineSqlFrame({ active }: { active: boolean }): React.ReactElement | null {
-  const frameRef = React.useRef<HTMLIFrameElement>(null);
   const [readiness, setReadiness] = React.useState<SqlFrameReadiness>('waiting');
 
   React.useEffect(() => {
     if (readiness !== 'waiting') return undefined;
-    const onMessage = (event: MessageEvent): void => {
-      const frameWindow = frameRef.current?.contentWindow ?? null;
-      setReadiness((state) =>
-        nextSqlFrameReadiness(state, {
-          kind: 'message',
-          source: event.source,
-          data: event.data,
-          frameWindow,
-        }),
-      );
+    const onMessage = (msg: unknown): void => {
+      setReadiness((state) => nextSqlFrameReadiness(state, { kind: 'message', data: msg }));
     };
-    window.addEventListener('message', onMessage);
+    const events = typeof chrome !== 'undefined' ? chrome.runtime?.onMessage : undefined;
+    events?.addListener(onMessage);
     const timer = window.setTimeout(
       () => setReadiness((state) => nextSqlFrameReadiness(state, { kind: 'timeout' })),
       SQL_FRAME_READY_TIMEOUT_MS,
     );
     return () => {
-      window.removeEventListener('message', onMessage);
+      events?.removeListener(onMessage);
       window.clearTimeout(timer);
     };
   }, [readiness]);
@@ -92,13 +71,5 @@ function HudInlineSqlFrame({ active }: { active: boolean }): React.ReactElement 
   // Kept mounted behind another tab (Ruling R16), the card must not show there.
   if (readiness === 'timed-out')
     return active ? <SqlWindowCard hint={`${BLOCKED_LINE} ${WINDOW_HINT}`} /> : null;
-  return (
-    <iframe
-      ref={frameRef}
-      className="xray-sql-frame"
-      title="SQL client"
-      src={sqlPageUrl()}
-      hidden={!active}
-    />
-  );
+  return <iframe className="xray-sql-frame" title="SQL client" src={sqlPageUrl()} hidden={!active} />;
 }

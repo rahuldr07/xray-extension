@@ -721,6 +721,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // sql.html framed by the HUD's inline option reports that it loaded; the HUD (the tab's top frame)
+  // falls back to the window card without it. Relayed here so nothing is posted to the page's window.
+  // Under use_dynamic_url the frame's host is a per-session GUID, so only scheme and path are checked.
+  if (msg.type === 'xray:sql-frame-ready') {
+    let url = null;
+    try { url = new URL(sender?.url || ''); } catch { url = null; }
+    const tabId = sender?.tab?.id;
+    if (!url || url.protocol !== 'chrome-extension:' || url.pathname !== '/sql.html' || !Number.isInteger(tabId)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    chrome.tabs.sendMessage(sender.tab.id, { type: 'xray:sql-frame-ready' }, { frameId: 0 })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
   if (msg.type === 'xray:ping') {
     sendResponse({ alive: true });
     return true;

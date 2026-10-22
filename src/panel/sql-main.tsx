@@ -5,7 +5,8 @@ import { flushSqlPersistence, loadSqlStorage } from './sqlStore';
 import { getStoredValue } from './runtime/storageBridge';
 import { applyPanelPreferences, REACT_PANEL_PREFERENCES_KEY, type SerializedPanelPreferences } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS } from './models/panelSettings';
-import { SQL_FRAME_READY_MESSAGE } from './models/sqlFrameReady';
+import { SQL_FRAME_READY_MESSAGE, sqlClientAllowedIn } from './models/sqlFrameReady';
+import { EmptyState } from './components/common/EmptyState';
 import type { PanelSettings } from './types';
 import tokensCss from './styles/tokens.css?inline';
 import appCss from './styles.css?inline';
@@ -32,11 +33,18 @@ if (root) {
     document.head.appendChild(style);
 
     root.className = 'xray-app-root';
-    const [settings] = await Promise.all([readSettings(), loadSqlStorage()]);
+    const settings = await readSettings();
+    // sql.html is web-accessible for the inline HUD option; with it off, a web page framing the client
+    // gets a notice instead, before any stored SQL tabs or history load, and no ready signal.
+    if (!sqlClientAllowedIn(Array.from(location.ancestorOrigins ?? []), settings.sqlInlineInHud)) {
+      createRoot(root).render(<EmptyState label="The SQL client is not enabled for this page." />);
+      return;
+    }
+    await loadSqlStorage();
     window.addEventListener('pagehide', flushSqlPersistence);
     createRoot(root).render(<SqlApp settings={settings} />);
     // The HUD's inline frame waits for this before giving up on a blocked frame (sqlFrameReady.ts).
-    // It goes to whichever window framed the client, possibly a web page, so it carries nothing else.
-    if (window.parent !== window) window.parent.postMessage({ type: SQL_FRAME_READY_MESSAGE }, '*');
+    // It goes through the service worker, which relays it to the tab: never to the page's window.
+    if (window.parent !== window) chrome?.runtime?.sendMessage?.({ type: SQL_FRAME_READY_MESSAGE }, () => void chrome?.runtime?.lastError);
   })();
 }

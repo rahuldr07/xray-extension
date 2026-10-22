@@ -31,15 +31,30 @@ test('only sql.html is web-accessible, in one entry behind a dynamic URL; its bu
   }
 });
 
-test('framed sql.html tells its parent it loaded, and only that', () => {
+// Readiness goes through the extension runtime, never the page window: a window message would hand
+// the page a WindowProxy to the frame (event.source) and let it swallow the signal.
+test('framed sql.html reports readiness through the extension runtime, never to the page window', () => {
   const main = read('src/panel/sql-main.tsx');
-  assert.match(main, /if \(window\.parent !== window\) window\.parent\.postMessage\(\{ type: SQL_FRAME_READY_MESSAGE \}, '\*'\);/);
-  assert.match(read('src/panel/models/sqlFrameReady.ts'), /export const SQL_FRAME_READY_MESSAGE = 'xray:sql-ready';/);
+  assert.match(main, /if \(window\.parent !== window\) chrome\?\.runtime\?\.sendMessage\?\.\(\{ type: SQL_FRAME_READY_MESSAGE \}/);
+  assert.doesNotMatch(main, /postMessage/);
+  assert.match(main, /sqlClientAllowedIn\(/, 'a web page frames the client only with the inline option on');
+  assert.match(read('src/panel/models/sqlFrameReady.ts'), /export const SQL_FRAME_READY_MESSAGE = 'xray:sql-frame-ready';/);
+  const bg = read('background.js');
+  const relay = bg.slice(bg.indexOf("if (msg.type === 'xray:sql-frame-ready')"));
+  assert.ok(bg.indexOf("if (msg.type === 'xray:sql-frame-ready')") > bg.indexOf('if (sender?.id !== chrome.runtime.id) return false;'), 'behind the extension-id guard');
+  assert.match(relay.slice(0, 1200), /url\.protocol !== 'chrome-extension:'/);
+  assert.match(relay.slice(0, 1200), /url\.pathname !== '\/sql\.html'/);
+  assert.match(relay.slice(0, 1200), /chrome\.tabs\.sendMessage\(sender\.tab\.id, \{ type: 'xray:sql-frame-ready' \}, \{ frameId: 0 \}\)/);
+  const frame = read('src/panel/components/sql/SqlFrame.tsx');
+  assert.match(frame, /chrome\.runtime\?\.onMessage/);
+  assert.match(frame, /events\?\.addListener\(onMessage\)/);
+  assert.doesNotMatch(frame, /addEventListener\('message'/);
 });
 
 test('the HUD frames the client only with the opt-in setting, and falls back to the window card', () => {
   const frame = read('src/panel/components/sql/SqlFrame.tsx');
-  assert.match(frame, /settings\.sqlInlineInHud/);
+  // App passes the option, latched once the frame has mounted (shell-navigation-modals.test.js).
+  assert.match(frame, /if \(mode === 'hud'\) \{\s*return inlineInHud \?/);
   assert.match(frame, /This site blocked the embedded client\./);
   assert.match(frame, /SQL_FRAME_READY_TIMEOUT_MS/);
   const modal = read('src/panel/components/settings/SettingsModal.tsx');

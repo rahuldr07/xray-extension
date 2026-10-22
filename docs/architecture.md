@@ -287,7 +287,9 @@ runs inside a web page, so by default its SQL tab sends `XRAY_OPEN_SQL_WINDOW` a
 worker opens (or focuses) `sql.html` in its own window. With the opt-in setting **Show SQL client
 inside the page HUD** (`sqlInlineInHud`, off by default) the HUD frames `sql.html` inline instead,
 kept mounted like the others, and falls back to the window card if the frame's
-`xray:sql-ready` message has not arrived within 4 s (`SQL_FRAME_READY_TIMEOUT_MS`).
+`xray:sql-frame-ready` signal (relayed by the service worker, never posted to the page) has not
+arrived within 4 s (`SQL_FRAME_READY_TIMEOUT_MS`). With the option off, sql.html under a web
+origin shows a notice instead of the client.
 
 Only `sql.html` is in `web_accessible_resources`, for that inline option, in its own entry with
 `use_dynamic_url: true`. Its bundles, worker and wasm are not: the framed document is

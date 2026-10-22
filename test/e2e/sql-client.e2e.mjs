@@ -201,6 +201,9 @@ test('the pop-out window frames the SQL client in its SQL tab', { timeout: 120_0
   assert.match(await frame.getAttribute('src'), /\/sql\.html$/);
   // The extension page CSP allows the frame: the client itself loads inside it.
   await page.frameLocator('iframe[title="SQL client"]').getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  // An extension ancestor: sql.html's web-page gate (sqlClientAllowedIn) lets it run with the inline option off.
+  const inner = await (await frame.elementHandle()).contentFrame();
+  assert.deepEqual(await inner.evaluate(() => [...location.ancestorOrigins]), [`chrome-extension://${extensionId}`]);
 });
 
 test('the framed client keeps its open database across tab switches', { timeout: 120_000 }, async (t) => {
@@ -236,7 +239,9 @@ test('the framed client keeps its open database across tab switches', { timeout:
 async function openHud(t, { inline = false, csp = null } = {}) {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html', ...(csp ? { 'content-security-policy': csp } : {}) });
-    res.end('<!doctype html><html><head><title>XRAY e2e fixture</title></head><body><h1>fixture</h1></body></html>');
+    // The page records every window message it receives: the SQL frame must never post to it.
+    res.end('<!doctype html><html><head><title>XRAY e2e fixture</title></head><body><h1>fixture</h1>'
+      + '<script>window.__messages = []; addEventListener("message", (e) => window.__messages.push(e.data));</script></body></html>');
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => server.close());
@@ -298,6 +303,15 @@ async function openHud(t, { inline = false, csp = null } = {}) {
   return { context, page, click, evaluateInHud };
 }
 
+async function sqlFrameOf(page) {
+  let frame = null;
+  await assertEventually(() => {
+    frame = page.frames().find((f) => /\/sql\.html$/.test(f.url()));
+    return Boolean(frame);
+  }, 'the HUD frames sql.html');
+  return frame;
+}
+
 test('the HUD opens the SQL client in its own window', { timeout: 120_000 }, async (t) => {
   const { context, click, evaluateInHud } = await openHud(t);
   await click('#xray-tab-sql', null);
@@ -316,11 +330,9 @@ async function assertInlineClientWorks(t, options) {
   const pagesBefore = context.pages().length;
   await click('#xray-tab-sql', null);
 
-  let frame = null;
-  await assertEventually(() => {
-    frame = page.frames().find((f) => /\/sql\.html$/.test(f.url()));
-    return Boolean(frame);
-  }, 'the HUD frames sql.html');
+  const frame = await sqlFrameOf(page);
+  const ancestors = await frame.evaluate(() => [...location.ancestorOrigins]);
+  assert.match(ancestors[0], /^http:\/\/127\.0\.0\.1:/, `framed by the web page: ${ancestors}`);
   const box = await evaluateInHud(`function(){ const f = this.querySelector('iframe.xray-sql-frame[title="SQL client"]');
     if (!f) return null; const r = f.getBoundingClientRect(); return { width: r.width, height: r.height }; }`);
   assert.ok(box && box.width > 200 && box.height > 200, `the frame fills the tab: ${JSON.stringify(box)}`);
@@ -330,8 +342,11 @@ async function assertInlineClientWorks(t, options) {
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   assert.equal(context.pages().length, pagesBefore, 'no window opened');
 
-  // Past SQL_FRAME_READY_TIMEOUT_MS: the ready message arrived, so the frame was never replaced.
+  // Past SQL_FRAME_READY_TIMEOUT_MS: the ready signal arrived through the service worker relay, so the
+  // frame was never replaced, and the page's window received nothing from it.
   await sleep(4500);
+  const pageMessages = await page.evaluate(() => window.__messages.map((data) => JSON.stringify(data)));
+  assert.ok(!pageMessages.some((text) => /sql/i.test(text)), `the page saw no SQL message: ${pageMessages}`);
   assert.equal(await evaluateInHud('function(){ return this.querySelectorAll("iframe.xray-sql-frame").length; }'), 1, 'the frame stays');
   assert.equal(await evaluateInHud('function(){ return this.textContent.includes("This site blocked the embedded client."); }'), false);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor({ timeout: 2_000 });
@@ -344,6 +359,20 @@ test('with the inline option on, the HUD frames the SQL client in the page', { t
 // Chrome exempts extension frames from a page's frame-src (observed on Chromium 151), so a page CSP
 // does not trigger the "This site blocked the embedded client." fallback; the unit test in
 // test/unit/sqlFrameReady.test.mjs covers the timeout path instead.
+// sql.html is web-accessible for the inline option, so with the option off it refuses to run under a
+// web page: the HUD's frame, reloaded after the setting is turned off, shows only a notice.
+test('with the inline option off, sql.html framed by a web page shows a notice instead of the client', { timeout: 120_000 }, async (t) => {
+  const { context, page, click } = await openHud(t, { inline: true });
+  await click('#xray-tab-sql', null);
+  const frame = await sqlFrameOf(page);
+  await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  await context.serviceWorkers()[0].evaluate(() => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: false, themeRefreshPending: false } } }));
+  await frame.evaluate(() => location.reload());
+  const reloaded = await sqlFrameOf(page);
+  await reloaded.getByText('The SQL client is not enabled for this page.', { exact: true }).waitFor();
+  assert.equal(await reloaded.getByRole('button', { name: 'Open SQLite file' }).count(), 0, 'no client');
+});
+
 test('a page CSP of frame-src \'none\' does not block the inline client', { timeout: 120_000 }, async (t) => {
   await assertInlineClientWorks(t, { csp: "frame-src 'none'" });
 });

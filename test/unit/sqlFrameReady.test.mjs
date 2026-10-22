@@ -1,5 +1,6 @@
 /* Behavioural tests for src/panel/models/sqlFrameReady.ts: when the HUD's inline SQL frame counts as
-   loaded, and when it gives up and falls back to the "Open SQL client" card. */
+   loaded, when it gives up and falls back to the "Open SQL client" card, and when sql.html agrees to
+   run inside a web page at all. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import './harness.mjs';
@@ -9,36 +10,31 @@ const {
   SQL_FRAME_READY_TIMEOUT_MS,
   isSqlFrameReadyMessage,
   nextSqlFrameReadiness,
+  sqlClientAllowedIn,
 } = await import('../../src/panel/models/sqlFrameReady.ts');
 
-const frame = { name: 'the frame window' };
-const other = { name: 'some other window' };
-const ready = { type: 'xray:sql-ready' };
-const message = (source, data, frameWindow = frame) => ({ kind: 'message', source, data, frameWindow });
+const ready = { type: 'xray:sql-frame-ready' };
+const message = (data) => ({ kind: 'message', data });
 
 test('the ready signal and the timeout are the agreed values', () => {
-  assert.equal(SQL_FRAME_READY_MESSAGE, 'xray:sql-ready');
+  assert.equal(SQL_FRAME_READY_MESSAGE, 'xray:sql-frame-ready');
   assert.equal(SQL_FRAME_READY_TIMEOUT_MS, 4000);
 });
 
-test('only the ready type from the frame itself counts', () => {
-  assert.equal(isSqlFrameReadyMessage(frame, ready, frame), true);
-  assert.equal(isSqlFrameReadyMessage(other, ready, frame), false, 'another window (the page) cannot mark it ready');
-  assert.equal(isSqlFrameReadyMessage(frame, { type: 'xray:sql-other' }, frame), false);
-  assert.equal(isSqlFrameReadyMessage(frame, 'xray:sql-ready', frame), false, 'a bare string is not the message');
-  assert.equal(isSqlFrameReadyMessage(frame, null, frame), false);
-  assert.equal(isSqlFrameReadyMessage(frame, undefined, frame), false);
-  assert.equal(isSqlFrameReadyMessage(null, ready, null), false, 'no frame window yet: nothing matches, null included');
-  assert.equal(isSqlFrameReadyMessage(undefined, ready, undefined), false);
+// The signal arrives through chrome.runtime (the service worker relays it from sql.html after checking
+// the sender), never through the page's window, so only its shape is checked here.
+test('only the ready type counts', () => {
+  assert.equal(isSqlFrameReadyMessage(ready), true);
+  assert.equal(isSqlFrameReadyMessage({ type: 'xray:sql-ready' }), false, 'the old window message is not it');
+  assert.equal(isSqlFrameReadyMessage({ type: 'XRAY_OPEN_SQL_WINDOW' }), false);
+  assert.equal(isSqlFrameReadyMessage('xray:sql-frame-ready'), false, 'a bare string is not the message');
+  assert.equal(isSqlFrameReadyMessage(null), false);
+  assert.equal(isSqlFrameReadyMessage(undefined), false);
 });
 
-test('waiting becomes ready on the frame\'s message', () => {
-  assert.equal(nextSqlFrameReadiness('waiting', message(frame, ready)), 'ready');
-});
-
-test('waiting ignores messages that are not the frame\'s ready signal', () => {
-  assert.equal(nextSqlFrameReadiness('waiting', message(other, ready)), 'waiting');
-  assert.equal(nextSqlFrameReadiness('waiting', message(frame, { type: 'nope' })), 'waiting');
+test('waiting becomes ready on the ready message and ignores others', () => {
+  assert.equal(nextSqlFrameReadiness('waiting', message(ready)), 'ready');
+  assert.equal(nextSqlFrameReadiness('waiting', message({ type: 'nope' })), 'waiting');
 });
 
 test('waiting times out into the fallback', () => {
@@ -47,5 +43,17 @@ test('waiting times out into the fallback', () => {
 
 test('both outcomes are final', () => {
   assert.equal(nextSqlFrameReadiness('ready', { kind: 'timeout' }), 'ready', 'a late timer never removes a loaded client');
-  assert.equal(nextSqlFrameReadiness('timed-out', message(frame, ready)), 'timed-out', 'a late ready never swaps the card back');
+  assert.equal(nextSqlFrameReadiness('timed-out', message(ready)), 'timed-out', 'a late ready never swaps the card back');
+});
+
+test('sql.html runs inside a web page only with the inline option on', () => {
+  assert.equal(sqlClientAllowedIn([], false), true, 'its own window: not framed');
+  assert.equal(sqlClientAllowedIn(['chrome-extension://abc'], false), true, 'the pop-out frames it');
+  assert.equal(sqlClientAllowedIn(['chrome-extension://abc', 'devtools://devtools'], false), true, 'the DevTools panel');
+  assert.equal(sqlClientAllowedIn(['devtools://devtools'], false), true);
+  assert.equal(sqlClientAllowedIn(['https://example.com'], false), false, 'a web page with the option off');
+  assert.equal(sqlClientAllowedIn(['http://127.0.0.1:8080'], false), false);
+  assert.equal(sqlClientAllowedIn(['https://example.com'], true), true, 'the inline HUD with the option on');
+  assert.equal(sqlClientAllowedIn(['chrome-extension://abc', 'https://evil.test'], false), false, 'a web page anywhere up the chain');
+  assert.equal(sqlClientAllowedIn(['null'], false), false, 'an opaque origin is not an extension');
 });
