@@ -867,6 +867,9 @@ for (const fixture of FIXTURES) {
     assert.equal(await ev(page, () => window.ed.query('.xray-editor-live').getAttribute('aria-live')), 'polite');
     await page.keyboard.type('res.users.');
     await page.waitForFunction(() => window.ed.listbox());
+    // Long lists draw their first rows on the keystroke and the rest after the next paint (#16):
+    // count once the list has settled.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50)))));
     const n = await ev(page, () => window.ed.queryAll('[role="listbox"] [role="option"]').length);
     assert.equal(await live(page), `${n} suggestions`);
     await clearDraft(page);
@@ -1149,8 +1152,9 @@ for (const fixture of FIXTURES) {
     await page.keyboard.type('$e');
     await page.waitForFunction(() => window.ed.listbox());
     assert.deepEqual((await optionLabels(page)).slice(0, 2), ['$endpoint', '$errors'], 'recently accepted first');
+    // Other stores (e.g. finding_state) may write in between: check the recency key's last write.
     const writes = await ev(page, () => window.ed.recencyWrites);
-    assert.deepEqual(writes.at(-1), ['console_completion_recency', ['$endpoint']]);
+    assert.deepEqual(writes.filter(([key]) => key === 'console_completion_recency').at(-1), ['console_completion_recency', ['$endpoint']]);
   });
 }
 

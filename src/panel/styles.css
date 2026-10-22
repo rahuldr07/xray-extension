@@ -4632,6 +4632,13 @@ ul.xray-compare-notice {
   }
 }
 
+/* Icon-only tabs: 6px sides keep all five inside 420px with any UI sans (2px over on CI fonts at 8px). */
+@container xray (max-width: 420px) {
+  .xray-tab {
+    padding: 0 6px;
+  }
+}
+
 @container xray (max-width: 420px) {
   .xray-tabs {
     scrollbar-width: thin;

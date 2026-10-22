@@ -7,7 +7,7 @@ npm install
 npm run check    # typecheck → lint → build → test
 ```
 
-Node 20.11 or newer. CI runs on 20.11 and 22.
+Node 20.19 or newer (Vite 8 requires `^20.19 || >=22.12`). CI runs on 20.19 and 22.
 
 Load the extension: `chrome://extensions` → Developer mode → **Load unpacked** →
 select the repo root. After changing `background.js` or any content script, hit
