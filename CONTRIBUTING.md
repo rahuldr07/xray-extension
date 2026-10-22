@@ -7,7 +7,7 @@ npm install
 npm run check    # typecheck → lint → build → test
 ```
 
-Node 20.19 or newer (Vite 8 requires `^20.19 || >=22.12`). CI runs on 20.19 and 22.
+Node 22.18 or newer: unit tests import `.ts` files directly, which needs Node's built-in type stripping (on by default from 22.18). CI runs on 22.18 and the latest 22.
 
 Load the extension: `chrome://extensions` → Developer mode → **Load unpacked** →
 select the repo root. After changing `background.js` or any content script, hit

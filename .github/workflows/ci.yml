@@ -21,9 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20.19 is the floor declared in package.json engines; 22 is what the repo
+        # 22.18 is the floor declared in package.json engines (unit tests import .ts
+        # directly, which needs Node's built-in type stripping, on by default from 22.18); 22 is what the repo
         # is developed against. Both are tested so the floor stays honest.
-        node: ['20.19', '22']
+        node: ['22.18', '22']
     steps:
       - uses: actions/checkout@v4
 
