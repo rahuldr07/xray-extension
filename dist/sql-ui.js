@@ -4511,7 +4511,6 @@ ul.xray-compare-notice {
 
   .xray-tab {
     flex: 0 0 auto;
-    padding: 0 10px;
   }
 
   .xray-toolbar {
@@ -4621,8 +4620,8 @@ ul.xray-compare-notice {
       them while that was NOT true, which left the pop-out and the HUD with no entry
       point; test/responsive-motion-css.test.js guards the palette entries. Above 880px
       they fit alongside labelled tabs, so they stay.
-   2. Below 680px the tab labels go (measured: tight labelled tabs need ~440px, which the
-      header only has from ~680px; spec target was ~600px), leaving the five icons (each tab carries an
+   2. Below 680px the tab labels go (measured: six tight labelled tabs need ~410px, which the
+      header only has from ~680px; spec target was ~600px), leaving the six icons (each tab carries an
       aria-label, so the accessible name survives). Labels stay visible down to here.
    3. Below 420px even icons can overflow, so the strip scrolls -- and gets its
       scrollbar back. Suppressing the scrollbar on a strip that overflows is what made
@@ -4634,15 +4633,21 @@ ul.xray-compare-notice {
   }
 }
 
-/* Tight labelled tabs: the 680-700px band keeps labels, so reclaim padding and the
-   brand's reserved width instead of letting the strip scroll. */
-@container xray (max-width: 700px) {
-  .xray-tab {
-    padding: 0 8px;
+/* Tight labelled tabs: six of them since the SQL tab. Between the 680px label tier and
+   the 880px surface switcher the header has no other give-way left, so the strip
+   reclaims its own padding and gaps instead of scrolling. Measured on the default sans
+   and with DejaVu Sans (~25px wider, like the Ubuntu CI runner's) the six labelled
+   tabs then leave at least 24px spare across this band; with the old 8-12px padding
+   they scrolled at 700 and 720 on CI fonts, and at 780 even locally. Below 680px the
+   icon-only tier keeps its own spacing. */
+@container xray (680px < width <= 880px) {
+  .xray-tabs {
+    gap: 2px;
   }
 
-  .xray-brand {
-    min-width: 0;
+  .xray-tab {
+    gap: 4px;
+    padding: 0 6px;
   }
 }
 
