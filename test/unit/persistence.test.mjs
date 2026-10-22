@@ -644,3 +644,10 @@ test('buildSessionSummary ignores non-numeric sizes', () => {
   const all = [apiEntry({ size: 'big' }), apiEntry({ size: null }), apiEntry({ size: 50 })];
   assert.equal(buildSessionSummary(all).totalBytes, 50);
 });
+
+test('sqlInlineInHud survives the stored round-trip and reads as off from preferences stored before it', () => {
+  const on = applyPanelPreferences(JSON.parse(JSON.stringify({ settings: { sqlInlineInHud: true, themeRefreshPending: false } })));
+  assert.equal(on.settings.sqlInlineInHud, true);
+  const before = applyPanelPreferences({ settings: { theme: 'dracula', glow: true, themeRefreshPending: false } });
+  assert.equal(before.settings.sqlInlineInHud, false);
+});

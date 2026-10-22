@@ -5,6 +5,7 @@ import { flushSqlPersistence, loadSqlStorage } from './sqlStore';
 import { getStoredValue } from './runtime/storageBridge';
 import { applyPanelPreferences, REACT_PANEL_PREFERENCES_KEY, type SerializedPanelPreferences } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS } from './models/panelSettings';
+import { SQL_FRAME_READY_MESSAGE } from './models/sqlFrameReady';
 import type { PanelSettings } from './types';
 import tokensCss from './styles/tokens.css?inline';
 import appCss from './styles.css?inline';
@@ -34,5 +35,8 @@ if (root) {
     const [settings] = await Promise.all([readSettings(), loadSqlStorage()]);
     window.addEventListener('pagehide', flushSqlPersistence);
     createRoot(root).render(<SqlApp settings={settings} />);
+    // The HUD's inline frame waits for this before giving up on a blocked frame (sqlFrameReady.ts).
+    // It goes to whichever window framed the client, possibly a web page, so it carries nothing else.
+    if (window.parent !== window) window.parent.postMessage({ type: SQL_FRAME_READY_MESSAGE }, '*');
   })();
 }

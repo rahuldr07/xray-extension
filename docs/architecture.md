@@ -283,10 +283,15 @@ A standalone extension page that opens local SQLite files. Four files make it up
 It is reached two ways. The DevTools panel and the pop-out window frame it in an
 `<iframe>` under their **SQL** tab (`SqlFrame`, `chrome.runtime.getURL('sql.html')`); the
 frame stays mounted once visited, so switching tabs never loses an open database. The HUD
-cannot frame an extension page into a web page, so its SQL tab sends
-`XRAY_OPEN_SQL_WINDOW` and the service worker opens (or focuses) `sql.html` in its own window.
+runs inside a web page, so by default its SQL tab sends `XRAY_OPEN_SQL_WINDOW` and the service
+worker opens (or focuses) `sql.html` in its own window. With the opt-in setting **Show SQL client
+inside the page HUD** (`sqlInlineInHud`, off by default) the HUD frames `sql.html` inline instead,
+kept mounted like the others, and falls back to the window card if the frame's
+`xray:sql-ready` message has not arrived within 4 s (`SQL_FRAME_READY_TIMEOUT_MS`).
 
-None of these files is in `web_accessible_resources`: no web page can load or frame them.
+Only `sql.html` is in `web_accessible_resources`, for that inline option, in its own entry with
+`use_dynamic_url: true`. Its bundles, worker and wasm are not: the framed document is
+extension-origin and loads them itself, so no web page can load them directly.
 The manifest's `'wasm-unsafe-eval'` is in `content_security_policy.extension_pages`, so it
 applies to extension pages and their workers only, never to content scripts or the pages
 they run in. Inside the DevTools panel the frame is a cross-origin subframe of a

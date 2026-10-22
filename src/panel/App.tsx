@@ -25,10 +25,11 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   const settings = usePanelStore((state) => state.settings);
   // Ruling R16: the framed SQL client mounts on the first visit and then stays mounted (hidden while
   // another tab is active). Removing an iframe never fires beforeunload, so unmounting it would drop
-  // the open database and any unsaved writes without a prompt. The HUD card has no such state.
+  // the open database and any unsaved writes without a prompt. The HUD's window card has no such
+  // state, but with the inline option on the HUD frames the client too, so it is kept the same way.
   const [sqlOpened, setSqlOpened] = React.useState(false);
   if (activeTab === 'sql' && !sqlOpened) setSqlOpened(true);
-  const keepSqlFrame = mode !== 'hud' && sqlOpened;
+  const keepSqlFrame = (mode !== 'hud' || settings.sqlInlineInHud) && sqlOpened;
 
   // The theme's color tokens (and accent/font/radius) live on this wrapper, not on
   // .xray-panel — because the modals below render as siblings of the panel. A

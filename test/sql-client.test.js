@@ -16,11 +16,35 @@ test('extension pages may compile WebAssembly, and nothing else is loosened', ()
   assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, 'script-src never allows inline script');
 });
 
-test('the SQL page and its bundles are never web-accessible', () => {
-  const resources = readManifest().web_accessible_resources.flatMap((group) => group.resources);
-  for (const file of SQL_FILES) {
+// sql.html is web-accessible only so the opt-in inline HUD can frame it (settings.sqlInlineInHud),
+// and only through Chrome's per-session dynamic URL. Its bundles, worker and wasm stay private: the
+// framed document is extension-origin and loads them itself, so no page can fetch them directly.
+test('only sql.html is web-accessible, in one entry behind a dynamic URL; its bundles never are', () => {
+  const groups = readManifest().web_accessible_resources;
+  const withSql = groups.filter((group) => group.resources.includes('sql.html'));
+  assert.equal(withSql.length, 1, 'sql.html appears in exactly one entry');
+  assert.deepEqual(withSql[0].resources, ['sql.html'], 'the entry exposes sql.html alone');
+  assert.equal(withSql[0].use_dynamic_url, true, 'reachable only through the per-session dynamic URL');
+  const resources = groups.flatMap((group) => group.resources);
+  for (const file of SQL_FILES.filter((name) => name !== 'sql.html')) {
     assert.ok(!resources.includes(file), `${file} must not be web-accessible`);
   }
+});
+
+test('framed sql.html tells its parent it loaded, and only that', () => {
+  const main = read('src/panel/sql-main.tsx');
+  assert.match(main, /if \(window\.parent !== window\) window\.parent\.postMessage\(\{ type: SQL_FRAME_READY_MESSAGE \}, '\*'\);/);
+  assert.match(read('src/panel/models/sqlFrameReady.ts'), /export const SQL_FRAME_READY_MESSAGE = 'xray:sql-ready';/);
+});
+
+test('the HUD frames the client only with the opt-in setting, and falls back to the window card', () => {
+  const frame = read('src/panel/components/sql/SqlFrame.tsx');
+  assert.match(frame, /settings\.sqlInlineInHud/);
+  assert.match(frame, /This site blocked the embedded client\./);
+  assert.match(frame, /SQL_FRAME_READY_TIMEOUT_MS/);
+  const modal = read('src/panel/components/settings/SettingsModal.tsx');
+  assert.match(modal, /label="Show SQL client inside the page HUD"/);
+  assert.match(modal, /desc="Shows the client in a frame inside the page instead of a separate window\. The page cannot read the frame, but any site could embed the client\."/);
 });
 
 test('sql.html loads only relative scripts, the shared store before its bundle', () => {

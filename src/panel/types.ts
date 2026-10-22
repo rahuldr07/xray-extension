@@ -398,6 +398,11 @@ export interface PanelSettings {
    * Settings stored before the refresh lack the key, which is how they are told apart.
    */
   themeRefreshPending: boolean;
+  /**
+   * Frame the SQL client inline in the in-page HUD instead of opening it in its own window. Opt-in:
+   * it makes sql.html web-accessible to pages (dynamic URL only), so any site could embed the client.
+   */
+  sqlInlineInHud: boolean;
 }
 
 export type DockSide = 'left' | 'right';
