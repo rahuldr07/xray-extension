@@ -12,7 +12,9 @@ function sqlPageUrl(): string {
 
 // The DevTools panel and the pop-out are extension pages, so the client is framed in place. The HUD
 // runs inside the inspected page: database rows must never render there, so it opens a window.
-export function SqlFrame({ mode }: { mode: XrayAppMode }): React.ReactElement {
+// `active` is false while another tab is showing: App keeps the frame mounted then (Ruling R16), and
+// it is hidden rather than removed so the client's open database survives the tab switch.
+export function SqlFrame({ mode, active = true }: { mode: XrayAppMode; active?: boolean }): React.ReactElement {
   const showToast = usePanelStore((state) => state.showToast);
 
   if (mode === 'hud') {
@@ -31,5 +33,5 @@ export function SqlFrame({ mode }: { mode: XrayAppMode }): React.ReactElement {
     );
   }
 
-  return <iframe className="xray-sql-frame" title="SQL client" src={sqlPageUrl()} />;
+  return <iframe className="xray-sql-frame" title="SQL client" src={sqlPageUrl()} hidden={!active} />;
 }

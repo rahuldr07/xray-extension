@@ -149,6 +149,33 @@ test('the pop-out window frames the SQL client in its SQL tab', { timeout: 120_0
   await page.frameLocator('iframe[title="SQL client"]').getByRole('button', { name: 'Open SQLite file' }).waitFor();
 });
 
+test('the framed client keeps its open database across tab switches', { timeout: 120_000 }, async (t) => {
+  const { context, extensionId } = await launch(t);
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/window.html`);
+  await page.getByRole('tab', { name: 'SQL', exact: true }).click();
+  const frameEl = page.locator('iframe[title="SQL client"]');
+  await frameEl.waitFor();
+  const frame = page.frameLocator('iframe[title="SQL client"]');
+  await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  await frame.locator('input[type="file"]').setInputFiles(shopPath);
+  await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
+  // Marks this document: a reloaded or re-created frame would lose it.
+  const frameHandle = await (await frameEl.elementHandle()).contentFrame();
+  await frameHandle.evaluate(() => { window.__sameDocument = true; });
+
+  await page.getByRole('tab', { name: 'API', exact: true }).click();
+  await frameEl.waitFor({ state: 'hidden' });
+  await page.getByRole('tab', { name: 'SQL', exact: true }).click();
+  await frameEl.waitFor({ state: 'visible' });
+
+  assert.equal(await page.locator('iframe[title="SQL client"]').count(), 1);
+  const after = await (await frameEl.elementHandle()).contentFrame();
+  assert.equal(await after.evaluate(() => window.__sameDocument === true), true, 'the same document, never re-created');
+  await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor({ timeout: 2_000 });
+  assert.equal(await frame.getByRole('button', { name: 'Open SQLite file' }).isEnabled(), true);
+});
+
 test('the HUD opens the SQL client in its own window', { timeout: 120_000 }, async (t) => {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -210,7 +237,7 @@ test('the HUD opens the SQL client in its own window', { timeout: 120_000 }, asy
   assert.match(sqlPage.url(), /\/sql\.html$/);
 });
 
-test('a 50,000-row result renders a bounded window of rows and columns', { timeout: 180_000 }, async (t) => {
+test('a 50,000-row, 60-column result renders a bounded window of rows and columns', { timeout: 180_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
 
@@ -219,7 +246,8 @@ test('a 50,000-row result renders a bounded window of rows and columns', { timeo
   await maxRows.press('Enter');
   assert.equal(await maxRows.inputValue(), '50000');
 
-  const columns = ['x', ...Array.from({ length: 29 }, (_, i) => `x as c${i + 1}`)].join(', ');
+  // 60 columns, so the < 40 bound below proves the columns are virtualized (Ruling R17).
+  const columns = ['x', ...Array.from({ length: 59 }, (_, i) => `x as c${i + 1}`)].join(', ');
   await runSql(page, `with recursive c(x) as (select 1 union all select x+1 from c where x < 50000) select ${columns} from c`);
   await assertEventually(async () => /^50000 rows/.test((await summary(page).textContent()) ?? ''), 'header reads 50000 rows', 60_000);
 

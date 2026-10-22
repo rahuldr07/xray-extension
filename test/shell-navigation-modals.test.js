@@ -21,7 +21,12 @@ test('React shell navigation and command palette share tab metadata', () => {
   assert.match(tabs, /id:\s*'insights'/);
   // SQL frames sql.html in the DevTools panel and pop-out; the HUD opens it in a window.
   assert.match(tabs, /id:\s*'sql', label: 'SQL', icon: <IconDatabase/);
-  assert.match(app, /activeTab === 'sql' && <SqlFrame mode=\{mode\} \/>/);
+  // Ruling R16: after the first visit the framed client stays mounted (hidden) across tab switches,
+  // outside the HUD, so its open database and unsaved writes survive.
+  assert.match(app, /if \(activeTab === 'sql' && !sqlOpened\) setSqlOpened\(true\);/);
+  assert.match(app, /const keepSqlFrame = mode !== 'hud' && sqlOpened;/);
+  assert.match(app, /\(activeTab === 'sql' \|\| keepSqlFrame\) && <SqlFrame mode=\{mode\} active=\{activeTab === 'sql'\} \/>/);
+  assert.match(read('src/panel/components/sql/SqlFrame.tsx'), /hidden=\{!active\}/);
   // Notebook and Settings are no longer top-level tabs
   assert.doesNotMatch(tabs, /id:\s*'notebook'/);
   assert.doesNotMatch(tabs, /id:\s*'settings'/);

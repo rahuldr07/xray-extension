@@ -9982,6 +9982,11 @@ ul.xray-compare-notice {
   border: 0;
   background: var(--xray-bg);
 }
+
+/* Kept mounted across tab switches (hidden, not removed): the class's display would beat [hidden]. */
+.xray-sql-frame[hidden] {
+  display: none;
+}
 `});var YT,JT=F(()=>{YT=`/* SQL page (sql.html). The theme scope is display:contents, so the app sizes itself to the
    viewport. Colours come only from --xray-* tokens. */
 

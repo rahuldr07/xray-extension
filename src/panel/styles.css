@@ -9901,3 +9901,8 @@ ul.xray-compare-notice {
   border: 0;
   background: var(--xray-bg);
 }
+
+/* Kept mounted across tab switches (hidden, not removed): the class's display would beat [hidden]. */
+.xray-sql-frame[hidden] {
+  display: none;
+}
