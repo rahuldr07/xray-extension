@@ -73,6 +73,8 @@ test('the header gives the tablist a growth contract instead of leaving it to le
   // strip tightens its gap, icon-label gap and padding so it fits at 700 (window) and 720 (HUD)
   // on the CI runner's wider fonts too (theme-visual-system e2e "chrome fits at 700/720").
   assert.match(styles, /@container xray \(680px < width <= 880px\) \{\n {2}\.xray-tabs \{\n {4}gap: 2px;\n {2}\}\n\n {2}\.xray-tab \{\n {4}gap: 4px;\n {4}padding: 0 6px;/);
+  // ...and just above it, where the surface switcher is back, a lighter trim up to 940px.
+  assert.match(styles, /@container xray \(880px < width <= 940px\) \{\n {2}\.xray-tab \{\n {4}gap: 4px;\n {4}padding: 0 8px;/);
   assert.match(shell, /aria-label=\{tab\.label\}/);
 
   // Below 420px the strip scrolls and gets its scrollbar BACK. Suppressing the

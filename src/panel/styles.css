@@ -4570,6 +4570,17 @@ ul.xray-compare-notice {
   }
 }
 
+/* Just above 880px the surface switcher is back and takes ~100px from the strip, so the
+   six labelled tabs need a lighter trim up to 940px: measured with DejaVu Sans they
+   scrolled 26px at 900 and 11px at 920 at the base padding, and leave at least 27px
+   with this one. From 960px up the base spacing leaves at least 25px. */
+@container xray (880px < width <= 940px) {
+  .xray-tab {
+    gap: 4px;
+    padding: 0 8px;
+  }
+}
+
 @container xray (max-width: 680px) {
   .xray-tab span {
     display: none;
