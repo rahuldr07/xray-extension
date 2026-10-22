@@ -19,10 +19,14 @@ const H = context.window.XRAY_ConsoleHelpers;
 const lodashLite = H.createRuntime()._;
 
 test('console-helpers: the module publishes the expected export surface', () => {
+  // encodeBegin/Pending/Round/End and ENCODE_TICKS: the stepwise encoding the console scope
+  // drives without resolving a promise with its own objects (Task 6 review, N2).
+  // RUNTIME_NAMES: createRuntime's names, the one list the worker and panel/console.js read (M-7).
   assert.deepEqual(Object.keys(H).sort(), [
-    'buildMock', 'createRuntime', 'diff', 'encodeResult', 'flatten', 'generateCurl', 'generateFetch',
+    'ENCODE_TICKS', 'RUNTIME_NAMES', 'buildMock', 'createRuntime', 'diff', 'encodeBegin', 'encodeEnd', 'encodePending', 'encodeResult',
+    'encodeRound', 'flatten', 'generateCurl', 'generateFetch',
     'omit', 'parseBody', 'parseParams', 'parseUrl', 'pick', 'reviveContext', 'reviveValue', 'schema',
-    'siblingEntry', 'toCSV', 'toTable',
+    'siblingEntry', 'thrownText', 'toCSV', 'toTable',
   ]);
   assert.equal(H.lodashLite, undefined, 'lodashLite is private; only createRuntime()._ exposes it');
 });

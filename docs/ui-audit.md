@@ -87,6 +87,8 @@ Evidence: `npm test` (including `test/unit/runtime/console-helpers-pure.test.mjs
 
 Console autocomplete batch 1–4 (spec [2026-10-13-console-autocomplete-design.md](superpowers/specs/2026-10-13-console-autocomplete-design.md)): array/string members, argument values from captured traffic, Ctrl+Space browse, active-argument hint + live count.
 
+Console round 2 (spec [2026-10-18-console-output-autocomplete-design.md](superpowers/specs/2026-10-18-console-output-autocomplete-design.md), audit [assets/2026-10-18-console-audit.md](superpowers/specs/assets/2026-10-18-console-audit.md) G1–G19): web-object/promise/function/DOM output, persistent declarations, catalogue + live page completion, ghost text, eager preview (Settings → "Preview results while typing").
+
 ---
 
 **Status.** `FIXED` — closed on this branch, with a regression test naming the old

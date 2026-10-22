@@ -28,7 +28,9 @@ test('the console helpers live in the ISOLATED world only', () => {
 
   assert.doesNotMatch(read('content/content.js'), /import\(chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)\)/,
     'the runtime import is gone');
-  assert.match(read('shared/console-helpers.js'), /window\.XRAY_ConsoleHelpers/);
+  // Published on the (isolated or scope-shadowed) `window`; the service worker, which loads the file
+  // with importScripts for its RUNTIME_NAMES list (final review M-7), publishes on its own global.
+  assert.match(read('shared/console-helpers.js'), /\(typeof window !== 'undefined' \? window : globalThis\)\.XRAY_ConsoleHelpers = \{/);
 });
 
 test('C-8 debugger is a required permission, because Chrome cannot make it optional', () => {

@@ -36,6 +36,11 @@ const PERMANENT = [
     snippet: 'parsed = JSON.parse(text);',
     why: 'session/HAR file container chosen by the user; bodies inside it are strings',
   },
+  {
+    file: 'src/panel/models/consoleEager.ts',
+    snippet: 'value: JSON.parse(text)',
+    why: "eager preview (console Task 8): typed-model text XRAY's own in-page projector wrote; numbers are already page doubles, bigints typed",
+  },
 ];
 
 /**

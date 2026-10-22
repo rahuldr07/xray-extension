@@ -252,6 +252,7 @@ export function SettingsModal(): React.ReactElement | null {
               <SettingsSectionTitle label="General" />
               <NumberRow label="Slow threshold" desc="Requests at or above this are marked slow in the list, Insights and Findings." value={settings.slowThresholdMs} min={100} max={5000} step={50} suffix="ms" onChange={(value) => updateSettings({ slowThresholdMs: value })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing captured data, console output, pins, rules, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
+              <ToggleRow label="Preview results while typing" desc="Evaluates side-effect-free in the page as you type; a slow function in a draft blocks the page until it returns." checked={settings.previewWhileTyping} onChange={(value) => updateSettings({ previewWhileTyping: value })} />
             </>
           )}
           {section === 'capture' && (

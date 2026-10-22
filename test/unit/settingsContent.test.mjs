@@ -368,3 +368,13 @@ test('options page: every picked swatch reads on the Save button and as its focu
   }
   assert.deepEqual(problems, []);
 });
+
+// Final review M-6 (ruling 128): the setting's copy names its one cost besides the debugger bar —
+// a slow side-effect-free function in a draft blocks the page until it returns (threat model C-1 (v)).
+test('the "Preview results while typing" copy states the slow-function limit', () => {
+  const modal = readFileSync(new URL('../../src/panel/components/settings/SettingsModal.tsx', import.meta.url), 'utf8');
+  const row = /<ToggleRow label="Preview results while typing" desc="([^"]*)"/.exec(modal);
+  assert.ok(row, 'the toggle exists');
+  assert.match(row[1], /side-effect-free/);
+  assert.match(row[1], /slow function .*blocks the page until it returns/i);
+});

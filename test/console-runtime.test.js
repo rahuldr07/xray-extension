@@ -109,12 +109,16 @@ test('React console accepts prepared commands and owns saved snippets', () => {
 });
 
 test('privileged console runtime declares friendly response aliases', () => {
-  const background = read('background.js');
-  assert.match(background, /'res'/);
-  assert.match(background, /'req'/);
-  assert.match(background, /'headers'/);
-  assert.match(background, /'entry'/);
-  assert.match(background, /'table'/);
+  // Final review M-7: the names live once, in shared/console-helpers.js RUNTIME_NAMES, and the
+  // worker reads that list (it loads the file with importScripts).
+  const helpers = read('shared/console-helpers.js');
+  const names = /const RUNTIME_NAMES = \[([^\]]*)\]/.exec(helpers)?.[1] || '';
+  assert.match(names, /'res'/);
+  assert.match(names, /'req'/);
+  assert.match(names, /'headers'/);
+  assert.match(names, /'entry'/);
+  assert.match(names, /'table'/);
+  assert.match(read('background.js'), /XRAY_ConsoleHelpers\?\.RUNTIME_NAMES/);
 });
 
 test('console Record button is honestly labelled as a stream pause, not capture', () => {

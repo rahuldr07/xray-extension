@@ -2,6 +2,7 @@ import React from 'react';
 import { IconChevronDown, IconFold, IconFoldDown } from '@tabler/icons-react';
 import { safeStringify } from '../../utils';
 import { formatPath, type PathSegment } from '../../models/consoleAssist';
+import { consoleBranchOpen, consoleBranchPreview, consoleKey } from '../../models/consoleResults';
 import { TreeBranch, TreeLeaf } from '../../models/treeDisplay';
 import { LosslessNumber, type JsonContainerNode, type JsonNode } from '../../models/jsonText';
 import {
@@ -62,6 +63,7 @@ const LEAF_CLASS: Record<TreeLeaf['tone'], string> = {
   null: 'xray-json-null',
   typed: 'xray-json-typed',
   muted: 'xray-json-muted',
+  source: 'xray-json-source',
 };
 
 function valueClass(value: unknown): string {
@@ -106,14 +108,29 @@ function containerLabel(value: unknown): React.ReactNode {
   return value instanceof TreeBranch && value.label ? <span className="xray-json-typed xray-json-label">{value.label} </span> : null;
 }
 
-/** The key part of a row: a display node's property name or label, else the key itself. */
-function keyNode(nodeKey: string | number | null, label?: string, name?: string): React.ReactNode {
-  if (name !== undefined) return <><span className="xray-json-key">{visibleText(JSON.stringify(name))}</span><span className="xray-json-punct">: </span></>;
+/**
+ * The key part of a row: a display node's property name or label, else the key itself. The
+ * console Tree (`bare`) writes identifier keys bare, as DevTools does: `id: 1`, `"content-type": …`.
+ */
+function keyNode(nodeKey: string | number | null, label?: string, name?: string, bare = false): React.ReactNode {
+  const quoted = (key: string): string => (bare ? consoleKey(key) : JSON.stringify(key));
+  if (name !== undefined) return <><span className="xray-json-key">{visibleText(quoted(name))}</span><span className="xray-json-punct">: </span></>;
   if (label !== undefined) {
     return label ? <><span className="xray-json-key">{visibleText(label)}</span><span className="xray-json-punct"> </span></> : null;
   }
   if (nodeKey === null) return null;
-  return <><span className="xray-json-key">{typeof nodeKey === 'number' ? nodeKey : visibleText(JSON.stringify(nodeKey))}</span><span className="xray-json-punct">: </span></>;
+  return <><span className="xray-json-key">{typeof nodeKey === 'number' ? nodeKey : visibleText(quoted(nodeKey))}</span><span className="xray-json-punct">: </span></>;
+}
+
+/** A leaf's tooltip: a lazy getter says it was not run. */
+function leafHint(value: unknown): string | undefined {
+  return value instanceof TreeLeaf ? value.hint : undefined;
+}
+
+/** The same note for screen readers, which mostly skip a title: read after the value. */
+function hintText(value: unknown): React.ReactNode {
+  const hint = leafHint(value);
+  return hint ? <span className="xray-visually-hidden"> ({hint})</span> : null;
 }
 
 /** A segment as it reads in a path, without a root: `users`, `[0]`, `["a b"]`. */
@@ -187,12 +204,22 @@ interface FlatRow {
  * roving tabindex (↑/↓, →/←, Home/End, Enter/Space selects and reports the segments).
  * Without it the behaviour is the original detail-pane viewer.
  */
-export const JsonView = React.memo(function JsonView({ value, onSelectPath, filter = '' }: {
+export const JsonView = React.memo(function JsonView({ value, onSelectPath, filter = '', variant, rootOpen = false }: {
   value: unknown;
   onSelectPath?: (segments: PathSegment[]) => void;
   filter?: string;
+  /**
+   * `console`: the Console's result Tree (spec §1, console round 2; build the value with
+   * consoleResults.resultDisplay). A branch with more than 5 keys or items, a DOM node, a
+   * function's source and a `[0 … 99]` bucket start collapsed to their one-line preview with an
+   * expand arrow; identifier keys are bare.
+   */
+  variant?: 'console';
+  /** Console Tree: the root starts open whatever its size (the user asked to expand it). */
+  rootOpen?: boolean;
 }): React.ReactElement {
   const selectable = !!onSelectPath;
+  const consoleTree = variant === 'console' && !selectable;
   // Cheap size gate up front — huge bodies keep the old flat text view.
   const oversized = React.useMemo(
     () => !selectable && safeStringify(value, 0, TREE_CHAR_BUDGET + 1).length > TREE_CHAR_BUDGET,
@@ -222,22 +249,23 @@ export const JsonView = React.memo(function JsonView({ value, onSelectPath, filt
     setChunks(new Map());
   }
 
-  const baseline = React.useCallback((path: string, depth: number): boolean => {
+  const baseline = React.useCallback((path: string, depth: number, node?: unknown): boolean => {
     if (allOpen !== null) return allOpen && (!selectable || depth < SELECTABLE_EXPAND_ALL_DEPTH);
     if (filterResult?.ancestors.has(path)) return true;
+    if (consoleTree) return depth === 0 && rootOpen ? true : depth < openDepth && consoleBranchOpen(node);
     return depth < openDepth;
-  }, [allOpen, selectable, filterResult, openDepth]);
+  }, [allOpen, selectable, filterResult, openDepth, consoleTree, rootOpen]);
 
-  const isOpen = React.useCallback((path: string, depth: number): boolean => {
+  const isOpen = React.useCallback((path: string, depth: number, node?: unknown): boolean => {
     const override = overrides.get(path);
     if (override !== undefined) return override;
-    return baseline(path, depth);
+    return baseline(path, depth, node);
   }, [overrides, baseline]);
 
-  const setOpen = React.useCallback((path: string, depth: number, open?: boolean): void => {
+  const setOpen = React.useCallback((path: string, depth: number, open?: boolean, node?: unknown): void => {
     setOverrides((prev) => {
       const next = new Map(prev);
-      const current = prev.get(path) ?? baseline(path, depth);
+      const current = prev.get(path) ?? baseline(path, depth, node);
       next.set(path, open ?? !current);
       return next;
     });
@@ -300,13 +328,13 @@ export const JsonView = React.memo(function JsonView({ value, onSelectPath, filt
     <div className="xray-json xray-json-tree" role="tree" aria-label="JSON viewer">
       {toolbar}
       <div className="xray-json-tree-body">
-        <TreeNode nodeKey={null} value={value} path="$" depth={0} isOpen={isOpen} toggle={(path, depth) => setOpen(path, depth)} />
+        <TreeNode nodeKey={null} value={value} path="$" depth={0} isOpen={isOpen} toggle={(path, depth, node) => setOpen(path, depth, undefined, node)} consoleTree={consoleTree} />
       </div>
     </div>
   );
 });
 
-function flattenTree(value: unknown, isOpen: (path: string, depth: number) => boolean, filter: FilterResult | null, shown: (path: string) => number): FlatRow[] {
+function flattenTree(value: unknown, isOpen: (path: string, depth: number, node?: unknown) => boolean, filter: FilterResult | null, shown: (path: string) => number): FlatRow[] {
   const rows: FlatRow[] = [];
   const visit = (nodeKey: string | number | null, node: unknown, path: string, segments: PathSegment[], depth: number, insideMatch: boolean, label?: string, name?: string): void => {
     const kind = containerKind(node);
@@ -339,8 +367,8 @@ function flattenTree(value: unknown, isOpen: (path: string, depth: number) => bo
 /** The inspector's tree: visible rows flattened, one roving tab stop. */
 function SelectableTree({ value, isOpen, setOpen, filter, shown, showMore, selected, active, setActive, onSelect }: {
   value: unknown;
-  isOpen(path: string, depth: number): boolean;
-  setOpen(path: string, depth: number, open?: boolean): void;
+  isOpen(path: string, depth: number, node?: unknown): boolean;
+  setOpen(path: string, depth: number, open?: boolean, node?: unknown): void;
   filter: FilterResult | null;
   shown(path: string): number;
   showMore(path: string): void;
@@ -452,7 +480,7 @@ function SelectableTree({ value, isOpen, setOpen, filter, shown, showMore, selec
             <div key={row.id} {...common} aria-selected={isSelected} className="xray-json-row xray-json-flatrow" style={{ paddingLeft: row.depth * 14 + 8 }} onClick={() => onSelect(row)}>
               <span className="xray-json-gutter" />
               {keyLabel}
-              <span className={`xray-json-value ${valueClass(row.value)}`}>{renderScalar(row.value)}</span>
+              <span className={`xray-json-value ${valueClass(row.value)}`} title={leafHint(row.value)}>{renderScalar(row.value)}{hintText(row.value)}</span>
             </div>
           );
         }
@@ -492,7 +520,7 @@ function SelectableTree({ value, isOpen, setOpen, filter, shown, showMore, selec
   );
 }
 
-function TreeNode({ nodeKey, label, name, value, path, depth, isOpen, toggle }: {
+function TreeNode({ nodeKey, label, name, value, path, depth, isOpen, toggle, consoleTree = false }: {
   nodeKey: string | number | null;
   /** A display node's label for this key ('' for none). */
   label?: string;
@@ -501,40 +529,53 @@ function TreeNode({ nodeKey, label, name, value, path, depth, isOpen, toggle }: 
   value: unknown;
   path: string;
   depth: number;
-  isOpen(path: string, depth: number): boolean;
-  toggle(path: string, depth: number): void;
+  isOpen(path: string, depth: number, node?: unknown): boolean;
+  toggle(path: string, depth: number, node?: unknown): void;
+  /** The Console's result Tree: bare keys, collapsed rows read as their one-line preview. */
+  consoleTree?: boolean;
 }): React.ReactElement {
   const kind = containerKind(value);
-  const keyLabel = keyNode(nodeKey, label, name);
+  const keyLabel = keyNode(nodeKey, label, name, consoleTree);
 
   if (!kind) {
     return (
       <div className="xray-json-row" role="treeitem" style={{ paddingLeft: depth * 14 + 8 }}>
         <span className="xray-json-gutter" />
         {keyLabel}
-        <span className={`xray-json-value ${valueClass(value)}`}>{renderScalar(value)}</span>
+        <span className={`xray-json-value ${valueClass(value)}`} title={leafHint(value)}>{renderScalar(value)}{hintText(value)}</span>
       </div>
     );
   }
 
   const entries = childEntries(value, kind);
-  const open = isOpen(path, depth);
+  const open = isOpen(path, depth, value);
   const brackets = kind === 'array' ? ['[', ']'] : ['{', '}'];
   const summary = containerSummary(kind, containerCount(value, kind));
+  // Console Tree: a `[0 … 99]` bucket is only its label, a function only its label and source
+  // (no brackets); a collapsed branch reads as its preview.
+  const bucket = consoleTree && value instanceof TreeBranch && !!value.bucket;
+  const bare = bucket || (consoleTree && value instanceof TreeBranch && !!value.bare);
+  const preview = consoleTree && !open && !bucket ? consoleBranchPreview(value) : null;
 
   return (
     <div className="xray-json-node" role="treeitem" aria-expanded={open}>
       <button
         className="xray-json-row xray-json-branch"
         style={{ paddingLeft: depth * 14 }}
-        onClick={() => toggle(path, depth)}
+        onClick={() => toggle(path, depth, value)}
       >
         <IconChevronDown size={13} stroke={2.2} className={`xray-json-chevron ${open ? '' : 'closed'}`} />
         {keyLabel}
-        {containerLabel(value)}
-        <span className="xray-json-punct">{brackets[0]}</span>
-        {!open && <span className="xray-json-summary">{summary}</span>}
-        {!open && <span className="xray-json-punct">{brackets[1]}</span>}
+        {bucket ? null : preview !== null ? (
+          <span className="xray-json-preview" title={preview}>{visibleText(preview)}</span>
+        ) : bare ? containerLabel(value) : (
+          <>
+            {containerLabel(value)}
+            <span className="xray-json-punct">{brackets[0]}</span>
+            {!open && <span className="xray-json-summary">{summary}</span>}
+            {!open && <span className="xray-json-punct">{brackets[1]}</span>}
+          </>
+        )}
       </button>
       {open && (
         <div className="xray-json-children">
@@ -549,12 +590,15 @@ function TreeNode({ nodeKey, label, name, value, path, depth, isOpen, toggle }: 
               depth={depth + 1}
               isOpen={isOpen}
               toggle={toggle}
+              consoleTree={consoleTree}
             />
           ))}
-          <div className="xray-json-row" style={{ paddingLeft: depth * 14 + 8 }}>
-            <span className="xray-json-gutter" />
-            <span className="xray-json-punct">{brackets[1]}</span>
-          </div>
+          {!bare && (
+            <div className="xray-json-row" style={{ paddingLeft: depth * 14 + 8 }}>
+              <span className="xray-json-gutter" />
+              <span className="xray-json-punct">{brackets[1]}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

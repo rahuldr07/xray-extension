@@ -101,6 +101,9 @@ for (const shadow of [false, true]) {
     const page = await fixture(t, shadow);
     await run(page, 'tall');
     await page.waitForFunction(() => window.sx.q('.xray-command-cell .xray-result-body'));
+    // The console Tree collapses a 40-row array to its preview (spec §1): open it all to make it tall.
+    await page.evaluate(() => [...window.sx.q('.xray-command-cell').querySelectorAll('.xray-json-tree-btn')].find(b => /Expand all/.test(b.textContent)).click());
+    await page.waitForFunction(() => window.sx.q('.xray-command-cell .xray-result-body').scrollHeight > window.sx.q('.xray-command-cell .xray-result-body').clientHeight);
     const body = '.xray-command-cell .xray-result-body';
     const overTree = await page.evaluate(sel => window.sx.point(sel, 60), body);
     await wheelAt(page, overTree, 200);
