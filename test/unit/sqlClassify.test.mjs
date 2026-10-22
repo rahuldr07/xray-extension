@@ -97,3 +97,21 @@ test('words inside strings, comments and quoted identifiers are not keywords', (
     ['/* drop */ select 1', ''],
   ]);
 });
+
+test('transaction control is read in sqlite and postgres (Ruling R19)', () => {
+  const forms = [
+    'begin', 'begin transaction', 'begin deferred', 'begin immediate transaction', 'begin exclusive transaction',
+    'commit', 'commit transaction', 'end', 'end transaction',
+    'rollback', 'rollback transaction', 'rollback to s1', 'rollback to savepoint s1', 'rollback transaction to savepoint s1',
+    'savepoint s1', 'release s1', 'release savepoint s1',
+  ];
+  for (const dialect of ['sqlite', 'postgres']) {
+    rows('read', dialect, forms.map((sql) => [sql, '']));
+  }
+  rows('read', 'sqlite', [['begin; select 1; commit', '']]);
+});
+
+test('an exact statement keyword is never treated as a typo', () => {
+  rows('write', 'sqlite', [['begin foo bar', 'unrecognized statement']]);
+  rows('dangerous', 'sqlite', [['selec * from t', 'could not parse']]);
+});

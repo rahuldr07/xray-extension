@@ -31,3 +31,9 @@ test('SqlError-shaped objects pass through; messages are never empty', () => {
     assert.ok(e.message.length > 0);
   }
 });
+
+test('only a malformed database image is not-a-database; malformed JSON is a server error', () => {
+  assert.equal(normalizeSqlError(new Error('SQLITE_ERROR: malformed JSON')).code, 'server');
+  assert.equal(normalizeSqlError(new Error('SQLITE_CORRUPT: database disk image is malformed')).code, 'not-a-database');
+  assert.equal(normalizeSqlError(new Error('SQLITE_NOTADB: file is not a database')).code, 'not-a-database');
+});

@@ -20,7 +20,7 @@ function copyText(format: CopyFormat, result: QueryResult, table: string): { tex
 
 function Inspector({ result, cell, onClose }: { result: QueryResult; cell: SelectedCell; onClose(): void }): React.ReactElement {
   const column = result.columns[cell.col];
-  const shown = displayCell(result.rows[cell.row]?.[cell.col] ?? null);
+  const shown = displayCell(result.rows[cell.row]?.[cell.col] ?? null, column?.type);
   const json = React.useMemo(() => {
     if (shown.kind !== 'json') return null;
     const doc = parseJson(shown.text);

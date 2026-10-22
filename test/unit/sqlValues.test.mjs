@@ -80,3 +80,36 @@ test('clampMaxRows bounds the cap', () => {
   assert.equal(clampMaxRows(12.9), 12);
   assert.equal(clampMaxRows(-5), 1);
 });
+
+test('toJsonRows keeps duplicate and __proto__ columns as own keys', () => {
+  const columns = [
+    { name: 'id', type: '' },
+    { name: 'id', type: '' },
+    { name: '__proto__', type: '' },
+  ];
+  const text = toJsonRows(columns, [[1, 2, 'p']]);
+  const [row] = JSON.parse(text);
+  assert.deepEqual(Object.keys(row), ['id', 'id_2', '__proto__']);
+  assert.equal(row.id, 1);
+  assert.equal(row.id_2, 2);
+  assert.ok(Object.hasOwn(row, '__proto__'));
+  assert.equal(row['__proto__'], 'p');
+  // A suffix already used by another column is skipped.
+  const taken = JSON.parse(toJsonRows([{ name: 'id', type: '' }, { name: 'id_2', type: '' }, { name: 'id', type: '' }], [[1, 2, 3]]));
+  assert.deepEqual(Object.keys(taken[0]), ['id', 'id_2', 'id_3']);
+  assert.deepEqual(Object.values(taken[0]), [1, 2, 3]);
+});
+
+test('displayCell: a numeric string in a numeric column renders as a number', () => {
+  for (const type of ['INTEGER', 'bigint', 'NUMERIC(10,2)', 'decimal', 'REAL', 'float8', 'DOUBLE PRECISION']) {
+    assert.equal(displayCell('9007199254740993', type).kind, 'number', type);
+  }
+  assert.equal(displayCell('-12.50', 'NUMERIC').kind, 'number');
+  assert.equal(displayCell('1e30', 'REAL').kind, 'number');
+  assert.equal(displayCell('9007199254740993', 'TEXT').kind, 'text');
+  assert.equal(displayCell('9007199254740993', '').kind, 'text');
+  assert.equal(displayCell('9007199254740993').kind, 'text');
+  assert.equal(displayCell('abc', 'INTEGER').kind, 'text');
+  assert.equal(displayCell('12 apples', 'INTEGER').kind, 'text');
+  assert.equal(displayCell('9007199254740993', 'INTEGER').text, '9007199254740993');
+});

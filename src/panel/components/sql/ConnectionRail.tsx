@@ -1,36 +1,82 @@
-import React from 'react';
-import { IconEye, IconTable } from '@tabler/icons-react';
+import React, { useState } from 'react';
+import { IconChevronRight, IconEye, IconTable } from '@tabler/icons-react';
 import { usePanelSqlStore } from '../../sqlStore';
-import type { TableNode } from '../../models/sqlTypes';
+import type { ColumnNode, TableNode } from '../../models/sqlTypes';
 
 function columnSummary(table: TableNode): string {
   return table.columns.map((c) => `${c.name}${c.type ? ` ${c.type}` : ''}${c.pk ? ' PK' : ''}`).join('\n');
 }
 
+function columnLabel(c: ColumnNode): string {
+  return [c.name, c.type, c.pk && 'primary key', !c.nullable && 'not null'].filter(Boolean).join(', ');
+}
+
+// One column of an expanded table: name, declared type, and PK / NOT NULL markers as labelled text.
+function RailColumn({ column }: { column: ColumnNode }): React.ReactElement {
+  return (
+    <li role="treeitem" aria-level={3} aria-label={columnLabel(column)} className="xray-sql-rail-column">
+      <span className="xray-sql-rail-name">{column.name}</span>
+      {column.type && <span className="xray-sql-rail-type">{column.type}</span>}
+      {column.pk && (
+        <span role="img" aria-label="primary key" title="Primary key" className="xray-sql-rail-marker pk">
+          PK
+        </span>
+      )}
+      {!column.nullable && (
+        <span role="img" aria-label="not null" title="Not null" className="xray-sql-rail-marker">
+          NN
+        </span>
+      )}
+    </li>
+  );
+}
+
 function RailItem({ schema, table, view }: { schema: string; table: TableNode; view: boolean }): React.ReactElement {
   const previewTable = usePanelSqlStore((s) => s.previewTable);
   const busy = usePanelSqlStore((s) => !!s.running || s.opening);
+  const [expanded, setExpanded] = useState(false);
   const activate = () => {
     if (!busy) void previewTable(schema, table.name);
   };
   return (
-    <div
-      role="treeitem"
-      tabIndex={0}
-      aria-level={2}
-      aria-disabled={busy || undefined}
-      className="xray-sql-rail-item"
-      title={columnSummary(table)}
-      onClick={activate}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          activate();
-        }
-      }}
-    >
-      {view ? <IconEye size={14} stroke={1.8} aria-hidden="true" /> : <IconTable size={14} stroke={1.8} aria-hidden="true" />}
-      <span className="xray-sql-rail-name">{table.name}</span>
+    <div role="none" className="xray-sql-rail-entry">
+      <div role="none" className="xray-sql-rail-row">
+        {/* A sibling of the tree item, so the item's name stays the table name. */}
+        <button
+          type="button"
+          className="xray-sql-rail-toggle"
+          aria-expanded={expanded}
+          aria-label={`Columns of ${table.name}`}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          <IconChevronRight size={12} stroke={2} aria-hidden="true" />
+        </button>
+        <div
+          role="treeitem"
+          tabIndex={0}
+          aria-level={2}
+          aria-disabled={busy || undefined}
+          className="xray-sql-rail-item"
+          title={columnSummary(table)}
+          onClick={activate}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              activate();
+            }
+          }}
+        >
+          {view ? <IconEye size={14} stroke={1.8} aria-hidden="true" /> : <IconTable size={14} stroke={1.8} aria-hidden="true" />}
+          <span className="xray-sql-rail-name">{table.name}</span>
+        </div>
+      </div>
+      {expanded && (
+        <ul role="group" aria-label={`${table.name} columns`} className="xray-sql-rail-columns">
+          {table.columns.map((c) => (
+            <RailColumn key={c.name} column={c} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

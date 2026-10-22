@@ -153,3 +153,31 @@ test('input the parser cannot read reaches SQLite on a read-only engine and fail
   rejectsWith(() => engine.execute('select 1; selec * from orders', { maxRows: 10 }), 'syntax');
   engine.close();
 });
+
+test('a read-write engine runs a CREATE TRIGGER script and the trigger fires', () => {
+  const engine = openShop(false);
+  engine.execute(
+    'create table log(x); create trigger tr after insert on log begin insert into log values (1); delete from log where x = 2; end; select 1',
+    { maxRows: 10 },
+  );
+  engine.execute('insert into log values (2)', { maxRows: 10 });
+  // The insert of 2 fired the trigger: it added 1, then deleted the 2.
+  assert.deepEqual(engine.execute('select x from log order by x', { maxRows: 10 }).rows, [[1]]);
+  engine.close();
+});
+
+test('a read-only engine runs transaction control around a read', () => {
+  const engine = openShop(true);
+  const r = engine.execute('begin; select 1; commit', { maxRows: 10 });
+  assert.equal(r.rowCount, 0);
+  assert.deepEqual(engine.execute('savepoint s1; select count(*) from customers; release s1', { maxRows: 10 }).columns, []);
+  assert.equal(engine.execute('begin transaction; select count(*) from customers', { maxRows: 10 }).rows[0][0], 3);
+  engine.execute('rollback', { maxRows: 10 });
+  engine.close();
+});
+
+test('an execute-time "malformed" error is a server error, not a bad file', () => {
+  const engine = openShop(true);
+  rejectsWith(() => engine.execute("select json_extract('{oops', '$.a')", { maxRows: 10 }), 'server');
+  engine.close();
+});

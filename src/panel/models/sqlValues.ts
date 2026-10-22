@@ -29,7 +29,15 @@ export function toCell(raw: unknown): SqlCell {
   return String(raw);
 }
 
-export function displayCell(cell: SqlCell): { text: string; truncated: boolean; kind: CellKind } {
+// Declared types whose values are numbers, even when the engine hands them over as digit strings
+// (a 64-bit integer beyond 2^53, a DECIMAL).
+const NUMERIC_TYPE = /INT|NUMERIC|DECIMAL|REAL|FLOAT|DOUBLE/i;
+const NUMERIC_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+
+export function displayCell(
+  cell: SqlCell,
+  columnType = '',
+): { text: string; truncated: boolean; kind: CellKind } {
   if (cell === null) return { text: 'NULL', truncated: false, kind: 'null' };
   if (typeof cell === 'number') return { text: String(cell), truncated: false, kind: 'number' };
   if (typeof cell === 'boolean') return { text: String(cell), truncated: false, kind: 'boolean' };
@@ -38,6 +46,7 @@ export function displayCell(cell: SqlCell): { text: string; truncated: boolean; 
   }
   const truncated = cell.length > CELL_DISPLAY_LIMIT;
   const text = truncated ? cell.slice(0, CELL_DISPLAY_LIMIT) : cell;
+  if (NUMERIC_TYPE.test(columnType) && NUMERIC_TEXT.test(cell)) return { text, truncated, kind: 'number' };
   const head = cell.trimStart()[0];
   // The shared lossless parser, not JSON.parse: this repo reads every JSON text through it.
   const json = (head === '{' || head === '[') && parseJson(cell).ok;
@@ -56,11 +65,36 @@ export function toCsv(columns: ResultColumn[], rows: SqlCell[][]): string {
   return lines.join('\r\n');
 }
 
+// Object keys for a row: a repeated column name gets the first free `_2`, `_3`, ... suffix, so
+// `select a.id, b.id` keeps both values.
+function jsonKeys(columns: ResultColumn[]): string[] {
+  const taken = new Set(columns.map((c) => c.name));
+  const seen = new Set<string>();
+  return columns.map(({ name }) => {
+    if (!seen.has(name)) {
+      seen.add(name);
+      return name;
+    }
+    let n = 2;
+    while (taken.has(`${name}_${n}`)) n++;
+    const key = `${name}_${n}`;
+    taken.add(key);
+    return key;
+  });
+}
+
 export function toJsonRows(columns: ResultColumn[], rows: SqlCell[][]): string {
+  const keys = jsonKeys(columns);
   const objects = rows.map((row) => {
     const o: Record<string, SqlCell> = {};
-    columns.forEach((c, i) => {
-      o[c.name] = row[i] ?? null;
+    keys.forEach((key, i) => {
+      // defineProperty, not assignment: a `__proto__` column must stay an own key.
+      Object.defineProperty(o, key, {
+        value: row[i] ?? null,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     });
     return o;
   });

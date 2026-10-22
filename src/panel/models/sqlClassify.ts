@@ -38,7 +38,7 @@ const READ_PRAGMAS = new Set([
   'collation_list', 'database_list', 'compile_options', 'pragma_list', 'module_list',
 ]);
 // Used to catch a typo of a statement keyword (`selec`), which is not safe to guess at.
-const KNOWN_FIRST = [...DANGEROUS, ...WRITE, ...READ, 'begin', 'commit', 'rollback', 'savepoint', 'release'];
+const KNOWN_FIRST = [...DANGEROUS, ...WRITE, ...READ, 'begin', 'commit', 'end', 'rollback', 'savepoint', 'release'];
 
 // Bare PRAGMAs (no `=`, no argument) that only report a value. Any other bare
 // pragma can act (optimize, wal_checkpoint, incremental_vacuum ...).
@@ -65,6 +65,7 @@ function editDistance(a: string, b: string): number {
 }
 
 function isTypoOfKeyword(word: string): boolean {
+  if (KNOWN_FIRST.includes(word)) return false;
   return word.length >= 4 && KNOWN_FIRST.some((k) => k.length >= 4 && editDistance(word, k) <= 2);
 }
 
@@ -115,6 +116,44 @@ function tokenize(text: string, dialect: SqlDialect): Tok[] | null {
   return toks.filter((t) => t.text !== '(' && t.text !== ')');
 }
 
+// Transaction control (Ruling R19) is read: it changes no data, and the database itself
+// still refuses any write made inside the transaction on a read-only connection.
+//   BEGIN [DEFERRED|IMMEDIATE|EXCLUSIVE] [TRANSACTION]   COMMIT|END [TRANSACTION]
+//   ROLLBACK [TRANSACTION] [TO [SAVEPOINT] name]   SAVEPOINT name   RELEASE [SAVEPOINT] name
+function isTransactionControl(toks: Tok[]): boolean {
+  const w = toks.map((t) => t.word);
+  // A savepoint name is a plain or quoted identifier.
+  const isName = (i: number) => i === toks.length - 1 && (w[i] !== '' || /^["`[]/.test(toks[i].text));
+  let i = 1;
+  const opt = (...words: string[]) => {
+    if (words.includes(w[i])) i++;
+  };
+  switch (w[0]) {
+    case 'begin':
+      opt('deferred', 'immediate', 'exclusive');
+      opt('transaction');
+      return i === toks.length;
+    case 'commit':
+    case 'end':
+      opt('transaction');
+      return i === toks.length;
+    case 'rollback':
+      opt('transaction');
+      if (i === toks.length) return true;
+      if (w[i] !== 'to') return false;
+      i++;
+      opt('savepoint');
+      return isName(i);
+    case 'savepoint':
+      return isName(1);
+    case 'release':
+      opt('savepoint');
+      return isName(i);
+    default:
+      return false;
+  }
+}
+
 function classifyOne(text: string, dialect: SqlDialect): Classification {
   const toks = tokenize(text, dialect);
   if (!toks || toks.length === 0) return COULD_NOT_PARSE;
@@ -124,6 +163,7 @@ function classifyOne(text: string, dialect: SqlDialect): Classification {
     // Starts with a literal or operator: not a statement we recognise.
     return COULD_NOT_PARSE;
   }
+  if (isTransactionControl(toks)) return { kind: 'read', reason: '' };
 
   // Resolve the statement actually executed: EXPLAIN ANALYZE runs what it wraps,
   // and WITH hands over to the main body after its CTEs.

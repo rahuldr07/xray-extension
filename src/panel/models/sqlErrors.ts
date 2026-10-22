@@ -40,7 +40,7 @@ export function normalizeSqlError(raw: unknown, sql?: string): SqlError {
   const message = messageOf(raw);
   if (name === 'AbortError') return { code: 'cancelled', message: message === 'Unknown SQL error.' ? 'Query cancelled.' : message };
   if (/readonly|read-only|query_only/i.test(message)) return { code: 'read-only', message };
-  if (/not a database|file is not a database|malformed/i.test(message)) return { code: 'not-a-database', message };
+  if (/not a database|file is not a database|database disk image is malformed/i.test(message)) return { code: 'not-a-database', message };
   if (/syntax error|near "/i.test(message)) {
     const err: SqlError = { code: 'syntax', message };
     const near = /near "([^"]*)"/i.exec(message);

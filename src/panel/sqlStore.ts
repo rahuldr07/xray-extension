@@ -108,8 +108,9 @@ let client: SqliteClient | null = null;
 // The bytes a re-open starts from: the file as opened, or as last saved.
 let bytes: Uint8Array | null = null;
 let fileHandle: FileSystemFileHandle | null = null;
-// Set when a save exported the database but the disk write failed: the client no longer counts the
-// changes as unsaved (its re-open bytes include them), but the file on disk is still behind.
+// Set when a save exported the database but the disk write failed, or went out as a download that
+// may never complete: the client no longer counts the changes as unsaved (its re-open bytes include
+// them), but the file on disk may still be behind.
 let diskBehind = false;
 let selectionReader: (() => EditorSelection) | null = null;
 let queue: RunQueue | null = null;
@@ -604,13 +605,18 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           await writable.write(out as Uint8Array<ArrayBuffer>);
           await writable.close();
           say(`Saved ${conn.name}.`);
+          bytes = out;
+          diskBehind = false;
+          set({ dirty: unsaved() });
         } else {
           downloadBytes(out, conn.name);
-          say(`Downloaded ${conn.name}.`);
+          say('Download started — the file is saved when the download completes.');
+          // Nothing reports whether the download finished or was cancelled, so the changes still
+          // count as unsaved until a later save; a re-open starts from these bytes.
+          bytes = out;
+          diskBehind = true;
+          set({ dirty: true });
         }
-        bytes = out;
-        diskBehind = false;
-        set({ dirty: unsaved() });
       } catch (raw) {
         // The export succeeded, so nothing is lost in memory; the file on disk is still behind.
         const message = raw instanceof Error ? raw.message : String(raw);

@@ -31,8 +31,13 @@ export function OpenFileButton({ disabled }: { disabled?: boolean }): React.Reac
     let handle: FileSystemFileHandle | undefined;
     try {
       [handle] = await picker.call(window, { multiple: false, types: PICKER_TYPES });
-    } catch {
-      return; // The user dismissed the picker.
+    } catch (err) {
+      // The user dismissed the picker.
+      if ((err as { name?: unknown } | null)?.name === 'AbortError') return;
+      // Anything else means the picker cannot run here: inside the DevTools panel sql.html is a
+      // cross-origin subframe and the picker throws SecurityError. The file input still works.
+      inputRef.current?.click();
+      return;
     }
     if (!handle) return;
     await openFile(await handle.getFile(), handle);

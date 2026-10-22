@@ -3,7 +3,8 @@
 //
 // Each test launches the unpacked extension in a fresh profile, so persisted editor tabs and
 // history from one test never leak into the next. `window.showOpenFilePicker` is deleted before
-// page scripts run, which forces the hidden <input type="file"> fallback that Playwright can drive.
+// page scripts run, which forces the hidden <input type="file"> fallback that Playwright can drive;
+// one test instead makes the picker throw SecurityError, as it does in the DevTools panel's subframe.
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -90,9 +91,61 @@ test('opening a database lists its tables and previews one', { timeout: 120_000 
   await openShop(page);
   for (const name of ['customers', 'orders', 'big_orders']) await railItem(page, name).waitFor();
 
+  // Spec §1 (Ruling R18): a table expands to its columns with type, PK and NOT NULL markers.
+  const toggle = page.getByRole('button', { name: 'Columns of orders', exact: true });
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'collapsed by default');
+  await toggle.click();
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+  const columns = page.getByRole('group', { name: 'orders columns', exact: true });
+  const id = columns.getByRole('treeitem', { name: 'id, INTEGER, primary key', exact: true });
+  await id.waitFor();
+  await id.getByRole('img', { name: 'primary key', exact: true }).waitFor();
+  await columns.getByRole('treeitem', { name: 'customer_id, INTEGER', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Columns of customers', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'customers columns', exact: true })
+    .getByRole('treeitem', { name: 'email, TEXT, not null', exact: true })
+    .getByRole('img', { name: 'not null', exact: true })
+    .waitFor();
+
   await railItem(page, 'orders').click();
   await assertEventually(async () => /^100 rows/.test(await summary(page).textContent()), 'preview header reads 100 rows');
-  await page.getByRole('gridcell', { name: '9007199254740993', exact: true }).waitFor();
+  const big = page.getByRole('gridcell', { name: '9007199254740993', exact: true });
+  await big.waitFor();
+  // Spec §2 (Ruling R18): a big integer arrives as a digit string but is laid out as a number.
+  assert.match(await big.getAttribute('class'), /\bkind-number\b/);
+});
+
+test('a blocked file picker falls back to the file chooser, and a download save stays unsaved', { timeout: 120_000 }, async (t) => {
+  const { context, extensionId } = await launch(t);
+  const page = await context.newPage();
+  // Inside the DevTools panel sql.html is a cross-origin subframe, where the picker throws SecurityError.
+  await page.addInitScript(() => {
+    window.showOpenFilePicker = () =>
+      Promise.reject(new DOMException("Cross origin sub frames aren't allowed to show a file picker.", 'SecurityError'));
+  });
+  await page.goto(`chrome-extension://${extensionId}/sql.html`);
+  const open = page.getByRole('button', { name: 'Open SQLite file' });
+  await open.waitFor();
+  const chooser = page.waitForEvent('filechooser', { timeout: 10_000 });
+  await open.click();
+  await (await chooser).setFiles(shopPath);
+  await railItem(page, 'orders').waitFor();
+
+  // Opened through <input type=file>, so there is no file handle and Save downloads the bytes.
+  await page.getByLabel('Read-only').uncheck();
+  await assertEventually(async () => !(await page.getByLabel('Read-only').isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
+  await runSql(page, "insert into customers values (4, 'kay@example.test', null)");
+  const save = page.getByRole('button', { name: 'Save', exact: true });
+  await assertEventually(() => save.isEnabled(), 'Save enabled after a write');
+  const download = page.waitForEvent('download', { timeout: 10_000 });
+  await save.click();
+  await download;
+  await page.getByRole('tab', { name: 'Messages', exact: true }).click();
+  await messages(page).getByText('Download started — the file is saved when the download completes.', { exact: false }).waitFor();
+  // The download may still be cancelled, so the changes still count as unsaved.
+  assert.equal(await save.isEnabled(), true, 'Save stays enabled');
+  await page.locator('.xray-sql-connection-meta', { hasText: 'unsaved changes' }).waitFor({ timeout: 2_000 });
 });
 
 test('a write on a read-only connection is refused with a message', { timeout: 120_000 }, async (t) => {

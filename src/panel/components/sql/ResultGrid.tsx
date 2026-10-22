@@ -90,7 +90,7 @@ export function ResultGrid({
                 {row.index + 1}
               </div>
               {virtualColumns.map((col) => {
-                const shown = displayCell(cells[col.index] ?? null);
+                const shown = displayCell(cells[col.index] ?? null, result.columns[col.index].type);
                 const isSelected = selected?.row === row.index && selected.col === col.index;
                 return (
                   <div
