@@ -19,6 +19,7 @@ func TestGuard(t *testing.T) {
 		{"discard all", "DISCARD"},
 		{"prepare p as select 1", "PREPARE"},
 		{"lock table t", "LOCK"},
+		{"copy t to program 'id'", "COPY"},
 		{"settle", ""},
 		{"update t set x=1", ""},
 		{"", ""},

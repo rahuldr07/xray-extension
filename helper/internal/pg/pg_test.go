@@ -176,7 +176,7 @@ func TestPostgresCursorAndFetchMore(t *testing.T) {
 		t.Fatalf("stream %v final %v", stream, f)
 	}
 	cols := stream[0].M["columns"].([]any)
-	if cols[0].(map[string]any)["type"] != "int8" || cols[2].(map[string]any)["type"] != "jsonb" {
+	if cols[0].(map[string]any)["type"] != "bigint" || cols[2].(map[string]any)["type"] != "jsonb" {
 		t.Fatalf("columns %v", cols)
 	}
 	rows := rowsOf(stream)
@@ -424,5 +424,148 @@ func TestPgBouncerStatementTimeout(t *testing.T) {
 		if _, f = exec(c, sid, "t1", "select 1", 10); f["ok"] != true {
 			t.Fatalf("readOnly=%v tab unusable after timeout: %v", ro, f)
 		}
+	}
+}
+
+// nextAfterHugeCursor leaves a 50M-row cursor open on a tab, then checks that
+// the tab's next statement answers within 2 s (the cursor is cancelled, not
+// drained).
+func nextAfterHugeCursor(t *testing.T, dsn string) {
+	c := newClient(t)
+	for _, ro := range []bool{true, false} {
+		sid := open(t, c, connectReq(t, dsn, ro))
+		_, f := exec(c, sid, "t1", "select * from generate_series(1, 50000000)", 10)
+		if testclient.Value(f)["hasMore"] != true {
+			t.Fatalf("readOnly=%v cursor: %v", ro, f)
+		}
+		start := time.Now()
+		stream, f := exec(c, sid, "t1", "select 42", 10)
+		if f["ok"] != true || rowsOf(stream)[0][0] != float64(42) {
+			t.Fatalf("readOnly=%v next statement: %v", ro, f)
+		}
+		if d := time.Since(start); d > 2*time.Second {
+			t.Fatalf("readOnly=%v next statement took %v", ro, d)
+		}
+	}
+}
+
+func TestPostgresNextStatementAfterHugeCursorIsFast(t *testing.T) {
+	nextAfterHugeCursor(t, dsnOrSkip(t, "XRAY_TEST_PG_DSN"))
+}
+
+func TestPgBouncerNextStatementAfterHugeCursorIsFast(t *testing.T) {
+	nextAfterHugeCursor(t, dsnOrSkip(t, "XRAY_TEST_PGBOUNCER_DSN"))
+}
+
+func countZero(t *testing.T, c *testclient.Client, sid, schema string) any {
+	t.Helper()
+	stream, f := exec(c, sid, "check", "select count(*) from "+schema+".orders where total = 0", 10)
+	if f["ok"] != true {
+		t.Fatalf("count: %v", f)
+	}
+	return rowsOf(stream)[0][0]
+}
+
+// An execute cancelled while it waits for its tab never runs.
+func TestPostgresQueuedCancelledUpdateDoesNotCommit(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	hold := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "select pg_sleep(1)", "maxRows": 10})
+	time.Sleep(100 * time.Millisecond)
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "update " + schema + ".orders set total=0", "maxRows": 10})
+	time.Sleep(200 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	if _, f := c.Wait(q, 10*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("queued update: %v", f)
+	}
+	c.Wait(hold, 10*time.Second)
+	if n := countZero(t, c, sid, schema); n != "0" {
+		t.Fatalf("cancelled update committed %v rows", n)
+	}
+}
+
+// The review's probe: a write sent behind an open 50M-row cursor and
+// cancelled 200 ms later. It answers within 2 s, and "cancelled" means the
+// write did not commit.
+func TestPostgresCancelBehindCursorIsConsistent(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	exec(c, sid, "t1", "select * from generate_series(1, 50000000)", 10)
+	start := time.Now()
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1",
+		"sql": "update " + schema + ".orders set total=0 where pg_sleep(0.5) is not null", "maxRows": 10})
+	time.Sleep(200 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	_, f := c.Wait(q, 10*time.Second)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("answered after %v", d)
+	}
+	n := countZero(t, c, sid, schema)
+	switch {
+	case testclient.ErrCode(f) == "cancelled" && n == "0":
+	case f["ok"] == true && n == "5":
+	default:
+		t.Fatalf("answer %v but %v rows were zeroed", f, n)
+	}
+}
+
+// A read-write cursor over a data-modifying statement is not cancelled when
+// the tab moves on: its write commits as it would have.
+func TestPostgresWriteCursorStillCommits(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	_, f := exec(c, sid, "t1", "update "+schema+".orders set total=0 returning id", 2)
+	if testclient.Value(f)["hasMore"] != true {
+		t.Fatalf("cursor: %v", f)
+	}
+	if _, f = exec(c, sid, "t1", "select 1", 10); f["ok"] != true {
+		t.Fatalf("next: %v", f)
+	}
+	if n := countZero(t, c, sid, schema); n != "5" {
+		t.Fatalf("update with an open cursor zeroed %v rows, want 5", n)
+	}
+}
+
+func TestPostgresCloseDuringQueryIsCancelled(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, true))
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "select pg_sleep(30)", "maxRows": 10})
+	time.Sleep(300 * time.Millisecond)
+	c.Call(map[string]any{"op": "close", "sessionId": sid})
+	if _, f := c.Wait(q, 5*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("got %v", f)
+	}
+}
+
+func TestPostgresTypeNames(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	rw := open(t, c, connectReq(t, dsn, false))
+	if _, f := exec(c, rw, "t1", "create type "+schema+".mood as enum ('ok', 'sad')", 10); f["ok"] != true {
+		t.Fatal(f)
+	}
+	sid := open(t, c, connectReq(t, dsn, true))
+	stream, f := exec(c, sid, "t1", "select 1::bigint, array[1], now(), 'ok'::"+schema+".mood, 1::int4", 10)
+	if f["ok"] != true {
+		t.Fatal(f)
+	}
+	var got []string
+	for _, col := range stream[0].M["columns"].([]any) {
+		got = append(got, col.(map[string]any)["type"].(string))
+	}
+	want := []string{"bigint", "integer[]", "timestamp with time zone", schema + ".mood", "integer"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("types %v, want %v", got, want)
+	}
+	if rowsOf(stream)[0][3] != "ok" {
+		t.Fatalf("enum value %v", rowsOf(stream)[0])
 	}
 }

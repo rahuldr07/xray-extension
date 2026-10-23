@@ -198,3 +198,34 @@ func TestHelloStillServedWithHandler(t *testing.T) {
 		t.Fatalf("%s", p)
 	}
 }
+
+type answerThenPanic struct{}
+
+func (answerThenPanic) Handle(ctx context.Context, op string, id int64, payload []byte, r *Reply) {
+	r.OK(struct{}{})
+	r.Fail(ErrorBody{Code: "server", Message: "second answer"})
+	panic("late")
+}
+func (answerThenPanic) Close() {}
+
+func TestPanicAfterAnswerSendsNothingMore(t *testing.T) {
+	var in, out, errw bytes.Buffer
+	WriteFrame(&in, []byte(`{"id":6,"op":"execute"}`))
+	if err := ServeWith(&in, &out, &errw, "x", answerThenPanic{}); err != nil {
+		t.Fatal(err)
+	}
+	var frames []string
+	for out.Len() > 0 {
+		p, err := ReadFrame(&out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		frames = append(frames, string(p))
+	}
+	if len(frames) != 1 || !strings.Contains(frames[0], `"ok":true`) {
+		t.Fatalf("frames %v", frames)
+	}
+	if errw.String() != "xray-db-helper: panic\n" {
+		t.Fatalf("stderr %q", errw.String())
+	}
+}

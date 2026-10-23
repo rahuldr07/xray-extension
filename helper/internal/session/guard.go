@@ -13,23 +13,27 @@ const TLSRequiredMessage = "This server is not on this computer, so XRAY require
 var blocked = map[string]bool{
 	"BEGIN": true, "START": true, "COMMIT": true, "END": true, "ROLLBACK": true, "ABORT": true,
 	"SAVEPOINT": true, "RELEASE": true, "SET": true, "RESET": true, "DISCARD": true,
-	"PREPARE": true, "LOCK": true,
+	"PREPARE": true, "LOCK": true, "COPY": true,
 }
 
 // Guard returns the statement's first keyword, upper-cased, when read-only
-// mode must refuse it, and "" otherwise. It skips whitespace, empty
-// statements (";") and "--" and (nested) "/* */" comments.
+// mode must refuse it, and "" otherwise.
 func Guard(sql string) (blockedKeyword string) {
+	if kw := FirstKeyword(sql); blocked[kw] {
+		return kw
+	}
+	return ""
+}
+
+// FirstKeyword returns the statement's first word, upper-cased. It skips
+// whitespace, empty statements (";") and "--" and (nested) "/* */" comments.
+func FirstKeyword(sql string) string {
 	i := skipNoise(sql)
 	j := i
 	for j < len(sql) && isWordByte(sql[j]) {
 		j++
 	}
-	kw := strings.ToUpper(sql[i:j])
-	if blocked[kw] {
-		return kw
-	}
-	return ""
+	return strings.ToUpper(sql[i:j])
 }
 
 func isWordByte(b byte) bool {

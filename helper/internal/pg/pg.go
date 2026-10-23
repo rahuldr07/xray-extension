@@ -28,9 +28,10 @@ const (
 	connectTimeout = 10 * time.Second
 	// cleanupTimeout bounds ROLLBACK and Close, which run on a fresh context.
 	cleanupTimeout = 5 * time.Second
-	// deadlineDelay is how long a cancelled query may take to stop after the
-	// cancel request before the socket deadline gives up on the connection.
-	deadlineDelay = 3 * time.Second
+	// deadlineDelay is how long a cancelled query (or a cursor being closed)
+	// may take to stop after the cancel request before the socket deadline
+	// gives up on the connection; the next execute then redials.
+	deadlineDelay = 2 * time.Second
 )
 
 // Connect dials the probe connection, reads the server version and returns
@@ -135,6 +136,11 @@ type pgSession struct {
 	probeMu sync.Mutex
 	probe   *tabConn
 
+	// types caches format_type names by OID. OIDs are database-wide, so one
+	// cache serves every connection of the session.
+	typesMu sync.Mutex
+	types   map[uint32]string
+
 	mu     sync.Mutex
 	tabs   map[string]*tab
 	closed bool
@@ -164,9 +170,12 @@ type tab struct {
 // cursor is a result left open after maxRows. In read-only mode its READ ONLY
 // transaction stays open with it.
 type cursor struct {
-	rows       pgx.Rows
-	cancel     context.CancelFunc
-	inTx       bool
+	rows   pgx.Rows
+	cancel context.CancelFunc
+	inTx   bool
+	// drain marks a read-write cursor over a statement that may write: it is
+	// read to the end when the tab moves on, so its write still commits.
+	drain      bool
 	pending    []values.Cell // the look-ahead row that proved hasMore
 	pendingCut []bool
 }
@@ -213,7 +222,15 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	s.closeCursor(t)
+	// The request may have been cancelled while it waited for the tab, or
+	// while the tab's previous cursor closed: then it must not run at all.
+	if ctx.Err() != nil {
+		return session.Summary{}, cancelled()
+	}
+	s.closeCursor(ctx, t)
+	if ctx.Err() != nil {
+		return session.Summary{}, cancelled()
+	}
 	if t.c == nil || t.c.conn.IsClosed() {
 		t.c = nil
 		c, err := s.dial(ctx)
@@ -229,7 +246,7 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	curCtx, curCancel := context.WithCancel(s.base)
 	stopWatch := context.AfterFunc(ctx, curCancel)
 	defer stopWatch()
-	cur := &cursor{cancel: curCancel}
+	cur := &cursor{cancel: curCancel, drain: !s.readOnly && !readsOnly(sql)}
 	if s.readOnly {
 		if _, err := t.c.conn.Exec(curCtx, "BEGIN TRANSACTION READ ONLY"); err != nil {
 			curCancel()
@@ -248,9 +265,10 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	cur.rows = rows
 	t.cur = cur
 	fields := rows.FieldDescriptions()
+	names := s.typeNames(ctx, fields)
 	cols := make([]protocol.Column, len(fields))
 	for i, f := range fields {
-		cols[i] = protocol.Column{Name: f.Name, Type: s.typeName(t.c.conn, f.DataTypeOID)}
+		cols[i] = protocol.Column{Name: f.Name, Type: names[i]}
 	}
 	if err := out.Columns(cols); err != nil {
 		return session.Summary{}, s.abort(ctx, t, err)
@@ -265,6 +283,9 @@ func (s *pgSession) FetchMore(ctx context.Context, tabID string, n int, out *ses
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if ctx.Err() != nil {
+		return session.Summary{}, cancelled()
+	}
 	if t.cur == nil {
 		return session.Summary{}, session.Errorf(session.CodeBadRequest, "No open cursor")
 	}
@@ -336,12 +357,35 @@ func (s *pgSession) abort(ctx context.Context, t *tab, err error) error {
 	return mapped
 }
 
-// closeCursor discards an open cursor before the tab's next statement.
-func (s *pgSession) closeCursor(t *tab) {
-	if t.cur == nil {
+func cancelled() error { return session.Errorf(session.CodeCancelled, "Query cancelled.") }
+
+// readOnlyFirst are first keywords whose statements return rows without
+// writing, so an unfinished cursor over them can be cancelled safely.
+var readOnlyFirst = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true, "FETCH": true}
+
+func readsOnly(sql string) bool { return readOnlyFirst[session.FirstKeyword(sql)] }
+
+// closeCursor ends an open cursor before the tab's next statement. ctx is the
+// next statement's request.
+//
+// A cursor is normally cancelled, not drained: cancelling its context makes
+// pgx send a protocol cancel request and set a socket deadline, so Close
+// returns at once, or within deadlineDelay with the connection closed (the
+// next execute redials). A read-write cursor over a statement that may write
+// is drained instead, so its write commits; ctx can still cancel that drain.
+func (s *pgSession) closeCursor(ctx context.Context, t *tab) {
+	c := t.cur
+	if c == nil {
 		return
 	}
-	t.cur.rows.Close()
+	if c.drain {
+		stop := context.AfterFunc(ctx, c.cancel)
+		c.rows.Close()
+		stop()
+	} else {
+		c.cancel()
+		c.rows.Close()
+	}
 	s.finish(t)
 }
 
@@ -354,8 +398,11 @@ func (s *pgSession) finish(t *tab) {
 		return
 	}
 	if c.inTx && t.c != nil && !t.c.conn.IsClosed() {
+		// The wrapper must end; if ROLLBACK fails, discard the connection.
 		ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
-		t.c.conn.Exec(ctx, "ROLLBACK")
+		if _, err := t.c.conn.Exec(ctx, "ROLLBACK"); err != nil {
+			closeConn(t.c.conn)
+		}
 		cancel()
 	}
 	c.cancel()
@@ -383,7 +430,11 @@ func (s *pgSession) execErr(ctx context.Context, t *tab, err error) error {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return session.Errorf(session.CodeTimeout, "The statement ran past the connection's statement timeout.")
 		}
-		return session.Errorf(session.CodeCancelled, "Query cancelled.")
+		return cancelled()
+	}
+	// Close cancels the session's base context: report that as cancelled.
+	if s.base.Err() != nil {
+		return cancelled()
 	}
 	// A FATAL server error (such as an admin shutdown) also closes the
 	// connection, so check the connection before mapping the server error.
@@ -488,11 +539,65 @@ func (s *pgSession) scrub(msg string) string {
 	return strings.ReplaceAll(msg, s.password, "********")
 }
 
-func (s *pgSession) typeName(conn *pgx.Conn, oid uint32) string {
-	if t, ok := conn.TypeMap().TypeForOID(oid); ok {
-		return t.Name
+// typeNames returns format_type names for the result columns, as introspect
+// shows them ("bigint", "integer[]", enum names). OIDs not yet cached are
+// looked up on the probe connection, since the tab's connection is busy
+// streaming the result. A name that cannot be found is "unknown".
+func (s *pgSession) typeNames(ctx context.Context, fields []pgconn.FieldDescription) []string {
+	s.typesMu.Lock()
+	var missing []string
+	seen := map[uint32]bool{}
+	for _, f := range fields {
+		if _, ok := s.types[f.DataTypeOID]; !ok && !seen[f.DataTypeOID] {
+			seen[f.DataTypeOID] = true
+			missing = append(missing, strconv.FormatUint(uint64(f.DataTypeOID), 10))
+		}
 	}
-	return strconv.FormatUint(uint64(oid), 10)
+	s.typesMu.Unlock()
+	if len(missing) > 0 {
+		s.lookupTypes(ctx, "{"+strings.Join(missing, ",")+"}")
+	}
+	s.typesMu.Lock()
+	defer s.typesMu.Unlock()
+	names := make([]string, len(fields))
+	for i, f := range fields {
+		if n, ok := s.types[f.DataTypeOID]; ok {
+			names[i] = n
+		} else {
+			names[i] = "unknown"
+		}
+	}
+	return names
+}
+
+func (s *pgSession) lookupTypes(ctx context.Context, oidArray string) {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if s.probe == nil || s.probe.conn.IsClosed() {
+		c, err := s.dial(ctx)
+		if err != nil {
+			return
+		}
+		s.probe = c
+	}
+	rows, err := s.probe.conn.Query(ctx, "SELECT oid, format_type(oid, NULL) FROM pg_type WHERE oid = ANY ($1::oid[])", oidArray)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var oid uint32
+		var name string
+		if rows.Scan(&oid, &name) != nil {
+			return
+		}
+		s.typesMu.Lock()
+		if s.types == nil {
+			s.types = map[uint32]string{}
+		}
+		s.types[oid] = name
+		s.typesMu.Unlock()
+	}
 }
 
 func (s *pgSession) Close() {

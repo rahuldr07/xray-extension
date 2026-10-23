@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 )
 
 // Handler serves the database ops (connect, introspect, execute, fetchMore,
@@ -20,10 +21,11 @@ type Handler interface {
 	Close()
 }
 
-// Reply answers one request.
+// Reply answers one request. Only its first OK or Fail is sent.
 type Reply struct {
-	s  *server
-	id int64
+	s        *server
+	id       int64
+	answered atomic.Bool
 }
 
 // Stream sends one stream message (columns or rows) for this request.
@@ -36,10 +38,17 @@ func (r *Reply) Stream(v any) error {
 }
 
 // OK sends the final success response.
-func (r *Reply) OK(value any) { r.s.ok(r.id, value) }
+func (r *Reply) OK(value any) {
+	if r.answered.CompareAndSwap(false, true) {
+		r.s.ok(r.id, value)
+	}
+}
 
 // Fail sends the final error response and logs its code to stderr.
 func (r *Reply) Fail(e ErrorBody) {
+	if !r.answered.CompareAndSwap(false, true) {
+		return
+	}
 	r.s.logCode(e.Code)
 	r.s.send(Response{ID: r.id, OK: false, Error: &e})
 }
@@ -124,11 +133,15 @@ func strictDecode(payload []byte, dst any) error {
 
 func (s *server) handle(ctx context.Context, payload []byte) {
 	var env envelope
+	var reply *Reply
 	defer func() {
 		// Ruling M3-R5: a panic answers "internal" and logs only its code.
+		// Ruling M3-R8: never a second final response after an answer.
 		if recover() != nil {
 			s.logCode("panic")
-			s.send(Response{ID: env.ID, OK: false, Error: &ErrorBody{Code: CodeInternal, Message: "Internal helper error."}})
+			if reply == nil || reply.answered.CompareAndSwap(false, true) {
+				s.send(Response{ID: env.ID, OK: false, Error: &ErrorBody{Code: CodeInternal, Message: "Internal helper error."}})
+			}
 		}
 	}()
 	if err := json.Unmarshal(payload, &env); err != nil {
@@ -153,7 +166,8 @@ func (s *server) handle(ctx context.Context, payload []byte) {
 			s.fail(env.ID, CodeBadRequest, "not implemented")
 			return
 		}
-		s.h.Handle(ctx, env.Op, env.ID, payload, &Reply{s: s, id: env.ID})
+		reply = &Reply{s: s, id: env.ID}
+		s.h.Handle(ctx, env.Op, env.ID, payload, reply)
 	default:
 		s.fail(env.ID, CodeBadRequest, "unknown op")
 	}
