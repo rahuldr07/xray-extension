@@ -598,3 +598,33 @@ test('sql-manager: the helper is stopped 30 s after the last page leaves, unless
   assert.equal(status.value.state, 'ready');
   assert.equal(helper.opened, 2, 'the next call starts the helper again');
 });
+
+// A typed password is stored only if the profile still points at the server it was sent to.
+for (const remember of [true, false]) {
+  test(`sql-manager: a profile moved to another host during connect does not receive the typed password (remember: ${remember})`, async () => {
+    let release = null;
+    const helper = fakeHelper((msg, reply) => {
+      if (msg.op === 'connect' && release === null) {
+        release = () => reply({ id: msg.id, ok: true, value: { sessionId: 'sess-a', serverVersion: '16.4', capabilities: CAPS } });
+        return undefined;
+      }
+      return defaultScript(msg, reply);
+    });
+    const { manager, storageLocal, storageSession } = setup({ helper, local: { sql_connections: [{ ...PROFILE, id: 'p1' }] } });
+    const page = pagePort(manager);
+    page.onMessage.fire({ id: 1, op: 'connect', profileId: 'p1', readOnly: true, password: 'typed-P', remember }, page);
+    await until(() => release, 'the connect to reach the helper');
+    const moved = await page.request({ id: 2, op: 'profiles.save', profile: { ...PROFILE, id: 'p1', host: 'b.example.com', password: '' } });
+    assert.equal(moved.ok, true);
+    release();
+    const res = await until(() => page.posted.find((m) => m.id === 1), 'the connect answer');
+    assert.equal(res.ok, true, 'the connection that opened stays open');
+    await tick();
+    assert.doesNotMatch(JSON.stringify(storageLocal.data), /typed-P/);
+    assert.doesNotMatch(JSON.stringify(storageSession.data), /typed-P/);
+    const later = await page.request({ id: 3, op: 'connect', profileId: 'p1', readOnly: true });
+    assert.equal(later.ok, false);
+    assert.equal(later.error.detail, 'password-required');
+    assert.equal(helper.sent.filter((m) => m.op === 'connect' && m.host === 'b.example.com').length, 0);
+  });
+}

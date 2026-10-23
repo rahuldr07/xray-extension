@@ -142,11 +142,16 @@
       return map && typeof map === 'object' ? map : {};
     }
 
-    async function storeSecret(profileId, password, remember) {
+    // Stores a password the user typed for a connect that succeeded against
+    // `server` (the engine, host, port and user it was sent to). Run under
+    // serialized(): if the profile was edited to another server meanwhile, the
+    // password is not attached to it (M3-R24); the open connection is unaffected.
+    async function storeSecret(profileId, password, remember, server) {
       const profiles = await readProfiles();
       const secrets = await readSessionSecrets();
       const stored = profiles.find((p) => p.id === profileId);
       if (!stored) return;
+      if (!sameServer(stored, server)) return;
       if (remember) {
         stored.password = password;
         delete secrets[profileId];
@@ -506,7 +511,7 @@
         }
         return {};
       }
-      if (supplied !== null) await serialized(() => storeSecret(profile.id, supplied, msg.remember === true));
+      if (supplied !== null) await serialized(() => storeSecret(profile.id, supplied, msg.remember === true, request));
       if (value && typeof value.sessionId === 'string') sessions.set(value.sessionId, { owner: page.port, alive: true });
       return { sessionId: value.sessionId, serverVersion: value.serverVersion, capabilities: value.capabilities };
     }
