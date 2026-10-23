@@ -25,13 +25,26 @@ import {
   type EditorTab,
   type HistoryItem,
 } from './models/sqlHistory';
-import { DEFAULT_MAX_ROWS, type QueryResult, type SchemaTree, type SqlError } from './models/sqlTypes';
+import type { SqlEngine } from './models/sqlProfiles';
+import { DEFAULT_MAX_ROWS, type QueryResult, type SchemaTree, type SqlDialect, type SqlError } from './models/sqlTypes';
 
-export interface SqlConnection {
-  name: string;
-  size: number;
-  readOnly: boolean;
-  key: string;
+export type SqlConnection =
+  | { kind: 'sqlite'; name: string; size: number; readOnly: boolean; key: string }
+  | {
+      kind: 'remote';
+      profileId: string;
+      name: string;
+      engine: SqlEngine;
+      host: string;
+      database: string;
+      readOnly: boolean;
+      key: string;
+      serverVersion: string;
+    };
+
+/** The SQL dialect of a connection: the remote engine, or SQLite (also with nothing open). */
+export function connectionDialect(conn: SqlConnection | null): SqlDialect {
+  return conn?.kind === 'remote' ? conn.engine : 'sqlite';
 }
 
 export interface SqlPrompt {
@@ -344,7 +357,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     }
     set({
       opening: false,
-      connection: { name: file.name, size: file.size, readOnly, key },
+      connection: { kind: 'sqlite', name: file.name, size: file.size, readOnly, key },
       readOnlyChoice: readOnly,
       schema,
       tabs,
@@ -438,7 +451,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const conn = get().connection;
       if (!conn) return;
       const item = q.items[q.index];
-      const c = classifyStatement(item.text, 'sqlite');
+      const c = classifyStatement(item.text, connectionDialect(conn));
       // R10: on a read-only connection an unparseable statement goes to SQLite, which answers
       // with the real syntax error (and still refuses any write).
       if (conn.readOnly && c.kind !== 'read' && c.reason !== 'could not parse') {
@@ -531,9 +544,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
       if (!tab) return;
       const doc = tab.sql;
+      const dialect = connectionDialect(s.connection);
       let items: RunItem[] = [];
       if (mode === 'all') {
-        items = splitStatements(doc, 'sqlite').map((st) => ({ text: st.text, from: st.from }));
+        items = splitStatements(doc, dialect).map((st) => ({ text: st.text, from: st.from }));
       } else {
         const sel = selectionReader?.() ?? { from: doc.length, to: doc.length, head: doc.length };
         const from = Math.max(0, Math.min(sel.from, doc.length));
@@ -541,7 +555,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         if (to > from && doc.slice(from, to).trim()) {
           items = [{ text: doc.slice(from, to), from }];
         } else {
-          const st = statementAt(doc, Math.min(sel.head, doc.length), 'sqlite');
+          const st = statementAt(doc, Math.min(sel.head, doc.length), dialect);
           if (st) items = [{ text: st.text, from: st.from }];
         }
       }
@@ -597,7 +611,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
 
     async previewTable(schemaName, table) {
       if (!canRun()) return;
-      const sql = selectTableSql(schemaName, table, 'sqlite');
+      const sql = selectTableSql(schemaName, table, connectionDialect(get().connection));
       const existing = get().tabs.find((t) => t.title === table && t.sql === sql);
       const tab = existing ?? { id: newTabId(), title: table, sql, maxRows: DEFAULT_MAX_ROWS };
       set({ tabs: existing ? get().tabs : [...get().tabs, tab], activeTabId: tab.id });

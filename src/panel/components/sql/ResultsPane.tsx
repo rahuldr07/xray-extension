@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconCopy, IconFilter, IconX } from '@tabler/icons-react';
-import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
+import { connectionDialect, resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
 import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
 import { cellCopyText, columnsKey, filteredSummary, nextSort, primaryKeyColumns, viewOrder } from '../../models/sqlGrid';
@@ -12,7 +12,7 @@ type CopyFormat = 'CSV' | 'JSON' | 'INSERT';
 
 function copyText(format: CopyFormat, result: QueryResult, table: string): { text: string; truncated: number } {
   if (format === 'INSERT') {
-    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, 'sqlite');
+    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, connectionDialect(usePanelSqlStore.getState().connection));
     return { text, truncated: truncatedBlobs };
   }
   const text = format === 'CSV' ? toCsv(result.columns, result.rows) : toJsonRows(result.columns, result.rows);

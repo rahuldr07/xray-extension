@@ -105,7 +105,11 @@ function SourceControl(): React.ReactElement | null {
       >
         <IconDatabase size={15} stroke={1.8} aria-hidden="true" />
         <span className="xray-sql-source-name">{connection.name}</span>{' '}
-        <span className="xray-sql-source-meta">· SQLite · {formatFileSize(connection.size)}</span>
+        <span className="xray-sql-source-meta">
+          {connection.kind === 'sqlite'
+            ? `· SQLite · ${formatFileSize(connection.size)}`
+            : `· ${connection.engine === 'postgres' ? 'PostgreSQL' : 'MySQL'} · ${connection.host}`}
+        </span>
         <IconChevronDown size={14} stroke={2} aria-hidden="true" className="xray-sql-source-chevron" />
       </button>
       <ReadOnlySwitch />

@@ -66,3 +66,7 @@ export function restoreEditorTabs(raw: unknown, connectionKey: string): EditorTa
 export function connectionKeyForFile(name: string, size: number): string {
   return `sqlite:${name}:${size}`;
 }
+
+export function connectionKeyForProfile(profileId: string): string {
+  return `remote:${profileId}`;
+}

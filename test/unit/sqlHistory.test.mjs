@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import './harness.mjs';
 
-const { HISTORY_KEY, EDITOR_TABS_KEY, HISTORY_LIMIT, appendHistory, restoreEditorTabs, connectionKeyForFile } =
+const { HISTORY_KEY, EDITOR_TABS_KEY, HISTORY_LIMIT, appendHistory, restoreEditorTabs, connectionKeyForFile, connectionKeyForProfile } =
   await import('../../src/panel/models/sqlHistory.ts');
 
 const item = (sql, at = 1) => ({ sql, at, durationMs: 2, rowCount: 3, ok: true });
@@ -70,4 +70,8 @@ test('restoreEditorTabs clamps maxRows, drops tabs without string sql, assigns i
 
 test('connectionKeyForFile', () => {
   assert.equal(connectionKeyForFile('a.db', 10), 'sqlite:a.db:10');
+});
+
+test('connectionKeyForProfile keys remote history by profile id', () => {
+  assert.equal(connectionKeyForProfile('p1'), 'remote:p1');
 });
