@@ -268,3 +268,31 @@ func TestIntrospectShape(t *testing.T) {
 		t.Fatalf("%v", f)
 	}
 }
+
+// guardedFake brings its own read-only guard, as the MySQL driver does.
+type guardedFake struct{ fakeSession }
+
+func (g *guardedFake) ReadOnlyRefusal(sql string) string {
+	if sql == "refuse me" {
+		return "engine says no"
+	}
+	return ""
+}
+
+// An engine guard replaces the shared one: "# c" is a MySQL comment the
+// shared guard cannot read, and the engine decides alone.
+func TestEngineGuardReplacesSharedGuard(t *testing.T) {
+	g := &guardedFake{fakeSession{readOnly: true}}
+	c := testclient.Start(t, NewOps(map[string]Connector{"mysql": func(context.Context, Params) (Session, error) { return g, nil }}))
+	sid := connect(t, c, map[string]any{"engine": "mysql"})
+	if _, f := c.Call(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "# c\nselect 1", "maxRows": 10}); f["ok"] != true {
+		t.Fatalf("engine guard allowed it: %v", f)
+	}
+	_, f := c.Call(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "refuse me", "maxRows": 10})
+	if testclient.ErrCode(f) != "read-only" || f["error"].(map[string]any)["message"] != "engine says no" {
+		t.Fatalf("got %v", f)
+	}
+	if len(g.execSQL) != 1 {
+		t.Fatalf("driver saw %v", g.execSQL)
+	}
+}

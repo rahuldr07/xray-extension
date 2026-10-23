@@ -76,6 +76,13 @@ type Session interface {
 	Close()
 }
 
+// ReadOnlyGuard is implemented by a session whose engine reads statements
+// differently from the shared Guard (MySQL comments, version comments). Ops
+// then uses it in place of Guard. It returns the refusal text, or "".
+type ReadOnlyGuard interface {
+	ReadOnlyRefusal(sql string) string
+}
+
 // SchemaTree mirrors the TypeScript SchemaTree.
 type SchemaTree struct {
 	Schemas []SchemaNode `json:"schemas"`

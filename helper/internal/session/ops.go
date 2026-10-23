@@ -233,8 +233,14 @@ func (o *Ops) execute(ctx context.Context, id int64, payload []byte, r *protocol
 		return
 	}
 	if s.ReadOnly() {
-		if kw, refused := Guard(req.SQL); refused {
-			r.Fail(protocol.ErrorBody{Code: CodeReadOnly, Message: ReadOnlyMessage(kw)})
+		msg := ""
+		if g, ok := s.(ReadOnlyGuard); ok {
+			msg = g.ReadOnlyRefusal(req.SQL)
+		} else if kw, refused := Guard(req.SQL); refused {
+			msg = ReadOnlyMessage(kw)
+		}
+		if msg != "" {
+			r.Fail(protocol.ErrorBody{Code: CodeReadOnly, Message: msg})
 			return
 		}
 	}

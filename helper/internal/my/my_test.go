@@ -446,9 +446,9 @@ func TestReadOnlyKeyword(t *testing.T) {
 	ro := session.ReadOnlyMessage
 	cases := []struct{ sql, want string }{
 		{"select 1", ""},
-		{"/*!40101 SET x=1 */", ro("SET")},
-		{"/*! commit */", ro("COMMIT")},
-		{"/*M!100000 commit */", ro("COMMIT")},
+		{"/*!40101 SET x=1 */", versionCommentMsg},
+		{"/*! commit */", versionCommentMsg},
+		{"/*M!100000 commit */", ro("")},
 		{"#c\n create table t(a int)", ro("CREATE")},
 		{"-- c\nalter table t add x int", ro("ALTER")},
 		// MySQL reads "--" plus any byte up to 0x20 as a comment.
@@ -463,7 +463,7 @@ func TestReadOnlyKeyword(t *testing.T) {
 		{"kill 5", ro("KILL")},
 		{"shutdown", ro("SHUTDOWN")},
 		{"call p()", "Procedures can commit, so CALL needs Read-only off."},
-		{"/*!call p()*/", "Procedures can commit, so CALL needs Read-only off."},
+		{"/*!call p()*/", versionCommentMsg},
 		// Fail closed: no first keyword, no statement.
 		{"", ro("")},
 		{"\x01create table t(a int)", ro("")},
@@ -475,7 +475,7 @@ func TestReadOnlyKeyword(t *testing.T) {
 		{"/*+ hint */ select 1", ""},
 	}
 	for _, c := range cases {
-		if got := readOnlyRefusal(c.sql); got != c.want {
+		if got := readOnlyRefusal(c.sql, false); got != c.want {
 			t.Errorf("readOnlyRefusal(%q) = %q, want %q", c.sql, got, c.want)
 		}
 	}
@@ -777,16 +777,7 @@ func TestMySQLSocketFallbackWhenKillFails(t *testing.T) {
 func TestMySQLCall(t *testing.T) {
 	cfg := dsnOrSkip(t)
 	db := fixture(t, cfg)
-	a := admin(t, cfg)
-	for _, q := range []string{
-		"create procedure " + db + ".p_commit() begin commit; insert into " + db + ".orders(total) values (7); end",
-		"create procedure " + db + ".p_ddl() begin create table " + db + ".made_by_call(a int); end",
-		"create procedure " + db + ".p_rows() begin select id from " + db + ".orders order by id; end",
-	} {
-		if _, err := a.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
+	procedures(t, cfg, db)
 	c := newClient(t)
 	sid := open(t, c, connectReq(t, cfg, db, true))
 	for _, q := range []string{"call p_commit()", "call p_ddl()", "--\x01\ncall p_commit()"} {
@@ -896,5 +887,177 @@ func TestMySQLPasswordEqualsDatabaseName(t *testing.T) {
 	msg, _ := errField(f, "message").(string)
 	if testclient.ErrCode(f) != "server" || msg != "Table '********."+db+"_more' doesn't exist" {
 		t.Fatalf("%v", f)
+	}
+}
+
+// procedures adds p_commit (COMMIT, then INSERT), p_ddl (CREATE TABLE) and
+// p_rows (a SELECT) to db.
+func procedures(t *testing.T, cfg *mysql.Config, db string) {
+	t.Helper()
+	a := admin(t, cfg)
+	for _, q := range []string{
+		"create procedure " + db + ".p_commit() begin commit; insert into " + db + ".orders(total) values (7); end",
+		"create procedure " + db + ".p_ddl() begin create table " + db + ".made_by_call(a int); end",
+		"create procedure " + db + ".p_rows() begin select id from " + db + ".orders order by id; end",
+	} {
+		if _, err := a.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func tableCount(t *testing.T, c *testclient.Client, sid, db string) any {
+	t.Helper()
+	return count(t, c, sid, "select count(*) from information_schema.tables where table_schema = '"+db+"'")
+}
+
+func TestVersionCommentGuard(t *testing.T) {
+	if versionCommentMsg != "Version comments (/*! … */) are not allowed with Read-only on." {
+		t.Fatal(versionCommentMsg)
+	}
+	ro := session.ReadOnlyMessage
+	cases := []struct {
+		sql     string
+		mariaDB bool
+		want    string
+	}{
+		{"/*!99999 select */ create table p3(a int)", false, versionCommentMsg},
+		{"/*!99999 select */ call p_ddl()", false, versionCommentMsg},
+		{"select 1 /*!, 2 */", false, versionCommentMsg},
+		{"/*!40101 SET x=1 */", false, versionCommentMsg},
+		{"/*! commit */", false, versionCommentMsg},
+		// Only MariaDB executes /*M! … */; MySQL reads it as a comment.
+		{"/*M! select */ create table p4(a int)", false, ro("CREATE")},
+		{"/*M! select */ select 1", false, ""},
+		{"/*M! select */ create table p4(a int)", true, versionCommentMsg},
+		{"/*M!100000 select */ select 1", true, versionCommentMsg},
+		// mysqldump-style "#" comments are fine.
+		{"# c\nselect 1", false, ""},
+		{"# c\ncommit", false, ro("COMMIT")},
+	}
+	for _, c := range cases {
+		if got := readOnlyRefusal(c.sql, c.mariaDB); got != c.want {
+			t.Errorf("readOnlyRefusal(%q, mariaDB=%v) = %q, want %q", c.sql, c.mariaDB, got, c.want)
+		}
+	}
+	// In read-write mode an executable comment before the first keyword makes
+	// the statement unknown: run to completion, under the write deadline.
+	for _, c := range []struct {
+		sql     string
+		mariaDB bool
+		want    string
+	}{
+		{"/*!99999 select */ update t set a=1", false, ""},
+		{"/*!40101 select */ 1", false, ""},
+		{"/*M! select */ update t set a=1", false, "UPDATE"},
+		{"/*M! select */ update t set a=1", true, ""},
+		{"/* c */ update t set a=1", false, "UPDATE"},
+	} {
+		if got := keyword(c.sql, c.mariaDB); got != c.want {
+			t.Errorf("keyword(%q, mariaDB=%v) = %q, want %q", c.sql, c.mariaDB, got, c.want)
+		}
+	}
+}
+
+// Ruling M3-R15 (a): the review's probes, live. Version comments are refused
+// on read-only, so neither the DDL nor the CALL runs.
+func TestMySQLVersionCommentsRefused(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	procedures(t, cfg, db)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	for _, q := range []string{
+		"/*!99999 select */ create table p3(a int)",
+		"/*!99999 select */ call p_ddl()",
+		"/*!99999 select */ call p_commit()",
+		"/*M! select */ create table p4(a int)",
+		"/*M! select */ call p_ddl()",
+	} {
+		if _, f := exec(c, sid, "t1", q, 10); testclient.ErrCode(f) != "read-only" {
+			t.Fatalf("%q: %v", q, f)
+		}
+	}
+	_, f := exec(c, sid, "t1", "/*!99999 select */ create table p3(a int)", 10)
+	if errField(f, "message") != versionCommentMsg {
+		t.Fatalf("message %v", f)
+	}
+	if n := tableCount(t, c, sid, db); n != "1" {
+		t.Fatalf("tables %v", n)
+	}
+	if n := count(t, c, sid, "select count(*) from orders"); n != "5" {
+		t.Fatalf("orders %v", n)
+	}
+	// mysqldump-style "#" comments do not trip the guard.
+	stream, f := exec(c, sid, "t1", "# dumped\nselect 1", 10)
+	if f["ok"] != true || rowsOf(stream)[0][0] != "1" {
+		t.Fatalf("# comment: %v", f)
+	}
+}
+
+// Ruling M3-R15 (b): with the statement guard switched off, the server still
+// refuses writes on a read-only connection (session transaction_read_only),
+// also after a redial.
+func TestMySQLServerEnforcesReadOnly(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	procedures(t, cfg, db)
+	guardDisabled = true
+	t.Cleanup(func() { guardDisabled = false })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	probe := func(round string) {
+		for _, q := range []string{
+			"create table x(a int)",
+			"call p_ddl()",
+			"call p_commit()",
+			"/*!99999 select */ create table p3(a int)",
+			"create database " + db + "_x",
+			"drop table orders",
+			"commit",
+		} {
+			_, f := exec(c, sid, "t1", q, 10)
+			if q == "commit" {
+				continue // ends nothing that matters; the next probe must still be refused
+			}
+			if testclient.ErrCode(f) != "read-only" || errField(f, "sqlState") != "25006" {
+				t.Fatalf("%s %q: %v", round, q, f)
+			}
+		}
+		if n := tableCount(t, c, sid, db); n != "1" {
+			t.Fatalf("%s tables %v", round, n)
+		}
+		if n := count(t, c, sid, "select count(*) from orders"); n != "5" {
+			t.Fatalf("%s orders %v", round, n)
+		}
+		if n := count(t, c, sid, "select count(*) from information_schema.schemata where schema_name = '"+db+"_x'"); n != "0" {
+			t.Fatalf("%s database created", round)
+		}
+	}
+	probe("first dial")
+	stream, _ := exec(c, sid, "t1", "select connection_id()", 10)
+	if _, err := admin(t, cfg).Exec("KILL " + rowsOf(stream)[0][0].(string)); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	exec(c, sid, "t1", "select 1", 10) // connection-lost; the next execute redials
+	probe("after redial")
+}
+
+// Ruling M3-R15 (d): WITH … UPDATE gets the write deadline too.
+func TestMySQLStatementTimeoutBoundsWithUpdate(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	req := connectReq(t, cfg, db, false)
+	req["statementTimeoutMs"] = 200
+	sid := open(t, c, req)
+	start := time.Now()
+	_, f := exec(c, sid, "t1", "with z as (select 0 v) update orders, z set total=z.v where sleep(0.5) = 0", 10)
+	if testclient.ErrCode(f) != "timeout" || time.Since(start) > 2*time.Second {
+		t.Fatalf("timeout: %v after %v", f, time.Since(start))
+	}
+	if n := zeroed(t, c, sid); n != "0" {
+		t.Fatalf("timed-out update zeroed %v rows", n)
 	}
 }

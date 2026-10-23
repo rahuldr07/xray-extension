@@ -73,7 +73,8 @@ func Connect(ctx context.Context, p session.Params) (session.Session, error) {
 		return nil, e
 	}
 	s.version = version
-	if !strings.Contains(strings.ToLower(version), "mariadb") {
+	s.mariaDB = strings.Contains(strings.ToLower(version), "mariadb")
+	if !s.mariaDB {
 		s.version = "MySQL " + version
 	}
 	return s, nil
@@ -178,6 +179,7 @@ type mySession struct {
 	readOnly bool
 	timeout  time.Duration
 	version  string
+	mariaDB  bool            // MariaDB executes /*M! … */ comments; MySQL does not
 	base     context.Context // cancelled by Close
 	stop     context.CancelFunc
 
@@ -260,6 +262,12 @@ func (s *mySession) dialTab(ctx context.Context) (*tabConn, error) {
 	conn := c.conn
 	var err error
 	err = conn.QueryRowContext(ctx, "SELECT CONNECTION_ID()").Scan(&c.id)
+	if err == nil && s.readOnly {
+		// The server enforces read-only too, beneath the per-statement READ
+		// ONLY wrapper: a statement that commits implicitly (DDL, a CALL that
+		// COMMITs) starts its next transaction read-only (Ruling M3-R15).
+		_, err = conn.ExecContext(ctx, "SET SESSION transaction_read_only = ON")
+	}
 	if err == nil && s.timeout > 0 {
 		_, err = conn.ExecContext(ctx, "SET SESSION max_execution_time = "+strconv.FormatInt(s.timeout.Milliseconds(), 10))
 	}
@@ -362,7 +370,7 @@ func (t *tab) unwatch() {
 
 func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (session.Summary, error) {
 	if s.readOnly {
-		if msg := readOnlyRefusal(sql); msg != "" {
+		if msg := s.ReadOnlyRefusal(sql); msg != "" {
 			return session.Summary{}, session.Errorf(session.CodeReadOnly, msg)
 		}
 	}
@@ -396,7 +404,7 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 		t.c = c
 	}
 
-	kw := keyword(sql)
+	kw := keyword(sql, s.mariaDB)
 	curCtx, curCancel := context.WithCancel(s.base)
 	cur := &cursor{cancel: curCancel, complete: !s.readOnly && !readKeywords[kw]}
 	t.cur = cur
@@ -410,8 +418,9 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 		s.finish(t)
 		return session.Summary{}, cancelled()
 	}
-	if s.timeout > 0 && !readKeywords[kw] {
-		// max_execution_time bounds only SELECT; bound everything else here.
+	if s.timeout > 0 && !deadlineFree[kw] {
+		// max_execution_time bounds only SELECT; bound everything else here,
+		// including WITH … UPDATE and statements without a known keyword.
 		// The watch KILLs the statement when the deadline passes.
 		limited, cancelLimit := context.WithTimeout(ctx, s.timeout)
 		defer func() {
@@ -805,6 +814,11 @@ var readKeywords = map[string]bool{
 	"EXPLAIN": true, "DESCRIBE": true, "DESC": true, "HELP": true, "(": true,
 }
 
+// deadlineFree are the first keywords whose statements cannot write; the
+// server's max_execution_time bounds them. Every other statement gets the
+// statement timeout as a client deadline (Ruling M3-R14, M3-R15).
+var deadlineFree = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true}
+
 // queryKeywords are the statements run with Query, since they may return a
 // result set. Everything else runs with Exec, which reports affected rows.
 // A statement without a first keyword ("") may return rows too.
@@ -831,11 +845,34 @@ var refusedReadOnly = map[string]bool{
 	"SHUTDOWN": true, "STOP": true, "TRUNCATE": true, "UNINSTALL": true, "UNLOCK": true, "XA": true,
 }
 
+// guardDisabled switches the statement guard off, so a test can show the
+// server's own read-only enforcement.
+var guardDisabled bool
+
+// ReadOnlyRefusal is the MySQL read-only guard; Ops uses it in place of the
+// shared session.Guard (session.ReadOnlyGuard).
+func (s *mySession) ReadOnlyRefusal(sql string) string {
+	if guardDisabled {
+		return ""
+	}
+	return readOnlyRefusal(sql, s.mariaDB)
+}
+
+const versionCommentMsg = "Version comments (/*! … */) are not allowed with Read-only on."
+
 // readOnlyRefusal returns the refusal text when read-only mode must refuse
-// the statement, and "" otherwise. It fails closed: a statement without a
-// first keyword is refused. The keyword is read the way MySQL reads it.
-func readOnlyRefusal(sql string) string {
-	kw := keyword(sql)
+// the statement, and "" otherwise. It fails closed:
+//   - any executable comment, anywhere (even inside a string literal), is
+//     refused: the server may or may not run its body, by version, so the
+//     guard cannot know what runs (Ruling M3-R15);
+//   - a statement without a first keyword is refused.
+//
+// The keyword is read the way MySQL reads it.
+func readOnlyRefusal(sql string, mariaDB bool) string {
+	if strings.Contains(sql, "/*!") || (mariaDB && strings.Contains(sql, "/*M!")) {
+		return versionCommentMsg
+	}
+	kw := keyword(sql, mariaDB)
 	switch {
 	case kw == "CALL":
 		// A procedure can COMMIT or run DDL, escaping the READ ONLY wrapper.
@@ -848,10 +885,12 @@ func readOnlyRefusal(sql string) string {
 
 // keyword returns the statement's first keyword, upper-cased, or "(" for a
 // parenthesised statement, the way MySQL reads it: "#" and "--" followed by
-// any byte up to 0x20 start line comments, and the body of an executable
-// comment ("/*! … */", "/*!80000 … */", MariaDB "/*M! … */") is statement
-// text. "" means there is no first word.
-func keyword(sql string) string {
+// any byte up to 0x20 start line comments. "" means there is no first word,
+// or an executable comment ("/*!…", and "/*M!…" on MariaDB) comes before it:
+// whether the server runs its body depends on the version, so the statement
+// is treated as unknown (run to completion, under the write deadline).
+// MySQL reads "/*M! … */" as a plain comment.
+func keyword(sql string, mariaDB bool) string {
 	i := 0
 	for i < len(sql) {
 		c := sql[i]
@@ -862,19 +901,14 @@ func keyword(sql string) string {
 			for i < len(sql) && sql[i] != '\n' {
 				i++
 			}
-		case strings.HasPrefix(sql[i:], "/*!") || strings.HasPrefix(sql[i:], "/*M!"):
-			i += strings.IndexByte(sql[i:], '!') + 1
-			for i < len(sql) && sql[i] >= '0' && sql[i] <= '9' {
-				i++
-			}
+		case strings.HasPrefix(sql[i:], "/*!") || (mariaDB && strings.HasPrefix(sql[i:], "/*M!")):
+			return ""
 		case strings.HasPrefix(sql[i:], "/*"):
 			j := strings.Index(sql[i+2:], "*/")
 			if j < 0 {
 				return ""
 			}
 			i += j + 4
-		case strings.HasPrefix(sql[i:], "*/"): // the end of an executable comment
-			i += 2
 		case c == '(':
 			return "("
 		default:
