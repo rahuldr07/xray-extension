@@ -860,11 +860,121 @@ func (s *mySession) ReadOnlyRefusal(sql string) string {
 
 const fileWriteMsg = "Writing files on the server needs Read-only off."
 
-// intoFileRe finds SELECT/TABLE … INTO OUTFILE/DUMPFILE, which writes a file
-// on the server even inside a READ ONLY transaction (Ruling M3-R16). It reads
-// raw text, case-insensitively, allowing whitespace and comments between the
-// words; the words inside a string literal match too (fail closed).
-var intoFileRe = regexp.MustCompile(`(?is)\binto(?:\s|/\*.*?\*/|#[^\n]*|--[\x00-\x20][^\n]*)*(?:outfile|dumpfile)\b`)
+// writesFile reports SELECT/TABLE … INTO OUTFILE/DUMPFILE, which writes a
+// file on the server even inside a READ ONLY transaction (Rulings M3-R16,
+// M3-R17). It matches on a normalized token stream: comments removed, every
+// byte up to 0x20 a separator, words compared case-insensitively.
+//
+// Removing comments needs to know where string literals are (a "/*" inside
+// a string is not a comment), and that depends on server modes
+// (NO_BACKSLASH_ESCAPES, ANSI_QUOTES). So the statement is read under every
+// combination, and any reading that finds INTO OUTFILE/DUMPFILE refuses it.
+// The words of a string literal's contents count too (fail closed).
+func writesFile(sql string, mariaDB bool) bool {
+	for _, m := range []lexMode{{true, true}, {true, false}, {false, true}, {false, false}} {
+		if intoFile(sql, mariaDB, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// lexMode says whether a backslash escapes the next byte inside '…' and
+// "…" literals.
+type lexMode struct{ singleBackslash, doubleBackslash bool }
+
+func intoFile(sql string, mariaDB bool, m lexMode) bool {
+	prev := ""
+	emit := func(tok string) bool {
+		tok = strings.ToUpper(tok)
+		hit := prev == "INTO" && (tok == "OUTFILE" || tok == "DUMPFILE")
+		prev = tok
+		return hit
+	}
+	i := 0
+	for i < len(sql) {
+		c := sql[i]
+		if c <= 0x20 {
+			i++
+			continue
+		}
+		if e := commentEnd(sql, i, mariaDB); e >= 0 {
+			i = e
+			continue
+		}
+		if c == '\'' || c == '"' || c == '`' {
+			bs := (c == '\'' && m.singleBackslash) || (c == '"' && m.doubleBackslash)
+			end := quotedEnd(sql, i, bs)
+			emit(string(c))
+			// The literal's words count as tokens too (fail closed).
+			for _, w := range strings.FieldsFunc(sql[i+1:end], func(r rune) bool { return r <= 0x20 || r == '\'' || r == '"' || r == '`' }) {
+				if emit(w) {
+					return true
+				}
+			}
+			emit(string(c))
+			i = end
+			continue
+		}
+		j := i
+		for j < len(sql) && isTokenByte(sql[j]) {
+			j++
+		}
+		if j == i {
+			j = i + 1 // one punctuation byte
+		}
+		if emit(sql[i:j]) {
+			return true
+		}
+		i = j
+	}
+	return false
+}
+
+// quotedEnd returns the index just past the literal that opens at sql[i]. A
+// doubled quote stays inside; with backslash, "\x" does too. An unclosed
+// literal runs to the end.
+func quotedEnd(sql string, i int, backslash bool) int {
+	q := sql[i]
+	for j := i + 1; j < len(sql); j++ {
+		switch {
+		case backslash && sql[j] == '\\':
+			j++
+		case sql[j] == q && j+1 < len(sql) && sql[j+1] == q:
+			j++
+		case sql[j] == q:
+			return j + 1
+		}
+	}
+	return len(sql)
+}
+
+// commentEnd returns the index just past the comment that starts at sql[i],
+// or -1 when none starts there. "#" and "--" plus a byte up to 0x20 run to
+// the end of the line. Executable comments ("/*!", and "/*M!" on MariaDB)
+// are not comments: their body may run.
+func commentEnd(sql string, i int, mariaDB bool) int {
+	switch {
+	case sql[i] == '#' || (strings.HasPrefix(sql[i:], "--") && (i+2 == len(sql) || sql[i+2] <= 0x20)):
+		if j := strings.IndexByte(sql[i:], '\n'); j >= 0 {
+			return i + j + 1
+		}
+		return len(sql)
+	case strings.HasPrefix(sql[i:], "/*!") || (mariaDB && strings.HasPrefix(sql[i:], "/*M!")):
+		return -1
+	case strings.HasPrefix(sql[i:], "/*"):
+		if j := strings.Index(sql[i+2:], "*/"); j >= 0 {
+			return i + j + 4
+		}
+		return len(sql)
+	}
+	return -1
+}
+
+// isTokenByte is a byte of an unquoted MySQL word: ASCII letters, digits,
+// "_", "$", and every byte of a multibyte character (MySQL identifiers may
+// hold them, so "into\u00a0outfile" is one word).
+func isTokenByte(b byte) bool { return isWordByte(b) || b == '$' || b >= 0x80 }
 
 const versionCommentMsg = "Version comments (/*! … */) are not allowed with Read-only on."
 
@@ -878,7 +988,7 @@ const versionCommentMsg = "Version comments (/*! … */) are not allowed with Re
 //
 // The keyword is read the way MySQL reads it.
 func readOnlyRefusal(sql string, mariaDB bool) string {
-	if intoFileRe.MatchString(sql) {
+	if writesFile(sql, mariaDB) {
 		return fileWriteMsg
 	}
 	if strings.Contains(sql, "/*!") || (mariaDB && strings.Contains(sql, "/*M!")) {
@@ -909,18 +1019,10 @@ func keyword(sql string, mariaDB bool) string {
 		switch {
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v' || c == ';':
 			i++
-		case c == '#' || (strings.HasPrefix(sql[i:], "--") && (i+2 == len(sql) || sql[i+2] <= 0x20)):
-			for i < len(sql) && sql[i] != '\n' {
-				i++
-			}
+		case commentEnd(sql, i, mariaDB) >= 0:
+			i = commentEnd(sql, i, mariaDB)
 		case strings.HasPrefix(sql[i:], "/*!") || (mariaDB && strings.HasPrefix(sql[i:], "/*M!")):
 			return ""
-		case strings.HasPrefix(sql[i:], "/*"):
-			j := strings.Index(sql[i+2:], "*/")
-			if j < 0 {
-				return ""
-			}
-			i += j + 4
 		case c == '(':
 			return "("
 		default:

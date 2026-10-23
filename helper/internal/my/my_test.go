@@ -1075,6 +1075,27 @@ func TestFileWriteGuard(t *testing.T) {
 		{"select * from t into outfile '/tmp/x' fields terminated by ','", fileWriteMsg},
 		{"select 1 into @x", ""},
 		{"select pinto, outfile from t", ""},
+		// Every byte up to 0x20 separates tokens; MySQL reads 0x0B as space.
+		{"select 1 into\voutfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into\v/**/dumpfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into\v-- c\ndumpfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into\x01outfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into\x00outfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into#c\x0boutfile\noutfile '/tmp/x'", fileWriteMsg},
+		{"select 1 /* into */ into /* x */ dumpfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into, outfile", ""},
+		// A comment opener inside a string must not hide the real tokens,
+		// whatever the server's backslash and quote modes.
+		{"select '/*' into /**/ outfile '/tmp/x'", fileWriteMsg},
+		{"select '#' into /**/ outfile '/tmp/x'", fileWriteMsg},
+		{"select \"/*\" into /**/ outfile '/tmp/x'", fileWriteMsg},
+		{"select '\\' /*' into /**/ outfile '/tmp/x' -- */", fileWriteMsg},
+		{"select 'it''s /*' into /**/ dumpfile '/tmp/x'", fileWriteMsg},
+		{"select `a/*` into /**/ outfile '/tmp/x'", fileWriteMsg},
+		// NBSP is not MySQL whitespace: "into\u00a0outfile" is one identifier
+		// and MySQL rejects the statement as a syntax error (checked live in
+		// TestMySQLIntoOutfileRefused), so the guard lets it through.
+		{"select 1 into\u00a0outfile '/tmp/x'", ""},
 	}
 	for _, c := range cases {
 		if got := readOnlyRefusal(c.sql, false); got != c.want {
@@ -1111,6 +1132,9 @@ func TestMySQLIntoOutfileRefused(t *testing.T) {
 		"table orders into outfile '%s'",
 		"select 1 into dumpfile '%s'",
 		"select 1 into/**/outfile '%s'",
+		"select 1 into\voutfile '%s'",
+		"select 1 into\v-- c\ndumpfile '%s'",
+		"select '/*' into /**/ outfile '%s'",
 		"select 'into outfile'",
 	} {
 		path := base + db + "_" + strconv.Itoa(i)
@@ -1133,5 +1157,15 @@ func TestMySQLIntoOutfileRefused(t *testing.T) {
 		if content.Valid {
 			t.Fatalf("%s was written", path)
 		}
+	}
+	// NBSP passes the guard, and MySQL rejects it as a syntax error.
+	path := base + db + "_nbsp"
+	_, f := exec(c, sid, "t1", "select 1 into\u00a0outfile '"+path+"'", 10)
+	if testclient.ErrCode(f) != "syntax" {
+		t.Fatalf("nbsp: %v", f)
+	}
+	var content sql.NullString
+	if err := a.QueryRow("select load_file(?)", path).Scan(&content); err != nil || content.Valid {
+		t.Fatalf("%s was written (%v)", path, err)
 	}
 }
