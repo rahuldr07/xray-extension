@@ -55,10 +55,11 @@ func FromPG(oid uint32, text []byte, isNull bool) (Cell, bool) {
 		if b, err := hex.DecodeString(strings.TrimPrefix(s, `\x`)); err == nil && strings.HasPrefix(s, `\x`) {
 			return blob(b), false
 		}
+		// Unreachable with pgx text mode (bytea is always `\x` hex); if it
+		// ever happens, preview the raw text bytes with their byte count.
 		return blob(text), false
-	case oidInt8, oidNumeric:
-		return textCell(s)
 	}
+	// int8, numeric and everything else keep the server text.
 	return textCell(s)
 }
 

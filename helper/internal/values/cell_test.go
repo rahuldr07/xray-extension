@@ -119,3 +119,26 @@ func TestFromMySQL(t *testing.T) {
 		}
 	}
 }
+
+func TestSafeIntegerBoundary(t *testing.T) {
+	cases := map[string]string{
+		"9007199254740991":  `9007199254740991`,
+		"-9007199254740991": `-9007199254740991`,
+		"9007199254740992":  `"9007199254740992"`,
+		"-9007199254740992": `"-9007199254740992"`,
+	}
+	for in, want := range cases {
+		c, _ := FromPG(23, []byte(in), false)
+		if got := mustJSON(t, c); got != want {
+			t.Fatalf("%s: got %s want %s", in, got, want)
+		}
+		c, _ = FromMySQL("BIGINT", []byte(in), false)
+		if _, isStr := c.(string); !isStr {
+			t.Fatalf("bigint %s should be text", in)
+		}
+		c, _ = FromMySQL("INT", []byte(in), false)
+		if got := mustJSON(t, c); got != want {
+			t.Fatalf("mysql int %s: got %s want %s", in, got, want)
+		}
+	}
+}
