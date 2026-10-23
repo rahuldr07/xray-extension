@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { IconX } from '@tabler/icons-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { IconCopy, IconFilter, IconX } from '@tabler/icons-react';
 import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
 import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
-import type { QueryResult } from '../../models/sqlTypes';
+import { cellCopyText, filteredSummary, filterRows, nextSort, sortRows, type SortState } from '../../models/sqlGrid';
+import type { QueryResult, SchemaTree, SqlCell } from '../../models/sqlTypes';
 import { JsonView } from '../detail/JsonView';
 import { ResultGrid, type SelectedCell } from './ResultGrid';
 
@@ -18,14 +19,40 @@ function copyText(format: CopyFormat, result: QueryResult, table: string): { tex
   return { text, truncated: countTruncatedBlobs(result.rows) };
 }
 
-function Inspector({ result, cell, onClose }: { result: QueryResult; cell: SelectedCell; onClose(): void }): React.ReactElement {
+function Inspector({
+  result,
+  rows,
+  cell,
+  onClose,
+  onToast,
+}: {
+  result: QueryResult;
+  rows: SqlCell[][];
+  cell: SelectedCell;
+  onClose(): void;
+  onToast(...lines: string[]): void;
+}): React.ReactElement {
   const column = result.columns[cell.col];
-  const shown = displayCell(result.rows[cell.row]?.[cell.col] ?? null, column?.type);
+  const raw = rows[cell.row]?.[cell.col] ?? null;
+  const shown = displayCell(raw, column?.type);
   const json = React.useMemo(() => {
     if (shown.kind !== 'json') return null;
     const doc = parseJson(shown.text);
     return doc.ok ? { value: toValue(doc.root) } : null;
   }, [shown.kind, shown.text]);
+
+  async function copyValue(): Promise<void> {
+    const { text, truncatedBlob } = cellCopyText(raw, column?.type);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      onToast('Could not copy to the clipboard.');
+      return;
+    }
+    // R9: a cut blob copies only its preview bytes, and says so in the notice's own words.
+    if (truncatedBlob) onToast('Copied the value.', truncatedBlobNotice(1));
+    else onToast('Copied the value.');
+  }
 
   return (
     <aside className="xray-sql-inspector" aria-label="Cell inspector">
@@ -33,7 +60,11 @@ function Inspector({ result, cell, onClose }: { result: QueryResult; cell: Selec
         <span className="xray-sql-inspector-title">
           {column?.name ?? ''} <span className="xray-sql-muted">row {cell.row + 1} · {shown.kind}</span>
         </span>
-        <button className="xray-icon-btn" aria-label="Close cell inspector" onClick={onClose}>
+        <button className="xray-btn xray-btn-sm" onClick={() => void copyValue()}>
+          <IconCopy size={13} stroke={1.8} aria-hidden="true" />
+          Copy value
+        </button>
+        <button className="xray-icon-btn" aria-label="Close cell inspector" title="Close (Escape)" onClick={onClose}>
           <IconX size={14} stroke={1.8} />
         </button>
       </header>
@@ -81,15 +112,34 @@ function MaxRowsInput(): React.ReactElement {
   );
 }
 
+// Until the first inspection in this page session the Results toolbar says cells can be opened.
+let inspectedOnce = false;
+
+function primaryKeyColumns(schema: SchemaTree | null, table: string | null): ReadonlySet<string> {
+  if (!schema || !table) return EMPTY_SET;
+  const node = schema.schemas.find((s) => s.name === 'main')?.tables.find((t) => t.name === table);
+  return node ? new Set(node.columns.filter((c) => c.pk).map((c) => c.name)) : EMPTY_SET;
+}
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
 function ResultsView(): React.ReactElement {
   const result = usePanelSqlStore((s) => s.result);
   const resultTable = usePanelSqlStore((s) => s.resultTable);
-  const [selection, setSelection] = useState<{ result: QueryResult; cell: SelectedCell } | null>(null);
+  const schema = usePanelSqlStore((s) => s.schema);
+  const [filter, setFilter] = useState('');
+  const [sortState, setSortState] = useState<{ result: QueryResult; sort: SortState | null } | null>(null);
+  const [selection, setSelection] = useState<{ rows: SqlCell[][]; cell: SelectedCell } | null>(null);
+  const [hint, setHint] = useState(!inspectedOnce);
   const [toast, setToast] = useState<string[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
+
+  // A new result starts unsorted; the filter text stays, visible in its field.
+  const sort = sortState && sortState.result === result ? sortState.sort : null;
+  const viewRows = useMemo(() => (result ? sortRows(filterRows(result.rows, filter), sort) : []), [result, filter, sort]);
+  const pkColumns = useMemo(() => primaryKeyColumns(schema, resultTable), [schema, resultTable]);
 
   if (!result) {
     return (
@@ -101,7 +151,8 @@ function ResultsView(): React.ReactElement {
       </div>
     );
   }
-  const cell = selection && selection.result === result ? selection.cell : null;
+  const cell = selection && selection.rows === viewRows ? selection.cell : null;
+  const filtering = filter.trim() !== '';
 
   function showToast(...lines: string[]): void {
     setToast(lines);
@@ -111,28 +162,50 @@ function ResultsView(): React.ReactElement {
 
   async function copy(format: CopyFormat): Promise<void> {
     if (!result) return;
-    const { text, truncated } = copyText(format, result, resultTable ?? 'query_result');
+    // Copies what is shown: the filtered, sorted rows.
+    const { text, truncated } = copyText(format, { ...result, rows: viewRows }, resultTable ?? 'query_result');
     try {
       await navigator.clipboard.writeText(text);
     } catch {
       showToast('Could not copy to the clipboard.');
       return;
     }
-    const copied = `Copied ${result.rows.length} rows as ${format}.`;
+    const copied = `Copied ${viewRows.length} rows as ${format}.`;
     // R9/R14: the truncation notice is its own message, word for word.
     if (truncated) showToast(copied, truncatedBlobNotice(truncated));
     else showToast(copied);
   }
 
+  function inspect(next: SelectedCell): void {
+    inspectedOnce = true;
+    setHint(false);
+    setSelection({ rows: viewRows, cell: next });
+  }
+
   const hasColumns = result.columns.length > 0;
+  const columnsKey = result.columns.map((c) => `${c.name}\u0000${c.type}`).join('\u0001');
   return (
     <div className="xray-sql-results">
       <div className="xray-sql-results-head">
         <span className="xray-sql-results-summary">
-          {resultSummary(result)}
+          {filtering && hasColumns ? filteredSummary(viewRows.length, result.rows.length, result.durationMs) : resultSummary(result)}
           {result.hasMore ? ' · more rows available, Run with higher limit' : ''}
         </span>
         <MaxRowsInput />
+        {hasColumns && (
+          <label className="xray-sql-filter">
+            <IconFilter size={13} stroke={1.8} aria-hidden="true" />
+            <input
+              className="xray-input"
+              type="search"
+              aria-label="Filter rows"
+              placeholder="Filter rows"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </label>
+        )}
+        {hasColumns && hint && !toast && <span className="xray-sql-hint">Click a cell to inspect it</span>}
         <span className="xray-spacer" />
         {toast && (
           <span className="xray-sql-toast" role="status">
@@ -155,9 +228,26 @@ function ResultsView(): React.ReactElement {
         )}
       </div>
       {hasColumns ? (
-        <div className="xray-sql-results-body">
-          <ResultGrid result={result} selected={cell} onSelect={(c) => setSelection({ result, cell: c })} />
-          {cell && <Inspector result={result} cell={cell} onClose={() => setSelection(null)} />}
+        <div
+          className="xray-sql-results-body"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && cell) {
+              e.preventDefault();
+              setSelection(null);
+            }
+          }}
+        >
+          <ResultGrid
+            key={columnsKey}
+            result={result}
+            rows={viewRows}
+            sort={sort}
+            onSort={(col) => setSortState({ result, sort: nextSort(sort, col) })}
+            pkColumns={pkColumns}
+            inspected={cell}
+            onInspect={inspect}
+          />
+          {cell && <Inspector result={result} rows={viewRows} cell={cell} onClose={() => setSelection(null)} onToast={showToast} />}
         </div>
       ) : (
         <p className="xray-sql-empty">The statement returned no rows.</p>

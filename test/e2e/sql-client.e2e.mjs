@@ -468,6 +468,62 @@ test('the first screen welcomes, and the editor/results divider steps with the k
   assert.equal(Number(await divider.getAttribute('aria-valuenow')), moved, 'the editor share survives a reload');
 });
 
+test('the grid sizes columns to their content, sorts and filters loaded rows, and inspects a cell', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  // Clipboard reads cannot be granted to an extension origin: record what reaches writeText instead,
+  // still passing it through to the real clipboard.
+  await page.evaluate(() => {
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text) => {
+      window.__copied = text;
+      return write(text);
+    };
+  });
+  await openShop(page);
+  await railItem(page, 'orders').click();
+  await assertEventually(async () => /^100 rows/.test(await summary(page).textContent()), 'preview header reads 100 rows');
+  await page.getByText('Click a cell to inspect it', { exact: true }).waitFor();
+
+  // Typed headers: the declared type under the name, and a key on the preview's primary key.
+  const header = (name) => page.getByRole('columnheader', { name: new RegExp(`^(primary key )?${name}\\b`) });
+  assert.match(await header('total').textContent(), /^total\s*NUMERIC$/);
+  await header('id').getByRole('img', { name: 'primary key', exact: true }).waitFor();
+  // Auto widths: the JSON column is wider than the id column.
+  const widthOf = async (name) => (await header(name).boundingBox()).width;
+  assert.ok((await widthOf('meta')) > (await widthOf('id')), 'meta is wider than id');
+
+  // Header clicks sort the loaded rows: ascending, then descending.
+  const totals = () => page.locator('[role="row"][aria-rowindex="2"] [role="gridcell"][aria-colindex="4"]').textContent();
+  await header('total').click();
+  assert.equal(await header('total').getAttribute('aria-sort'), 'ascending');
+  assert.equal(await totals(), '3');
+  await header('total').click();
+  assert.equal(await header('total').getAttribute('aria-sort'), 'descending');
+  assert.equal(await totals(), '1250.5', 'the first row holds the largest of the 100 loaded totals');
+
+  // Filter rows narrows the loaded rows and the summary says so.
+  const filter = page.getByRole('searchbox', { name: 'Filter rows', exact: true });
+  await filter.fill('gift');
+  await assertEventually(async () => /^1 of 100 rows/.test(await summary(page).textContent()), 'summary reads 1 of 100 rows');
+  assert.equal(await page.getByRole('grid', { name: 'Query results' }).getAttribute('aria-rowcount'), '2');
+  await filter.fill('');
+
+  // Clicking a cell opens the inspector; Copy value confirms with a toast; Escape closes it.
+  await page.getByRole('gridcell', { name: '{"gift":true}', exact: true }).click();
+  const inspector = page.getByRole('complementary', { name: 'Cell inspector' });
+  await inspector.waitFor();
+  assert.equal(await page.getByText('Click a cell to inspect it', { exact: true }).count(), 0, 'the hint goes after the first inspection');
+  await inspector.getByRole('button', { name: 'Copy value', exact: true }).click();
+  await page.getByRole('status').getByText('Copied the value.', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.__copied), '{\n  "gift": true\n}', 'JSON is copied pretty-printed');
+  await page.keyboard.press('Escape');
+  await inspector.waitFor({ state: 'detached' });
+  // Enter on a focused cell opens it again.
+  await page.getByRole('gridcell', { name: '{"gift":true}', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await inspector.waitFor();
+});
+
 async function assertEventually(check, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
