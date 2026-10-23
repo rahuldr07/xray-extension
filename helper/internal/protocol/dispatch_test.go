@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -149,5 +150,51 @@ func TestOversizeFrameStopsServing(t *testing.T) {
 	}
 	if strings.TrimSpace(errw.String()) != "xray-db-helper: frame-too-large" {
 		t.Fatalf("stderr %q", errw.String())
+	}
+}
+
+type panicHandler struct{ closed bool }
+
+func (h *panicHandler) Handle(ctx context.Context, op string, id int64, payload []byte, r *Reply) {
+	panic("boom secret-in-panic")
+}
+func (h *panicHandler) Close() { h.closed = true }
+
+func TestHandlerPanicAnswersInternal(t *testing.T) {
+	var in, out, errw bytes.Buffer
+	if err := WriteFrame(&in, []byte(`{"id":5,"op":"execute"}`)); err != nil {
+		t.Fatal(err)
+	}
+	h := &panicHandler{}
+	if err := ServeWith(&in, &out, &errw, "x", h); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ReadFrame(&out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	json.Unmarshal(p, &m)
+	e := m["error"].(map[string]any)
+	if m["id"] != float64(5) || e["code"] != "internal" || e["message"] != "Internal helper error." {
+		t.Fatalf("got %v", m)
+	}
+	if errw.String() != "xray-db-helper: panic\n" {
+		t.Fatalf("stderr %q", errw.String())
+	}
+	if !h.closed {
+		t.Fatal("handler must be closed at EOF")
+	}
+}
+
+func TestHelloStillServedWithHandler(t *testing.T) {
+	var in, out, errw bytes.Buffer
+	WriteFrame(&in, []byte(`{"id":1,"op":"hello"}`))
+	if err := ServeWith(&in, &out, &errw, "9", &panicHandler{}); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := ReadFrame(&out)
+	if !strings.Contains(string(p), `"helperVersion":"9"`) {
+		t.Fatalf("%s", p)
 	}
 }

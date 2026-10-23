@@ -50,7 +50,7 @@ type RowsMessage struct {
 
 type ExecuteResult struct {
 	RowCount       int      `json:"rowCount"`
-	Affected       int64    `json:"affected"`
+	Affected       *int64   `json:"affected"` // null for SELECT-like statements
 	DurationMs     float64  `json:"durationMs"`
 	Notices        []string `json:"notices"`
 	HasMore        bool     `json:"hasMore"`
