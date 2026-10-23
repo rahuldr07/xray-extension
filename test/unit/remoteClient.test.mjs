@@ -112,7 +112,7 @@ test('an already-aborted signal never reaches the SW', async () => {
   const session = await createRemoteClient(env.connectPort).connect('p1', true);
   const ac = new AbortController();
   ac.abort();
-  await assert.rejects(session.execute('select 1', { maxRows: 1 }, ac.signal), (e) => e.code === 'cancelled');
+  await assert.rejects(session.execute('select 1', { maxRows: 1, tabId: 't' }, ac.signal), (e) => e.code === 'cancelled');
   assert.equal(env.ports[0].sent.some((m) => m.op === 'execute'), false);
 });
 
@@ -157,4 +157,37 @@ test('a port that cannot be opened rejects with connection-lost', async () => {
     throw new Error('no runtime');
   });
   await assert.rejects(api.helperStatus(), (e) => e.code === 'connection-lost');
+});
+
+test('execute and fetchMore refuse a missing tab id', async () => {
+  const env = fakeEnv(sw);
+  const session = await createRemoteClient(env.connectPort).connect('p1', true);
+  for (const call of [() => session.execute('select 1', { maxRows: 1 }), () => session.execute('select 1', { maxRows: 1, tabId: '' }), () => session.fetchMore('', 5)]) {
+    await assert.rejects(call(), (e) => e.code === 'server' && e.message === 'Missing editor tab id.');
+  }
+  assert.equal(env.ports[0].sent.some((m) => m.op === 'execute' || m.op === 'fetchMore'), false);
+});
+
+test('a throwing postMessage drops and disconnects the port', async () => {
+  const env = fakeEnv(sw);
+  const api = createRemoteClient(env.connectPort);
+  await api.helperStatus();
+  let disconnected = false;
+  env.ports[0].postMessage = () => {
+    throw new Error('closed');
+  };
+  env.ports[0].disconnect = () => {
+    disconnected = true;
+  };
+  await assert.rejects(api.helperStatus(), (e) => e.code === 'connection-lost');
+  assert.equal(disconnected, true);
+});
+
+test('closing a dead session is quiet', async () => {
+  const env = fakeEnv((m, port) => {
+    if (m.op === 'close') port.reply({ id: m.id, ok: false, error: { code: 'connection-lost', message: 'gone' } });
+    else sw(m, port);
+  });
+  const session = await createRemoteClient(env.connectPort).connect('p1', true);
+  await session.close();
 });

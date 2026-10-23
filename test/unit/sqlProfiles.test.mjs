@@ -43,6 +43,24 @@ test('sslmode and ssl-mode map onto the three TLS modes', () => {
   assert.equal(tls(''), 'require');
 });
 
+test('MySQL-native ssl-mode values map without weakening, and unknown values are refused', () => {
+  const tls = (q) => parseConnectionString(`mysql://u@db.example.com/x?${q}`).profile.tls;
+  for (const m of ['DISABLED', 'disable']) assert.equal(tls(`ssl-mode=${m}`), 'disable');
+  for (const m of ['PREFERRED', 'REQUIRED', 'allow']) assert.equal(tls(`ssl-mode=${m}`), 'require');
+  for (const m of ['VERIFY_CA', 'VERIFY_IDENTITY', 'verify-identity', 'verify_full']) {
+    assert.equal(tls(`ssl-mode=${m}`), 'verify-full', m);
+  }
+  assert.deepEqual(parseConnectionString('mysql://u@h/x?ssl-mode=bogus'), { error: 'Unsupported sslmode: bogus.' });
+  assert.deepEqual(parseConnectionString('postgres://u@h/x?sslmode=verify-fulll'), { error: 'Unsupported sslmode: verify-fulll.' });
+});
+
+test('an unparsable URL says to percent-encode', () => {
+  const msg = 'The connection string is not valid. Percent-encode special characters in the password.';
+  for (const s of ['postgres://u:pa#ss@h/x', 'postgres://u:pa?ss@h/x', 'postgres://u@h:70000/x']) {
+    assert.deepEqual(parseConnectionString(s), { error: msg }, s);
+  }
+});
+
 test('bad input returns the exact errors', () => {
   assert.deepEqual(parseConnectionString('http://x'), { error: 'Use a postgres:// or mysql:// connection string.' });
   assert.deepEqual(parseConnectionString('nonsense'), { error: 'Use a postgres:// or mysql:// connection string.' });

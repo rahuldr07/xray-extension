@@ -70,7 +70,7 @@ interface Pending {
 
 const LOST: SqlError = { code: 'connection-lost', message: 'The connection to the database helper was lost.' };
 const CANCELLED: SqlError = { code: 'cancelled', message: 'Query cancelled.' };
-const DEFAULT_TAB = 'default';
+const NO_TAB: SqlError = { code: 'server', message: 'Missing editor tab id.' };
 
 /** Only the fields a page may hold. A password is dropped even if the worker wrongly sent one. */
 function cleanProfile(raw: unknown): PageProfile {
@@ -145,8 +145,13 @@ export function createRemoteClient(connectPort: () => PortLike): RemoteApi {
       try {
         p.postMessage({ id, op, ...body });
       } catch {
-        dropPort(p);
         // dropPort rejects everything pending on this port, this call included.
+        dropPort(p);
+        try {
+          p.disconnect();
+        } catch {
+          /* already gone */
+        }
       }
     });
   }
@@ -183,11 +188,21 @@ export function createRemoteClient(connectPort: () => PortLike): RemoteApi {
       capabilities,
       serverVersion,
       introspect: () => request<SchemaTree>('introspect', { sessionId }),
-      execute: (sql: string, opts: ExecuteOptions, signal?: AbortSignal) =>
-        query('execute', { tabId: opts.tabId ?? DEFAULT_TAB, sql, maxRows: opts.maxRows }, signal),
-      fetchMore: (tabId: string, n: number) => query('fetchMore', { tabId, n }),
+      execute: async (sql: string, opts: ExecuteOptions, signal?: AbortSignal) => {
+        if (!opts.tabId) throw { ...NO_TAB };
+        return query('execute', { tabId: opts.tabId, sql, maxRows: opts.maxRows }, signal);
+      },
+      fetchMore: async (tabId: string, n: number) => {
+        if (!tabId) throw { ...NO_TAB };
+        return query('fetchMore', { tabId, n });
+      },
       close: async () => {
-        await request('close', { sessionId });
+        try {
+          await request('close', { sessionId });
+        } catch (e) {
+          // A dead session is already closed.
+          if ((e as SqlError).code !== 'connection-lost') throw e;
+        }
       },
     };
   }

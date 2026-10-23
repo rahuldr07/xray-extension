@@ -61,19 +61,26 @@ function decode(s: string): string {
   }
 }
 
-function tlsFromSslMode(mode: string | null, host: string): TlsMode {
-  switch (mode?.toLowerCase().replace(/_/g, '-')) {
+// null: a value we do not know. It is refused rather than guessed, so a requested level of
+// verification is never silently weakened.
+function tlsFromSslMode(mode: string | null, host: string): TlsMode | null {
+  if (mode === null || mode === '') return isLoopbackHost(host) ? 'disable' : 'require';
+  switch (mode.toLowerCase().replace(/_/g, '-')) {
     case 'disable':
+    case 'disabled':
       return 'disable';
+    case 'allow':
+    case 'prefer':
+    case 'preferred':
+    case 'require':
+    case 'required':
+      return 'require';
     case 'verify-ca':
     case 'verify-full':
+    case 'verify-identity':
       return 'verify-full';
-    case 'require':
-    case 'prefer':
-    case 'allow':
-      return 'require';
     default:
-      return isLoopbackHost(host) ? 'disable' : 'require';
+      return null;
   }
 }
 
@@ -86,12 +93,14 @@ export function parseConnectionString(s: string): { profile: ParsedConnection; p
   try {
     url = new URL(text);
   } catch {
-    return { error: NO_HOST };
+    return { error: 'The connection string is not valid. Percent-encode special characters in the password.' };
   }
   const host = decode(url.hostname).replace(/^\[/, '').replace(/\]$/, '');
   if (host === '') return { error: NO_HOST };
   const database = decode(url.pathname.replace(/^\//, ''));
   const sslmode = url.searchParams.get('sslmode') ?? url.searchParams.get('ssl-mode');
+  const tls = tlsFromSslMode(sslmode, host);
+  if (tls === null) return { error: `Unsupported sslmode: ${sslmode}.` };
   return {
     profile: {
       name: defaultProfileName(database, host),
@@ -100,7 +109,7 @@ export function parseConnectionString(s: string): { profile: ParsedConnection; p
       port: url.port === '' ? DEFAULT_PORTS[engine] : Number(url.port),
       database,
       user: decode(url.username),
-      tls: tlsFromSslMode(sslmode, host),
+      tls,
       caFile: '',
       statementTimeoutMs: null,
       readOnly: true,
