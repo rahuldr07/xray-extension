@@ -13,6 +13,7 @@ import {
   type PortLike,
   type RemoteApi,
   type RemoteSession,
+  type SaveProfileInput,
 } from './runtime/remoteClient';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
 import { rememberRecentFile } from './runtime/recentFiles';
@@ -155,6 +156,15 @@ export interface SqlState {
   cancelPassword(): void;
   // Reloads the saved profiles and the helper status.
   refreshRemote(): Promise<void>;
+  // Saves a profile (the password goes to the worker and is never kept here) and reloads the list.
+  // Rejects with a SqlError.
+  saveProfile(input: SaveProfileInput): Promise<PageProfile>;
+  deleteProfile(profileId: string): Promise<void>;
+  // Test connection: connects with the given fields, reads the server version and closes. A new
+  // profile, or one with a typed password, is tested through a throwaway profile that is deleted
+  // afterwards; an existing profile without a typed password is saved first, since only the worker
+  // holds its password. Resolves with the raw server version; rejects with a SqlError.
+  testProfile(input: SaveProfileInput): Promise<string>;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
@@ -619,6 +629,20 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     await proceed();
   }
 
+  // A connect failure that says something about the helper updates the install card's state.
+  function noteHelperError(err: SqlError): void {
+    if (err.code === 'helper-missing') set({ helper: { state: err.detail === 'no-permission' ? 'no-permission' : 'missing' } });
+    if (err.code === 'helper-outdated') set({ helper: { ...get().helper, state: 'outdated' } });
+  }
+
+  async function reloadProfiles(): Promise<void> {
+    try {
+      set({ profiles: await remoteClient().profiles.list() });
+    } catch {
+      // The list stays as it was; the next refresh retries.
+    }
+  }
+
   // Opens a session for a profile. On failure it reports and returns null: a missing password
   // opens the password prompt, a missing or outdated helper is recorded for the install card.
   async function openSession(
@@ -639,8 +663,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         set({ pendingPassword: { profileId, name } });
         return null;
       }
-      if (err.code === 'helper-missing') set({ helper: { state: 'missing' } });
-      if (err.code === 'helper-outdated') set({ helper: { ...get().helper, state: 'outdated' } });
+      noteHelperError(err);
       set({ error: err, errorAt: null, bottomTab: 'messages' });
       say(err.message);
       return null;
@@ -1123,6 +1146,52 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       if (profiles.status === 'fulfilled') set({ profiles: profiles.value });
       if (helper.status === 'fulfilled') set({ helper: helper.value });
       else if (normalizeSqlError(helper.reason).code === 'helper-missing') set({ helper: { state: 'missing' } });
+    },
+
+    async saveProfile(input) {
+      let saved: PageProfile;
+      try {
+        saved = await remoteClient().profiles.save(input);
+      } catch (raw) {
+        throw normalizeSqlError(raw);
+      }
+      await reloadProfiles();
+      return saved;
+    },
+
+    async deleteProfile(profileId) {
+      try {
+        await remoteClient().profiles.delete(profileId);
+      } catch (raw) {
+        throw normalizeSqlError(raw);
+      }
+      set({ profiles: get().profiles.filter((p) => p.id !== profileId) });
+      await reloadProfiles();
+    },
+
+    async testProfile(input) {
+      const api = remoteClient();
+      const throwaway = !(input.id && !input.password);
+      let id: string;
+      try {
+        id = throwaway
+          ? (await api.profiles.save({ ...input, id: undefined, savePassword: false })).id
+          : (await get().saveProfile(input)).id;
+      } catch (raw) {
+        throw normalizeSqlError(raw);
+      }
+      try {
+        const session = await api.connect(id, input.readOnly);
+        set({ helper: { ...get().helper, state: 'ready' } });
+        await session.close().catch(() => undefined);
+        return session.serverVersion;
+      } catch (raw) {
+        const err = normalizeSqlError(raw);
+        noteHelperError(err);
+        throw err;
+      } finally {
+        if (throwaway) await api.profiles.delete(id).catch(() => undefined);
+      }
     },
   };
 });

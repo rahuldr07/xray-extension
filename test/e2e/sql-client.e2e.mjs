@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { shopDatabaseBytes } from '../helpers/sqliteFixture.mjs';
+import { extensionCopyWithNativeMessaging, registerNativeHost } from '../helpers/nativeHost.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -721,6 +722,191 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
   await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
   await sleep(300);
   assert.equal(await page.getByRole('heading', { name: 'Recent', exact: true }).count(), 0, 'removed for good');
+});
+
+// ---------------------------------------------------------------- Postgres/MySQL (Task 9)
+// A temp copy of the extension with nativeMessaging granted, and a profile whose NativeMessagingHosts
+// folder registers test/fixtures/fake-helper.mjs (unless `helper` is false: "helper missing"). The
+// real service worker and connection manager run against the fake.
+async function openRemotePage(t, { helper = true } = {}) {
+  const ext = extensionCopyWithNativeMessaging();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xray-e2e-sql-remote-'));
+  if (helper) registerNativeHost(userDataDir);
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: true,
+    channel: 'chromium',
+    viewport: { width: 1280, height: 900 },
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--no-sandbox'],
+  });
+  t.after(async () => {
+    await context.close();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+    fs.rmSync(ext, { recursive: true, force: true });
+  });
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker', { timeout: 30_000 }));
+  const extensionId = new URL(worker.url()).host;
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/sql.html`);
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  return { context, page };
+}
+
+const SUPABASE = 'postgresql://postgres.abcdefgh:s3cret%21@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require';
+const LINUX_INSTALL = ['curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh', 'sh'].join(' | ');
+
+async function openConnectionDialog(page) {
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
+  await dialog.waitFor();
+  return dialog;
+}
+
+// Fills the dialog by pasting a connection string, then names the connection.
+async function fillConnection(dialog, { url, name, savePassword = true }) {
+  await dialog.getByLabel('Connection string', { exact: true }).fill(url);
+  await dialog.getByLabel('Name', { exact: true }).fill(name);
+  const save = dialog.getByRole('checkbox', { name: 'Save password', exact: true });
+  if ((await save.isChecked()) !== savePassword) await save.click();
+}
+
+test('the connection dialog fills its fields from a pasted connection string and tests it', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  const box = dialog.getByLabel('Connection string', { exact: true });
+  await box.fill('redis://localhost');
+  await dialog.getByText('Use a postgres:// or mysql:// connection string.', { exact: true }).waitFor();
+
+  await box.fill(SUPABASE);
+  assert.equal(await dialog.getByText('Use a postgres:// or mysql:// connection string.').count(), 0, 'the error clears');
+  assert.equal(await dialog.getByRole('radio', { name: 'PostgreSQL', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByLabel('Host', { exact: true }).inputValue(), 'aws-0-us-east-1.pooler.supabase.com');
+  assert.equal(await dialog.getByLabel('Port', { exact: true }).inputValue(), '6543');
+  assert.equal(await dialog.getByLabel('Database', { exact: true }).inputValue(), 'postgres');
+  assert.equal(await dialog.getByLabel('User', { exact: true }).inputValue(), 'postgres.abcdefgh');
+  assert.equal(await dialog.getByLabel('Password', { exact: true }).inputValue(), 's3cret!');
+  assert.equal(await dialog.getByLabel('Name', { exact: true }).inputValue(), 'postgres@aws-0-us-east-1.pooler.supabase.com');
+  assert.equal(await dialog.getByRole('radio', { name: 'Require', exact: true }).isChecked(), true);
+  // TLS can be turned off only for a server on this computer.
+  assert.equal(await dialog.getByRole('radio', { name: 'Disable', exact: true }).isDisabled(), true);
+  await dialog
+    .getByText('This server is not on this computer, so XRAY requires TLS. Choose Require or Verify full.', { exact: true })
+    .waitFor();
+  assert.equal(await dialog.getByRole('switch', { name: 'Read-only', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByRole('checkbox', { name: 'Save password', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByLabel('CA file path', { exact: true }).count(), 0, 'CA file only for Verify full');
+  await dialog.getByRole('radio', { name: 'Verify full', exact: true }).check();
+  await dialog.getByLabel('CA file path', { exact: true }).waitFor();
+
+  await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await dialog.getByRole('status').getByText('Connected — PostgreSQL 16.4', { exact: true }).waitFor();
+  await dialog.getByLabel('Password', { exact: true }).fill('wrong');
+  await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await dialog.getByText('Password authentication failed for user "postgres".', { exact: true }).waitFor();
+
+  // A Test never leaves a saved connection behind.
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await page.reload();
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  await sleep(500);
+  assert.equal(await page.getByRole('region', { name: 'Saved connections' }).count(), 0, 'nothing was saved');
+});
+
+test('without the helper, the welcome screen and the dialog show the install card', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t, { helper: false });
+  const card = page.getByRole('region', { name: 'Install the XRAY database helper', exact: true });
+  await card.waitFor();
+  await card
+    .getByText('Postgres and MySQL need a small helper app on this computer. Run this once in a terminal, then click Retry.', { exact: true })
+    .waitFor();
+  assert.equal(await card.locator('code').textContent(), LINUX_INSTALL);
+  assert.equal(
+    await card.getByRole('link', { name: 'What does it install?', exact: true }).getAttribute('href'),
+    'https://github.com/rahuldr07/xray-extension/tree/main/helper#readme',
+  );
+  await card.getByRole('button', { name: 'Copy', exact: true }).waitFor();
+  await card.getByRole('button', { name: 'Retry', exact: true }).click();
+  await card.waitFor();
+
+  const dialog = await openConnectionDialog(page);
+  const inDialog = dialog.getByRole('region', { name: 'Install the XRAY database helper', exact: true });
+  await inDialog.waitFor();
+  assert.equal(await inDialog.locator('code').textContent(), LINUX_INSTALL);
+});
+
+test('a saved connection connects, lists in the source menu and on the welcome screen, and Fetch more appends rows', { timeout: 180_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app:pw@db.example.com:5432/shop', name: 'Shop PG' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source', { hasText: 'Shop PG · PostgreSQL 16.4 · db.example.com' }).waitFor();
+  await railItem(page, 'orders').waitFor();
+
+  // 25 rows behind a 10-row limit: Fetch more pulls the rest through the open cursor.
+  const maxRows = page.getByRole('spinbutton');
+  await maxRows.fill('10');
+  await maxRows.press('Enter');
+  await runSql(page, 'select * from public.orders');
+  await assertEventually(async () => /^10 rows/.test((await summary(page).textContent()) ?? ''), 'first page of 10 rows');
+  assert.doesNotMatch((await summary(page).textContent()) ?? '', /Run with higher limit/);
+  const fetchMore = page.getByRole('button', { name: 'Fetch more', exact: true });
+  await fetchMore.click();
+  await assertEventually(async () => /^25 rows/.test((await summary(page).textContent()) ?? ''), 'all 25 rows after Fetch more');
+  await fetchMore.waitFor({ state: 'detached' });
+  await page.getByRole('gridcell', { name: 'customer 25', exact: true }).waitFor();
+
+  // The source menu: files, then connections.
+  await page.locator('.xray-sql-source').click();
+  const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+  await menu.getByRole('group', { name: 'Files', exact: true }).getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  const conns = menu.getByRole('group', { name: 'Connections', exact: true });
+  await conns.getByRole('button', { name: /^Shop PG/ }).waitFor();
+  await conns.getByRole('button', { name: 'New connection…', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // The helper dies: the banner offers Reconnect, which starts it again.
+  await runSql(page, 'select pg_crash_helper() from orders');
+  const banner = page.getByRole('alert').filter({ hasText: 'Connection lost.' });
+  await banner.waitFor();
+  await banner.getByRole('button', { name: 'Reconnect', exact: true }).click();
+  await banner.waitFor({ state: 'detached' });
+  await runSql(page, 'select * from public.orders');
+  await assertEventually(async () => /^10 rows/.test((await summary(page).textContent()) ?? ''), 'queries run after Reconnect');
+
+  await page.reload();
+  const saved = page.getByRole('region', { name: 'Saved connections', exact: true });
+  const item = saved.getByRole('button', { name: /^Shop PG/ });
+  await item.waitFor();
+  assert.match(await item.textContent(), /PostgreSQL.*db\.example\.com/);
+  await item.click();
+  await railItem(page, 'orders').waitFor();
+});
+
+test('a connection without a saved password asks for it, and can be deleted from the source menu', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app@db.example.com/shop', name: 'No secret' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Password for No secret', exact: true });
+  await prompt.waitFor();
+  assert.equal(await prompt.getByRole('checkbox', { name: 'Remember on this computer', exact: true }).isChecked(), false);
+  await prompt.getByLabel('Password', { exact: true }).fill('typed');
+  await prompt.getByRole('button', { name: 'Connect', exact: true }).click();
+  await prompt.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source', { hasText: 'No secret · PostgreSQL 16.4 · db.example.com' }).waitFor();
+
+  await page.locator('.xray-sql-source').click();
+  const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+  await menu.getByRole('button', { name: 'More actions for No secret', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+  const confirm = page.getByRole('dialog', { name: 'Delete No secret?', exact: true });
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await confirm.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source').click();
+  const after = page.getByRole('dialog', { name: 'Databases', exact: true }).getByRole('group', { name: 'Connections', exact: true });
+  await after.getByRole('button', { name: 'New connection…', exact: true }).waitFor();
+  assert.equal(await after.getByRole('button', { name: /^No secret/ }).count(), 0, 'the profile is gone');
 });
 
 async function assertEventually(check, label, timeout = 15_000) {

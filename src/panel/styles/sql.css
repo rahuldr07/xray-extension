@@ -1226,3 +1226,501 @@ button.xray-sql-mode-badge.editable:hover:not(:disabled) {
     animation: none !important;
   }
 }
+
+/* Source menu groups: Files, then Connections */
+.xray-sql-source-menu {
+  width: 300px;
+  max-height: min(70vh, 560px);
+  overflow: auto;
+}
+
+.xray-sql-menu-group + .xray-sql-menu-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--xray-border);
+}
+
+.xray-sql-menu-heading {
+  margin: 6px 8px 4px;
+  color: var(--xray-hint);
+  font: 700 10px/1 var(--xray-font-ui);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.xray-sql-menu-conn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.xray-sql-menu-entry {
+  min-width: 0;
+  min-height: 32px;
+}
+
+.xray-sql-menu-conn .xray-sql-menu-entry {
+  min-height: 40px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.xray-sql-menu-entry-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.xray-sql-menu-entry-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--xray-font);
+  font-weight: 600;
+}
+
+.xray-sql-menu-entry-meta {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--xray-hint);
+  font-size: 11px;
+}
+
+.xray-sql-menu-entry-text .xray-sql-menu-entry-meta {
+  margin-left: 0;
+}
+
+.xray-sql-menu-entry.current .xray-sql-menu-entry-name {
+  color: var(--xray-accent);
+}
+
+.xray-sql-menu-more {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.xray-sql-menu-actions {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  border: 1px solid var(--xray-border);
+  border-radius: var(--xray-radius-sm);
+  background: var(--xray-surface);
+  box-shadow: 0 8px 20px var(--xray-shadow);
+}
+
+.xray-sql-menu-danger,
+.xray-sql-menu-error {
+  color: var(--xray-red);
+}
+
+.xray-sql-menu-error {
+  margin: 2px 8px 6px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Welcome: two first actions, and saved connections under Recent */
+.xray-sql-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.xray-sql-welcome .xray-sql-recent + .xray-sql-recent {
+  margin-top: 6px;
+}
+
+/* A long host gives way before the connection's name does. */
+.xray-sql-recent-item:has(.xray-sql-saved-meta) .xray-sql-recent-name {
+  flex: 0 1 auto;
+  min-width: 64px;
+}
+
+.xray-sql-saved-meta {
+  flex: 0 3 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The header source for a remote connection: name, then server version and host; the host is cut first. */
+.xray-sql-source {
+  max-width: min(560px, 55vw);
+}
+
+.xray-sql-source .xray-sql-source-name {
+  flex: 0 1 auto;
+  min-width: 48px;
+}
+
+.xray-sql-source .xray-sql-source-meta {
+  flex: 0 3 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Helper install card */
+.xray-sql-helper-card {
+  width: min(520px, 100%);
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--xray-accent) 35%, var(--xray-border));
+  border-radius: var(--xray-radius);
+  background: color-mix(in srgb, var(--xray-accent) 6%, var(--xray-surface));
+  text-align: left;
+}
+
+.xray-sql-helper-card.compact {
+  width: auto;
+  margin: 0 0 14px;
+}
+
+.xray-sql-helper-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xray-sql-helper-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-accent) 16%, transparent);
+  color: var(--xray-accent);
+}
+
+.xray-sql-helper-card h2 {
+  margin: 0;
+  color: var(--xray-text);
+  font: 700 13px/1.3 var(--xray-font-ui);
+}
+
+.xray-sql-helper-card p {
+  margin: 8px 0 10px;
+  color: var(--xray-subtext);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.xray-sql-helper-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--xray-border);
+  border-radius: var(--xray-radius-sm);
+  background: var(--xray-bg);
+}
+
+.xray-sql-helper-command code {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--xray-text);
+  font: 12px/1.6 var(--xray-font);
+  overflow-wrap: anywhere;
+  word-break: normal;
+  user-select: all;
+}
+
+.xray-sql-helper-command .xray-btn {
+  flex: none;
+}
+
+.xray-sql-helper-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.xray-sql-helper-card-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--xray-accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.xray-sql-helper-card-foot a:hover {
+  text-decoration: underline;
+}
+
+/* Connection dialog: the paste box, then grouped fields, then the Test result */
+.xray-sql-conn-modal {
+  width: min(560px, 94vw);
+}
+
+.xray-sql-conn-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.xray-sql-conn-modal .xray-input {
+  height: 32px;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.xray-sql-conn-mono {
+  font-family: var(--xray-font) !important;
+}
+
+.xray-sql-conn-paste {
+  padding: 12px;
+  border: 1px dashed var(--xray-border-control);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-text-rgb), .02);
+}
+
+.xray-sql-conn-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.xray-sql-conn-group legend {
+  float: left;
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--xray-border);
+  color: var(--xray-hint);
+  font: 700 10px/1 var(--xray-font-ui);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.xray-sql-conn-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.xray-sql-conn-field > label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.xray-sql-conn-field.wide,
+.xray-sql-conn-row.wide,
+.xray-sql-conn-toggles {
+  grid-column: 1 / -1;
+}
+
+.xray-sql-conn-label {
+  color: var(--xray-subtext);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.xray-sql-conn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 12px;
+}
+
+.xray-sql-conn-row.name {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.xray-sql-conn-hint {
+  margin: 0;
+  color: var(--xray-hint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.xray-sql-conn-paste .xray-sql-conn-hint {
+  margin-top: 6px;
+}
+
+.xray-sql-conn-hint.error {
+  color: var(--xray-red);
+}
+
+.xray-sql-segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  border: 1px solid var(--xray-border-control);
+  border-radius: var(--xray-radius);
+  background: rgba(var(--xray-surface2-rgb), .5);
+}
+
+.xray-sql-segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: var(--xray-radius-sm);
+  color: var(--xray-subtext);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.xray-sql-segment input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+.xray-sql-segment:hover:not(.disabled):not(.active) {
+  color: var(--xray-text);
+}
+
+.xray-sql-segment.active {
+  background: var(--xray-surface);
+  color: var(--xray-text);
+  box-shadow: 0 1px 2px var(--xray-shadow), inset 0 0 0 1px var(--xray-border);
+}
+
+.xray-sql-segment.disabled {
+  color: var(--xray-disabled);
+  cursor: not-allowed;
+}
+
+.xray-sql-segment:has(input:focus-visible) {
+  outline: 2px solid var(--xray-focus);
+  outline-offset: 1px;
+}
+
+.xray-sql-conn-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.xray-sql-conn-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.xray-sql-conn-toggle .xray-toggle-field {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.xray-sql-conn-toggle .xray-sql-conn-hint {
+  padding-left: 46px;
+}
+
+.xray-sql-conn-check {
+  accent-color: var(--xray-accent);
+  width: 16px;
+  height: 16px;
+  margin: 0 10px 0 10px;
+}
+
+.xray-sql-conn-toggle .xray-sql-conn-check + span {
+  margin-left: 0;
+}
+
+.xray-sql-conn-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: none;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.xray-sql-conn-result:empty {
+  display: none;
+}
+
+.xray-sql-conn-result.ok,
+.xray-sql-conn-result.error {
+  padding: 9px 16px;
+  border-top: 1px solid var(--xray-border);
+}
+
+.xray-sql-conn-result.ok {
+  color: var(--xray-green);
+  background: color-mix(in srgb, var(--xray-green) 8%, transparent);
+}
+
+.xray-sql-conn-result.error {
+  color: var(--xray-red);
+  background: color-mix(in srgb, var(--xray-red) 8%, transparent);
+}
+
+.xray-sql-conn-result svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.xray-sql-password-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.xray-sql-password-body .xray-input {
+  height: 32px;
+}
+
+/* Results: Fetch more and the connection-lost banner */
+.xray-sql-fetch-more {
+  flex: none;
+  gap: 5px;
+}
+
+.xray-sql-fetch-more .xray-sql-muted {
+  font-weight: 500;
+}
+
+.xray-sql-bottom:has(> .xray-sql-lost) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.xray-sql-lost {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--xray-red) 35%, transparent);
+  background: color-mix(in srgb, var(--xray-red) 9%, var(--xray-surface));
+  color: var(--xray-red);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.xray-sql-lost .xray-btn {
+  margin-left: 4px;
+}
