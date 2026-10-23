@@ -513,22 +513,61 @@ func TestPostgresCancelBehindCursorIsConsistent(t *testing.T) {
 	}
 }
 
-// A read-write cursor over a data-modifying statement is not cancelled when
-// the tab moves on: its write commits as it would have.
-func TestPostgresWriteCursorStillCommits(t *testing.T) {
+// Ruling M3-R11: a read-write statement that may write runs to completion
+// inside its own execute. Only maxRows rows are sent; ok means committed.
+func TestPostgresWriteStatementFinishesBeforeOk(t *testing.T) {
 	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
 	schema := fixture(t, dsn)
 	c := newClient(t)
 	sid := open(t, c, connectReq(t, dsn, false))
-	_, f := exec(c, sid, "t1", "update "+schema+".orders set total=0 returning id", 2)
-	if testclient.Value(f)["hasMore"] != true {
-		t.Fatalf("cursor: %v", f)
+	stream, f := exec(c, sid, "t1", "update "+schema+".orders set total=0 returning id", 2)
+	v := testclient.Value(f)
+	if len(rowsOf(stream)) != 2 || v["hasMore"] != false || v["affected"] != float64(5) {
+		t.Fatalf("update returning: %v", f)
 	}
-	if _, f = exec(c, sid, "t1", "select 1", 10); f["ok"] != true {
-		t.Fatalf("next: %v", f)
+	if n, _ := v["notices"].([]any); len(n) != 1 || n[0] != "Showing the first 2 of 5 returned rows." {
+		t.Fatalf("notices %v", v["notices"])
+	}
+	_, f = c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 10})
+	if testclient.ErrCode(f) != "bad-request" {
+		t.Fatalf("no cursor may be kept: %v", f)
 	}
 	if n := countZero(t, c, sid, schema); n != "5" {
-		t.Fatalf("update with an open cursor zeroed %v rows, want 5", n)
+		t.Fatalf("zeroed %v rows, want 5", n)
+	}
+
+	stream, f = exec(c, sid, "t1", "insert into "+schema+".orders(total) select g from generate_series(1, 200000) g returning id", 5)
+	v = testclient.Value(f)
+	if len(rowsOf(stream)) != 5 || v["hasMore"] != false || v["rowCount"] != float64(5) {
+		t.Fatalf("insert returning: %v", f)
+	}
+	if n, _ := v["notices"].([]any); len(n) != 1 || n[0] != "Showing the first 5 of 200000 returned rows." {
+		t.Fatalf("notices %v", v["notices"])
+	}
+	// Closing at once loses nothing: the insert already committed.
+	c.Call(map[string]any{"op": "close", "sessionId": sid})
+	other := open(t, c, connectReq(t, dsn, true))
+	stream, _ = exec(c, other, "t1", "select count(*) from "+schema+".orders", 10)
+	if n := rowsOf(stream)[0][0]; n != "200005" {
+		t.Fatalf("count %v, want 200005", n)
+	}
+}
+
+func TestPostgresCancelledWriteStatementCommitsNothing(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "maxRows": 5,
+		"sql": "insert into " + schema + ".orders(total) select g from generate_series(1, 20) g where pg_sleep(0.1) is not null returning id"})
+	time.Sleep(300 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	if _, f := c.Wait(q, 5*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("got %v", f)
+	}
+	stream, _ := exec(c, sid, "t2", "select count(*) from "+schema+".orders", 10)
+	if n := rowsOf(stream)[0][0]; n != "5" {
+		t.Fatalf("count %v, want 5", n)
 	}
 }
 

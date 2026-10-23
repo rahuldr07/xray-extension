@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -173,9 +174,10 @@ type cursor struct {
 	rows   pgx.Rows
 	cancel context.CancelFunc
 	inTx   bool
-	// drain marks a read-write cursor over a statement that may write: it is
-	// read to the end when the tab moves on, so its write still commits.
-	drain      bool
+	// complete marks a read-write statement that may write (Ruling M3-R11):
+	// it runs to completion inside its own execute, so "ok" always means
+	// committed. Rows past maxRows are counted, not sent, and no cursor stays.
+	complete   bool
 	pending    []values.Cell // the look-ahead row that proved hasMore
 	pendingCut []bool
 }
@@ -227,7 +229,7 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	if ctx.Err() != nil {
 		return session.Summary{}, cancelled()
 	}
-	s.closeCursor(ctx, t)
+	s.closeCursor(t)
 	if ctx.Err() != nil {
 		return session.Summary{}, cancelled()
 	}
@@ -246,7 +248,7 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	curCtx, curCancel := context.WithCancel(s.base)
 	stopWatch := context.AfterFunc(ctx, curCancel)
 	defer stopWatch()
-	cur := &cursor{cancel: curCancel, drain: !s.readOnly && !readsOnly(sql)}
+	cur := &cursor{cancel: curCancel, complete: !s.readOnly && !readsOnly(sql)}
 	if s.readOnly {
 		if _, err := t.c.conn.Exec(curCtx, "BEGIN TRANSACTION READ ONLY"); err != nil {
 			curCancel()
@@ -326,7 +328,12 @@ func (s *pgSession) read(ctx context.Context, t *tab, n int, out *session.Emitte
 		}
 		sent++
 	}
-	if sent == n && c.rows.Next() {
+	extra := 0
+	if c.complete {
+		for c.rows.Next() {
+			extra++
+		}
+	} else if sent == n && c.rows.Next() {
 		c.pending, c.pendingCut = mapRow(fields, c.rows.RawValues())
 		return session.Summary{HasMore: true, Notices: t.c.takeNotices()}, nil
 	}
@@ -335,8 +342,11 @@ func (s *pgSession) read(ctx context.Context, t *tab, n int, out *session.Emitte
 		return session.Summary{}, s.abort(ctx, t, err)
 	}
 	tag := c.rows.CommandTag()
-	s.finish(t)
 	sum := session.Summary{Notices: t.c.takeNotices()}
+	s.finish(t)
+	if extra > 0 {
+		sum.Notices = append(sum.Notices, fmt.Sprintf("Showing the first %d of %d returned rows.", sent, sent+extra))
+	}
 	if !tag.Select() {
 		n := tag.RowsAffected()
 		sum.Affected = &n
@@ -360,32 +370,25 @@ func (s *pgSession) abort(ctx context.Context, t *tab, err error) error {
 func cancelled() error { return session.Errorf(session.CodeCancelled, "Query cancelled.") }
 
 // readOnlyFirst are first keywords whose statements return rows without
-// writing, so an unfinished cursor over them can be cancelled safely.
+// writing. In read-write mode only these keep a cursor past maxRows; every
+// other statement runs to completion first (Ruling M3-R11).
 var readOnlyFirst = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true, "FETCH": true}
 
 func readsOnly(sql string) bool { return readOnlyFirst[session.FirstKeyword(sql)] }
 
-// closeCursor ends an open cursor before the tab's next statement. ctx is the
-// next statement's request.
+// closeCursor ends an open cursor before the tab's next statement.
 //
-// A cursor is normally cancelled, not drained: cancelling its context makes
-// pgx send a protocol cancel request and set a socket deadline, so Close
-// returns at once, or within deadlineDelay with the connection closed (the
-// next execute redials). A read-write cursor over a statement that may write
-// is drained instead, so its write commits; ctx can still cancel that drain.
-func (s *pgSession) closeCursor(ctx context.Context, t *tab) {
+// The cursor is cancelled, not drained: cancelling its context makes pgx send
+// a protocol cancel request and set a socket deadline, so Close returns at
+// once, or within deadlineDelay with the connection closed (the next execute
+// redials). Only statements that cannot write keep cursors (see complete).
+func (s *pgSession) closeCursor(t *tab) {
 	c := t.cur
 	if c == nil {
 		return
 	}
-	if c.drain {
-		stop := context.AfterFunc(ctx, c.cancel)
-		c.rows.Close()
-		stop()
-	} else {
-		c.cancel()
-		c.rows.Close()
-	}
+	c.cancel()
+	c.rows.Close()
 	s.finish(t)
 }
 
