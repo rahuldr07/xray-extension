@@ -98,6 +98,8 @@ export function ConnectionRail(): React.ReactElement {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(document.activeElement)) return;
+      // Never behind a modal dialog (a confirmation, a discard prompt).
+      if (document.querySelector('[aria-modal="true"]')) return;
       if (!filterRef.current) return;
       e.preventDefault();
       filterRef.current.focus();

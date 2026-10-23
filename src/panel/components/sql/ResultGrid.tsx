@@ -48,9 +48,13 @@ export function ResultGrid({
   const [overrides, setOverrides] = useState<Record<number, number>>({});
   const widths = useMemo(() => autoWidths.map((w, i) => overrides[i] ?? w), [autoWidths, overrides]);
   const indexWidth = indexColumnWidth(viewRows.length, measure);
-  // The keyboard's place in the grid: the one cell in the tab order.
+  // The keyboard's place in the grid (APG grid pattern): one roving tab stop among the cells, and one
+  // among the column headers. ArrowUp from the first row enters the header; ArrowDown leaves it.
   const [active, setActive] = useState<SelectedCell>({ row: 0, col: 0 });
-  const focusPending = useRef(false);
+  const [headCol, setHeadCol] = useState(0);
+  const focusPending = useRef<'cell' | 'head' | null>(null);
+  // Forces the render that runs the focus effect when a move lands on the current position.
+  const [, setMoves] = useState(0);
   const resizing = useRef<{ col: number; startX: number; startWidth: number } | null>(null);
 
   // The virtualizers return fresh functions each render, so the compiler skips this component; the
@@ -78,35 +82,69 @@ export function ResultGrid({
 
   const activeRow = Math.min(active.row, Math.max(0, viewRows.length - 1));
   const activeCol = Math.min(active.col, Math.max(0, result.columns.length - 1));
+  const activeHead = Math.min(headCol, Math.max(0, result.columns.length - 1));
 
   useEffect(() => {
-    if (!focusPending.current) return;
-    focusPending.current = false;
-    scrollRef.current?.querySelector<HTMLElement>(`[data-cell="${activeRow}:${activeCol}"]`)?.focus({ preventScroll: true });
+    const pending = focusPending.current;
+    if (!pending) return;
+    focusPending.current = null;
+    const selector = pending === 'head' ? `[data-head="${activeHead}"]` : `[data-cell="${activeRow}:${activeCol}"]`;
+    scrollRef.current?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
   });
 
   const width = indexWidth + columns.getTotalSize();
   const virtualColumns = columns.getVirtualItems();
 
   function moveTo(row: number, col: number): void {
-    const r = Math.max(0, Math.min(viewRows.length - 1, row));
+    setMoves((n) => n + 1);
     const c = Math.max(0, Math.min(result.columns.length - 1, col));
+    columns.scrollToIndex(c);
+    if (row < 0 || !viewRows.length) {
+      setHeadCol(c);
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+      focusPending.current = 'head';
+      return;
+    }
+    const r = Math.min(viewRows.length - 1, row);
     setActive({ row: r, col: c });
     rows.scrollToIndex(r);
-    columns.scrollToIndex(c);
-    focusPending.current = true;
+    focusPending.current = 'cell';
+  }
+
+  function onHeadKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    const moves: Record<string, number> = {
+      ArrowLeft: activeHead - 1,
+      ArrowRight: activeHead + 1,
+      Home: 0,
+      End: result.columns.length - 1,
+    };
+    if (e.key in moves) {
+      e.preventDefault();
+      moveTo(-1, moves[e.key]);
+    } else if (e.key === 'ArrowDown' && viewRows.length) {
+      e.preventDefault();
+      moveTo(0, activeHead);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSort(activeHead);
+    }
   }
 
   function onGridKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
     const target = e.target as HTMLElement;
+    if (target.getAttribute('role') === 'columnheader') {
+      onHeadKeyDown(e);
+      return;
+    }
     if (target.getAttribute('role') !== 'gridcell') return;
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 400) / ROW_HEIGHT) - 2);
     const moves: Record<string, [number, number]> = {
+      // From the first row, up enters the header row.
       ArrowUp: [activeRow - 1, activeCol],
       ArrowDown: [activeRow + 1, activeCol],
       ArrowLeft: [activeRow, activeCol - 1],
       ArrowRight: [activeRow, activeCol + 1],
-      PageUp: [activeRow - page, activeCol],
+      PageUp: [Math.max(0, activeRow - page), activeCol],
       PageDown: [activeRow + page, activeCol],
       Home: [activeRow, 0],
       End: [activeRow, result.columns.length - 1],
@@ -147,15 +185,14 @@ export function ResultGrid({
                 role="columnheader"
                 aria-colindex={col.index + 2}
                 aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
-                tabIndex={0}
+                tabIndex={activeHead === col.index ? 0 : -1}
+                data-head={col.index}
+                onFocus={() => setHeadCol(col.index)}
                 title={`${column.name}${column.type ? ` ${column.type}` : ''} — click to sort`}
                 style={{ left: indexWidth + col.start, width: col.size, height: HEADER_HEIGHT }}
-                onClick={() => onSort(col.index)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onSort(col.index);
-                  }
+                onClick={() => {
+                  setHeadCol(col.index);
+                  onSort(col.index);
                 }}
               >
                 <span className="xray-sql-th-name">
@@ -208,7 +245,7 @@ export function ResultGrid({
           return (
             <div
               key={row.key}
-              className="xray-sql-grid-row"
+              className={`xray-sql-grid-row${inspected?.row === row.index ? ' inspected' : ''}`}
               role="row"
               aria-rowindex={row.index + 2}
               style={{ top: HEADER_HEIGHT + row.start, height: row.size, width }}
@@ -228,6 +265,9 @@ export function ResultGrid({
                     aria-selected={isInspected}
                     tabIndex={isActive ? 0 : -1}
                     data-cell={`${row.index}:${col.index}`}
+                    onFocus={() => {
+                      if (!isActive) setActive({ row: row.index, col: col.index });
+                    }}
                     className={`xray-sql-grid-cell kind-${shown.kind}${isInspected ? ' selected' : ''}`}
                     style={{ left: indexWidth + col.start, width: col.size, height: row.size }}
                     onClick={() => {

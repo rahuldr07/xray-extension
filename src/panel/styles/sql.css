@@ -162,6 +162,30 @@
   white-space: nowrap;
 }
 
+button.xray-sql-mode-badge {
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  cursor: pointer;
+  transition: border-color var(--xray-dur-fast) ease, background var(--xray-dur-fast) ease;
+}
+
+button.xray-sql-mode-badge:hover:not(:disabled) {
+  border-color: var(--xray-border-control);
+  color: var(--xray-text);
+}
+
+button.xray-sql-mode-badge:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+button.xray-sql-mode-badge.editable:hover:not(:disabled) {
+  border-color: var(--xray-yellow);
+  color: var(--xray-yellow);
+  background: color-mix(in srgb, var(--xray-yellow) 16%, transparent);
+}
+
 .xray-sql-mode-badge.editable {
   color: var(--xray-yellow);
   border-color: color-mix(in srgb, var(--xray-yellow) 45%, transparent);
@@ -211,7 +235,8 @@
   min-height: 0;
 }
 
-/* Dividers: a 1 px rule with a wider hit area; neutral on hover, the focus colour on keyboard focus. */
+/* Dividers: a 1 px rule with a wider hit area; the accent on hover and while dragging, the focus
+   colour on keyboard focus. */
 .xray-sql-divider {
   position: relative;
   z-index: 3;
@@ -248,7 +273,8 @@
 
 .xray-sql-divider:hover,
 .xray-sql-divider.dragging {
-  background: var(--xray-border-control);
+  background: var(--xray-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--xray-accent) 45%, transparent);
 }
 
 .xray-app-root .xray-sql-divider:focus-visible {
@@ -270,11 +296,6 @@
   color: var(--xray-hint);
   font: 500 11px/1 var(--xray-font-ui);
   white-space: nowrap;
-}
-
-.xray-sql-status .xray-sql-mode-badge {
-  height: 16px;
-  font-size: 9.5px;
 }
 
 .xray-sql-status-file {
@@ -924,8 +945,20 @@
   border-bottom: 1px solid rgba(var(--xray-text-rgb), .05);
 }
 
+/* A subtle band follows the pointer's row; the inspected row's number is marked. */
 .xray-sql-grid-row:hover {
-  background: rgba(var(--xray-text-rgb), .03);
+  background: rgba(var(--xray-text-rgb), .045);
+}
+
+.xray-sql-grid-row:hover .xray-sql-grid-index {
+  color: var(--xray-subtext);
+}
+
+.xray-sql-grid-row.inspected .xray-sql-grid-index {
+  color: var(--xray-accent);
+  font-weight: 700;
+  background: var(--xray-selection);
+  box-shadow: inset 2px 0 0 var(--xray-accent);
 }
 
 .xray-sql-grid-cell {

@@ -12,6 +12,7 @@ import { selectTableSql } from './models/sqlSchema';
 import { splitStatements, statementAt } from './models/sqlStatements';
 import { clampMaxRows } from './models/sqlValues';
 import { restoreLayout, SQL_LAYOUT_KEY, type SqlLayout } from './models/sqlLayout';
+import type { SortState } from './models/sqlGrid';
 import { ignoredFilesMessage, pickDroppedFile } from './models/sqlUi';
 import {
   appendHistory,
@@ -73,6 +74,10 @@ export interface SqlState {
   layout: SqlLayout;
   // The editor caret, 1-based, for the status bar.
   cursor: { line: number; col: number };
+  // The Results grid's view of the loaded rows. Kept here so a bottom-tab switch or a re-run with the
+  // same columns keeps them; the sort and the inspected cell belong to one column set (columnsKey).
+  gridView: { key: string; sort: SortState | null; inspected: { row: number; col: number } | null };
+  rowFilter: string;
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   // Files dropped on the page: the first opens through openFile (no handle, so Save downloads).
@@ -94,6 +99,8 @@ export interface SqlState {
   setBottomTab(tab: SqlBottomTab): void;
   setLayout(patch: Partial<SqlLayout>): void;
   setCursor(line: number, col: number): void;
+  setGridView(view: SqlState['gridView']): void;
+  setRowFilter(text: string): void;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
@@ -446,9 +453,37 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     }
   }
 
-  function canRun(): boolean {
+  // Nothing else may start while a statement runs, a file opens, or a confirmation is up.
+  function idle(): boolean {
     const s = get();
-    return !!s.connection && !s.running && !s.opening && !s.pendingConfirm && !s.pendingPrompt;
+    return !s.running && !s.opening && !s.pendingConfirm && !s.pendingPrompt;
+  }
+
+  function canRun(): boolean {
+    return !!get().connection && idle();
+  }
+
+  // Opens a file after any discard prompt; `note` (the ignored files of a drop) is said only once
+  // the open goes ahead.
+  async function requestOpen(file: File, handle: FileSystemFileHandle | undefined, note: string | null): Promise<void> {
+    if (!idle()) return;
+    const s = get();
+    const proceed = async () => {
+      if (note) say(note);
+      await openBytes(file, handle);
+    };
+    if (s.dirty && s.connection) {
+      ask(
+        {
+          title: 'Discard unsaved changes?',
+          message: `Opening ${file.name} discards the unsaved changes in ${s.connection.name}.`,
+          confirmLabel: 'Discard changes',
+        },
+        proceed,
+      );
+      return;
+    }
+    await proceed();
   }
 
   return {
@@ -471,32 +506,17 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     pendingPrompt: null,
     layout: storedLayout,
     cursor: { line: 1, col: 1 },
+    gridView: { key: '', sort: null, inspected: null },
+    rowFilter: '',
 
     async openFile(file, handle) {
-      const s = get();
-      if (s.running || s.opening) return;
-      if (s.dirty && s.connection) {
-        ask(
-          {
-            title: 'Discard unsaved changes?',
-            message: `Opening ${file.name} discards the unsaved changes in ${s.connection.name}.`,
-            confirmLabel: 'Discard changes',
-          },
-          () => openBytes(file, handle),
-        );
-        return;
-      }
-      await openBytes(file, handle);
+      await requestOpen(file, handle, null);
     },
 
     async openDropped(files) {
       const { file, ignored } = pickDroppedFile(files);
       if (!file) return;
-      const s = get();
-      if (s.running || s.opening) return;
-      const note = ignoredFilesMessage(file.name, ignored);
-      if (note) say(note);
-      await get().openFile(file);
+      await requestOpen(file, undefined, ignoredFilesMessage(file.name, ignored));
     },
 
     async run(mode) {
@@ -704,6 +724,14 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       storedLayout = layout;
       set({ layout });
       writeLater(SQL_LAYOUT_KEY, () => storedLayout);
+    },
+
+    setGridView(gridView) {
+      set({ gridView });
+    },
+
+    setRowFilter(rowFilter) {
+      set({ rowFilter });
     },
 
     setCursor(line, col) {

@@ -49,6 +49,8 @@ test('shortcut labels and the placeholder follow the platform', () => {
   assert.equal(isMacPlatform('Linux x86_64'), false);
   assert.equal(shortcutLabels(false).run, 'Ctrl ↵');
   assert.equal(shortcutLabels(true).run, '⌘ ↵');
+  assert.equal(shortcutLabels(false).save, 'Ctrl+S');
+  assert.equal(shortcutLabels(true).open, '⌘ O');
   assert.equal(
     editorPlaceholder(false),
     'Write SQL here — Ctrl+Enter runs the statement at the cursor, Ctrl+Shift+Enter runs all.',

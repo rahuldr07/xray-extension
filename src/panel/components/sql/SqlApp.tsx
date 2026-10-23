@@ -4,20 +4,22 @@ import {
   IconChevronDown,
   IconDatabase,
   IconDeviceFloppy,
+  IconLock,
+  IconLockOpen,
   IconPlayerPlay,
   IconPlayerStop,
   IconPlus,
   IconX,
 } from '@tabler/icons-react';
-import { resultSummary, usePanelSqlStore } from '../../sqlStore';
+import { usePanelSqlStore } from '../../sqlStore';
 import { PANEL_FONT_VALUES, resolveAccentValue } from '../../models/panelSettings';
 import { buildCustomThemeVars } from '../../models/customTheme';
-import { EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
+import { DEFAULT_SQL_LAYOUT, EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
 import { formatFileSize, isMacPlatform, shortcutLabels } from '../../models/sqlUi';
 import type { PanelSettings } from '../../types';
 import { ModalShell } from '../common/ModalShell';
 import { ConnectionRail } from './ConnectionRail';
-import { FileOpenInput, OpenFileButton } from './OpenFileButton';
+import { FileOpenInput, OpenFileButton, requestOpenFile } from './OpenFileButton';
 import { SqlDivider } from './SqlDivider';
 import { ResultsPane } from './ResultsPane';
 import { QuickStarts, SqlEditor } from './SqlEditor';
@@ -27,22 +29,42 @@ const iconProps = { size: 16, stroke: 1.8 } as const;
 const MAC = isMacPlatform(typeof navigator === 'undefined' ? '' : navigator.platform);
 const SHORTCUTS = shortcutLabels(MAC);
 
-function ModeBadge({ readOnly }: { readOnly: boolean }): React.ReactElement {
-  return <span className={`xray-sql-mode-badge ${readOnly ? 'read-only' : 'editable'}`}>{readOnly ? 'Read-only' : 'Editable'}</span>;
+// The Read-only switch, shown as the header's mode badge (TablePlus-style safe mode). Its name stays
+// "Read-only" and aria-checked carries the state; the visible label says the current mode.
+function ReadOnlySwitch(): React.ReactElement {
+  const readOnly = usePanelSqlStore((s) => s.readOnlyChoice);
+  const busy = usePanelSqlStore((s) => !!s.running || s.opening || !!s.pendingConfirm || !!s.pendingPrompt);
+  const setReadOnly = usePanelSqlStore((s) => s.setReadOnly);
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={readOnly}
+      aria-label="Read-only"
+      className={`xray-sql-mode-badge ${readOnly ? 'read-only' : 'editable'}`}
+      disabled={busy}
+      title={readOnly ? 'Read-only: writes are refused. Click to allow writes.' : 'Editable: writes run, and Save writes them to the file. Click to make it read-only.'}
+      onClick={() => void setReadOnly(!readOnly)}
+    >
+      {readOnly ? <IconLock size={11} stroke={2.2} aria-hidden="true" /> : <IconLockOpen size={11} stroke={2.2} aria-hidden="true" />}
+      {readOnly ? 'Read-only' : 'Editable'}
+    </button>
+  );
 }
 
-// The open file, as a button that opens a small panel: open another file, and the Read-only switch.
+// The open file, as a button that opens a small panel to open another file.
 function SourceControl(): React.ReactElement | null {
   const connection = usePanelSqlStore((s) => s.connection);
-  const readOnlyChoice = usePanelSqlStore((s) => s.readOnlyChoice);
   const busy = usePanelSqlStore((s) => !!s.running || s.opening);
-  const setReadOnly = usePanelSqlStore((s) => s.setReadOnly);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
+    // Focus moves into the panel when it opens.
+    menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
     const onPointerDown = (e: PointerEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -65,6 +87,10 @@ function SourceControl(): React.ReactElement | null {
           close();
         }
       }}
+      onBlur={(e) => {
+        // Tabbing out of the panel closes it.
+        if (open && !wrapRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
     >
       <button
         ref={triggerRef}
@@ -80,16 +106,19 @@ function SourceControl(): React.ReactElement | null {
         <span className="xray-sql-source-meta">· SQLite · {formatFileSize(connection.size)}</span>
         <IconChevronDown size={14} stroke={2} aria-hidden="true" className="xray-sql-source-chevron" />
       </button>
-      <ModeBadge readOnly={connection.readOnly} />
+      <ReadOnlySwitch />
       {open && (
-        <div className="xray-sql-source-menu" role="dialog" aria-label="Database file">
-          <OpenFileButton className="xray-menu-item" label="Open SQLite file…" disabled={busy} onPicked={() => setOpen(false)} />
-          <div className="xray-menu-sep" />
-          <label className="xray-menu-item xray-sql-check">
-            <input type="checkbox" checked={readOnlyChoice} disabled={busy} onChange={(e) => void setReadOnly(e.target.checked)} />
-            <span>Read-only</span>
-          </label>
-          <p className="xray-sql-source-note">Turn off Read-only to run writes; Save writes them back to the file.</p>
+        <div ref={menuRef} className="xray-sql-source-menu" role="dialog" aria-label="Database file">
+          <OpenFileButton
+            className="xray-menu-item"
+            label="Open SQLite file…"
+            title={`Open another database (${SHORTCUTS.open})`}
+            disabled={busy}
+            onPicked={close}
+          />
+          <p className="xray-sql-source-note">
+            Files open read-only. The Read-only switch beside the file allows writes; Save writes them back.
+          </p>
         </div>
       )}
     </div>
@@ -118,7 +147,13 @@ function Toolbar(): React.ReactElement {
       <SourceControl />
       <span className="xray-spacer" />
       {connection && dirty && (
-        <button className="xray-btn primary xray-sql-save" disabled={!!running} onClick={() => void save()} title="Write the changes back to the file">
+        <button
+          className="xray-btn primary xray-sql-save"
+          disabled={!!running}
+          onClick={() => void save()}
+          aria-keyshortcuts={MAC ? 'Meta+S' : 'Control+S'}
+          title={`Write the changes back to the file (${SHORTCUTS.save})`}
+        >
           <span className="xray-sql-save-dot" aria-hidden="true" />
           <IconDeviceFloppy {...iconProps} aria-hidden="true" />
           Save
@@ -168,7 +203,7 @@ function Welcome(): React.ReactElement {
     <section className="xray-sql-welcome" aria-labelledby="xray-sql-welcome-title">
       <IconDatabase size={36} stroke={1.4} aria-hidden="true" className="xray-sql-welcome-icon" />
       <h1 id="xray-sql-welcome-title">Open a SQLite database</h1>
-      <OpenFileButton className="xray-btn primary xray-sql-welcome-open" disabled={opening} />
+      <OpenFileButton className="xray-btn primary xray-sql-welcome-open" title={`Open a database (${SHORTCUTS.open})`} disabled={opening} />
       <p className="xray-sql-welcome-drop">or drop a .sqlite / .db file anywhere on this page</p>
       <p className="xray-sql-welcome-note">Files open read-only. Nothing leaves your machine.</p>
       {opening && (
@@ -185,36 +220,24 @@ function Welcome(): React.ReactElement {
   );
 }
 
+// Transient state only; the file and its mode live in the header, the run summary in Results.
 function StatusBar(): React.ReactElement {
   const connection = usePanelSqlStore((s) => s.connection);
   const dirty = usePanelSqlStore((s) => s.dirty);
-  const result = usePanelSqlStore((s) => s.result);
+  const lastRunMs = usePanelSqlStore((s) => s.result?.durationMs);
   const running = usePanelSqlStore((s) => !!s.running);
   const cursor = usePanelSqlStore((s) => s.cursor);
   return (
     <footer className="xray-sql-status">
-      {connection ? (
+      {connection && (
         <>
-          <span className="xray-sql-status-file" title={connection.name}>
-            {connection.name}
-          </span>
-          <span className="xray-sql-status-sep" aria-hidden="true">·</span>
-          <span>SQLite</span>
-          <ModeBadge readOnly={connection.readOnly} />
+          {running ? <span>Running…</span> : lastRunMs !== undefined && <span>Last run {Math.round(lastRunMs)} ms</span>}
           {dirty && <span className="xray-sql-connection-meta">unsaved changes</span>}
           <span className="xray-spacer" />
-          {running ? <span>Running…</span> : result && <span>{resultSummary(result)}</span>}
-          {(running || result) && (
-            <span className="xray-sql-status-sep" aria-hidden="true">
-              ·
-            </span>
-          )}
           <span className="xray-sql-status-cursor">
             Ln {cursor.line}, Col {cursor.col}
           </span>
         </>
-      ) : (
-        <span>No database open</span>
       )}
     </footer>
   );
@@ -222,6 +245,10 @@ function StatusBar(): React.ReactElement {
 
 function hasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer?.types ?? []).includes('Files');
+}
+
+function inEditor(e: DragEvent): boolean {
+  return e.target instanceof Element && !!e.target.closest('.cm-editor');
 }
 
 // Dropping a file anywhere opens it like the picker does. Listens in the capture phase so the
@@ -237,7 +264,15 @@ function useFileDrop(): boolean {
       setOver(true);
     };
     const onOver = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!hasFiles(e)) {
+        // Text or a link dropped outside the editor would navigate the page away; the editor keeps
+        // its own text drop.
+        if (!inEditor(e)) {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -248,7 +283,10 @@ function useFileDrop(): boolean {
       if (depth === 0) setOver(false);
     };
     const onDrop = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!hasFiles(e)) {
+        if (!inEditor(e)) e.preventDefault();
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       depth = 0;
@@ -267,6 +305,29 @@ function useFileDrop(): boolean {
     };
   }, []);
   return over;
+}
+
+// Ctrl/Cmd+S saves (when there is something to save) and Ctrl/Cmd+O opens a file, anywhere on the
+// page; neither acts behind a modal dialog.
+function usePageShortcuts(): void {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+      if (!mod || e.shiftKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== 's' && key !== 'o') return;
+      e.preventDefault();
+      const s = usePanelSqlStore.getState();
+      if (document.querySelector('[aria-modal="true"]') || s.running || s.opening || s.pendingConfirm || s.pendingPrompt) return;
+      if (key === 's') {
+        if (s.connection && s.dirty) void s.save();
+      } else {
+        void requestOpenFile();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 }
 
 // Editor above, results below, with a draggable divider between them.
@@ -289,8 +350,11 @@ function Workspace(): React.ReactElement {
         orientation="horizontal"
         label="Resize editor and results"
         value={editorPct}
+        valueText={`Editor ${Math.round(editorPct)}%`}
         min={EDITOR_PCT_MIN}
         max={EDITOR_PCT_MAX}
+        defaultValue={DEFAULT_SQL_LAYOUT.editorPct}
+        onSet={(pct) => setLayout({ editorPct: pct })}
         onStep={(delta) => setLayout({ editorPct: editorPctAfter(editorPct, delta, height()) })}
         onDrag={(_x, y) => {
           const rect = splitRef.current?.getBoundingClientRect();
@@ -400,6 +464,7 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const setLayout = usePanelSqlStore((s) => s.setLayout);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dropping = useFileDrop();
+  usePageShortcuts();
 
   // Unsaved writes live only in the worker; leaving the page would drop them silently.
   useEffect(() => {
@@ -429,8 +494,11 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
             orientation="vertical"
             label="Resize schema rail"
             value={railPx}
+            valueText={`${railPx} pixels`}
             min={RAIL_PX_MIN}
             max={RAIL_PX_MAX}
+            defaultValue={DEFAULT_SQL_LAYOUT.railPx}
+            onSet={(px) => setLayout({ railPx: px })}
             onStep={(delta) => setLayout({ railPx: railPx + delta })}
             onDrag={(x) => {
               const left = bodyRef.current?.getBoundingClientRect().left ?? 0;

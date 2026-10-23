@@ -3,8 +3,8 @@ import { IconCopy, IconFilter, IconX } from '@tabler/icons-react';
 import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
 import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
-import { cellCopyText, filteredSummary, filterRows, nextSort, sortRows, type SortState } from '../../models/sqlGrid';
-import type { QueryResult, SchemaTree, SqlCell } from '../../models/sqlTypes';
+import { cellCopyText, columnsKey, filteredSummary, nextSort, primaryKeyColumns, viewOrder } from '../../models/sqlGrid';
+import type { QueryResult, SqlCell } from '../../models/sqlTypes';
 import { JsonView } from '../detail/JsonView';
 import { ResultGrid, type SelectedCell } from './ResultGrid';
 
@@ -115,30 +115,30 @@ function MaxRowsInput(): React.ReactElement {
 // Until the first inspection in this page session the Results toolbar says cells can be opened.
 let inspectedOnce = false;
 
-function primaryKeyColumns(schema: SchemaTree | null, table: string | null): ReadonlySet<string> {
-  if (!schema || !table) return EMPTY_SET;
-  const node = schema.schemas.find((s) => s.name === 'main')?.tables.find((t) => t.name === table);
-  return node ? new Set(node.columns.filter((c) => c.pk).map((c) => c.name)) : EMPTY_SET;
-}
-const EMPTY_SET: ReadonlySet<string> = new Set();
-
 function ResultsView(): React.ReactElement {
   const result = usePanelSqlStore((s) => s.result);
   const resultTable = usePanelSqlStore((s) => s.resultTable);
   const schema = usePanelSqlStore((s) => s.schema);
-  const [filter, setFilter] = useState('');
-  const [sortState, setSortState] = useState<{ result: QueryResult; sort: SortState | null } | null>(null);
-  const [selection, setSelection] = useState<{ rows: SqlCell[][]; cell: SelectedCell } | null>(null);
+  const filter = usePanelSqlStore((s) => s.rowFilter);
+  const gridView = usePanelSqlStore((s) => s.gridView);
+  const { setRowFilter, setGridView } = usePanelSqlStore.getState();
   const [hint, setHint] = useState(!inspectedOnce);
   const [toast, setToast] = useState<string[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
-  // A new result starts unsorted; the filter text stays, visible in its field.
-  const sort = sortState && sortState.result === result ? sortState.sort : null;
-  const viewRows = useMemo(() => (result ? sortRows(filterRows(result.rows, filter), sort) : []), [result, filter, sort]);
+  // The sort and the inspected cell survive a re-run, a filter and a tab switch, but not a new
+  // column set; the filter text stays, visible in its field.
+  const key = result ? columnsKey(result.columns) : '';
+  const view = gridView.key === key ? gridView : { key, sort: null, inspected: null };
+  const order = useMemo(
+    () => (result ? viewOrder(result.rows, result.columns, filter, view.sort) : []),
+    [result, filter, view.sort],
+  );
+  const viewRows = useMemo(() => (result ? order.map((i) => result.rows[i]) : []), [result, order]);
   const pkColumns = useMemo(() => primaryKeyColumns(schema, resultTable), [schema, resultTable]);
 
   if (!result) {
@@ -151,7 +151,9 @@ function ResultsView(): React.ReactElement {
       </div>
     );
   }
-  const cell = selection && selection.rows === viewRows ? selection.cell : null;
+  // The inspected source row, as a position in the view; gone when the filter hides it.
+  const inspectedAt = view.inspected ? order.indexOf(view.inspected.row) : -1;
+  const cell = view.inspected && inspectedAt >= 0 ? { row: inspectedAt, col: view.inspected.col } : null;
   const filtering = filter.trim() !== '';
 
   function showToast(...lines: string[]): void {
@@ -179,11 +181,15 @@ function ResultsView(): React.ReactElement {
   function inspect(next: SelectedCell): void {
     inspectedOnce = true;
     setHint(false);
-    setSelection({ rows: viewRows, cell: next });
+    setGridView({ ...view, inspected: { row: order[next.row], col: next.col } });
+  }
+
+  function closeInspector(): void {
+    setGridView({ ...view, inspected: null });
+    bodyRef.current?.querySelector<HTMLElement>('[role="gridcell"][tabindex="0"]')?.focus();
   }
 
   const hasColumns = result.columns.length > 0;
-  const columnsKey = result.columns.map((c) => `${c.name}\u0000${c.type}`).join('\u0001');
   return (
     <div className="xray-sql-results">
       <div className="xray-sql-results-head">
@@ -200,8 +206,16 @@ function ResultsView(): React.ReactElement {
               type="search"
               aria-label="Filter rows"
               placeholder="Filter rows"
+              title="Filter the loaded rows (Escape clears)"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => setRowFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && filter) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setRowFilter('');
+                }
+              }}
             />
           </label>
         )}
@@ -229,25 +243,26 @@ function ResultsView(): React.ReactElement {
       </div>
       {hasColumns ? (
         <div
+          ref={bodyRef}
           className="xray-sql-results-body"
           onKeyDown={(e) => {
             if (e.key === 'Escape' && cell) {
               e.preventDefault();
-              setSelection(null);
+              closeInspector();
             }
           }}
         >
           <ResultGrid
-            key={columnsKey}
+            key={key}
             result={result}
             rows={viewRows}
-            sort={sort}
-            onSort={(col) => setSortState({ result, sort: nextSort(sort, col) })}
+            sort={view.sort}
+            onSort={(col) => setGridView({ ...view, sort: nextSort(view.sort, col) })}
             pkColumns={pkColumns}
             inspected={cell}
             onInspect={inspect}
           />
-          {cell && <Inspector result={result} rows={viewRows} cell={cell} onClose={() => setSelection(null)} onToast={showToast} />}
+          {cell && <Inspector result={result} rows={viewRows} cell={cell} onClose={closeInspector} onToast={showToast} />}
         </div>
       ) : (
         <p className="xray-sql-empty">The statement returned no rows.</p>

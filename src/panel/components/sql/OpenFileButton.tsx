@@ -22,6 +22,11 @@ const PICKER_TYPES = [
 // both open files through it when the File System Access picker is missing or refused.
 let fileInput: HTMLInputElement | null = null;
 
+/** Opens a file the way the Open button does: the picker, else the file input. Ctrl/Cmd+O uses it. */
+export function requestOpenFile(): Promise<void> {
+  return pickFile(usePanelSqlStore.getState().openFile);
+}
+
 async function pickFile(openFile: (file: File, handle?: FileSystemFileHandle) => Promise<void>): Promise<void> {
   const picker = window.showOpenFilePicker;
   if (typeof picker !== 'function') {
@@ -69,11 +74,13 @@ export function OpenFileButton({
   disabled,
   className = 'xray-btn',
   label = 'Open SQLite file',
+  title,
   onPicked,
 }: {
   disabled?: boolean;
   className?: string;
   label?: string;
+  title?: string;
   onPicked?(): void;
 }): React.ReactElement {
   const openFile = usePanelSqlStore((s) => s.openFile);
@@ -83,6 +90,7 @@ export function OpenFileButton({
       type="button"
       className={className}
       disabled={disabled}
+      title={title}
       aria-label="Open SQLite file"
       onClick={() => {
         onPicked?.();

@@ -9,6 +9,10 @@ const {
   nextSort,
   sortRows,
   filterRows,
+  filterIndexes,
+  viewOrder,
+  columnsKey,
+  primaryKeyColumns,
   filteredSummary,
   cellCopyText,
   COLUMN_MIN_PX,
@@ -78,26 +82,57 @@ test('sortRows is stable for equal keys', () => {
   assert.deepEqual(sortRows(rows, { col: 0, dir: 'desc' }).map((r) => r[1]), ['a', 'c', 'b', 'd']);
 });
 
-test('filterRows matches a substring in any cell, ignoring case; NULLs never match', () => {
+test('filterRows matches the displayed text of any cell, ignoring case', () => {
+  const columns = [{ name: 'id', type: 'INTEGER' }, { name: 'meta', type: 'TEXT' }, { name: 'flag', type: '' }];
   const rows = [
     [1, '{"gift":true}', null],
     [2, null, 'GIFTED'],
-    [3, null, null],
+    [3, 'x', 'y'],
     [4, { hex: 'abcd', length: 2 }, true],
   ];
-  assert.deepEqual(filterRows(rows, 'gift').map((r) => r[0]), [1, 2]);
-  assert.deepEqual(filterRows(rows, 'null').map((r) => r[0]), []);
-  assert.deepEqual(filterRows(rows, 'bc').map((r) => r[0]), [4]);
-  assert.deepEqual(filterRows(rows, 'tru').map((r) => r[0]), [1, 4]);
-  assert.deepEqual(filterRows(rows, '  ').length, 4);
+  assert.deepEqual(filterRows(rows, columns, 'gift').map((r) => r[0]), [1, 2]);
+  // NULL cells show "NULL", and the filter matches what is shown.
+  assert.deepEqual(filterRows(rows, columns, 'null').map((r) => r[0]), [1, 2]);
+  // A blob is shown as \xabcd… (2 bytes).
+  assert.deepEqual(filterRows(rows, columns, '\\xab').map((r) => r[0]), [4]);
+  assert.deepEqual(filterRows(rows, columns, '2 bytes').map((r) => r[0]), [4]);
+  assert.deepEqual(filterRows(rows, columns, 'tru').map((r) => r[0]), [1, 4]);
+  assert.equal(filterRows(rows, columns, '  ').length, 4);
+  assert.deepEqual(filterIndexes(rows, columns, 'gift'), [0, 1]);
   assert.equal(filteredSummary(12, 100, 4.6), '12 of 100 rows · 5 ms');
 });
 
-test('cellCopyText pretty-prints JSON, writes blobs as hex and flags a cut blob', () => {
+test('viewOrder filters then sorts, as indexes into the loaded rows', () => {
+  const columns = [{ name: 'n', type: 'INTEGER' }, { name: 's', type: 'TEXT' }];
+  const rows = [[3, 'keep'], [1, 'drop'], [2, 'keep'], [null, 'keep']];
+  assert.deepEqual(viewOrder(rows, columns, 'keep', { col: 0, dir: 'desc' }), [0, 2, 3]);
+  assert.deepEqual(viewOrder(rows, columns, '', { col: 0, dir: 'asc' }), [1, 2, 0, 3]);
+  assert.deepEqual(viewOrder(rows, columns, '', null), [0, 1, 2, 3]);
+});
+
+test('columnsKey changes with a column name or type, and primaryKeyColumns reads the previewed table', () => {
+  const a = columnsKey([{ name: 'id', type: 'INTEGER' }, { name: 'v', type: '' }]);
+  assert.equal(a, columnsKey([{ name: 'id', type: 'INTEGER' }, { name: 'v', type: '' }]));
+  assert.notEqual(a, columnsKey([{ name: 'id', type: 'TEXT' }, { name: 'v', type: '' }]));
+  assert.notEqual(a, columnsKey([{ name: 'idv', type: 'INTEGER' }]));
+  const col = (name, pk) => ({ name, type: '', nullable: true, defaultValue: null, pk });
+  const schema = {
+    schemas: [
+      { name: 'main', tables: [{ name: 'orders', columns: [col('id', true), col('total', false)], indexes: [] }], views: [] },
+      { name: 'aux', tables: [{ name: 'other', columns: [col('k', true)], indexes: [] }], views: [] },
+    ],
+  };
+  assert.deepEqual([...primaryKeyColumns(schema, 'orders')], ['id']);
+  assert.deepEqual([...primaryKeyColumns(schema, 'other')], [], 'only the main schema is previewed by name');
+  assert.deepEqual([...primaryKeyColumns(schema, null)], []);
+  assert.deepEqual([...primaryKeyColumns(null, 'orders')], []);
+});
+
+test('cellCopyText pretty-prints JSON, writes blobs as \\x hex like the cell and flags a cut blob', () => {
   assert.deepEqual(cellCopyText('{"gift":true,"n":1.50}'), { text: '{\n  "gift": true,\n  "n": 1.50\n}', truncatedBlob: false });
   assert.deepEqual(cellCopyText('plain'), { text: 'plain', truncatedBlob: false });
   assert.deepEqual(cellCopyText(null), { text: 'NULL', truncatedBlob: false });
   assert.deepEqual(cellCopyText(12.5), { text: '12.5', truncatedBlob: false });
-  assert.deepEqual(cellCopyText({ hex: 'ab01', length: 2 }), { text: 'ab01', truncatedBlob: false });
-  assert.deepEqual(cellCopyText({ hex: 'ab', length: 300 }), { text: 'ab', truncatedBlob: true });
+  assert.deepEqual(cellCopyText({ hex: 'ab01', length: 2 }), { text: '\\xab01', truncatedBlob: false });
+  assert.deepEqual(cellCopyText({ hex: 'ab', length: 300 }), { text: '\\xab', truncatedBlob: true });
 });

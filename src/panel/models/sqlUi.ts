@@ -14,9 +14,15 @@ export function isMacPlatform(platform: string): boolean {
   return /mac|iphone|ipad/i.test(platform);
 }
 
-export function shortcutLabels(mac: boolean): { mod: string; run: string; runAll: string } {
+export function shortcutLabels(mac: boolean): { mod: string; run: string; runAll: string; save: string; open: string } {
   const mod = mac ? 'Cmd' : 'Ctrl';
-  return { mod, run: mac ? '⌘ ↵' : 'Ctrl ↵', runAll: mac ? '⌘ ⇧ ↵' : 'Ctrl ⇧ ↵' };
+  return {
+    mod,
+    run: mac ? '⌘ ↵' : 'Ctrl ↵',
+    runAll: mac ? '⌘ ⇧ ↵' : 'Ctrl ⇧ ↵',
+    save: mac ? '⌘ S' : 'Ctrl+S',
+    open: mac ? '⌘ O' : 'Ctrl+O',
+  };
 }
 
 export function editorPlaceholder(mac: boolean): string {

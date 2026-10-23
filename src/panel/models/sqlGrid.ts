@@ -4,7 +4,7 @@
 
 import { parseJson, printJson } from './jsonText';
 import { displayCell, isTruncatedBlob } from './sqlValues';
-import type { ResultColumn, SqlCell } from './sqlTypes';
+import type { ResultColumn, SchemaTree, SqlCell } from './sqlTypes';
 
 export const COLUMN_MIN_PX = 64;
 export const COLUMN_MAX_PX = 480;
@@ -89,35 +89,55 @@ function compareCells(a: Exclude<SqlCell, null>, b: Exclude<SqlCell, null>): num
   return (a as { hex: string }).hex < (b as { hex: string }).hex ? -1 : (a as { hex: string }).hex > (b as { hex: string }).hex ? 1 : 0;
 }
 
+function sortedIndexes(rows: readonly SqlCell[][], indexes: readonly number[], sort: SortState | null): number[] {
+  if (!sort) return indexes.slice();
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  return indexes.slice().sort((x, y) => {
+    const a = rows[x][sort.col] ?? null;
+    const b = rows[y][sort.col] ?? null;
+    if (a === null || b === null) {
+      if (a === b) return x - y;
+      return a === null ? 1 : -1;
+    }
+    return sign * compareCells(a, b) || x - y;
+  });
+}
+
 /** The rows sorted by one column (stable), NULLs last in either direction. Never mutates `rows`. */
 export function sortRows(rows: readonly SqlCell[][], sort: SortState | null): SqlCell[][] {
-  if (!sort) return rows.slice();
-  const sign = sort.dir === 'asc' ? 1 : -1;
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((x, y) => {
-      const a = x.row[sort.col] ?? null;
-      const b = y.row[sort.col] ?? null;
-      if (a === null || b === null) {
-        if (a === b) return x.index - y.index;
-        return a === null ? 1 : -1;
-      }
-      return sign * compareCells(a, b) || x.index - y.index;
-    })
-    .map((entry) => entry.row);
+  return sortedIndexes(rows, rows.map((_, i) => i), sort).map((i) => rows[i]);
 }
 
-function searchText(cell: SqlCell): string {
-  if (cell === null) return '';
-  if (typeof cell === 'object') return cell.hex;
-  return String(cell);
-}
-
-/** The loaded rows with any cell containing `query` (case-insensitive); NULLs never match. */
-export function filterRows(rows: readonly SqlCell[][], query: string): SqlCell[][] {
+/** Indexes of the rows with a cell whose displayed text contains `query` (case-insensitive). */
+export function filterIndexes(rows: readonly SqlCell[][], columns: readonly ResultColumn[], query: string): number[] {
   const q = query.trim().toLowerCase();
-  if (!q) return rows.slice();
-  return rows.filter((row) => row.some((cell) => searchText(cell).toLowerCase().includes(q)));
+  const out: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (!q || rows[i].some((cell, c) => displayCell(cell, columns[c]?.type).text.toLowerCase().includes(q))) out.push(i);
+  }
+  return out;
+}
+
+/** The loaded rows whose displayed text contains `query`. */
+export function filterRows(rows: readonly SqlCell[][], columns: readonly ResultColumn[], query: string): SqlCell[][] {
+  return filterIndexes(rows, columns, query).map((i) => rows[i]);
+}
+
+/** What the grid shows, as indexes into the result's rows: filtered, then sorted. */
+export function viewOrder(rows: readonly SqlCell[][], columns: readonly ResultColumn[], query: string, sort: SortState | null): number[] {
+  return sortedIndexes(rows, filterIndexes(rows, columns, query), sort);
+}
+
+/** Identifies a result's column set: widths, sort and the inspected cell reset when it changes. */
+export function columnsKey(columns: readonly ResultColumn[]): string {
+  return columns.map((c) => `${c.name}\u0000${c.type}`).join('\u0001');
+}
+
+/** Primary-key column names of a previewed main-schema table; empty for a query or a view. */
+export function primaryKeyColumns(schema: SchemaTree | null, table: string | null): ReadonlySet<string> {
+  if (!schema || !table) return new Set();
+  const node = schema.schemas.find((s) => s.name === 'main')?.tables.find((t) => t.name === table);
+  return new Set(node ? node.columns.filter((c) => c.pk).map((c) => c.name) : []);
 }
 
 /** "12 of 100 rows · 5 ms": the Results summary while a filter hides rows. */
@@ -125,10 +145,10 @@ export function filteredSummary(shown: number, total: number, durationMs: number
   return `${shown} of ${total} rows · ${Math.round(durationMs)} ms`;
 }
 
-/** What "Copy value" writes: JSON pretty-printed, a blob as hex, anything else as displayed. */
+/** What "Copy value" writes: JSON pretty-printed, a blob as \x hex like the cell, else as displayed. */
 export function cellCopyText(cell: SqlCell, columnType = ''): { text: string; truncatedBlob: boolean } {
   if (cell === null) return { text: 'NULL', truncatedBlob: false };
-  if (typeof cell === 'object') return { text: cell.hex, truncatedBlob: isTruncatedBlob(cell) };
+  if (typeof cell === 'object') return { text: `\\x${cell.hex}`, truncatedBlob: isTruncatedBlob(cell) };
   if (typeof cell === 'string') {
     const shown = displayCell(cell, columnType);
     if (shown.kind === 'json') {

@@ -67,12 +67,9 @@ const summary = (page) => page.locator('.xray-sql-results-summary');
 const messages = (page) => page.getByRole('log', { name: 'Messages' });
 const runButton = (page) => page.getByRole('button', { name: 'Run', exact: true });
 
-// With a file open, "Open SQLite file" and the Read-only checkbox live in the header's source menu.
-async function openSourceMenu(page) {
-  const trigger = page.locator('.xray-sql-source');
-  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
-  await page.getByRole('dialog', { name: 'Database file' }).waitFor();
-}
+// With a file open, "Open SQLite file" lives in the header's source menu, and Read-only is the
+// header's mode switch (role="switch", name "Read-only").
+const readOnlySwitch = (page) => page.getByRole('switch', { name: 'Read-only', exact: true });
 
 async function openShop(page) {
   await openFile(page, shopPath);
@@ -141,9 +138,8 @@ test('a blocked file picker falls back to the file chooser, and a download save 
   await railItem(page, 'orders').waitFor();
 
   // Opened through <input type=file>, so there is no file handle and Save downloads the bytes.
-  await openSourceMenu(page);
-  await page.getByLabel('Read-only').uncheck();
-  await assertEventually(async () => !(await page.getByLabel('Read-only').isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
+  await readOnlySwitch(page).uncheck();
+  await assertEventually(async () => !(await readOnlySwitch(page).isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
   await runSql(page, "insert into customers values (4, 'kay@example.test', null)");
   const save = page.getByRole('button', { name: 'Save', exact: true });
   await assertEventually(() => save.isEnabled(), 'Save enabled after a write');
@@ -161,8 +157,8 @@ test('a blocked file picker falls back to the file chooser, and a download save 
 test('a write on a read-only connection is refused with a message', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
-  await openSourceMenu(page);
-  assert.equal(await page.getByLabel('Read-only').isChecked(), true, 'read-only is on by default');
+  assert.equal(await readOnlySwitch(page).isChecked(), true, 'read-only is on by default');
+  assert.equal(await readOnlySwitch(page).textContent(), 'Read-only');
 
   await runSql(page, 'update orders set total = 0');
   await messages(page).getByText('This connection is read-only', { exact: false }).waitFor();
@@ -171,10 +167,10 @@ test('a write on a read-only connection is refused with a message', { timeout: 1
 test('DROP asks for confirmation and Cancel leaves the table in place', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
-  await openSourceMenu(page);
-  await page.getByLabel('Read-only').uncheck();
-  await assertEventually(async () => !(await page.getByLabel('Read-only').isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
+  await readOnlySwitch(page).uncheck();
+  await assertEventually(async () => !(await readOnlySwitch(page).isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
 
+  assert.equal(await readOnlySwitch(page).textContent(), 'Editable', 'the switch shows the mode');
   await runSql(page, 'drop table customers');
   const dialog = page.getByRole('dialog', { name: 'Run DROP?' });
   await dialog.waitFor();
@@ -441,6 +437,13 @@ test('the first screen welcomes, and the editor/results divider steps with the k
   assert.equal(await page.getByRole('button', { name: 'Open SQLite file' }).count(), 1, 'one open button');
   assert.equal(await page.locator('.xray-sql-toolbar .xray-sql-source').count(), 0, 'no source control yet');
   assert.equal(await runButton(page).count(), 0, 'no Run before a file is open');
+  // Ctrl+O opens a file from anywhere (here, the file-input fallback: the picker is removed).
+  const chooser = page.waitForEvent('filechooser', { timeout: 5_000 });
+  await page.keyboard.press('Control+O');
+  await (await chooser).setFiles(shopPath);
+  await railItem(page, 'orders').waitFor();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
 
   await openShop(page);
   await page.getByText('Run a query, or click a table on the left to preview it.', { exact: true }).waitFor();
@@ -458,6 +461,15 @@ test('the first screen welcomes, and the editor/results divider steps with the k
   await rail.focus();
   await page.keyboard.press('ArrowRight');
   assert.equal(await rail.getAttribute('aria-valuenow'), '244');
+  assert.equal(await rail.getAttribute('aria-valuetext'), '244 pixels');
+  await page.keyboard.press('End');
+  assert.equal(await rail.getAttribute('aria-valuenow'), '420', 'End jumps to the maximum');
+  await page.keyboard.press('Home');
+  assert.equal(await rail.getAttribute('aria-valuenow'), '160', 'Home jumps to the minimum');
+  await rail.dblclick();
+  assert.equal(await rail.getAttribute('aria-valuenow'), '220', 'a double-click restores the default');
+  await rail.focus();
+  await page.keyboard.press('ArrowRight');
 
   // Persisted (debounced 300 ms) as sql_layout, and read back before the first render.
   await sleep(700);
@@ -492,6 +504,29 @@ test('the grid sizes columns to their content, sorts and filters loaded rows, an
   const widthOf = async (name) => (await header(name).boundingBox()).width;
   assert.ok((await widthOf('meta')) > (await widthOf('id')), 'meta is wider than id');
 
+  // The header row is one tab stop (APG grid): ArrowUp from the first row enters it, ArrowLeft/Right
+  // move along it, Enter sorts, ArrowDown returns to the first row.
+  const grid = page.getByRole('grid', { name: 'Query results' });
+  assert.equal(await grid.locator('[role="columnheader"][tabindex="0"]').count(), 1, 'one header tab stop');
+  assert.equal(await grid.locator('[role="gridcell"][tabindex="0"]').count(), 1, 'one cell tab stop');
+  const focused = () => page.evaluate(() => {
+    const el = document.activeElement;
+    return { role: el.getAttribute('role'), col: el.getAttribute('aria-colindex'), row: el.closest('[role="row"]')?.getAttribute('aria-rowindex') };
+  });
+  await page.getByRole('gridcell', { name: '1250.5', exact: true }).focus();
+  await page.keyboard.press('ArrowUp');
+  assert.deepEqual(await focused(), { role: 'columnheader', col: '4', row: '1' });
+  await page.keyboard.press('ArrowLeft');
+  assert.deepEqual(await focused(), { role: 'columnheader', col: '3', row: '1' });
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  assert.equal(await header('total').getAttribute('aria-sort'), 'ascending', 'Enter on a header sorts');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  assert.equal(await header('total').getAttribute('aria-sort'), 'none');
+  await page.keyboard.press('ArrowDown');
+  assert.deepEqual(await focused(), { role: 'gridcell', col: '4', row: '2' });
+
   // Header clicks sort the loaded rows: ascending, then descending.
   const totals = () => page.locator('[role="row"][aria-rowindex="2"] [role="gridcell"][aria-colindex="4"]').textContent();
   await header('total').click();
@@ -516,12 +551,36 @@ test('the grid sizes columns to their content, sorts and filters loaded rows, an
   await inspector.getByRole('button', { name: 'Copy value', exact: true }).click();
   await page.getByRole('status').getByText('Copied the value.', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.__copied), '{\n  "gift": true\n}', 'JSON is copied pretty-printed');
+  // The inspector follows its row through a sort, a filter that keeps it, and a tab switch.
+  await header('id').click();
+  await header('id').click();
+  await filter.fill('gift');
+  await page.getByRole('tab', { name: 'Messages', exact: true }).click();
+  await page.getByRole('tab', { name: 'Results', exact: true }).click();
+  await inspector.waitFor({ timeout: 2_000 });
+  assert.match(await inspector.textContent(), /^meta row 1 · json/);
+  await page.locator('.xray-sql-grid-row.inspected .xray-sql-grid-index').waitFor();
+  // A filter that hides its row closes it.
+  await filter.fill('no such text');
+  await inspector.waitFor({ state: 'detached' });
+  // Escape in the filter clears it, and the row comes back with the inspector.
+  await filter.press('Escape');
+  assert.equal(await filter.inputValue(), '');
+  await inspector.waitFor();
+  // Escape closes the inspector and returns focus to the active cell (unsorted again: id's third click).
+  await header('id').click();
+  await page.getByRole('gridcell', { name: '{"gift":true}', exact: true }).click();
   await page.keyboard.press('Escape');
   await inspector.waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), '{"gift":true}');
   // Enter on a focused cell opens it again.
-  await page.getByRole('gridcell', { name: '{"gift":true}', exact: true }).focus();
   await page.keyboard.press('Enter');
   await inspector.waitFor();
+  // A blob copies as the cell shows it.
+  await page.getByRole('gridcell', { name: /^\\x0000/ }).click();
+  await inspector.getByRole('button', { name: 'Copy value', exact: true }).click();
+  assert.match(await page.evaluate(() => window.__copied), /^\\x(00)+$/);
+  await page.getByRole('status').getByText('1 blob values were truncated to 256 bytes', { exact: true }).waitFor();
 });
 
 test('a fresh tab offers quick starts that insert SQL without running it, and the editor marks what runs', { timeout: 120_000 }, async (t) => {
@@ -571,6 +630,21 @@ test('dropping files opens the first through the open path, and the rail filters
   });
   await page.locator('.xray-sql-drop').waitFor({ state: 'detached' });
   await railItem(page, 'orders').waitFor();
+
+  // A link dropped outside the editor is refused (no navigation); the editor keeps its own text drop.
+  const before = page.url();
+  const refused = await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData('text/uri-list', 'https://example.com/');
+    const target = document.querySelector('.xray-sql-rail');
+    target.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const drop = new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+    target.dispatchEvent(drop);
+    return drop.defaultPrevented;
+  });
+  assert.equal(refused, true, 'the page refuses a non-file drop outside the editor');
+  await sleep(300);
+  assert.equal(page.url(), before, 'the URL is unchanged');
   await page.getByRole('tab', { name: 'Messages', exact: true }).click();
   await messages(page).getByText('Only one file opens at a time: opening shop.sqlite, ignored 1 other file: notes.txt.', { exact: true }).waitFor();
   await messages(page).getByText('Opened shop.sqlite (read-only).', { exact: true }).waitFor();
@@ -589,6 +663,19 @@ test('dropping files opens the first through the open path, and the rail filters
   await page.getByLabel('SQL editor').click();
   await page.keyboard.press('/');
   assert.equal(await page.getByLabel('SQL editor').textContent(), '/');
+  // The editor keeps CodeMirror's own text drop.
+  await setSql(page, '');
+  const editorDrop = await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'select 42');
+    const content = document.querySelector('.cm-content');
+    const box = content.getBoundingClientRect();
+    const init = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: box.left + 20, clientY: box.top + 8 };
+    content.dispatchEvent(new DragEvent('dragover', init));
+    content.dispatchEvent(new DragEvent('drop', init));
+    return content.textContent;
+  });
+  assert.equal(editorDrop, 'select 42', 'CodeMirror inserts dropped text');
 });
 
 async function assertEventually(check, label, timeout = 15_000) {
