@@ -678,6 +678,51 @@ test('dropping files opens the first through the open path, and the rail filters
   assert.equal(editorDrop, 'select 42', 'CodeMirror inserts dropped text');
 });
 
+// Recent files need a real FileSystemFileHandle. The origin-private file system hands out real ones
+// without a picker, so the picker is stubbed to return an OPFS handle to the fixture's bytes.
+test('the welcome screen lists picker-opened files and reopens them, or explains and removes a missing one', { timeout: 120_000 }, async (t) => {
+  const { context, extensionId } = await launch(t);
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    window.showOpenFilePicker = async () => {
+      const root = await navigator.storage.getDirectory();
+      return [await root.getFileHandle('shop.sqlite')];
+    };
+  });
+  await page.goto(`chrome-extension://${extensionId}/sql.html`);
+  await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'Recent', exact: true }).count(), 0, 'no list while it is empty');
+  await page.evaluate(async (bytes) => {
+    const root = await navigator.storage.getDirectory();
+    const writable = await (await root.getFileHandle('shop.sqlite', { create: true })).createWritable();
+    await writable.write(new Uint8Array(bytes));
+    await writable.close();
+  }, [...fs.readFileSync(shopPath)]);
+
+  await page.getByRole('button', { name: 'Open SQLite file' }).click();
+  await railItem(page, 'orders').waitFor();
+  await sleep(300);
+  await page.reload();
+  const recent = page.getByRole('region', { name: 'Recent' });
+  const item = recent.getByRole('button', { name: /^shop\.sqlite/ });
+  await item.waitFor();
+  assert.match(await item.textContent(), /^shop\.sqlite\d+ KB · Today \d\d:\d\d$/);
+  await item.click();
+  await railItem(page, 'orders').waitFor();
+
+  // The file is gone: a short inline error, and Remove takes it off the list.
+  await page.reload();
+  await page.evaluate(async () => (await navigator.storage.getDirectory()).removeEntry('shop.sqlite'));
+  await item.click();
+  await recent.getByRole('alert').getByText('This file is no longer there.', { exact: true }).waitFor();
+  await recent.getByRole('button', { name: 'Remove shop.sqlite from recent files', exact: true }).click();
+  await recent.waitFor({ state: 'detached' });
+  await page.reload();
+  await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  await sleep(300);
+  assert.equal(await page.getByRole('heading', { name: 'Recent', exact: true }).count(), 0, 'removed for good');
+});
+
 async function assertEventually(check, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {

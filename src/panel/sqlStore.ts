@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { createSqliteClient, spawnSqliteWorker, type SqliteClient } from './runtime/sqliteClient';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
+import { rememberRecentFile } from './runtime/recentFiles';
 import { classifyStatement, type StatementKind } from './models/sqlClassify';
 import { normalizeSqlError } from './models/sqlErrors';
 import { selectTableSql } from './models/sqlSchema';
@@ -329,6 +330,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     bytes = data;
     fileHandle = handle ?? null;
     diskBehind = false;
+    // Picker-opened files come back on the welcome screen's recent list.
+    if (handle) void rememberRecentFile(handle, file);
     const key = connectionKeyForFile(file.name, file.size);
     // A scratch query typed before the first open carries over when the file has no saved tabs.
     const tabs = storedTabs[key] || hadConnection ? restoreEditorTabs(storedTabs, key) : get().tabs;

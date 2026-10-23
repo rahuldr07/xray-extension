@@ -16,6 +16,8 @@ import { PANEL_FONT_VALUES, resolveAccentValue } from '../../models/panelSetting
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { DEFAULT_SQL_LAYOUT, EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
 import { formatFileSize, isMacPlatform, shortcutLabels } from '../../models/sqlUi';
+import { lastOpenedLabel } from '../../models/sqlRecent';
+import { forgetRecentFile, loadRecentFiles, readRecentFile, recentFilesAvailable, type RecentSqlFile } from '../../runtime/recentFiles';
 import type { PanelSettings } from '../../types';
 import { ModalShell } from '../common/ModalShell';
 import { ConnectionRail } from './ConnectionRail';
@@ -195,6 +197,72 @@ function Toolbar(): React.ReactElement {
   );
 }
 
+// Files opened through the picker before, newest first. Hidden when empty, and where the picker
+// cannot run (the DevTools panel's cross-origin frame): there a handle could never be reopened.
+function RecentFiles(): React.ReactElement | null {
+  const opening = usePanelSqlStore((s) => s.opening);
+  const [list, setList] = useState<RecentSqlFile[]>([]);
+  const [failed, setFailed] = useState<{ name: string; size: number; message: string } | null>(null);
+  const [now] = useState(() => Date.now());
+  useEffect(() => {
+    let live = true;
+    loadRecentFiles()
+      .then((files) => {
+        if (live) setList(files);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!list.length) return null;
+
+  async function open(entry: RecentSqlFile): Promise<void> {
+    setFailed(null);
+    const read = await readRecentFile(entry);
+    if ('error' in read) {
+      setFailed({ name: entry.name, size: entry.size, message: read.error });
+      return;
+    }
+    await usePanelSqlStore.getState().openFile(read.file, entry.handle);
+  }
+
+  async function remove(entry: RecentSqlFile): Promise<void> {
+    setFailed(null);
+    setList(await forgetRecentFile(entry).catch(() => list.filter((e) => e !== entry)));
+  }
+
+  return (
+    <section className="xray-sql-recent" aria-labelledby="xray-sql-recent-title">
+      <h2 id="xray-sql-recent-title">Recent</h2>
+      <ul>
+        {list.map((entry) => {
+          const error = failed && failed.name === entry.name && failed.size === entry.size ? failed.message : null;
+          return (
+            <li key={`${entry.name}:${entry.size}`}>
+              <button type="button" className="xray-sql-recent-item" disabled={opening} onClick={() => void open(entry)}>
+                <IconDatabase size={14} stroke={1.8} aria-hidden="true" />
+                <span className="xray-sql-recent-name">{entry.name}</span>
+                <span className="xray-sql-recent-meta">
+                  {formatFileSize(entry.size)} · {lastOpenedLabel(entry.lastOpened, now)}
+                </span>
+              </button>
+              {error && (
+                <div className="xray-sql-recent-error" role="alert">
+                  <span>{error}</span>
+                  <button type="button" className="xray-btn xray-btn-sm" aria-label={`Remove ${entry.name} from recent files`} onClick={() => void remove(entry)}>
+                    Remove
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function Welcome(): React.ReactElement {
   const opening = usePanelSqlStore((s) => s.opening);
   const error = usePanelSqlStore((s) => s.error);
@@ -206,6 +274,7 @@ function Welcome(): React.ReactElement {
       <OpenFileButton className="xray-btn primary xray-sql-welcome-open" title={`Open a database (${SHORTCUTS.open})`} disabled={opening} />
       <p className="xray-sql-welcome-drop">or drop a .sqlite / .db file anywhere on this page</p>
       <p className="xray-sql-welcome-note">Files open read-only. Nothing leaves your machine.</p>
+      {recentFilesAvailable() && <RecentFiles />}
       {opening && (
         <p className="xray-sql-welcome-note" role="status">
           Opening…
