@@ -4,6 +4,7 @@ package main
 import (
 	"os"
 
+	"github.com/rahuldr07/xray-extension/helper/internal/my"
 	"github.com/rahuldr07/xray-extension/helper/internal/pg"
 	"github.com/rahuldr07/xray-extension/helper/internal/protocol"
 	"github.com/rahuldr07/xray-extension/helper/internal/session"
@@ -14,7 +15,7 @@ var version = "0.0.0-dev"
 
 // newHandler wires the database engines into the ops dispatcher.
 func newHandler() protocol.Handler {
-	return session.NewOps(map[string]session.Connector{"postgres": pg.Connect})
+	return session.NewOps(map[string]session.Connector{"postgres": pg.Connect, "mysql": my.Connect})
 }
 
 func main() {
