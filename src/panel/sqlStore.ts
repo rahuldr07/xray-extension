@@ -406,6 +406,9 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         running: null,
         result,
         resultTable: q.resultTable,
+        // A new result keeps the sort (same columns) but never the inspected cell: its row index
+        // would point at different data.
+        gridView: { ...get().gridView, inspected: null },
         dirty: unsaved(),
         bottomTab: 'results',
         messages: withMessage(get().messages, resultSummary(result), ...extra),
