@@ -151,6 +151,8 @@ export interface SqlState {
   connectProfile(profileId: string, opts?: { password?: string; remember?: boolean }): Promise<void>;
   fetchMore(): Promise<void>;
   reconnect(): Promise<void>;
+  // Closes the password prompt without connecting.
+  cancelPassword(): void;
   // Reloads the saved profiles and the helper status.
   refreshRemote(): Promise<void>;
 }
@@ -408,8 +410,12 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       fileHandle = null;
       diskBehind = false;
       // The previous file's tabs were persisted under its key; they must not follow into the next file.
+      // A remote connection was not replaced by the failed open: it stays, with its tabs and schema.
+      if (get().connection?.kind === 'remote') {
+        set({ opening: false, error: err, bottomTab: 'messages', messages: withMessage(get().messages, `${file.name}: ${err.message}`) });
+        return;
+      }
       const blank = hadConnection ? restoreEditorTabs(undefined, '') : null;
-      closeRemote();
       set({
         connectionLost: false,
         canFetchMore: false,
@@ -559,8 +565,9 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       }
       const item = q.items[q.index];
       const c = classifyStatement(item.text, connectionDialect(conn));
-      // R10: on a read-only connection an unparseable statement goes to SQLite, which answers
-      // with the real syntax error (and still refuses any write).
+      // R10: on a read-only connection an unparseable statement goes to the engine, which answers
+      // with the real syntax error and still refuses any write: SQLite opens the file read-only;
+      // on Postgres/MySQL the server's read-only transaction and the helper's keyword guard do.
       if (conn.readOnly && c.kind !== 'read' && c.reason !== 'could not parse') {
         const err: SqlError = {
           code: 'read-only',
@@ -1024,9 +1031,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const s = get();
       // The answer to the password prompt: the discard prompt (if any) was already passed.
       const retry = s.pendingPassword?.profileId === profileId;
+      if (!idle()) {
+        // The prompt stays open, so the typed password can be sent once the store is free.
+        if (s.pendingPassword) say('Wait for the current query to finish.');
+        return;
+      }
       if (s.pendingPassword) set({ pendingPassword: null });
       if (!retry) passwordMode = null;
-      if (!idle()) return;
       const proceed = () => connectNow(profileId, opts, retry);
       if (!retry && s.connection?.kind === 'sqlite' && s.dirty) {
         ask(
@@ -1040,6 +1051,11 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         return;
       }
       await proceed();
+    },
+
+    cancelPassword() {
+      passwordMode = null;
+      set({ pendingPassword: null });
     },
 
     async reconnect() {
@@ -1064,10 +1080,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         return;
       }
       const tabId = s.activeTabId;
-      // fetchMore takes no signal: Stop cannot interrupt it, but `running` keeps other runs out.
-      set({ running: { tabId, controller: new AbortController() }, error: null, errorAt: null });
+      const controller = new AbortController();
+      set({ running: { tabId, controller }, error: null, errorAt: null });
       try {
-        const more = await session.fetchMore(tabId, FETCH_MORE_ROWS);
+        const more = await session.fetchMore(tabId, FETCH_MORE_ROWS, controller.signal);
         const result: QueryResult = {
           ...prev,
           rows: [...prev.rows, ...more.rows],
@@ -1086,8 +1102,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           messages: withMessage(get().messages, `Fetched ${more.rowCount} more rows · ${formatMs(more.durationMs)}`, ...extra),
         });
       } catch (raw) {
-        const err = normalizeSqlError(raw);
+        let err = normalizeSqlError(raw);
         const lost = err.code === 'connection-lost';
+        // Same reading as a stopped execute: the rows already shown stay.
+        if (controller.signal.aborted && (err.code === 'cancelled' || lost)) err = { ...QUERY_CANCELLED };
         set({
           running: null,
           error: err,

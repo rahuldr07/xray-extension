@@ -191,3 +191,24 @@ test('closing a dead session is quiet', async () => {
   const session = await createRemoteClient(env.connectPort).connect('p1', true);
   await session.close();
 });
+
+test('aborting fetchMore sends cancel with the fetchMore request id', async () => {
+  const env = fakeEnv((m, port) => {
+    if (m.op === 'fetchMore') return; // hangs until cancelled
+    if (m.op === 'cancel') {
+      const fm = port.sent.find((x) => x.op === 'fetchMore');
+      port.reply({ id: m.id, ok: true, value: {} });
+      port.reply({ id: fm.id, ok: false, error: { code: 'cancelled', message: 'Query cancelled.' } });
+      return;
+    }
+    sw(m, port);
+  });
+  const session = await createRemoteClient(env.connectPort).connect('p1', true);
+  const ac = new AbortController();
+  const p = session.fetchMore('t', 1000, ac.signal);
+  ac.abort();
+  await assert.rejects(p, (e) => e.code === 'cancelled');
+  const fm = env.ports[0].sent.find((m) => m.op === 'fetchMore');
+  const cancel = env.ports[0].sent.find((m) => m.op === 'cancel');
+  assert.equal(cancel.queryId, fm.id);
+});

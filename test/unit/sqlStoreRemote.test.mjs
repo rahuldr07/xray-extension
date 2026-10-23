@@ -56,10 +56,10 @@ function stubSession(engine = 'postgres', script = {}) {
       const answer = script.execute ?? result([1]);
       return typeof answer === 'function' ? answer(sql, opts, signal) : answer;
     },
-    async fetchMore(tabId, n) {
+    async fetchMore(tabId, n, signal) {
       session.fetches.push({ tabId, n });
       const answer = script.fetchMore ?? result([]);
-      return typeof answer === 'function' ? answer(tabId, n) : answer;
+      return typeof answer === 'function' ? answer(tabId, n, signal) : answer;
     },
     async close() {
       session.closed += 1;
@@ -102,13 +102,18 @@ function reset() {
   });
 }
 
-async function connectWith(session, profiles) {
+async function connectWith(session, profiles, id = 'p1') {
   reset();
   const api = stubApi([session], profiles);
   __setRemoteApiForTests(api);
-  await usePanelSqlStore.getState().connectProfile('p1');
+  await usePanelSqlStore.getState().connectProfile(id);
   return api;
 }
+
+const hang = (code) => (...args) =>
+  new Promise((_resolve, reject) => {
+    args.at(-1).addEventListener('abort', () => reject({ code, message: `driver said ${code}` }));
+  });
 
 function typeSql(sql) {
   const s = usePanelSqlStore.getState();
@@ -301,4 +306,116 @@ test('a MySQL profile uses the mysql dialect', async () => {
   const session = stubSession('mysql');
   await connectWith(session, [profile({ engine: 'mysql', port: 3306 })]);
   assert.equal(connectionDialect(usePanelSqlStore.getState().connection), 'mysql');
+});
+
+test('Stop interrupts Fetch more and reads as "Query cancelled."', async () => {
+  for (const code of ['cancelled', 'connection-lost']) {
+    const session = stubSession('postgres', { execute: result([1], { hasMore: true }), fetchMore: hang(code) });
+    await connectWith(session);
+    typeSql('SELECT id FROM orders');
+    await usePanelSqlStore.getState().run('current');
+    const fetching = usePanelSqlStore.getState().fetchMore();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.ok(usePanelSqlStore.getState().running, 'fetchMore counts as running');
+    usePanelSqlStore.getState().stop();
+    await fetching;
+    const s = usePanelSqlStore.getState();
+    assert.equal(s.running, null);
+    assert.equal(s.error.message, 'Query cancelled.', code);
+    assert.equal(s.messages.at(-1), 'Query cancelled.');
+    assert.deepEqual(s.result.rows, [[1]], 'the rows already shown stay');
+    assert.equal(s.connectionLost, code === 'connection-lost', code);
+  }
+});
+
+test('cancelPassword closes the prompt; a busy store keeps the prompt open', async () => {
+  reset();
+  const api = stubApi([{ code: 'auth-failed', message: 'Enter the password.', detail: 'password-required' }], [profile()]);
+  __setRemoteApiForTests(api);
+  await usePanelSqlStore.getState().connectProfile('p1');
+  assert.ok(usePanelSqlStore.getState().pendingPassword);
+  usePanelSqlStore.setState({ opening: true });
+  await usePanelSqlStore.getState().connectProfile('p1', { password: 'pw' });
+  let s = usePanelSqlStore.getState();
+  assert.deepEqual(s.pendingPassword, { profileId: 'p1', name: 'shop@db.example.com' });
+  assert.equal(api.connects.length, 1, 'no connect while busy');
+  assert.equal(s.messages.at(-1), 'Wait for the current query to finish.');
+  usePanelSqlStore.setState({ opening: false });
+  usePanelSqlStore.getState().cancelPassword();
+  s = usePanelSqlStore.getState();
+  assert.equal(s.pendingPassword, null);
+});
+
+test('a SQLite file that fails to open keeps the remote connection, tabs and schema', async () => {
+  const session = stubSession();
+  await connectWith(session);
+  typeSql('SELECT 42');
+  const before = usePanelSqlStore.getState();
+  // A valid header, so the open reaches the SQLite worker, which is not available here and fails.
+  const header = new TextEncoder().encode('SQLite format 3\u0000');
+  const bytes = new Uint8Array(100);
+  bytes.set(header);
+  const file = { name: 'bad.sqlite', size: bytes.length, arrayBuffer: async () => bytes.buffer };
+  await usePanelSqlStore.getState().openFile(file);
+  const s = usePanelSqlStore.getState();
+  assert.equal(s.connection.kind, 'remote');
+  assert.equal(s.connection, before.connection);
+  assert.equal(s.tabs, before.tabs);
+  assert.deepEqual(s.schema, SCHEMA);
+  assert.equal(session.closed, 0);
+  assert.ok(s.error);
+  assert.match(s.messages.at(-1), /^bad\.sqlite: /);
+  typeSql('SELECT 1');
+  await usePanelSqlStore.getState().run('current');
+  assert.equal(session.executes.length, 1, 'the remote session still runs');
+});
+
+test('a failed connect to B leaves session A open', async () => {
+  const a = stubSession();
+  const api = await connectWith(a, [profile(), profile({ id: 'p2', name: 'b' })]);
+  api.connects.length = 0;
+  __setRemoteApiForTests(stubApi([{ code: 'network', message: 'Could not reach the server.' }], [profile(), profile({ id: 'p2', name: 'b' })]));
+  await usePanelSqlStore.getState().connectProfile('p2');
+  const s = usePanelSqlStore.getState();
+  assert.equal(a.closed, 0);
+  assert.equal(s.connection.profileId, 'p1');
+  assert.equal(s.error.code, 'network');
+  typeSql('SELECT 1');
+  await usePanelSqlStore.getState().run('current');
+  assert.equal(a.executes.length, 1);
+});
+
+test('remote A to remote B closes A and loads B history and tabs', async () => {
+  const profiles = [profile(), profile({ id: 'p2', name: 'b' })];
+  // B first, to give it history and a tab of its own.
+  const b0 = stubSession();
+  await connectWith(b0, profiles, 'p2');
+  typeSql('SELECT b_only');
+  await usePanelSqlStore.getState().run('current');
+  const bTabs = usePanelSqlStore.getState().tabs;
+  const a = stubSession();
+  __setRemoteApiForTests(stubApi([a], profiles));
+  await usePanelSqlStore.getState().connectProfile('p1');
+  typeSql('SELECT a_only');
+  assert.equal(b0.closed, 1);
+  const b = stubSession();
+  __setRemoteApiForTests(stubApi([b], profiles));
+  await usePanelSqlStore.getState().connectProfile('p2');
+  const s = usePanelSqlStore.getState();
+  assert.equal(a.closed, 1);
+  assert.equal(s.connection.key, 'remote:p2');
+  assert.deepEqual(s.tabs.map((t) => t.sql), bTabs.map((t) => t.sql));
+  assert.equal(s.history[0].sql, 'SELECT b_only');
+});
+
+test('fetchMore from a different tab than the one that ran is refused', async () => {
+  const session = stubSession('postgres', { execute: result([1], { hasMore: true }) });
+  await connectWith(session);
+  typeSql('SELECT id FROM orders');
+  await usePanelSqlStore.getState().run('current');
+  usePanelSqlStore.getState().addTab();
+  await usePanelSqlStore.getState().fetchMore();
+  const s = usePanelSqlStore.getState();
+  assert.equal(session.fetches.length, 0);
+  assert.equal(s.messages.at(-1), 'Fetch more works from the tab that ran this query.');
 });

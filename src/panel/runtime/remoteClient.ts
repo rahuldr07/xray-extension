@@ -49,7 +49,7 @@ export type SaveProfileInput = {
 
 export interface RemoteSession extends SqlDriver {
   readonly serverVersion: string;
-  fetchMore(tabId: string, n: number): Promise<QueryResult>;
+  fetchMore(tabId: string, n: number, signal?: AbortSignal): Promise<QueryResult>;
 }
 
 export interface RemoteApi {
@@ -192,9 +192,9 @@ export function createRemoteClient(connectPort: () => PortLike): RemoteApi {
         if (!opts.tabId) throw { ...NO_TAB };
         return query('execute', { tabId: opts.tabId, sql, maxRows: opts.maxRows }, signal);
       },
-      fetchMore: async (tabId: string, n: number) => {
+      fetchMore: async (tabId: string, n: number, signal?: AbortSignal) => {
         if (!tabId) throw { ...NO_TAB };
-        return query('fetchMore', { tabId, n });
+        return query('fetchMore', { tabId, n }, signal);
       },
       close: async () => {
         try {
