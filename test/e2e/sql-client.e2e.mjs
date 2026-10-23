@@ -728,7 +728,8 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
 // A temp copy of the extension with nativeMessaging granted, and a profile whose NativeMessagingHosts
 // folder registers test/fixtures/fake-helper.mjs (unless `helper` is false: "helper missing"). The
 // real service worker and connection manager run against the fake.
-// The fake helper appends each request's op name (never its fields) to `helperLog`.
+// The fake helper appends each request to `helperLog` as JSON, a connect's password redacted to
+// "<redacted:N>"; helperRequests() reads it back.
 async function openRemotePage(t, { helper = true } = {}) {
   const ext = extensionCopyWithNativeMessaging();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xray-e2e-sql-remote-'));
@@ -753,7 +754,12 @@ async function openRemotePage(t, { helper = true } = {}) {
   await page.goto(`chrome-extension://${extensionId}/sql.html`);
   await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
   const readHelperLog = () => (fs.existsSync(helperLog) ? fs.readFileSync(helperLog, 'utf8') : '');
-  return { context, page, worker, readHelperLog };
+  const helperRequests = () =>
+    readHelperLog()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  return { context, page, worker, readHelperLog, helperRequests };
 }
 
 // The worker's stored profiles and session-only secrets.
@@ -782,7 +788,7 @@ async function fillConnection(dialog, { url, name, savePassword = true }) {
 }
 
 test('the connection dialog fills its fields from a pasted connection string and tests it', { timeout: 120_000 }, async (t) => {
-  const { page, worker, readHelperLog } = await openRemotePage(t);
+  const { page, worker, readHelperLog, helperRequests } = await openRemotePage(t);
   const before = await storedSql(worker);
   const dialog = await openConnectionDialog(page);
   const box = dialog.getByLabel('Connection string', { exact: true });
@@ -823,10 +829,18 @@ test('the connection dialog fills its fields from a pasted connection string and
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
   assert.deepEqual(await storedSql(worker), before, 'sql_connections and sql_session_secrets are unchanged');
-  // The helper saw a connect and an immediate close for each Test, and no password outside connect
-  // (the fake logs op names only, so the password must not appear in the log at all).
-  const ops = readHelperLog().trim().split('\n');
-  assert.deepEqual(ops.filter((op) => op !== 'hello'), ['connect', 'close', 'connect']);
+  // The helper saw a read-only connect and an immediate close for each Test. The password went only
+  // inside connect (logged redacted, by length), and nowhere else.
+  const requests = helperRequests().filter((r) => r.op !== 'hello');
+  assert.deepEqual(
+    requests.map((r) => [r.op, r.password, r.readOnly]),
+    [
+      ['connect', '<redacted:7>', true],
+      ['close', undefined, undefined],
+      ['connect', '<redacted:5>', true],
+    ],
+  );
+  assert.equal(requests[0].host, 'aws-0-us-east-1.pooler.supabase.com');
   assert.doesNotMatch(readHelperLog(), /s3cret|wrong/);
   await page.reload();
   await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
@@ -940,6 +954,49 @@ test('a connection without a saved password asks for it, and can be deleted from
   const after = page.getByRole('dialog', { name: 'Databases', exact: true }).getByRole('group', { name: 'Connections', exact: true });
   await after.getByRole('button', { name: 'New connection…', exact: true }).waitFor();
   assert.equal(await after.getByRole('button', { name: /^No secret/ }).count(), 0, 'the profile is gone');
+});
+
+// Ruling M3-R24: a saved password is bound to its server (engine, host, port, user).
+test('editing a saved connection to point at another server never sends it the saved password', { timeout: 120_000 }, async (t) => {
+  const { page, helperRequests } = await openRemotePage(t);
+  const create = await openConnectionDialog(page);
+  await fillConnection(create, { url: 'postgres://postgres:savedpw@db.example.com:5432/shop', name: 'Shop' });
+  await create.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await page.locator('.xray-sql-source', { hasText: 'Shop · PostgreSQL 16.4 · db.example.com' }).waitFor();
+
+  const openEdit = async () => {
+    await page.locator('.xray-sql-source').click();
+    const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+    await menu.getByRole('button', { name: 'More actions for Shop', exact: true }).click();
+    await menu.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit connection', exact: true });
+    await dialog.waitFor();
+    return dialog;
+  };
+
+  // Unchanged server: Test uses the saved password.
+  let edit = await openEdit();
+  assert.equal(await edit.getByLabel('Host', { exact: true }).inputValue(), 'db.example.com');
+  assert.equal(await edit.getByLabel('Password', { exact: true }).getAttribute('placeholder'), 'Saved — type to replace');
+  await edit.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await edit.getByRole('status').getByText('Connected — PostgreSQL 16.4', { exact: true }).waitFor();
+
+  // Another host, no password typed: refused before anything reaches the helper.
+  const connectsBefore = helperRequests().filter((r) => r.op === 'connect').length;
+  await edit.getByLabel('Connection string', { exact: true }).fill('postgres://postgres@other.example:5432/db');
+  assert.equal(await edit.getByLabel('Host', { exact: true }).inputValue(), 'other.example');
+  await edit.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await edit.getByRole('status').getByText(/^Enter the password for /).waitFor();
+  assert.equal(helperRequests().filter((r) => r.op === 'connect').length, connectsBefore, 'the cross-host Test sent no connect');
+
+  // Save & connect drops the saved password with the server change, so it asks for one.
+  await edit.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: /^Password for / });
+  await prompt.waitFor();
+  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const toOther = helperRequests().filter((r) => r.op === 'connect' && r.host === 'other.example');
+  assert.deepEqual(toOther, [], 'other.example never received a connect');
+  assert.ok(helperRequests().every((r) => r.op !== 'connect' || r.host === 'db.example.com'));
 });
 
 async function assertEventually(check, label, timeout = 15_000) {

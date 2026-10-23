@@ -4,7 +4,8 @@
 // database with `public.orders` (25 rows) and cursor support, so the real service-worker code runs
 // against it. Any password but "wrong" is accepted.
 //
-// Env: FAKE_HELPER_LOG=<file> appends one line per request op (never a password), for assertions.
+// Env: FAKE_HELPER_LOG=<file> appends each request as one JSON line, for assertions. A connect's
+// password is replaced by "<redacted:N>" (N = its length) or "<none>", so the log never holds it.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -43,8 +44,13 @@ const SCHEMA = {
 // Random session ids, as the real helper's registry makes: a restarted helper never reuses one.
 const sessions = new Map(); // sessionId -> Map(tabId -> { offset })
 
-function log(line) {
-  if (process.env.FAKE_HELPER_LOG) fs.appendFileSync(process.env.FAKE_HELPER_LOG, `${line}\n`);
+function log(msg) {
+  if (!process.env.FAKE_HELPER_LOG) return;
+  const entry = { ...msg };
+  if (msg.op === 'connect') {
+    entry.password = typeof msg.password === 'string' && msg.password !== '' ? `<redacted:${msg.password.length}>` : '<none>';
+  }
+  fs.appendFileSync(process.env.FAKE_HELPER_LOG, `${JSON.stringify(entry)}\n`);
 }
 
 function send(msg) {
@@ -75,7 +81,7 @@ function streamRows(id, cursor, n) {
 
 function handle(msg) {
   const { id, op } = msg;
-  log(op);
+  log(msg);
   switch (op) {
     case 'hello':
       return ok(id, { protocolVersion: 1, helperVersion: '0.9.0-fake' });

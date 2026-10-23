@@ -96,6 +96,16 @@
     return profile;
   }
 
+  // Ruling M3-R24: a stored password belongs to one server account. It is reused
+  // (by a re-save or a Test with a blank password) only while engine, host, port
+  // and user all still match; otherwise it could be sent to a different server.
+  function sameServer(a, b) {
+    return a.engine === b.engine
+      && str(a.host).trim().toLowerCase() === str(b.host).trim().toLowerCase()
+      && Number(a.port) === Number(b.port)
+      && a.user === b.user;
+  }
+
   function pageProfile(stored) {
     const { password, ...rest } = stored;
     return { ...rest, hasSavedPassword: typeof password === 'string' && password !== '' };
@@ -168,12 +178,14 @@
         if (input.id !== undefined && !existing) throw new OpError(badRequest('Unknown profile.'));
         const id = existing ? existing.id : newProfileId(profiles);
         const profile = cleanProfile(input, id);
-        // An omitted or empty password keeps whichever secret exists. It moves
-        // only when savePassword says where; without it, it stays where it is.
+        // An omitted or empty password keeps whichever secret exists, but only for
+        // the same server account (M3-R24): a changed engine, host, port or user
+        // drops it from both stores. It moves only when savePassword says where;
+        // without it, it stays where it is.
+        const keep = Boolean(existing && sameServer(existing, profile));
         const savedLocally = Boolean(existing && typeof existing.password === 'string' && existing.password !== '');
-        const password = typeof input.password === 'string' && input.password !== ''
-          ? input.password
-          : (savedLocally ? existing.password : secrets[id]);
+        const typed = typeof input.password === 'string' && input.password !== '' ? input.password : null;
+        const password = typed !== null ? typed : (!keep ? undefined : (savedLocally ? existing.password : secrets[id]));
         const local = typeof input.savePassword === 'boolean' ? input.savePassword : savedLocally;
         delete secrets[id];
         if (typeof password === 'string' && password !== '') {
@@ -201,15 +213,19 @@
 
     // Test connection: connects with the given fields (read-only) and closes at
     // once. It never writes sql_connections or sql_session_secrets. With no typed
-    // password, an existing profile's stored secret is read (never moved).
+    // password, an existing profile's stored secret is read (never moved), and
+    // only when engine, host, port and user still match the saved profile.
     async function testProfile(msg) {
       const input = msg.profile;
       if (!input || typeof input !== 'object') throw new OpError(badRequest('A profile is required.'));
       const profile = cleanProfile(input, 'test');
       let password = typeof msg.password === 'string' && msg.password !== '' ? msg.password : null;
-      if (password === null && typeof input.id === 'string') {
-        const stored = (await readProfiles()).find((p) => p.id === input.id);
-        if (stored && typeof stored.password === 'string' && stored.password !== '') password = stored.password;
+      const stored = password === null && typeof input.id === 'string'
+        ? (await readProfiles()).find((p) => p.id === input.id)
+        : undefined;
+      // The stored secret only for the server account it was saved for (M3-R24).
+      if (stored && sameServer(stored, profile)) {
+        if (typeof stored.password === 'string' && stored.password !== '') password = stored.password;
         if (password === null) {
           const secret = (await readSessionSecrets())[input.id];
           if (typeof secret === 'string' && secret !== '') password = secret;

@@ -511,22 +511,60 @@ test('sql-manager: profiles.test connects read-only with the given fields, close
   assert.doesNotMatch(JSON.stringify(page.posted), /hunter2/);
 });
 
-test('sql-manager: profiles.test with a blank password reads the stored secret without moving it', async () => {
-  const local = { sql_connections: [{ ...PROFILE, id: 'p1', password: 'saved-pw' }] };
+test('sql-manager: profiles.test with a blank password reads the stored secret for the same server, without moving it', async () => {
+  const local = { sql_connections: [{ ...PROFILE, id: 'p1', password: 'saved-pw' }, { ...PROFILE, id: 'p2' }] };
   const session = { sql_session_secrets: { p2: 'session-pw' } };
   const { manager, helper, storageLocal, storageSession } = setup({ local, session });
   const page = pagePort(manager);
   const before = JSON.stringify([storageLocal.data, storageSession.data]);
-  const a = await page.request({ id: 1, op: 'profiles.test', profile: { ...PROFILE, id: 'p1', host: 'edited.example.com' }, password: '' });
+  // Same engine, host (case and spaces aside), port and user; the database may differ.
+  const a = await page.request({ id: 1, op: 'profiles.test', profile: { ...PROFILE, id: 'p1', host: ' DB.example.com ', database: 'other' }, password: '' });
   assert.equal(a.ok, true);
   const b = await page.request({ id: 2, op: 'profiles.test', profile: { ...PROFILE, id: 'p2' } });
   assert.equal(b.ok, true);
   const connects = helper.sent.filter((m) => m.op === 'connect');
-  assert.deepEqual(connects.map((m) => [m.host, m.password]), [['edited.example.com', 'saved-pw'], ['db.example.com', 'session-pw']]);
+  assert.deepEqual(connects.map((m) => [m.database, m.password]), [['other', 'saved-pw'], ['app', 'session-pw']]);
   assert.equal(JSON.stringify([storageLocal.data, storageSession.data]), before, 'storage untouched');
   const c = await page.request({ id: 3, op: 'profiles.test', profile: { ...PROFILE } });
   assert.equal(c.ok, false);
   assert.equal(c.error.detail, 'password-required');
+});
+
+// Ruling M3-R24: a stored secret is bound to (engine, host, port, user).
+for (const [what, change] of [
+  ['host', { host: 'edited.example.com' }],
+  ['port', { port: 6543 }],
+  ['user', { user: 'mallory' }],
+  ['engine', { engine: 'mysql' }],
+]) {
+  test(`sql-manager: profiles.test never sends a stored secret when only the ${what} differs`, async () => {
+    const local = { sql_connections: [{ ...PROFILE, id: 'p1', password: 'saved-pw' }] };
+    const { manager, helper } = setup({ local, session: { sql_session_secrets: { p1: 'also-pw' } } });
+    const page = pagePort(manager);
+    const res = await page.request({ id: 1, op: 'profiles.test', profile: { ...PROFILE, id: 'p1', ...change }, password: '' });
+    assert.equal(res.ok, false);
+    assert.deepEqual(res.error, { code: 'auth-failed', message: 'Enter the password for Prod.', detail: 'password-required' });
+    assert.equal(helper.sent.filter((m) => m.op === 'connect').length, 0, 'nothing reaches the helper');
+    assert.doesNotMatch(JSON.stringify(helper.sent), /saved-pw|also-pw/);
+  });
+}
+
+test('sql-manager: a blank-password re-save drops the secret when the server changes, and keeps it for a database-only change', async () => {
+  const { manager, storageLocal, storageSession } = setup();
+  const page = pagePort(manager);
+  const local = (await page.request({ id: 1, op: 'profiles.save', profile: { ...PROFILE, password: 'keep', savePassword: true } })).value;
+  const dbOnly = await page.request({ id: 2, op: 'profiles.save', profile: { ...PROFILE, id: local.id, database: 'other', password: '' } });
+  assert.equal(dbOnly.value.hasSavedPassword, true);
+  assert.equal(storageLocal.data.sql_connections[0].password, 'keep');
+  const moved = await page.request({ id: 3, op: 'profiles.save', profile: { ...PROFILE, id: local.id, host: 'other.example.com', password: '' } });
+  assert.equal(moved.value.hasSavedPassword, false);
+  assert.equal('password' in storageLocal.data.sql_connections[0], false);
+
+  const sess = (await page.request({ id: 4, op: 'profiles.save', profile: { ...PROFILE, password: 'temp', savePassword: false } })).value;
+  await page.request({ id: 5, op: 'profiles.save', profile: { ...PROFILE, id: sess.id, user: 'bob' } });
+  assert.equal(sess.id in storageSession.data.sql_session_secrets, false, 'the session secret is dropped too');
+  const typed = await page.request({ id: 6, op: 'profiles.save', profile: { ...PROFILE, id: sess.id, host: 'third.example.com', password: 'new', savePassword: true } });
+  assert.equal(typed.value.hasSavedPassword, true, 'a typed password is always stored');
 });
 
 test('sql-manager: profiles.test passes helper errors and field validation through', async () => {
