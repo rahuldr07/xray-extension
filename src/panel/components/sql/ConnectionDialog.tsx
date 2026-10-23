@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useId, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { IconAlertCircle, IconCircleCheck, IconKey, IconPlugConnected, IconTrash } from '@tabler/icons-react';
 import { usePanelSqlStore } from '../../sqlStore';
 import {
@@ -263,21 +263,29 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
   const [form, setForm] = useState<Form>(() => formFor(profile));
   const [pasted, setPasted] = useState('');
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [filled, setFilled] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [busy, setBusy] = useState<'test' | 'save' | null>(null);
   // The profile this dialog edits: the one it opened with, or the one Save & connect created.
   const savedId = useRef<string | undefined>(profile?.id);
-  // An edited profile that a Test saved: Cancel puts the fields back.
-  const revertTo = useRef<PageProfile | null>(null);
+
+  // The install card needs the helper's state; asked only now that someone wants a connection.
+  useEffect(() => {
+    void usePanelSqlStore.getState().checkHelper();
+  }, []);
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setOutcome(null);
   };
 
-  function paste(text: string): void {
+  // A pasted (or fully typed) string fills the fields below, then the box is cleared so the
+  // password it carries does not stay on screen. Typing shows parse errors live; the fields fill
+  // once the text arrives in one go (a paste) or the box loses focus.
+  function paste(text: string, apply: boolean): void {
     setPasted(text);
     setOutcome(null);
+    setFilled(false);
     if (text.trim() === '') {
       setPasteError(null);
       return;
@@ -288,6 +296,7 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
       return;
     }
     setPasteError(null);
+    if (!apply) return;
     const p = parsed.profile;
     setForm((f) => ({
       ...f,
@@ -300,6 +309,8 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
       password: parsed.password,
       tls: p.tls,
     }));
+    setPasted('');
+    setFilled(true);
   }
 
   function setEngine(engine: SqlEngine): void {
@@ -321,7 +332,7 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
     }
     if (permission === 'missing') {
       // The card may be stale: the helper could have been installed since.
-      await usePanelSqlStore.getState().refreshRemote();
+      await usePanelSqlStore.getState().checkHelper();
       const state = usePanelSqlStore.getState().helper.state;
       if (state === 'missing' || state === 'outdated') {
         setOutcome({ kind: 'error', text: state === 'outdated' ? 'Update the XRAY database helper.' : 'Install the XRAY database helper.' });
@@ -338,7 +349,6 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
     try {
       const input = await pending;
       if (!input) return;
-      if (input.id && !input.password && profile && !revertTo.current) revertTo.current = profile;
       const version = await usePanelSqlStore.getState().testProfile(input);
       setOutcome({ kind: 'ok', text: `Connected — ${shortServerVersion(version) || engineLabel(input.engine)}` });
     } catch (raw) {
@@ -364,7 +374,6 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
         return;
       }
       savedId.current = saved.id;
-      revertTo.current = null;
       setForm((f) => ({ ...f, password: '' }));
       await store.connectProfile(saved.id);
       const s = usePanelSqlStore.getState();
@@ -380,18 +389,8 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
     }
   }
 
-  function cancel(): void {
-    const original = revertTo.current;
-    if (original) {
-      // A Test saved the edited fields; the password was not touched, so it stays.
-      const { id, name, engine, host, port, database, user, tls, caFile, statementTimeoutMs, readOnly } = original;
-      void usePanelSqlStore
-        .getState()
-        .saveProfile({ id, name, engine, host, port, database, user, tls, caFile, statementTimeoutMs, readOnly })
-        .catch(() => undefined);
-    }
-    onClose();
-  }
+  // A Test stores nothing, so Cancel has nothing to undo.
+  const cancel = onClose;
 
   const remoteHost = form.host.trim() !== '' && !isLoopbackHost(form.host);
   const working = busy !== null;
@@ -438,11 +437,14 @@ function ConnectionDialog({ profile, onClose }: { profile: PageProfile | null; o
               value={pasted}
               aria-invalid={pasteError ? true : undefined}
               aria-describedby={pasteHint}
-              onChange={(e) => paste(e.target.value)}
+              onChange={(e) => paste(e.target.value, e.target.value.length - pasted.length > 1)}
+              onBlur={() => {
+                if (pasted.trim() !== '') paste(pasted, true);
+              }}
             />
           </label>
           <p id={pasteHint} className={`xray-sql-conn-hint${pasteError ? ' error' : ''}`} aria-live="polite">
-            {pasteError ?? 'Paste a postgres:// or mysql:// URL to fill in the fields below.'}
+            {pasteError ?? (filled ? 'Filled in the fields below.' : 'Paste a postgres:// or mysql:// URL to fill in the fields below.')}
           </p>
         </div>
 

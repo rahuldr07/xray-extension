@@ -57,6 +57,12 @@ export interface RemoteApi {
     list(): Promise<PageProfile[]>;
     save(input: SaveProfileInput): Promise<PageProfile>;
     delete(profileId: string): Promise<void>;
+    /**
+     * Test connection: the worker connects with these fields (read-only), closes at once and stores
+     * nothing. An empty password uses the stored secret of `profile.id`, if any. Resolves with the
+     * raw server version.
+     */
+    test(profile: SaveProfileInput, password: string): Promise<string>;
   };
   helperStatus(): Promise<HelperStatus>;
   connect(profileId: string, readOnly: boolean, password?: string, remember?: boolean): Promise<RemoteSession>;
@@ -218,6 +224,12 @@ export function createRemoteClient(connectPort: () => PortLike): RemoteApi {
       save: async (input) => cleanProfile(await request('profiles.save', { profile: input })),
       delete: async (profileId) => {
         await request('profiles.delete', { profileId });
+      },
+      test: async (input, password) => {
+        // The password travels once, beside the fields, never inside a profile.
+        const { password: _p, savePassword: _s, ...profile } = input;
+        const res = await request<{ serverVersion?: unknown }>('profiles.test', { profile, password });
+        return typeof res?.serverVersion === 'string' ? res.serverVersion : '';
       },
     },
     helperStatus: () => request<HelperStatus>('helper.status'),

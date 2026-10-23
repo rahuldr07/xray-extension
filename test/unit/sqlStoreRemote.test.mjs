@@ -452,50 +452,57 @@ const FIELDS = {
   readOnly: true,
 };
 
-test('testProfile tests a new profile through a throwaway profile it deletes', async () => {
+test('testProfile asks the worker to test the fields, and saves and deletes nothing', async () => {
   reset();
-  const session = stubSession();
-  const api = recordingApi([session]);
+  const api = recordingApi([]);
+  api.tests = [];
+  api.profiles.test = async (input, password) => {
+    api.tests.push({ input, password });
+    return 'PostgreSQL 16.4 on x86_64';
+  };
   __setRemoteApiForTests(api);
-  const version = await usePanelSqlStore.getState().testProfile({ ...FIELDS, password: 'pw', savePassword: true });
-  assert.equal(version, 'PostgreSQL 16.4');
-  assert.equal(api.saves.length, 1);
-  assert.equal(api.saves[0].id, undefined);
-  assert.equal(api.saves[0].savePassword, false, 'the throwaway password stays in session storage');
-  assert.deepEqual(api.connects.map((c) => c.profileId), ['tmp1']);
-  assert.equal(session.closed, 1);
-  assert.deepEqual(api.deletes, ['tmp1']);
-  assert.equal(usePanelSqlStore.getState().connection, null, 'a test never opens the connection');
+  const version = await usePanelSqlStore.getState().testProfile({ ...FIELDS, id: 'p1', password: 'pw', savePassword: true });
+  assert.equal(version, 'PostgreSQL 16.4 on x86_64');
+  assert.equal(api.tests.length, 1);
+  assert.equal(api.tests[0].password, 'pw');
+  assert.equal(api.tests[0].input.id, 'p1');
+  assert.deepEqual(api.saves, []);
+  assert.deepEqual(api.deletes, []);
+  assert.deepEqual(api.connects, [], 'a test never opens a session through the page');
+  assert.equal(usePanelSqlStore.getState().connection, null);
+  await usePanelSqlStore.getState().testProfile({ ...FIELDS, id: 'p1' });
+  assert.equal(api.tests[1].password, '', 'a blank password lets the worker use the stored secret');
 });
 
-test('testProfile deletes the throwaway profile when the connect fails, and reports the error', async () => {
+test('testProfile passes the error through', async () => {
   reset();
-  const api = recordingApi([{ code: 'auth-failed', message: 'Password authentication failed.' }]);
+  const api = recordingApi([]);
+  api.profiles.test = async () => {
+    throw { code: 'auth-failed', message: 'Password authentication failed.' };
+  };
   __setRemoteApiForTests(api);
   await assert.rejects(usePanelSqlStore.getState().testProfile({ ...FIELDS, password: 'bad' }), {
     code: 'auth-failed',
     message: 'Password authentication failed.',
   });
-  assert.deepEqual(api.deletes, ['tmp1']);
+  assert.deepEqual(api.saves, []);
 });
 
-test('testProfile on an existing profile without a typed password saves it and tests the saved one', async () => {
-  reset();
-  const api = recordingApi([stubSession()]);
-  __setRemoteApiForTests(api);
-  await usePanelSqlStore.getState().testProfile({ ...FIELDS, id: 'p1', password: '' });
-  assert.equal(api.saves[0].id, 'p1');
-  assert.deepEqual(api.connects.map((c) => c.profileId), ['p1']);
-  assert.deepEqual(api.deletes, [], 'the real profile is kept');
-});
+function failingTest(error) {
+  const api = recordingApi([]);
+  api.profiles.test = async () => {
+    throw error;
+  };
+  return api;
+}
 
 test('testProfile records a missing helper, or a missing permission, for the install card', async () => {
   reset();
-  __setRemoteApiForTests(recordingApi([{ code: 'helper-missing', message: 'Install the XRAY database helper.' }]));
+  __setRemoteApiForTests(failingTest({ code: 'helper-missing', message: 'Install the XRAY database helper.' }));
   await assert.rejects(usePanelSqlStore.getState().testProfile({ ...FIELDS, password: 'pw' }));
   assert.equal(usePanelSqlStore.getState().helper.state, 'missing');
   __setRemoteApiForTests(
-    recordingApi([{ code: 'helper-missing', message: 'Allow XRAY to use the database helper.', detail: 'no-permission' }]),
+    failingTest({ code: 'helper-missing', message: 'Allow XRAY to use the database helper.', detail: 'no-permission' }),
   );
   await assert.rejects(usePanelSqlStore.getState().testProfile({ ...FIELDS, password: 'pw' }));
   assert.equal(usePanelSqlStore.getState().helper.state, 'no-permission');
@@ -510,4 +517,34 @@ test('saveProfile and deleteProfile reload the saved list', async () => {
   assert.equal(usePanelSqlStore.getState().profiles.length, 2);
   await usePanelSqlStore.getState().deleteProfile('p2');
   assert.deepEqual(api.deletes, ['p2']);
+});
+
+test('cursorTabId follows the tab that ran the statement, and a new connection clears it', async () => {
+  const session = stubSession('postgres', { execute: result([1], { hasMore: true }) });
+  await connectWith(session);
+  assert.equal(usePanelSqlStore.getState().cursorTabId, null);
+  typeSql('select 1');
+  await usePanelSqlStore.getState().run('current');
+  const s = usePanelSqlStore.getState();
+  assert.equal(s.cursorTabId, s.activeTabId);
+  assert.equal(s.canFetchMore, true);
+  s.addTab();
+  assert.notEqual(usePanelSqlStore.getState().activeTabId, usePanelSqlStore.getState().cursorTabId, 'another tab is not the cursor tab');
+});
+
+test('loadProfiles never asks for the helper status; checkHelper does', async () => {
+  reset();
+  const api = recordingApi([]);
+  let statusCalls = 0;
+  api.helperStatus = async () => {
+    statusCalls += 1;
+    return { state: 'missing' };
+  };
+  __setRemoteApiForTests(api);
+  await usePanelSqlStore.getState().loadProfiles();
+  assert.equal(statusCalls, 0);
+  assert.equal(usePanelSqlStore.getState().profiles.length, 1);
+  await usePanelSqlStore.getState().checkHelper();
+  assert.equal(statusCalls, 1);
+  assert.equal(usePanelSqlStore.getState().helper.state, 'missing');
 });

@@ -38,6 +38,7 @@ function sw(m, port) {
   else if (m.op === 'connect') ok({ sessionId: 's1', serverVersion: '8.0', capabilities: CAPS });
   else if (m.op === 'execute' || m.op === 'fetchMore') ok(RESULT);
   else if (m.op === 'helper.status') ok({ state: 'ready', helperVersion: '1.0.0' });
+  else if (m.op === 'profiles.test') ok({ serverVersion: 'MySQL 8.0.36' });
   else ok({});
 }
 
@@ -59,6 +60,19 @@ test('profiles.delete sends profileId; helperStatus passes the state through', a
   assert.equal(env.ports[0].sent[0].op, 'profiles.delete');
   assert.equal(env.ports[0].sent[0].profileId, 'p1');
   assert.deepEqual(await api.helperStatus(), { state: 'ready', helperVersion: '1.0.0' });
+});
+
+test('profiles.test sends the fields and the password apart, and resolves with the server version', async () => {
+  const env = fakeEnv(sw);
+  const api = createRemoteClient(env.connectPort);
+  const version = await api.profiles.test({ ...PROFILE, password: 'inline', savePassword: true }, 'pw');
+  assert.equal(version, 'MySQL 8.0.36');
+  const req = env.ports[0].sent[0];
+  assert.equal(req.op, 'profiles.test');
+  assert.equal(req.password, 'pw');
+  assert.equal('password' in req.profile, false);
+  assert.equal('savePassword' in req.profile, false);
+  assert.equal(req.profile.id, 'p1');
 });
 
 test('connect yields a session; execute carries tabId, maxRows and the session id', async () => {

@@ -125,6 +125,9 @@ export interface SqlState {
   connectionLost: boolean;
   // The shown result came from a remote cursor that has more rows: Fetch more appends them.
   canFetchMore: boolean;
+  // The editor tab whose statement produced the shown result: remote cursors are per tab, so
+  // Fetch more shows only there.
+  cursorTabId: string | null;
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   // Files dropped on the page: the first opens through openFile (no handle, so Save downloads).
@@ -160,11 +163,14 @@ export interface SqlState {
   // Rejects with a SqlError.
   saveProfile(input: SaveProfileInput): Promise<PageProfile>;
   deleteProfile(profileId: string): Promise<void>;
-  // Test connection: connects with the given fields, reads the server version and closes. A new
-  // profile, or one with a typed password, is tested through a throwaway profile that is deleted
-  // afterwards; an existing profile without a typed password is saved first, since only the worker
-  // holds its password. Resolves with the raw server version; rejects with a SqlError.
+  // Test connection: the worker connects with these fields, reads the server version and closes,
+  // storing nothing. A blank password on an existing profile uses its stored secret. Resolves with
+  // the raw server version; rejects with a SqlError.
   testProfile(input: SaveProfileInput): Promise<string>;
+  // The saved profiles only: never starts the helper.
+  loadProfiles(): Promise<void>;
+  // Asks the worker for the helper's state (this starts the helper when it is installed).
+  checkHelper(): Promise<void>;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
@@ -192,8 +198,6 @@ let client: SqliteClient | null = null;
 let remoteApi: RemoteApi | null = null;
 // The open remote session, when the connection is remote.
 let remote: RemoteSession | null = null;
-// The editor tab whose statement produced the shown result: remote cursors are per tab.
-let resultTabId: string | null = null;
 // The Read-only mode a pending password retry connects with (a reconnect or a mode switch).
 let passwordMode: boolean | null = null;
 // The bytes a re-open starts from: the file as opened, or as last saved.
@@ -525,8 +529,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       });
       const extra = [...result.notices];
       if (result.truncatedCells > 0) extra.push(`${result.truncatedCells} long text values were cut for display.`);
-      resultTabId = q.tabId;
       set({
+        cursorTabId: q.tabId,
         running: null,
         result,
         resultTable: q.resultTable,
@@ -551,7 +555,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         running: null,
         error: err,
         // The tab's statement ended its cursor; a lost session ends every cursor.
-        ...(lost || q.tabId === resultTabId ? { canFetchMore: false } : {}),
+        ...(lost || q.tabId === get().cursorTabId ? { canFetchMore: false } : {}),
         ...(lost ? { connectionLost: true } : {}),
         errorAt: err.position === undefined ? null : { tabId: q.tabId, position: err.position + item.from },
         dirty: unsaved(),
@@ -736,8 +740,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       } catch (raw) {
         schemaError = normalizeSqlError(raw);
       }
-      resultTabId = null;
       set({
+        cursorTabId: null,
         connection: {
           kind: 'remote',
           profileId: profile.id,
@@ -801,6 +805,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     pendingPassword: null,
     connectionLost: false,
     canFetchMore: false,
+    cursorTabId: null,
 
     async openFile(file, handle) {
       await requestOpen(file, handle, null);
@@ -1004,7 +1009,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         tabs,
         activeTabId,
         errorAt: s.errorAt?.tabId === id ? null : s.errorAt,
-        ...(id === resultTabId ? { canFetchMore: false } : {}),
+        ...(id === s.cursorTabId ? { canFetchMore: false } : {}),
       });
       persistTabs();
     },
@@ -1098,7 +1103,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const prev = s.result;
       if (s.connection?.kind !== 'remote' || !session || !prev || !s.canFetchMore || s.connectionLost || !idle()) return;
       // The cursor belongs to the tab that ran the statement.
-      if (s.activeTabId !== resultTabId) {
+      if (s.activeTabId !== s.cursorTabId) {
         say('Fetch more works from the tab that ran this query.');
         return;
       }
@@ -1170,27 +1175,26 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     },
 
     async testProfile(input) {
-      const api = remoteClient();
-      const throwaway = !(input.id && !input.password);
-      let id: string;
       try {
-        id = throwaway
-          ? (await api.profiles.save({ ...input, id: undefined, savePassword: false })).id
-          : (await get().saveProfile(input)).id;
-      } catch (raw) {
-        throw normalizeSqlError(raw);
-      }
-      try {
-        const session = await api.connect(id, input.readOnly);
+        const version = await remoteClient().profiles.test(input, input.password ?? '');
         set({ helper: { ...get().helper, state: 'ready' } });
-        await session.close().catch(() => undefined);
-        return session.serverVersion;
+        return version;
       } catch (raw) {
         const err = normalizeSqlError(raw);
         noteHelperError(err);
         throw err;
-      } finally {
-        if (throwaway) await api.profiles.delete(id).catch(() => undefined);
+      }
+    },
+
+    async loadProfiles() {
+      await reloadProfiles();
+    },
+
+    async checkHelper() {
+      try {
+        set({ helper: await remoteClient().helperStatus() });
+      } catch (raw) {
+        if (normalizeSqlError(raw).code === 'helper-missing') set({ helper: { state: 'missing' } });
       }
     },
   };

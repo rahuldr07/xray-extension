@@ -209,6 +209,7 @@ function SourceControl(): React.ReactElement | null {
 
   useEffect(() => {
     if (!open) return undefined;
+    void usePanelSqlStore.getState().checkHelper();
     // Focus moves into the panel when it opens.
     menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
     const onPointerDown = (e: PointerEvent) => {
@@ -468,7 +469,7 @@ function Welcome(): React.ReactElement {
   return (
     <section className="xray-sql-welcome" aria-labelledby="xray-sql-welcome-title">
       <IconDatabase size={36} stroke={1.4} aria-hidden="true" className="xray-sql-welcome-icon" />
-      <h1 id="xray-sql-welcome-title">Open a SQLite database</h1>
+      <h1 id="xray-sql-welcome-title">Open a database</h1>
       <div className="xray-sql-welcome-actions">
         <OpenFileButton className="xray-btn primary xray-sql-welcome-open" title={`Open a database (${SHORTCUTS.open})`} disabled={opening} />
         <button type="button" className="xray-btn xray-sql-welcome-open" disabled={opening} onClick={ui.newConnection}>
@@ -741,12 +742,14 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const dropping = useFileDrop();
   usePageShortcuts();
 
-  // Saved connections and the helper's state, for the welcome screen and the source menu.
+  // Saved connections for the welcome screen and the source menu. The helper's state (which
+  // starts the helper) is asked only when there is a saved connection to use it for; the
+  // connection dialog and the Databases menu ask when they open.
   useEffect(() => {
-    void usePanelSqlStore
-      .getState()
-      .refreshRemote()
-      .catch(() => undefined);
+    const store = usePanelSqlStore.getState();
+    void store.loadProfiles().then(() => {
+      if (usePanelSqlStore.getState().profiles.length) void store.checkHelper();
+    });
   }, []);
 
   // Unsaved writes live only in the worker; leaving the page would drop them silently.

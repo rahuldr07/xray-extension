@@ -431,7 +431,7 @@ test('a file that is not a database is refused and the next one still opens', { 
 test('the first screen welcomes, and the editor/results divider steps with the keyboard and persists', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   // Before a file is open: the welcome holds the one open button; the header shows just the brand.
-  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Open a database', exact: true }).waitFor();
   await page.getByText('or drop a .sqlite / .db file anywhere on this page', { exact: true }).waitFor();
   await page.getByText('Files open read-only. Nothing leaves your machine.', { exact: true }).waitFor();
   await page.getByText('No database open.', { exact: true }).waitFor();
@@ -613,7 +613,7 @@ test('a fresh tab offers quick starts that insert SQL without running it, and th
 
 test('dropping files opens the first through the open path, and the rail filters tables', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
-  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Open a database', exact: true }).waitFor();
 
   // A drop built in the page from the fixture's bytes, with a second file that is ignored.
   await page.evaluate((bytes) => {
@@ -728,15 +728,19 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
 // A temp copy of the extension with nativeMessaging granted, and a profile whose NativeMessagingHosts
 // folder registers test/fixtures/fake-helper.mjs (unless `helper` is false: "helper missing"). The
 // real service worker and connection manager run against the fake.
+// The fake helper appends each request's op name (never its fields) to `helperLog`.
 async function openRemotePage(t, { helper = true } = {}) {
   const ext = extensionCopyWithNativeMessaging();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xray-e2e-sql-remote-'));
+  const helperLog = path.join(userDataDir, 'fake-helper.log');
   if (helper) registerNativeHost(userDataDir);
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: true,
     channel: 'chromium',
     viewport: { width: 1280, height: 900 },
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--no-sandbox'],
+    // Chrome starts the native host with its own environment.
+    env: { ...process.env, FAKE_HELPER_LOG: helperLog },
   });
   t.after(async () => {
     await context.close();
@@ -748,8 +752,16 @@ async function openRemotePage(t, { helper = true } = {}) {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/sql.html`);
   await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
-  return { context, page };
+  const readHelperLog = () => (fs.existsSync(helperLog) ? fs.readFileSync(helperLog, 'utf8') : '');
+  return { context, page, worker, readHelperLog };
 }
+
+// The worker's stored profiles and session-only secrets.
+const storedSql = (worker) =>
+  worker.evaluate(async () => ({
+    local: (await chrome.storage.local.get('sql_connections')).sql_connections ?? null,
+    session: (await chrome.storage.session.get('sql_session_secrets')).sql_session_secrets ?? null,
+  }));
 
 const SUPABASE = 'postgresql://postgres.abcdefgh:s3cret%21@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require';
 const LINUX_INSTALL = ['curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh', 'sh'].join(' | ');
@@ -770,7 +782,8 @@ async function fillConnection(dialog, { url, name, savePassword = true }) {
 }
 
 test('the connection dialog fills its fields from a pasted connection string and tests it', { timeout: 120_000 }, async (t) => {
-  const { page } = await openRemotePage(t);
+  const { page, worker, readHelperLog } = await openRemotePage(t);
+  const before = await storedSql(worker);
   const dialog = await openConnectionDialog(page);
   const box = dialog.getByLabel('Connection string', { exact: true });
   await box.fill('redis://localhost');
@@ -778,6 +791,9 @@ test('the connection dialog fills its fields from a pasted connection string and
 
   await box.fill(SUPABASE);
   assert.equal(await dialog.getByText('Use a postgres:// or mysql:// connection string.').count(), 0, 'the error clears');
+  // The string (and the password in it) leaves the box once it has filled the fields.
+  await dialog.getByText('Filled in the fields below.', { exact: true }).waitFor();
+  assert.equal(await box.inputValue(), '', 'the paste box is cleared');
   assert.equal(await dialog.getByRole('radio', { name: 'PostgreSQL', exact: true }).isChecked(), true);
   assert.equal(await dialog.getByLabel('Host', { exact: true }).inputValue(), 'aws-0-us-east-1.pooler.supabase.com');
   assert.equal(await dialog.getByLabel('Port', { exact: true }).inputValue(), '6543');
@@ -803,9 +819,15 @@ test('the connection dialog fills its fields from a pasted connection string and
   await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
   await dialog.getByText('Password authentication failed for user "postgres".', { exact: true }).waitFor();
 
-  // A Test never leaves a saved connection behind.
+  // A Test stores nothing: no profile, no secret.
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
+  assert.deepEqual(await storedSql(worker), before, 'sql_connections and sql_session_secrets are unchanged');
+  // The helper saw a connect and an immediate close for each Test, and no password outside connect
+  // (the fake logs op names only, so the password must not appear in the log at all).
+  const ops = readHelperLog().trim().split('\n');
+  assert.deepEqual(ops.filter((op) => op !== 'hello'), ['connect', 'close', 'connect']);
+  assert.doesNotMatch(readHelperLog(), /s3cret|wrong/);
   await page.reload();
   await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
   await sleep(500);
@@ -815,6 +837,12 @@ test('the connection dialog fills its fields from a pasted connection string and
 test('without the helper, the welcome screen and the dialog show the install card', { timeout: 120_000 }, async (t) => {
   const { page } = await openRemotePage(t, { helper: false });
   const card = page.getByRole('region', { name: 'Install the XRAY database helper', exact: true });
+  // Nothing asks for the helper until someone wants a connection: no saved ones, no dialog yet.
+  await sleep(500);
+  assert.equal(await card.count(), 0, 'no status check on a bare welcome screen');
+  const first = await openConnectionDialog(page);
+  await first.getByRole('region', { name: 'Install the XRAY database helper', exact: true }).waitFor();
+  await first.getByRole('button', { name: 'Cancel', exact: true }).click();
   await card.waitFor();
   await card
     .getByText('Postgres and MySQL need a small helper app on this computer. Run this once in a terminal, then click Retry.', { exact: true })
@@ -851,6 +879,11 @@ test('a saved connection connects, lists in the source menu and on the welcome s
   await assertEventually(async () => /^10 rows/.test((await summary(page).textContent()) ?? ''), 'first page of 10 rows');
   assert.doesNotMatch((await summary(page).textContent()) ?? '', /Run with higher limit/);
   const fetchMore = page.getByRole('button', { name: 'Fetch more', exact: true });
+  await fetchMore.waitFor();
+  // The cursor belongs to the tab that ran the query: another tab shows no Fetch more.
+  await page.getByRole('button', { name: 'New query tab', exact: true }).click();
+  assert.equal(await fetchMore.count(), 0, 'no Fetch more on another tab');
+  await page.getByRole('tab', { name: 'Query 1', exact: true }).click();
   await fetchMore.click();
   await assertEventually(async () => /^25 rows/.test((await summary(page).textContent()) ?? ''), 'all 25 rows after Fetch more');
   await fetchMore.waitFor({ state: 'detached' });

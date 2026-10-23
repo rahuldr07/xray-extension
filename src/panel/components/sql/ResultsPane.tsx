@@ -122,6 +122,8 @@ function ResultsView(): React.ReactElement {
   const filter = usePanelSqlStore((s) => s.rowFilter);
   const gridView = usePanelSqlStore((s) => s.gridView);
   const canFetchMore = usePanelSqlStore((s) => s.canFetchMore);
+  // The cursor belongs to the tab that ran the statement; Fetch more shows only there.
+  const onCursorTab = usePanelSqlStore((s) => s.activeTabId === s.cursorTabId);
   const running = usePanelSqlStore((s) => !!s.running);
   const { setRowFilter, setGridView, fetchMore } = usePanelSqlStore.getState();
   const [hint, setHint] = useState(!inspectedOnce);
@@ -199,7 +201,7 @@ function ResultsView(): React.ReactElement {
           {filtering && hasColumns ? filteredSummary(viewRows.length, result.rows.length, result.durationMs) : resultSummary(result)}
           {result.hasMore ? (canFetchMore ? ' · more rows available' : ' · more rows available, Run with higher limit') : ''}
         </span>
-        {canFetchMore && (
+        {canFetchMore && onCursorTab && (
           <button
             type="button"
             className="xray-btn xray-btn-sm xray-sql-fetch-more"
