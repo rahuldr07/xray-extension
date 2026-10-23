@@ -3,7 +3,7 @@
 
 .xray-sql-app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -15,19 +15,19 @@
 .xray-sql-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   min-height: 48px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--xray-border);
   background: var(--xray-surface);
 }
 
 .xray-sql-brand {
+  flex: none;
   font-weight: 800;
   letter-spacing: .04em;
   color: var(--xray-accent);
-  margin-right: 4px;
+  margin-right: 6px;
 }
 
 .xray-sql-field {
@@ -46,35 +46,152 @@
   margin: 0;
 }
 
-.xray-sql-max-rows {
-  width: 88px;
-  height: 32px;
-  padding: 0 8px;
-}
-
-.xray-sql-connection {
+/* Source control: the open file, its menu and the Read-only / Editable badge */
+.xray-sql-source-wrap {
+  position: relative;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
-  max-width: 320px;
-  padding: 0 8px;
-  border-left: 1px solid var(--xray-border);
 }
 
-.xray-sql-connection-name {
+.xray-sql-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(460px, 50vw);
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--xray-border);
+  border-radius: var(--xray-radius);
+  background: var(--xray-bg);
+  color: var(--xray-text);
+  font: 600 12px/1 var(--xray-font-ui);
+  cursor: pointer;
+  transition: border-color var(--xray-dur-fast) ease, background var(--xray-dur-fast) ease;
+}
+
+.xray-sql-source:hover,
+.xray-sql-source[aria-expanded="true"] {
+  border-color: var(--xray-border-control);
+  background: var(--xray-hover);
+}
+
+.xray-sql-source svg {
+  flex: none;
+  color: var(--xray-hint);
+}
+
+/* A writable database is obvious at a glance: the source control takes the warning tone. */
+.xray-sql-source.editable {
+  border-color: color-mix(in srgb, var(--xray-yellow) 55%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 8%, var(--xray-bg));
+}
+
+.xray-sql-source.editable > svg:first-child {
+  color: var(--xray-yellow);
+}
+
+.xray-sql-source-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--xray-font);
-  color: var(--xray-text);
 }
 
-.xray-sql-connection-meta,
-.xray-sql-muted {
+.xray-sql-source-meta {
+  flex: none;
   color: var(--xray-hint);
-  font-size: 12px;
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.xray-sql-source-chevron {
+  transition: transform var(--xray-dur-fast) ease;
+}
+
+.xray-sql-source[aria-expanded="true"] .xray-sql-source-chevron {
+  transform: rotate(180deg);
+}
+
+.xray-sql-source-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  padding: 4px;
+  border: 1px solid var(--xray-border);
+  border-radius: var(--xray-radius);
+  background: var(--xray-surface);
+  box-shadow: 0 12px 28px var(--xray-shadow);
+}
+
+.xray-sql-source-menu .xray-menu-item {
+  min-height: 32px;
+}
+
+.xray-sql-source-menu .xray-sql-check {
+  gap: 8px;
+  color: var(--xray-text);
+  font-weight: 600;
+}
+
+.xray-sql-source-note {
+  margin: 2px 8px 6px;
+  color: var(--xray-hint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.xray-sql-mode-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid var(--xray-border);
+  border-radius: 999px;
+  color: var(--xray-subtext);
+  background: rgba(var(--xray-text-rgb), .04);
+  font: 700 10px/1 var(--xray-font-ui);
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+.xray-sql-mode-badge.editable {
+  color: var(--xray-yellow);
+  border-color: color-mix(in srgb, var(--xray-yellow) 45%, transparent);
+  background: color-mix(in srgb, var(--xray-yellow) 10%, transparent);
+}
+
+/* Run / Stop / Save */
+.xray-sql-run,
+.xray-sql-save {
+  flex: none;
+}
+
+.xray-sql-kbd {
+  margin-left: 2px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: var(--xray-radius-sm);
+  font: 600 10px/1 var(--xray-font-ui);
+  opacity: .7;
+}
+
+.xray-sql-save {
+  position: relative;
+}
+
+.xray-sql-save-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--xray-yellow);
 }
 
 .xray-sql-toolbar .xray-btn:disabled {
@@ -82,18 +199,156 @@
   cursor: default;
 }
 
+.xray-sql-muted {
+  color: var(--xray-hint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .xray-sql-body {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 220px auto minmax(0, 1fr);
   min-height: 0;
+}
+
+/* Dividers: a 1 px rule with a wider hit area; neutral on hover, the focus colour on keyboard focus. */
+.xray-sql-divider {
+  position: relative;
+  z-index: 3;
+  flex: none;
+  background: var(--xray-border);
+  touch-action: none;
+}
+
+.xray-sql-divider.vertical {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.xray-sql-divider.horizontal {
+  height: 1px;
+  cursor: row-resize;
+}
+
+.xray-sql-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.xray-sql-divider.vertical::before {
+  left: -4px;
+  right: -4px;
+}
+
+.xray-sql-divider.horizontal::before {
+  top: -4px;
+  bottom: -4px;
+}
+
+.xray-sql-divider:hover,
+.xray-sql-divider.dragging {
+  background: var(--xray-border-control);
+}
+
+.xray-app-root .xray-sql-divider:focus-visible {
+  outline: none;
+  background: var(--xray-focus);
+  box-shadow: 0 0 0 1px var(--xray-focus);
+}
+
+/* Status bar */
+.xray-sql-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 12px;
+  border-top: 1px solid var(--xray-border);
+  background: var(--xray-surface);
+  color: var(--xray-hint);
+  font: 500 11px/1 var(--xray-font-ui);
+  white-space: nowrap;
+}
+
+.xray-sql-status .xray-sql-mode-badge {
+  height: 16px;
+  font-size: 9.5px;
+}
+
+.xray-sql-status-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--xray-subtext);
+  font-family: var(--xray-font);
+}
+
+.xray-sql-connection-meta {
+  color: var(--xray-yellow);
+  font-weight: 600;
+}
+
+/* First screen */
+.xray-sql-welcome {
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 24px;
+  text-align: center;
+}
+
+.xray-sql-welcome-icon {
+  color: var(--xray-accent);
+  margin-bottom: 4px;
+}
+
+.xray-sql-welcome h1 {
+  margin: 0 0 6px;
+  color: var(--xray-text);
+  font: 700 20px/1.25 var(--xray-font-ui);
+  letter-spacing: -.01em;
+}
+
+.xray-sql-welcome-open {
+  height: 38px;
+  padding: 0 18px;
+  font-size: 13px;
+}
+
+.xray-sql-welcome-drop {
+  margin: 4px 0 0;
+  color: var(--xray-subtext);
+  font-size: 13px;
+}
+
+.xray-sql-welcome-note {
+  margin: 0;
+  color: var(--xray-hint);
+  font-size: 12px;
+}
+
+.xray-sql-welcome-error {
+  max-width: 520px;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--xray-red) 40%, transparent);
+  border-radius: var(--xray-radius-sm);
+  background: color-mix(in srgb, var(--xray-red) 8%, transparent);
+  color: var(--xray-red);
+  font: 12px/1.5 var(--xray-font);
 }
 
 /* Schema rail */
 .xray-sql-rail {
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 8px 6px;
-  border-right: 1px solid var(--xray-border);
   background: var(--xray-surface);
 }
 
@@ -230,9 +485,20 @@
 /* Editor column */
 .xray-sql-main {
   display: grid;
-  grid-template-rows: auto minmax(96px, 2fr) minmax(160px, 3fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+}
+
+.xray-sql-split {
+  display: grid;
+  min-height: 0;
+}
+
+.xray-sql-editor-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .xray-sql-editor-tabs {
@@ -306,7 +572,6 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
-  border-top: 1px solid var(--xray-border);
 }
 
 .xray-sql-bottom-tabs {
@@ -350,6 +615,24 @@
   min-height: 36px;
   padding: 4px 10px;
   border-bottom: 1px solid var(--xray-border);
+}
+
+.xray-sql-max-rows-field {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--xray-hint);
+}
+
+.xray-sql-results-head .xray-input {
+  height: 26px;
+  padding: 0 8px;
+  border-color: var(--xray-border);
+  border-radius: var(--xray-radius-sm);
+  font: 500 12px/1 var(--xray-font-ui);
+}
+
+.xray-sql-results-head .xray-sql-max-rows {
+  width: 76px;
 }
 
 .xray-sql-results-summary {
@@ -587,7 +870,17 @@
 }
 
 @media (max-width: 720px) {
-  .xray-sql-body {
-    grid-template-columns: 160px minmax(0, 1fr);
+  .xray-sql-source-meta,
+  .xray-sql-kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-sql-app *,
+  .xray-sql-app *::before,
+  .xray-sql-app *::after {
+    transition: none !important;
+    animation: none !important;
   }
 }

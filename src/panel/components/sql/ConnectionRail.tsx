@@ -87,7 +87,7 @@ export function ConnectionRail(): React.ReactElement {
 
   return (
     <nav className="xray-sql-rail" aria-label="Schema">
-      {!connection && <p className="xray-sql-empty">Open a SQLite file to browse its tables.</p>}
+      {!connection && <p className="xray-sql-empty">No database open.</p>}
       {connection && schema && (
         <div role="tree" aria-label="Tables and views" className="xray-sql-tree">
           {schema.schemas.map((s) => (

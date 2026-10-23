@@ -11,6 +11,7 @@ import { normalizeSqlError } from './models/sqlErrors';
 import { selectTableSql } from './models/sqlSchema';
 import { splitStatements, statementAt } from './models/sqlStatements';
 import { clampMaxRows } from './models/sqlValues';
+import { restoreLayout, SQL_LAYOUT_KEY, type SqlLayout } from './models/sqlLayout';
 import {
   appendHistory,
   connectionKeyForFile,
@@ -67,6 +68,8 @@ export interface SqlState {
   bottomTab: SqlBottomTab;
   // Confirmations that are not about a statement: discarding unsaved changes.
   pendingPrompt: SqlPrompt | null;
+  // Editor share and rail width, persisted as sql_layout.
+  layout: SqlLayout;
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   run(mode: 'current' | 'all'): Promise<void>;
@@ -84,6 +87,7 @@ export interface SqlState {
   setActiveTab(id: string): void;
   updateTabSql(id: string, sql: string): void;
   setBottomTab(tab: SqlBottomTab): void;
+  setLayout(patch: Partial<SqlLayout>): void;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
@@ -117,6 +121,7 @@ let queue: RunQueue | null = null;
 let promptAction: (() => Promise<void> | void) | null = null;
 let storedHistory: Record<string, HistoryItem[]> = {};
 let storedTabs: Record<string, EditorTab[]> = {};
+let storedLayout: SqlLayout = restoreLayout(undefined);
 let storageLoaded: Promise<void> | null = null;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const persistWriters = new Map<string, () => void>();
@@ -145,14 +150,18 @@ function asRecord<T>(raw: unknown): Record<string, T[]> {
   return out;
 }
 
-/** Reads stored history and editor tabs once; storage failures leave both empty. */
+/** Reads stored history, editor tabs and the layout once; storage failures leave the defaults. */
 export function loadSqlStorage(): Promise<void> {
   storageLoaded ??= Promise.all([
     getStoredValue<unknown>(HISTORY_KEY, {}).catch(() => ({})),
     getStoredValue<unknown>(EDITOR_TABS_KEY, {}).catch(() => ({})),
-  ]).then(([history, tabs]) => {
+    getStoredValue<unknown>(SQL_LAYOUT_KEY, null).catch(() => null),
+  ]).then(([history, tabs, layout]) => {
     storedHistory = asRecord<HistoryItem>(history);
     storedTabs = asRecord<EditorTab>(tabs);
+    storedLayout = restoreLayout(layout);
+    // Loaded before the first render (sql-main.tsx awaits this), so the layout never flashes.
+    usePanelSqlStore.setState({ layout: storedLayout });
   });
   return storageLoaded;
 }
@@ -454,6 +463,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     resultTable: null,
     bottomTab: 'results',
     pendingPrompt: null,
+    layout: storedLayout,
 
     async openFile(file, handle) {
       const s = get();
@@ -668,6 +678,15 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
 
     setBottomTab(tab) {
       set({ bottomTab: tab });
+    },
+
+    setLayout(patch) {
+      const layout = restoreLayout({ ...get().layout, ...patch });
+      const now = get().layout;
+      if (layout.editorPct === now.editorPct && layout.railPx === now.railPx) return;
+      storedLayout = layout;
+      set({ layout });
+      writeLater(SQL_LAYOUT_KEY, () => storedLayout);
     },
   };
 });

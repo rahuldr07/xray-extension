@@ -67,6 +67,13 @@ const summary = (page) => page.locator('.xray-sql-results-summary');
 const messages = (page) => page.getByRole('log', { name: 'Messages' });
 const runButton = (page) => page.getByRole('button', { name: 'Run', exact: true });
 
+// With a file open, "Open SQLite file" and the Read-only checkbox live in the header's source menu.
+async function openSourceMenu(page) {
+  const trigger = page.locator('.xray-sql-source');
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+  await page.getByRole('dialog', { name: 'Database file' }).waitFor();
+}
+
 async function openShop(page) {
   await openFile(page, shopPath);
   await railItem(page, 'orders').waitFor();
@@ -134,6 +141,7 @@ test('a blocked file picker falls back to the file chooser, and a download save 
   await railItem(page, 'orders').waitFor();
 
   // Opened through <input type=file>, so there is no file handle and Save downloads the bytes.
+  await openSourceMenu(page);
   await page.getByLabel('Read-only').uncheck();
   await assertEventually(async () => !(await page.getByLabel('Read-only').isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
   await runSql(page, "insert into customers values (4, 'kay@example.test', null)");
@@ -146,12 +154,14 @@ test('a blocked file picker falls back to the file chooser, and a download save 
   await messages(page).getByText('Download started — the file is saved when the download completes.', { exact: false }).waitFor();
   // The download may still be cancelled, so the changes still count as unsaved.
   assert.equal(await save.isEnabled(), true, 'Save stays enabled');
-  await page.locator('.xray-sql-connection-meta', { hasText: 'unsaved changes' }).waitFor({ timeout: 2_000 });
+  // The status bar carries the unsaved state.
+  await page.locator('.xray-sql-status .xray-sql-connection-meta', { hasText: 'unsaved changes' }).waitFor({ timeout: 2_000 });
 });
 
 test('a write on a read-only connection is refused with a message', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
+  await openSourceMenu(page);
   assert.equal(await page.getByLabel('Read-only').isChecked(), true, 'read-only is on by default');
 
   await runSql(page, 'update orders set total = 0');
@@ -161,6 +171,7 @@ test('a write on a read-only connection is refused with a message', { timeout: 1
 test('DROP asks for confirmation and Cancel leaves the table in place', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
+  await openSourceMenu(page);
   await page.getByLabel('Read-only').uncheck();
   await assertEventually(async () => !(await page.getByLabel('Read-only').isChecked()) && (await runButton(page).isEnabled()), 'connection reopened read-write');
 
@@ -230,6 +241,7 @@ test('the framed client keeps its open database across tab switches', { timeout:
   const after = await (await frameEl.elementHandle()).contentFrame();
   assert.equal(await after.evaluate(() => window.__sameDocument === true), true, 'the same document, never re-created');
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor({ timeout: 2_000 });
+  await frame.locator('.xray-sql-source').click();
   assert.equal(await frame.getByRole('button', { name: 'Open SQLite file' }).isEnabled(), true);
 });
 
@@ -417,6 +429,43 @@ test('a file that is not a database is refused and the next one still opens', { 
 
   await openShop(page);
   await railItem(page, 'customers').waitFor();
+});
+
+test('the first screen welcomes, and the editor/results divider steps with the keyboard and persists', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  // Before a file is open: the welcome holds the one open button; the header shows just the brand.
+  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+  await page.getByText('or drop a .sqlite / .db file anywhere on this page', { exact: true }).waitFor();
+  await page.getByText('Files open read-only. Nothing leaves your machine.', { exact: true }).waitFor();
+  await page.getByText('No database open.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Open SQLite file' }).count(), 1, 'one open button');
+  assert.equal(await page.locator('.xray-sql-toolbar .xray-sql-source').count(), 0, 'no source control yet');
+  assert.equal(await runButton(page).count(), 0, 'no Run before a file is open');
+
+  await openShop(page);
+  await page.getByText('Run a query, or click a table on the left to preview it.', { exact: true }).waitFor();
+  await page.locator('.xray-sql-source', { hasText: 'shop.sqlite · SQLite · ' }).waitFor();
+  const divider = page.getByRole('separator', { name: 'Resize editor and results', exact: true });
+  assert.equal(await divider.getAttribute('aria-orientation'), 'horizontal');
+  assert.equal(await divider.getAttribute('aria-valuenow'), '30', 'the editor starts at 30%');
+  await divider.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  const moved = Number(await divider.getAttribute('aria-valuenow'));
+  assert.ok(moved > 30 && moved <= 75, `two steps down grow the editor: ${moved}`);
+  const rail = page.getByRole('separator', { name: 'Resize schema rail', exact: true });
+  assert.equal(await rail.getAttribute('aria-orientation'), 'vertical');
+  await rail.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await rail.getAttribute('aria-valuenow'), '244');
+
+  // Persisted (debounced 300 ms) as sql_layout, and read back before the first render.
+  await sleep(700);
+  await page.reload();
+  await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  assert.equal(await rail.getAttribute('aria-valuenow'), '244');
+  await openShop(page);
+  assert.equal(Number(await divider.getAttribute('aria-valuenow')), moved, 'the editor share survives a reload');
 });
 
 async function assertEventually(check, label, timeout = 15_000) {

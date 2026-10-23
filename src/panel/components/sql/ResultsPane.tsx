@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IconX } from '@tabler/icons-react';
 import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
-import { countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
+import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
 import type { QueryResult } from '../../models/sqlTypes';
 import { JsonView } from '../detail/JsonView';
@@ -45,6 +45,42 @@ function Inspector({ result, cell, onClose }: { result: QueryResult; cell: Selec
   );
 }
 
+function MaxRowsInput(): React.ReactElement {
+  const maxRows = usePanelSqlStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.maxRows ?? 1000);
+  const setMaxRows = usePanelSqlStore((s) => s.setMaxRows);
+  const [draft, setDraft] = useState(String(maxRows));
+  const [shown, setShown] = useState(maxRows);
+  // A tab switch or a clamp changes the stored value: reset the draft during render.
+  if (shown !== maxRows) {
+    setShown(maxRows);
+    setDraft(String(maxRows));
+  }
+
+  function commit(): void {
+    const value = clampMaxRows(Number(draft));
+    setMaxRows(value);
+    setDraft(String(value));
+  }
+
+  return (
+    <label className="xray-sql-field xray-sql-max-rows-field" title="The most rows a query returns (1–50,000)">
+      <span>Max rows</span>
+      <input
+        className="xray-input xray-sql-max-rows"
+        type="number"
+        min={1}
+        max={50000}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+        }}
+      />
+    </label>
+  );
+}
+
 function ResultsView(): React.ReactElement {
   const result = usePanelSqlStore((s) => s.result);
   const resultTable = usePanelSqlStore((s) => s.resultTable);
@@ -55,7 +91,16 @@ function ResultsView(): React.ReactElement {
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
-  if (!result) return <p className="xray-sql-empty">Run a query to see results here.</p>;
+  if (!result) {
+    return (
+      <div className="xray-sql-results">
+        <div className="xray-sql-results-head">
+          <MaxRowsInput />
+        </div>
+        <p className="xray-sql-empty">Run a query, or click a table on the left to preview it.</p>
+      </div>
+    );
+  }
   const cell = selection && selection.result === result ? selection.cell : null;
 
   function showToast(...lines: string[]): void {
@@ -87,6 +132,7 @@ function ResultsView(): React.ReactElement {
           {resultSummary(result)}
           {result.hasMore ? ' · more rows available, Run with higher limit' : ''}
         </span>
+        <MaxRowsInput />
         <span className="xray-spacer" />
         {toast && (
           <span className="xray-sql-toast" role="status">
