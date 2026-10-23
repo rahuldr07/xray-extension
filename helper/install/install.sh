@@ -25,10 +25,12 @@ done
 case "$(uname -s)" in
   Darwin) os=darwin
           install_dir="$HOME/Library/Application Support/XRAY"
-          browser_base="$HOME/Library/Application Support" ;;
+          browser_base="$HOME/Library/Application Support"
+          browsers=("Google/Chrome" "Chromium" "Microsoft Edge" "BraveSoftware/Brave-Browser") ;;
   Linux)  os=linux
           install_dir="$HOME/.local/share/xray"
-          browser_base="$HOME/.config" ;;
+          browser_base="$HOME/.config"
+          browsers=(google-chrome chromium microsoft-edge BraveSoftware/Brave-Browser) ;;
   *) echo "unsupported OS: $(uname -s) (use install.ps1 on Windows)" >&2; exit 1 ;;
 esac
 case "$(uname -m)" in
@@ -43,13 +45,16 @@ trap 'rm -rf "$tmp"' EXIT
 if [ -z "$binary" ]; then
   name="xray-db-helper-$os-$arch"
   if [ -z "$version" ]; then
-    version="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" \
-      | sed -n 's/.*"tag_name": *"\(helper-v[^"]*\)".*/\1/p' | head -n 1)"
+    # Newest non-prerelease helper-v* tag. The API lists tag_name before
+    # prerelease within each release, newest first.
+    version="$(curl --proto '=https' --tlsv1.2 -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" \
+      | grep -o '"tag_name": *"[^"]*"\|"prerelease": *[a-z]*' \
+      | awk -F'"' '/tag_name/ { tag = $4; next } /prerelease/ { if ($0 ~ /false/ && tag ~ /^helper-v/) { print tag; exit } }')" || true
     [ -n "$version" ] || { echo "could not find a helper-v* release" >&2; exit 1; }
   fi
   base="https://github.com/$REPO/releases/download/$version"
-  curl -fsSL -o "$tmp/$name" "$base/$name"
-  curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS"
+  curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp/$name" "$base/$name"
+  curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS"
   want="$(awk -v n="$name" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS" | head -n 1)"
   [ -n "$want" ] || { echo "no checksum for $name in SHA256SUMS" >&2; exit 1; }
   if command -v sha256sum >/dev/null 2>&1; then
@@ -75,7 +80,7 @@ mv -f "$dest.tmp" "$dest"
 json_path="$(printf '%s' "$dest" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 
 count=0
-for browser in google-chrome chromium microsoft-edge BraveSoftware/Brave-Browser; do
+for browser in "${browsers[@]}"; do
   [ -d "$browser_base/$browser" ] || continue
   hosts="$browser_base/$browser/NativeMessagingHosts"
   mkdir -p "$hosts"

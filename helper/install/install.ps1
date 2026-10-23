@@ -16,7 +16,6 @@ $Repo = 'rahuldr07/xray-extension'
 
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'amd64' }
 $installDir = Join-Path $env:LOCALAPPDATA 'XRAY'
-New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
@@ -24,13 +23,13 @@ try {
   if (-not $Binary) {
     $name = "xray-db-helper-windows-$arch.exe"
     if (-not $Version) {
-      $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=100"
-      $Version = ($releases | Where-Object { $_.tag_name -like 'helper-v*' } | Select-Object -First 1).tag_name
+      $releases = Invoke-RestMethod -UseBasicParsing "https://api.github.com/repos/$Repo/releases?per_page=100"
+      $Version = ($releases | Where-Object { $_.tag_name -like 'helper-v*' -and -not $_.prerelease -and -not $_.draft } | Select-Object -First 1).tag_name
       if (-not $Version) { throw 'could not find a helper-v* release' }
     }
     $base = "https://github.com/$Repo/releases/download/$Version"
-    Invoke-WebRequest "$base/$name" -OutFile (Join-Path $tmp $name)
-    Invoke-WebRequest "$base/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
+    Invoke-WebRequest -UseBasicParsing "$base/$name" -OutFile (Join-Path $tmp $name)
+    Invoke-WebRequest -UseBasicParsing "$base/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
     $line = Get-Content (Join-Path $tmp 'SHA256SUMS') |
       Where-Object { ($_ -split '\s+')[1] -in @($name, "*$name") } | Select-Object -First 1
     if (-not $line) { throw "no checksum for $name in SHA256SUMS" }
@@ -41,8 +40,12 @@ try {
   }
   if (-not (Test-Path $Binary)) { throw "binary not found: $Binary" }
 
+  # Everything is verified; only now touch the install directory. Copy to a
+  # temporary name and rename so an upgrade never leaves a half-written exe.
+  New-Item -ItemType Directory -Force -Path $installDir | Out-Null
   $dest = Join-Path $installDir 'xray-db-helper.exe'
-  Copy-Item $Binary $dest -Force
+  Copy-Item $Binary "$dest.tmp" -Force
+  Move-Item "$dest.tmp" $dest -Force
 
   $manifestPath = Join-Path $installDir "$HostName.json"
   $manifest = [ordered]@{
@@ -52,7 +55,7 @@ try {
     type            = 'stdio'
     allowed_origins = @("chrome-extension://$XrayExtensionId/")
   }
-  $manifest | ConvertTo-Json | Set-Content -Path $manifestPath -Encoding ascii
+  [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 
   foreach ($vendor in @('Google\Chrome', 'Microsoft\Edge')) {
     $key = "HKCU:\Software\$vendor\NativeMessagingHosts\$HostName"
