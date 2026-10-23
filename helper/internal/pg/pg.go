@@ -372,7 +372,7 @@ func cancelled() error { return session.Errorf(session.CodeCancelled, "Query can
 // readOnlyFirst are first keywords whose statements return rows without
 // writing. In read-write mode only these keep a cursor past maxRows; every
 // other statement runs to completion first (Ruling M3-R11).
-var readOnlyFirst = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true, "FETCH": true}
+var readOnlyFirst = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true, "FETCH": true, "(": true}
 
 func readsOnly(sql string) bool { return readOnlyFirst[session.FirstKeyword(sql)] }
 

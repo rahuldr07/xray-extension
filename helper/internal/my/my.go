@@ -150,6 +150,12 @@ func (s *sockSlot) close() {
 	}
 }
 
+func (s *sockSlot) recorded() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.c != nil
+}
+
 type sockKey struct{}
 
 func dialSock(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -234,11 +240,25 @@ func (s *mySession) dialTab(ctx context.Context) (*tabConn, error) {
 	slot := &sockSlot{}
 	ctx, cancel := context.WithTimeout(context.WithValue(ctx, sockKey{}, slot), connectTimeout)
 	defer cancel()
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return nil, s.dialErr(err)
+	var c *tabConn
+	for attempt := 0; ; attempt++ {
+		conn, err := s.db.Conn(ctx)
+		if err != nil {
+			return nil, s.dialErr(err)
+		}
+		c = &tabConn{conn: conn, sock: slot}
+		if slot.recorded() {
+			break
+		}
+		// database/sql handed over a connection this dial did not open, so
+		// its socket is unknown and the socket fallback could not close it.
+		discard(c)
+		if attempt == 2 {
+			return nil, session.Errorf(session.CodeNetwork, "Could not reach the server.")
+		}
 	}
-	c := &tabConn{conn: conn, sock: slot}
+	conn := c.conn
+	var err error
 	err = conn.QueryRowContext(ctx, "SELECT CONNECTION_ID()").Scan(&c.id)
 	if err == nil && s.timeout > 0 {
 		_, err = conn.ExecContext(ctx, "SET SESSION max_execution_time = "+strconv.FormatInt(s.timeout.Milliseconds(), 10))
@@ -342,9 +362,8 @@ func (t *tab) unwatch() {
 
 func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (session.Summary, error) {
 	if s.readOnly {
-		if kw := readOnlyRefusal(sql); kw != "" {
-			return session.Summary{}, session.Errorf(session.CodeReadOnly,
-				"This connection is read-only, so "+kw+" is not allowed.")
+		if msg := readOnlyRefusal(sql); msg != "" {
+			return session.Summary{}, session.Errorf(session.CodeReadOnly, msg)
 		}
 	}
 	t, err := s.getTab(tabID)
@@ -391,6 +410,16 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 		s.finish(t)
 		return session.Summary{}, cancelled()
 	}
+	if s.timeout > 0 && !readKeywords[kw] {
+		// max_execution_time bounds only SELECT; bound everything else here.
+		// The watch KILLs the statement when the deadline passes.
+		limited, cancelLimit := context.WithTimeout(ctx, s.timeout)
+		defer func() {
+			t.unwatch() // before the deadline's cancel can start a KILL
+			cancelLimit()
+		}()
+		ctx = limited
+	}
 	s.watch(ctx, t)
 
 	if !queryKeywords[kw] {
@@ -404,7 +433,7 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 		// to interrupt is still reported. A read-write statement that
 		// finished has committed: report it.
 		if s.readOnly && ctx.Err() != nil {
-			return session.Summary{}, cancelled()
+			return session.Summary{}, ctxErr(ctx)
 		}
 		if err := out.Columns(nil); err != nil {
 			return session.Summary{}, err
@@ -520,7 +549,7 @@ func (s *mySession) read(ctx context.Context, t *tab, sql string, n int, out *se
 	// a statement that was cancelled is reported as cancelled. Statements
 	// that may write are read with Exec or complete, never here unread.
 	if ctx.Err() != nil && (s.readOnly || !c.complete) {
-		return session.Summary{}, cancelled()
+		return session.Summary{}, ctxErr(ctx)
 	}
 	sum := session.Summary{Notices: []string{}}
 	if extra > 0 {
@@ -536,7 +565,7 @@ func (s *mySession) abort(ctx context.Context, t *tab, sql string, err error) er
 	if c := t.cur; c != nil && c.rows != nil {
 		s.closeRows(t, c)
 	}
-	mapped := cancelled()
+	mapped := ctxErr(ctx)
 	if err != nil {
 		mapped = s.execErr(ctx, t, sql, err)
 	}
@@ -545,6 +574,15 @@ func (s *mySession) abort(ctx context.Context, t *tab, sql string, err error) er
 }
 
 func cancelled() error { return session.Errorf(session.CodeCancelled, "Query cancelled.") }
+
+// ctxErr maps a done request context: past the statement timeout (writes,
+// Ruling M3-R14) is a timeout, anything else a cancel.
+func ctxErr(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return session.Errorf(session.CodeTimeout, "The statement ran past the connection's statement timeout.")
+	}
+	return cancelled()
+}
 
 // closeRows closes c's rows. Rows.Close reads the rest of the result, so the
 // statement is killed first; if the close still takes past giveUp, the
@@ -618,7 +656,10 @@ func (s *mySession) execErr(ctx context.Context, t *tab, sql string, err error) 
 	if errors.As(err, &se) {
 		return se
 	}
-	if ctx.Err() != nil || s.base.Err() != nil {
+	if ctx.Err() != nil {
+		return ctxErr(ctx)
+	}
+	if s.base.Err() != nil {
 		// Close cancels the session's base context: also cancelled.
 		return cancelled()
 	}
@@ -727,27 +768,48 @@ func isTLSErr(err error) bool {
 	return strings.Contains(err.Error(), "tls: ")
 }
 
-// scrub removes the password from text that came back from the network.
+// scrub removes the password from text that came back from the network. It
+// replaces only whole tokens (not inside a longer word), and only passwords
+// of at least 4 characters, so a short or common password does not mangle
+// server messages such as a database name that happens to contain it.
 func (s *mySession) scrub(msg string) string {
-	if s.password == "" {
+	pw := s.password
+	if len(pw) < 4 {
 		return msg
 	}
-	return strings.ReplaceAll(msg, s.password, "********")
+	var b strings.Builder
+	for {
+		i := strings.Index(msg, pw)
+		if i < 0 {
+			b.WriteString(msg)
+			return b.String()
+		}
+		end := i + len(pw)
+		whole := (i == 0 || !isWordByte(msg[i-1])) && (end == len(msg) || !isWordByte(msg[end]))
+		b.WriteString(msg[:i])
+		if whole {
+			b.WriteString("********")
+		} else {
+			b.WriteString(pw)
+		}
+		msg = msg[end:]
+	}
 }
 
 // readKeywords are first keywords of statements that return rows without
 // writing. In read-write mode only these keep a cursor past maxRows; every
-// other statement runs to completion first (Ruling M3-R11). "" covers a
-// statement that starts with "(".
+// other statement runs to completion first (Ruling M3-R11), including one
+// without a first keyword ("").
 var readKeywords = map[string]bool{
 	"SELECT": true, "WITH": true, "SHOW": true, "VALUES": true, "TABLE": true,
-	"EXPLAIN": true, "DESCRIBE": true, "DESC": true, "HELP": true, "": true,
+	"EXPLAIN": true, "DESCRIBE": true, "DESC": true, "HELP": true, "(": true,
 }
 
 // queryKeywords are the statements run with Query, since they may return a
 // result set. Everything else runs with Exec, which reports affected rows.
+// A statement without a first keyword ("") may return rows too.
 var queryKeywords = map[string]bool{
-	"CALL": true, "CHECK": true, "CHECKSUM": true, "ANALYZE": true, "OPTIMIZE": true,
+	"": true, "CALL": true, "CHECK": true, "CHECKSUM": true, "ANALYZE": true, "OPTIMIZE": true,
 	"REPAIR": true, "HANDLER": true, "XA": true,
 }
 
@@ -757,30 +819,38 @@ func init() {
 	}
 }
 
-// implicitCommit are first keywords of statements that MySQL runs after an
-// implicit COMMIT, outside the READ ONLY transaction, and that change data,
-// schema, privileges or server state. Read-only mode refuses them.
-var implicitCommit = map[string]bool{
+// refusedReadOnly are first keywords read-only mode refuses besides the
+// shared guard's: statements that MySQL runs after an implicit COMMIT,
+// outside the READ ONLY transaction, and that change data, schema,
+// privileges or server state; and KILL, which ends other sessions' work.
+var refusedReadOnly = map[string]bool{
+	"KILL":  true,
 	"ALTER": true, "ANALYZE": true, "BINLOG": true, "CHANGE": true, "CLONE": true, "CREATE": true,
 	"DROP": true, "FLUSH": true, "GRANT": true, "IMPORT": true, "INSTALL": true, "LOAD": true,
 	"OPTIMIZE": true, "PURGE": true, "RENAME": true, "REPAIR": true, "RESTART": true, "REVOKE": true,
 	"SHUTDOWN": true, "STOP": true, "TRUNCATE": true, "UNINSTALL": true, "UNLOCK": true, "XA": true,
 }
 
-// readOnlyRefusal returns the first keyword when read-only mode must refuse
-// the statement: the shared guard's keywords, read the way MySQL reads them,
-// plus the implicit-commit statements.
+// readOnlyRefusal returns the refusal text when read-only mode must refuse
+// the statement, and "" otherwise. It fails closed: a statement without a
+// first keyword is refused. The keyword is read the way MySQL reads it.
 func readOnlyRefusal(sql string) string {
 	kw := keyword(sql)
-	if session.Guard(kw) != "" || implicitCommit[kw] {
-		return kw
+	switch {
+	case kw == "CALL":
+		// A procedure can COMMIT or run DDL, escaping the READ ONLY wrapper.
+		return "Procedures can commit, so CALL needs Read-only off."
+	case kw == "" || session.Blocked(kw) || refusedReadOnly[kw]:
+		return session.ReadOnlyMessage(kw)
 	}
 	return ""
 }
 
-// keyword returns the statement's first keyword, upper-cased, the way MySQL
-// reads it: "#" and "-- " start line comments, and the body of an executable
-// comment ("/*! … */", "/*!80000 … */") is statement text.
+// keyword returns the statement's first keyword, upper-cased, or "(" for a
+// parenthesised statement, the way MySQL reads it: "#" and "--" followed by
+// any byte up to 0x20 start line comments, and the body of an executable
+// comment ("/*! … */", "/*!80000 … */", MariaDB "/*M! … */") is statement
+// text. "" means there is no first word.
 func keyword(sql string) string {
 	i := 0
 	for i < len(sql) {
@@ -788,12 +858,12 @@ func keyword(sql string) string {
 		switch {
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v' || c == ';':
 			i++
-		case c == '#' || (strings.HasPrefix(sql[i:], "--") && (i+2 == len(sql) || isSpace(sql[i+2]))):
+		case c == '#' || (strings.HasPrefix(sql[i:], "--") && (i+2 == len(sql) || sql[i+2] <= 0x20)):
 			for i < len(sql) && sql[i] != '\n' {
 				i++
 			}
-		case strings.HasPrefix(sql[i:], "/*!"):
-			i += 3
+		case strings.HasPrefix(sql[i:], "/*!") || strings.HasPrefix(sql[i:], "/*M!"):
+			i += strings.IndexByte(sql[i:], '!') + 1
 			for i < len(sql) && sql[i] >= '0' && sql[i] <= '9' {
 				i++
 			}
@@ -805,6 +875,8 @@ func keyword(sql string) string {
 			i += j + 4
 		case strings.HasPrefix(sql[i:], "*/"): // the end of an executable comment
 			i += 2
+		case c == '(':
+			return "("
 		default:
 			j := i
 			for j < len(sql) && isWordByte(sql[j]) {
@@ -814,10 +886,6 @@ func keyword(sql string) string {
 		}
 	}
 	return ""
-}
-
-func isSpace(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\n' || b == '\r' || b == '\f' || b == '\v'
 }
 
 func isWordByte(b byte) bool {

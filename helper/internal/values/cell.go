@@ -63,7 +63,8 @@ func FromPG(oid uint32, text []byte, isNull bool) (Cell, bool) {
 	return textCell(s)
 }
 
-// FromMySQL maps a MySQL value by its driver database type name.
+// FromMySQL maps a MySQL value by its driver database type name. GEOMETRY
+// and VECTOR are binary on the wire, so they map like BLOB.
 func FromMySQL(dbType string, raw []byte, isNull bool) (Cell, bool) {
 	if isNull {
 		return nil, false
@@ -74,7 +75,7 @@ func FromMySQL(dbType string, raw []byte, isNull bool) (Cell, bool) {
 		return safeInt(string(raw))
 	case "FLOAT", "DOUBLE":
 		return finiteFloat(string(raw))
-	case "BIT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "BINARY", "VARBINARY":
+	case "BIT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "BINARY", "VARBINARY", "GEOMETRY", "VECTOR":
 		return blob(raw), false
 	}
 	// BIGINT, DECIMAL, JSON, dates and everything else keep the server text.

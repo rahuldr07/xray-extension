@@ -232,6 +232,16 @@ func TestPostgresReadOnly(t *testing.T) {
 	if f["ok"] == true {
 		t.Fatalf("leaving read-only must fail: %v", f)
 	}
+	// Postgres reads "--" as a comment whatever byte follows; the guard
+	// matches, and a statement without a first keyword is refused.
+	for _, q := range []string{"--\x01\ncommit", "--\x01\ncreate table " + schema + ".esc1(a int)", "-- only a comment", "\x01select 1"} {
+		if _, f = exec(c, sid, "t1", q, 10); testclient.ErrCode(f) != "read-only" {
+			t.Fatalf("%q: %v", q, f)
+		}
+	}
+	if _, f = exec(c, sid, "t1", "(select 1)", 10); f["ok"] != true {
+		t.Fatalf("parenthesised select: %v", f)
+	}
 }
 
 func TestPostgresReadWriteAffected(t *testing.T) {

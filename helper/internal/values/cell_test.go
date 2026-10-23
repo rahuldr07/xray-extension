@@ -111,7 +111,7 @@ func TestFromMySQL(t *testing.T) {
 			}
 		})
 	}
-	for _, typ := range []string{"BLOB", "LONGBLOB", "BINARY", "VARBINARY"} {
+	for _, typ := range []string{"BLOB", "LONGBLOB", "BINARY", "VARBINARY", "GEOMETRY", "VECTOR"} {
 		c, _ := FromMySQL(typ, []byte(blob), false)
 		m := c.(map[string]any)
 		if len(m["hex"].(string)) != 512 || m["length"] != 300 {

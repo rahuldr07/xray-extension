@@ -16,19 +16,35 @@ var blocked = map[string]bool{
 	"PREPARE": true, "LOCK": true, "COPY": true,
 }
 
-// Guard returns the statement's first keyword, upper-cased, when read-only
-// mode must refuse it, and "" otherwise.
-func Guard(sql string) (blockedKeyword string) {
-	if kw := FirstKeyword(sql); blocked[kw] {
-		return kw
-	}
-	return ""
+// Guard returns the statement's first keyword and whether read-only mode
+// must refuse it. It fails closed: a statement without a first keyword
+// (empty, only comments, or starting with a byte that is not a word) is
+// refused, since the guard cannot tell what it does.
+func Guard(sql string) (keyword string, refused bool) {
+	kw := FirstKeyword(sql)
+	return kw, kw == "" || blocked[kw]
 }
 
-// FirstKeyword returns the statement's first word, upper-cased. It skips
-// whitespace, empty statements (";") and "--" and (nested) "/* */" comments.
+// Blocked reports whether kw is a first keyword read-only mode refuses
+// because it could end or change the wrapping transaction.
+func Blocked(kw string) bool { return blocked[kw] }
+
+// ReadOnlyMessage is the refusal text for first keyword kw.
+func ReadOnlyMessage(kw string) string {
+	if kw == "" {
+		return "This connection is read-only, so a statement that does not start with a keyword is not allowed."
+	}
+	return "This connection is read-only, so " + kw + " is not allowed."
+}
+
+// FirstKeyword returns the statement's first word, upper-cased, or "(" for a
+// parenthesised statement. It skips whitespace, empty statements (";") and
+// "--" and (nested) "/* */" comments. "" means there is no first word.
 func FirstKeyword(sql string) string {
 	i := skipNoise(sql)
+	if i < len(sql) && sql[i] == '(' {
+		return "("
+	}
 	j := i
 	for j < len(sql) && isWordByte(sql[j]) {
 		j++

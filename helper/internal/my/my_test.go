@@ -443,26 +443,53 @@ func TestNearPosition(t *testing.T) {
 }
 
 func TestReadOnlyKeyword(t *testing.T) {
+	ro := session.ReadOnlyMessage
 	cases := []struct{ sql, want string }{
 		{"select 1", ""},
-		{"/*!40101 SET x=1 */", "SET"},
-		{"/*! commit */", "COMMIT"},
-		{"#c\n create table t(a int)", "CREATE"},
-		{"-- c\nalter table t add x int", "ALTER"},
-		{"/* c */ drop table t", "DROP"},
-		{"truncate t", "TRUNCATE"},
-		{"xa start 'x'", "XA"},
-		{"unlock tables", "UNLOCK"},
+		{"/*!40101 SET x=1 */", ro("SET")},
+		{"/*! commit */", ro("COMMIT")},
+		{"/*M!100000 commit */", ro("COMMIT")},
+		{"#c\n create table t(a int)", ro("CREATE")},
+		{"-- c\nalter table t add x int", ro("ALTER")},
+		// MySQL reads "--" plus any byte up to 0x20 as a comment.
+		{"--\x01\ncreate table esc1(a int)", ro("CREATE")},
+		{"--\x1f\ndrop table mi", ro("DROP")},
+		{"--\ncommit", ro("COMMIT")},
+		{"--", ro("")},
+		{"/* c */ drop table t", ro("DROP")},
+		{"truncate t", ro("TRUNCATE")},
+		{"xa start 'x'", ro("XA")},
+		{"unlock tables", ro("UNLOCK")},
+		{"kill 5", ro("KILL")},
+		{"shutdown", ro("SHUTDOWN")},
+		{"call p()", "Procedures can commit, so CALL needs Read-only off."},
+		{"/*!call p()*/", "Procedures can commit, so CALL needs Read-only off."},
+		// Fail closed: no first keyword, no statement.
+		{"", ro("")},
+		{"\x01create table t(a int)", ro("")},
+		{"-- only a comment", ro("")},
+		{"(select 1)", ""},
 		{"with a as (select 1) select * from a", ""},
 		{"show tables", ""},
 		{"insert into t values (1)", ""},
-		{"call p()", ""},
 		{"/*+ hint */ select 1", ""},
 	}
 	for _, c := range cases {
 		if got := readOnlyRefusal(c.sql); got != c.want {
 			t.Errorf("readOnlyRefusal(%q) = %q, want %q", c.sql, got, c.want)
 		}
+	}
+}
+
+func TestScrub(t *testing.T) {
+	s := &mySession{password: "xray"}
+	got := s.scrub("Table 'xray.nope' doesn't exist; xray_t_1 and axray stay; xray")
+	if got != "Table '********.nope' doesn't exist; xray_t_1 and axray stay; ********" {
+		t.Fatal(got)
+	}
+	s.password = "abc"
+	if got := s.scrub("abc is short"); got != "abc is short" {
+		t.Fatal(got)
 	}
 }
 
@@ -742,5 +769,132 @@ func TestMySQLSocketFallbackWhenKillFails(t *testing.T) {
 	}
 	if strings.TrimSpace(c.Stderr()) != "" && !strings.HasPrefix(c.Stderr(), "xray-db-helper: ") {
 		t.Fatalf("stderr %q", c.Stderr())
+	}
+}
+
+// Read-only refuses CALL: a procedure can COMMIT or run DDL, which escapes
+// the READ ONLY transaction. Read-write runs it to completion.
+func TestMySQLCall(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	a := admin(t, cfg)
+	for _, q := range []string{
+		"create procedure " + db + ".p_commit() begin commit; insert into " + db + ".orders(total) values (7); end",
+		"create procedure " + db + ".p_ddl() begin create table " + db + ".made_by_call(a int); end",
+		"create procedure " + db + ".p_rows() begin select id from " + db + ".orders order by id; end",
+	} {
+		if _, err := a.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	for _, q := range []string{"call p_commit()", "call p_ddl()", "--\x01\ncall p_commit()"} {
+		_, f := exec(c, sid, "t1", q, 10)
+		if testclient.ErrCode(f) != "read-only" || errField(f, "message") != "Procedures can commit, so CALL needs Read-only off." {
+			t.Fatalf("%q: %v", q, f)
+		}
+	}
+	// The shared guard sees only a comment here and refuses it first.
+	if _, f := exec(c, sid, "t1", "/*!call p_ddl()*/", 10); testclient.ErrCode(f) != "read-only" {
+		t.Fatalf("executable comment: %v", f)
+	}
+	if n := count(t, c, sid, "select count(*) from orders"); n != "5" {
+		t.Fatalf("orders %v", n)
+	}
+	if n := count(t, c, sid, "select count(*) from information_schema.tables where table_schema = '"+db+"'"); n != "1" {
+		t.Fatalf("tables %v", n)
+	}
+	rw := open(t, c, connectReq(t, cfg, db, false))
+	stream, f := exec(c, rw, "t1", "call p_rows()", 2)
+	v := testclient.Value(f)
+	if len(rowsOf(stream)) != 2 || v["hasMore"] != false {
+		t.Fatalf("call in read-write: %v", f)
+	}
+	if n, _ := v["notices"].([]any); len(n) != 1 || n[0] != "Showing the first 2 of 5 returned rows." {
+		t.Fatalf("notices %v", v["notices"])
+	}
+}
+
+// The "--" + control byte escape and statements with no first keyword are
+// refused on a read-only connection; nothing reaches the server.
+func TestMySQLReadOnlyFailsClosed(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	for _, q := range []string{"--\x01\ncreate table esc1(a int)", "--\x1f\ndrop table orders", "\x01create table esc2(a int)", "kill 1"} {
+		if _, f := exec(c, sid, "t1", q, 10); testclient.ErrCode(f) != "read-only" {
+			t.Fatalf("%q: %v", q, f)
+		}
+	}
+	if n := count(t, c, sid, "select count(*) from information_schema.tables where table_schema = '"+db+"'"); n != "1" {
+		t.Fatalf("tables %v", n)
+	}
+	if _, f := exec(c, sid, "t1", "(select 1)", 10); f["ok"] != true {
+		t.Fatalf("parenthesised select: %v", f)
+	}
+}
+
+func TestMySQLGeometryIsBinary(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, cfg.DBName, true))
+	stream, f := exec(c, sid, "t1", "select st_geomfromtext('POINT(1 2)')", 10)
+	if f["ok"] != true || colTypes(stream)[0] != "geometry" {
+		t.Fatalf("%v %v", f, stream)
+	}
+	p, ok := rowsOf(stream)[0][0].(map[string]any)
+	if !ok || p["length"] != float64(25) || !strings.HasPrefix(p["hex"].(string), "00000000") {
+		t.Fatalf("geometry %v", rowsOf(stream)[0][0])
+	}
+}
+
+// Ruling M3-R14: the statement timeout bounds writes too (max_execution_time
+// covers only SELECT); a timed-out write commits nothing.
+func TestMySQLStatementTimeoutBoundsWrites(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	req := connectReq(t, cfg, db, false)
+	req["statementTimeoutMs"] = 200
+	sid := open(t, c, req)
+	start := time.Now()
+	_, f := exec(c, sid, "t1", "update orders set total=0 where sleep(0.5) = 0", 10)
+	if testclient.ErrCode(f) != "timeout" || time.Since(start) > 2*time.Second {
+		t.Fatalf("timeout: %v after %v", f, time.Since(start))
+	}
+	if n := zeroed(t, c, sid); n != "0" {
+		t.Fatalf("timed-out update zeroed %v rows", n)
+	}
+	if _, f = exec(c, sid, "t1", "select 1", 10); f["ok"] != true {
+		t.Fatalf("tab unusable after timeout: %v", f)
+	}
+}
+
+// When the password equals the database name, server text naming the
+// database is scrubbed, but longer words that contain it are left alone.
+func TestMySQLPasswordEqualsDatabaseName(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	a := admin(t, cfg)
+	user := "u" + db[len(db)-12:]
+	for _, q := range []string{
+		"create user '" + user + "'@'%' identified by '" + db + "'",
+		"grant all on " + db + ".* to '" + user + "'@'%'",
+	} {
+		if _, err := a.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { a.Exec("drop user '" + user + "'@'%'") })
+	c := newClient(t)
+	req := connectReq(t, cfg, db, true)
+	req["user"], req["password"] = user, db
+	sid := open(t, c, req)
+	_, f := exec(c, sid, "t1", "select * from "+db+"."+db+"_more", 10)
+	msg, _ := errField(f, "message").(string)
+	if testclient.ErrCode(f) != "server" || msg != "Table '********."+db+"_more' doesn't exist" {
+		t.Fatalf("%v", f)
 	}
 }
