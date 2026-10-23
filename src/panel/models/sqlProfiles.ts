@@ -123,3 +123,48 @@ const INSTALL_BASE = 'https://raw.githubusercontent.com/rahuldr07/xray-extension
 export function helperInstallCommand(os: 'linux' | 'mac' | 'windows'): string {
   return os === 'windows' ? `irm ${INSTALL_BASE}/install.ps1 | iex` : `curl -fsSL ${INSTALL_BASE}/install.sh | sh`;
 }
+
+export type HelperOs = 'linux' | 'mac' | 'windows';
+
+/** The install command family for `navigator.userAgentData?.platform ?? navigator.platform`. */
+export function helperOs(platform: string): HelperOs {
+  const p = platform.toLowerCase();
+  if (p.startsWith('mac')) return 'mac';
+  if (p.startsWith('win')) return 'windows';
+  return 'linux';
+}
+
+/**
+ * The server's product and version for headers and Test results ("PostgreSQL 16.4"), from the
+ * helper's raw serverVersion (Postgres `version()` text, "MySQL 8.0.36", or a MariaDB version).
+ */
+export function shortServerVersion(raw: string): string {
+  const text = raw.trim();
+  const named = /^(PostgreSQL|MySQL)\s+(\S+?),?(?:\s|$)/.exec(text);
+  if (named) return `${named[1]} ${named[2]}`;
+  const maria = /^(\d+(?:\.\d+)*)-MariaDB/i.exec(text);
+  if (maria) return `MariaDB ${maria[1]}`;
+  return text.split(/\s+/)[0] ?? '';
+}
+
+export type HelperPermissionOutcome = 'ready' | 'denied' | 'missing';
+
+/**
+ * Decides, inside a click handler, whether a Test or Connect may go ahead. `request` must be
+ * `chrome.permissions.request({ permissions: ['nativeMessaging'] })` called without any await
+ * before it, or Chrome refuses it for want of a user gesture. A missing or outdated helper is not a
+ * permission question: the install card answers it. 'unknown' asks, which is harmless: a permission
+ * already granted resolves true without a prompt.
+ */
+export async function ensureHelperPermission(
+  status: 'ready' | 'missing' | 'no-permission' | 'outdated' | 'unknown',
+  request: () => Promise<boolean>,
+): Promise<HelperPermissionOutcome> {
+  if (status === 'ready') return 'ready';
+  if (status === 'missing' || status === 'outdated') return 'missing';
+  try {
+    return (await request()) ? 'ready' : 'denied';
+  } catch {
+    return 'denied';
+  }
+}

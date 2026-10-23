@@ -2,8 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import './harness.mjs';
 
-const { parseConnectionString, validateProfile, isLoopbackHost, helperInstallCommand, HELPER_EXTENSION_ID } =
-  await import('../../src/panel/models/sqlProfiles.ts');
+const {
+  parseConnectionString,
+  validateProfile,
+  isLoopbackHost,
+  helperInstallCommand,
+  helperOs,
+  shortServerVersion,
+  ensureHelperPermission,
+  HELPER_EXTENSION_ID,
+} = await import('../../src/panel/models/sqlProfiles.ts');
 
 test('percent-encoded userinfo and an explicit sslmode', () => {
   const r = parseConnectionString('postgres://us%40er:p%40ss%3Aw%2Fd@db.supabase.co:6543/postgres?sslmode=require');
@@ -97,4 +105,45 @@ test('install commands and the pinned extension id', () => {
     'irm https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.ps1 | iex',
   );
   assert.match(HELPER_EXTENSION_ID, /^[a-p]{32}$/);
+});
+
+test('helperOs maps navigator platforms to an install command family', () => {
+  for (const p of ['MacIntel', 'macOS', 'Macintosh']) assert.equal(helperOs(p), 'mac', p);
+  for (const p of ['Win32', 'Windows']) assert.equal(helperOs(p), 'windows', p);
+  for (const p of ['Linux x86_64', 'Linux', 'Chrome OS', '']) assert.equal(helperOs(p), 'linux', p);
+});
+
+test('shortServerVersion keeps the product and version only', () => {
+  assert.equal(shortServerVersion('PostgreSQL 16.4 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-bit'), 'PostgreSQL 16.4');
+  assert.equal(shortServerVersion('PostgreSQL 17.0 (Debian 17.0-1.pgdg120+1) on aarch64'), 'PostgreSQL 17.0');
+  assert.equal(shortServerVersion('MySQL 8.0.36'), 'MySQL 8.0.36');
+  assert.equal(shortServerVersion('10.11.6-MariaDB-0+deb12u1'), 'MariaDB 10.11.6');
+  assert.equal(shortServerVersion('  '), '');
+  assert.equal(shortServerVersion('CockroachDB CCL v23.1'), 'CockroachDB');
+});
+
+test('ensureHelperPermission asks only when the permission is missing', async () => {
+  let calls = 0;
+  const granted = async () => {
+    calls += 1;
+    return true;
+  };
+  const denied = async () => {
+    calls += 1;
+    return false;
+  };
+  assert.equal(await ensureHelperPermission('ready', granted), 'ready');
+  assert.equal(calls, 0, 'a ready helper never prompts');
+  assert.equal(await ensureHelperPermission('no-permission', granted), 'ready');
+  assert.equal(calls, 1);
+  assert.equal(await ensureHelperPermission('no-permission', denied), 'denied');
+  assert.equal(calls, 2);
+  // Not yet known: asking is harmless (a granted permission resolves true without a prompt).
+  assert.equal(await ensureHelperPermission('unknown', granted), 'ready');
+  assert.equal(calls, 3);
+  assert.equal(await ensureHelperPermission('missing', granted), 'missing');
+  assert.equal(await ensureHelperPermission('outdated', granted), 'missing');
+  assert.equal(calls, 3, 'a missing helper is not a permission question');
+  const throwing = () => Promise.reject(new Error('Not allowed without a user gesture.'));
+  assert.equal(await ensureHelperPermission('no-permission', throwing), 'denied');
 });
