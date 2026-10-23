@@ -289,6 +289,49 @@
   font-weight: 600;
 }
 
+/* Drop overlay */
+.xray-sql-app {
+  position: relative;
+}
+
+.xray-sql-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--xray-overlay);
+  pointer-events: none;
+}
+
+.xray-sql-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, 100%);
+  padding: 32px 24px;
+  border: 2px dashed var(--xray-accent);
+  border-radius: var(--xray-radius-lg);
+  background: var(--xray-surface);
+  color: var(--xray-text);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.xray-sql-drop-card svg {
+  color: var(--xray-accent);
+}
+
+.xray-sql-drop-note {
+  color: var(--xray-hint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* First screen */
 .xray-sql-welcome {
   grid-row: 1 / -1;
@@ -350,6 +393,43 @@
   overflow: auto;
   padding: 8px 6px;
   background: var(--xray-surface);
+}
+
+.xray-sql-rail-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 2px 6px;
+}
+
+.xray-sql-rail-filter svg {
+  position: absolute;
+  left: 8px;
+  color: var(--xray-hint);
+  pointer-events: none;
+}
+
+.xray-sql-rail-filter .xray-input {
+  height: 28px;
+  padding: 0 26px 0 26px;
+  border-color: var(--xray-border);
+  border-radius: var(--xray-radius-sm);
+  font: 500 12px/1 var(--xray-font-ui);
+}
+
+.xray-sql-rail-filter-key {
+  position: absolute;
+  right: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--xray-border);
+  border-radius: 4px;
+  color: var(--xray-hint);
+  font: 600 10px/1.2 var(--xray-font-ui);
+  pointer-events: none;
+}
+
+.xray-sql-rail-filter:focus-within .xray-sql-rail-filter-key {
+  display: none;
 }
 
 .xray-sql-rail-schema,

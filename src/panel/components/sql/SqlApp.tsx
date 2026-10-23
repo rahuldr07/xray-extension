@@ -220,6 +220,55 @@ function StatusBar(): React.ReactElement {
   );
 }
 
+function hasFiles(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer?.types ?? []).includes('Files');
+}
+
+// Dropping a file anywhere opens it like the picker does. Listens in the capture phase so the
+// editor's own drop handling never inserts a database's bytes as text.
+function useFileDrop(): boolean {
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    let depth = 0;
+    const onEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth += 1;
+      setOver(true);
+    };
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setOver(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      depth = 0;
+      setOver(false);
+      void usePanelSqlStore.getState().openDropped(Array.from(e.dataTransfer?.files ?? []));
+    };
+    window.addEventListener('dragenter', onEnter, true);
+    window.addEventListener('dragover', onOver, true);
+    window.addEventListener('dragleave', onLeave, true);
+    window.addEventListener('drop', onDrop, true);
+    return () => {
+      window.removeEventListener('dragenter', onEnter, true);
+      window.removeEventListener('dragover', onOver, true);
+      window.removeEventListener('dragleave', onLeave, true);
+      window.removeEventListener('drop', onDrop, true);
+    };
+  }, []);
+  return over;
+}
+
 // Editor above, results below, with a draggable divider between them.
 function Workspace(): React.ReactElement {
   const editorPct = usePanelSqlStore((s) => s.layout.editorPct);
@@ -350,6 +399,7 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const railPx = usePanelSqlStore((s) => s.layout.railPx);
   const setLayout = usePanelSqlStore((s) => s.setLayout);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const dropping = useFileDrop();
 
   // Unsaved writes live only in the worker; leaving the page would drop them silently.
   useEffect(() => {
@@ -399,6 +449,15 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
           </main>
         </div>
         <StatusBar />
+        {dropping && (
+          <div className="xray-sql-drop" aria-hidden="true">
+            <div className="xray-sql-drop-card">
+              <IconDatabase size={28} stroke={1.5} />
+              <span>Drop to open the SQLite file</span>
+              <span className="xray-sql-drop-note">Opens read-only. Nothing leaves your machine.</span>
+            </div>
+          </div>
+        )}
       </div>
       <FileOpenInput />
       <Dialogs />

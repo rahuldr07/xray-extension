@@ -551,6 +551,46 @@ test('a fresh tab offers quick starts that insert SQL without running it, and th
   await page.locator('.xray-sql-status', { hasText: 'Ln 1, Col 1' }).waitFor();
 });
 
+test('dropping files opens the first through the open path, and the rail filters tables', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+
+  // A drop built in the page from the fixture's bytes, with a second file that is ignored.
+  await page.evaluate((bytes) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(bytes)], 'shop.sqlite', { type: 'application/vnd.sqlite3' }));
+    dt.items.add(new File(['not a database'], 'notes.txt', { type: 'text/plain' }));
+    window.__drop = dt;
+    for (const type of ['dragenter', 'dragover']) {
+      document.querySelector('.xray-sql-welcome').dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }
+  }, [...fs.readFileSync(shopPath)]);
+  await page.locator('.xray-sql-drop', { hasText: 'Drop to open the SQLite file' }).waitFor();
+  await page.evaluate(() => {
+    document.querySelector('.xray-sql-welcome').dispatchEvent(new DragEvent('drop', { dataTransfer: window.__drop, bubbles: true, cancelable: true }));
+  });
+  await page.locator('.xray-sql-drop').waitFor({ state: 'detached' });
+  await railItem(page, 'orders').waitFor();
+  await page.getByRole('tab', { name: 'Messages', exact: true }).click();
+  await messages(page).getByText('Only one file opens at a time: opening shop.sqlite, ignored 1 other file: notes.txt.', { exact: true }).waitFor();
+  await messages(page).getByText('Opened shop.sqlite (read-only).', { exact: true }).waitFor();
+
+  // "/" focuses the rail filter (outside the editor); typing narrows the tree by name.
+  await page.locator('.xray-sql-status').click();
+  await page.keyboard.press('/');
+  const filter = page.getByRole('searchbox', { name: 'Filter tables', exact: true });
+  assert.equal(await filter.evaluate((el) => el === document.activeElement), true, '/ focuses the filter');
+  await page.keyboard.type('cust');
+  await assertEventually(async () => (await page.getByRole('tree', { name: 'Tables and views' }).getByRole('treeitem').count()) === 1, 'only one tree item left');
+  await railItem(page, 'customers').waitFor();
+  assert.equal(await railItem(page, 'orders').count(), 0);
+  assert.equal(await railItem(page, 'big_orders').count(), 0);
+  // In the editor, "/" is just a character.
+  await page.getByLabel('SQL editor').click();
+  await page.keyboard.press('/');
+  assert.equal(await page.getByLabel('SQL editor').textContent(), '/');
+});
+
 async function assertEventually(check, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {

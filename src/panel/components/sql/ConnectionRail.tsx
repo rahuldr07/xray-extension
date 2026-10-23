@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { IconChevronRight, IconEye, IconTable } from '@tabler/icons-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { IconChevronRight, IconEye, IconSearch, IconTable } from '@tabler/icons-react';
 import { usePanelSqlStore } from '../../sqlStore';
+import { matchesTableFilter } from '../../models/sqlUi';
 import type { ColumnNode, TableNode } from '../../models/sqlTypes';
 
 function columnSummary(table: TableNode): string {
@@ -81,20 +82,69 @@ function RailItem({ schema, table, view }: { schema: string; table: TableNode; v
   );
 }
 
+// "/" jumps to the table filter, unless the user is typing somewhere (the editor, a field).
+function isTypingTarget(el: Element | null): boolean {
+  if (!el) return false;
+  if (el.closest('.cm-editor')) return true;
+  return el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+}
+
 export function ConnectionRail(): React.ReactElement {
   const connection = usePanelSqlStore((s) => s.connection);
   const schema = usePanelSqlStore((s) => s.schema);
+  const [query, setQuery] = useState('');
+  const filterRef = useRef<HTMLInputElement | null>(null);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(document.activeElement)) return;
+      if (!filterRef.current) return;
+      e.preventDefault();
+      filterRef.current.focus();
+      filterRef.current.select();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const hasObjects = !!schema && schema.schemas.some((s) => s.tables.length || s.views.length);
+  let shown = 0;
   return (
     <nav className="xray-sql-rail" aria-label="Schema">
       {!connection && <p className="xray-sql-empty">No database open.</p>}
+      {connection && hasObjects && (
+        <label className="xray-sql-rail-filter">
+          <IconSearch size={13} stroke={1.8} aria-hidden="true" />
+          <input
+            ref={filterRef}
+            className="xray-input"
+            type="search"
+            aria-label="Filter tables"
+            placeholder="Filter tables"
+            aria-keyshortcuts="/"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && query) {
+                e.preventDefault();
+                setQuery('');
+              }
+            }}
+          />
+          <kbd className="xray-sql-rail-filter-key" aria-hidden="true">
+            /
+          </kbd>
+        </label>
+      )}
       {connection && schema && (
         <div role="tree" aria-label="Tables and views" className="xray-sql-tree">
           {schema.schemas.map((s) => (
             <React.Fragment key={s.name}>
               {schema.schemas.length > 1 && <div className="xray-sql-rail-schema" aria-hidden="true">{s.name}</div>}
-              {([['Tables', s.tables, false], ['Views', s.views, true]] as const).map(([label, items, view]) =>
-                items.length ? (
+              {([['Tables', s.tables, false], ['Views', s.views, true]] as const).map(([label, all, view]) => {
+                const items = all.filter((t) => matchesTableFilter(t.name, query));
+                shown += items.length;
+                return items.length ? (
                   <div key={label} role="group" aria-label={schema.schemas.length > 1 ? `${s.name} ${label}` : label}>
                     <div className="xray-sql-rail-heading" aria-hidden="true">
                       {label} <span className="xray-sql-rail-count">{items.length}</span>
@@ -103,11 +153,12 @@ export function ConnectionRail(): React.ReactElement {
                       <RailItem key={t.name} schema={s.name} table={t} view={view} />
                     ))}
                   </div>
-                ) : null,
-              )}
+                ) : null;
+              })}
             </React.Fragment>
           ))}
-          {schema.schemas.every((s) => !s.tables.length && !s.views.length) && <p className="xray-sql-empty">No tables or views.</p>}
+          {!hasObjects && <p className="xray-sql-empty">No tables or views.</p>}
+          {hasObjects && shown === 0 && <p className="xray-sql-empty">No tables match “{query.trim()}”.</p>}
         </div>
       )}
     </nav>

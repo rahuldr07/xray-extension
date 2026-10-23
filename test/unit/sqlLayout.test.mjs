@@ -61,9 +61,12 @@ test('a drop opens the first file and names the rest', () => {
   const a = { name: 'a.db' };
   assert.deepEqual(pickDroppedFile([a]), { file: a, ignored: [] });
   assert.deepEqual(pickDroppedFile([a, { name: 'b.db' }, { name: 'c.txt' }]), { file: a, ignored: ['b.db', 'c.txt'] });
-  assert.equal(ignoredFilesMessage([]), null);
-  assert.equal(ignoredFilesMessage(['b.db']), 'Opened the first dropped file; ignored 1 other file: b.db.');
-  assert.equal(ignoredFilesMessage(['b.db', 'c.txt']), 'Opened the first dropped file; ignored 2 other files: b.db, c.txt.');
+  assert.equal(ignoredFilesMessage('a.db', []), null);
+  assert.equal(ignoredFilesMessage('a.db', ['b.db']), 'Only one file opens at a time: opening a.db, ignored 1 other file: b.db.');
+  assert.equal(
+    ignoredFilesMessage('a.db', ['b.db', 'c.txt']),
+    'Only one file opens at a time: opening a.db, ignored 2 other files: b.db, c.txt.',
+  );
 });
 
 test('the rail filter matches a case-insensitive substring', () => {

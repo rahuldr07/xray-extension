@@ -12,6 +12,7 @@ import { selectTableSql } from './models/sqlSchema';
 import { splitStatements, statementAt } from './models/sqlStatements';
 import { clampMaxRows } from './models/sqlValues';
 import { restoreLayout, SQL_LAYOUT_KEY, type SqlLayout } from './models/sqlLayout';
+import { ignoredFilesMessage, pickDroppedFile } from './models/sqlUi';
 import {
   appendHistory,
   connectionKeyForFile,
@@ -74,6 +75,8 @@ export interface SqlState {
   cursor: { line: number; col: number };
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
+  // Files dropped on the page: the first opens through openFile (no handle, so Save downloads).
+  openDropped(files: File[]): Promise<void>;
   run(mode: 'current' | 'all'): Promise<void>;
   stop(): void;
   confirmPending(): Promise<void>;
@@ -484,6 +487,16 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         return;
       }
       await openBytes(file, handle);
+    },
+
+    async openDropped(files) {
+      const { file, ignored } = pickDroppedFile(files);
+      if (!file) return;
+      const s = get();
+      if (s.running || s.opening) return;
+      const note = ignoredFilesMessage(file.name, ignored);
+      if (note) say(note);
+      await get().openFile(file);
     },
 
     async run(mode) {

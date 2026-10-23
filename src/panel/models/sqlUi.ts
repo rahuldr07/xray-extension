@@ -30,10 +30,11 @@ export function pickDroppedFile<T extends { name: string }>(files: readonly T[])
   return { file: files[0], ignored: files.slice(1).map((f) => f.name) };
 }
 
-export function ignoredFilesMessage(ignored: readonly string[]): string | null {
+/** The Messages line for a drop of several files, said before the first one opens. */
+export function ignoredFilesMessage(opened: string, ignored: readonly string[]): string | null {
   if (!ignored.length) return null;
   const noun = ignored.length === 1 ? 'file' : 'files';
-  return `Opened the first dropped file; ignored ${ignored.length} other ${noun}: ${ignored.join(', ')}.`;
+  return `Only one file opens at a time: opening ${opened}, ignored ${ignored.length} other ${noun}: ${ignored.join(', ')}.`;
 }
 
 /** The rail's "Filter tables" match: a case-insensitive substring of the name. */
