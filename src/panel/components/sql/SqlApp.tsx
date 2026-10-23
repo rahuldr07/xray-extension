@@ -20,7 +20,7 @@ import { ConnectionRail } from './ConnectionRail';
 import { FileOpenInput, OpenFileButton } from './OpenFileButton';
 import { SqlDivider } from './SqlDivider';
 import { ResultsPane } from './ResultsPane';
-import { SqlEditor } from './SqlEditor';
+import { QuickStarts, SqlEditor } from './SqlEditor';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -190,6 +190,7 @@ function StatusBar(): React.ReactElement {
   const dirty = usePanelSqlStore((s) => s.dirty);
   const result = usePanelSqlStore((s) => s.result);
   const running = usePanelSqlStore((s) => !!s.running);
+  const cursor = usePanelSqlStore((s) => s.cursor);
   return (
     <footer className="xray-sql-status">
       {connection ? (
@@ -203,6 +204,14 @@ function StatusBar(): React.ReactElement {
           {dirty && <span className="xray-sql-connection-meta">unsaved changes</span>}
           <span className="xray-spacer" />
           {running ? <span>Running…</span> : result && <span>{resultSummary(result)}</span>}
+          {(running || result) && (
+            <span className="xray-sql-status-sep" aria-hidden="true">
+              ·
+            </span>
+          )}
+          <span className="xray-sql-status-cursor">
+            Ln {cursor.line}, Col {cursor.col}
+          </span>
         </>
       ) : (
         <span>No database open</span>
@@ -225,6 +234,7 @@ function Workspace(): React.ReactElement {
     >
       <div className="xray-sql-editor-wrap">
         <SqlEditor />
+        <QuickStarts />
       </div>
       <SqlDivider
         orientation="horizontal"

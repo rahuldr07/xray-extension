@@ -524,6 +524,33 @@ test('the grid sizes columns to their content, sorts and filters loaded rows, an
   await inspector.waitFor();
 });
 
+test('a fresh tab offers quick starts that insert SQL without running it, and the editor marks what runs', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  await openShop(page);
+  const editor = page.getByLabel('SQL editor');
+  await page.locator('.cm-placeholder', { hasText: 'Write SQL here — Ctrl+Enter runs the statement at the cursor, Ctrl+Shift+Enter runs all.' }).waitFor();
+  const starters = page.getByRole('group', { name: 'Quick starts', exact: true });
+  for (const label of ['List tables', 'Row counts', 'Table columns']) await starters.getByRole('button', { name: label, exact: true }).waitFor();
+
+  await starters.getByRole('button', { name: 'List tables', exact: true }).click();
+  assert.equal(await editor.textContent(), "SELECT name, type FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name;");
+  assert.equal(await editor.evaluate((el) => el === document.activeElement), true, 'the editor has focus');
+  await starters.waitFor({ state: 'detached' });
+  // Inserted, not run: no result and nothing in History.
+  await page.getByText('Run a query, or click a table on the left to preview it.', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'History', exact: true }).click();
+  await page.getByText('Queries you run on shop.sqlite appear here.', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Results', exact: true }).click();
+
+  // The statement Ctrl+Enter would run carries a band, and the status bar follows the caret.
+  await setSql(page, 'select 1;\nselect 2\n  from orders;');
+  assert.equal(await page.locator('.cm-line.xray-sql-active-statement').count(), 2, 'both lines of the statement at the caret');
+  await page.locator('.xray-sql-status', { hasText: 'Ln 3, Col 15' }).waitFor();
+  await page.keyboard.press('Control+Home');
+  assert.equal(await page.locator('.cm-line.xray-sql-active-statement').count(), 1);
+  await page.locator('.xray-sql-status', { hasText: 'Ln 1, Col 1' }).waitFor();
+});
+
 async function assertEventually(check, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {

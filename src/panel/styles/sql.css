@@ -561,6 +561,37 @@
   margin-left: 4px;
 }
 
+.xray-sql-quickstarts {
+  position: absolute;
+  top: 36px;
+  left: 44px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.xray-sql-quickstarts-label {
+  color: var(--xray-hint);
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.xray-sql-quickstarts .xray-btn {
+  height: 26px;
+  padding: 0 10px;
+  border-style: dashed;
+  color: var(--xray-subtext);
+}
+
+.xray-sql-quickstarts .xray-btn:hover {
+  border-style: solid;
+  color: var(--xray-text);
+}
+
 .xray-sql-editor {
   min-height: 0;
   overflow: hidden;

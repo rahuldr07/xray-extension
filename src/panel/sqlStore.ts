@@ -70,6 +70,8 @@ export interface SqlState {
   pendingPrompt: SqlPrompt | null;
   // Editor share and rail width, persisted as sql_layout.
   layout: SqlLayout;
+  // The editor caret, 1-based, for the status bar.
+  cursor: { line: number; col: number };
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   run(mode: 'current' | 'all'): Promise<void>;
@@ -88,6 +90,7 @@ export interface SqlState {
   updateTabSql(id: string, sql: string): void;
   setBottomTab(tab: SqlBottomTab): void;
   setLayout(patch: Partial<SqlLayout>): void;
+  setCursor(line: number, col: number): void;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
@@ -464,6 +467,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     bottomTab: 'results',
     pendingPrompt: null,
     layout: storedLayout,
+    cursor: { line: 1, col: 1 },
 
     async openFile(file, handle) {
       const s = get();
@@ -687,6 +691,11 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       storedLayout = layout;
       set({ layout });
       writeLater(SQL_LAYOUT_KEY, () => storedLayout);
+    },
+
+    setCursor(line, col) {
+      const now = get().cursor;
+      if (now.line !== line || now.col !== col) set({ cursor: { line, col } });
     },
   };
 });

@@ -1,14 +1,55 @@
 import React, { useEffect, useRef } from 'react';
-import { Compartment, EditorState, Prec, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView, highlightActiveLine, keymap, lineNumbers, type DecorationSet } from '@codemirror/view';
+import { Compartment, EditorState, Prec, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, highlightActiveLine, keymap, lineNumbers, placeholder, type DecorationSet } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { bracketMatching, defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { sql } from '@codemirror/lang-sql';
 import { setSelectionReader, usePanelSqlStore } from '../../sqlStore';
-import { sqlLanguage } from '../../models/sqlStatements';
+import { sqlLanguage, statementAt } from '../../models/sqlStatements';
 import { toCompletionSchema } from '../../models/sqlSchema';
+import { quickStarts } from '../../models/sqlStarters';
+import { editorPlaceholder, isMacPlatform } from '../../models/sqlUi';
 import type { SchemaTree } from '../../models/sqlTypes';
+
+const MAC = isMacPlatform(typeof navigator === 'undefined' ? '' : navigator.platform);
+
+// The statement Ctrl+Enter would run (no selection: the one at the caret) gets a band on its lines,
+// so what runs is always visible. Same rule as run('current') in the store.
+const statementLine = Decoration.line({ class: 'xray-sql-active-statement' });
+function statementBand(state: EditorState): DecorationSet {
+  const sel = state.selection.main;
+  if (!sel.empty || state.doc.length === 0) return Decoration.none;
+  const st = statementAt(state.doc.toString(), sel.head, 'sqlite');
+  if (!st || !st.text.trim()) return Decoration.none;
+  const builder = new RangeSetBuilder<Decoration>();
+  const first = state.doc.lineAt(st.from).number;
+  const last = state.doc.lineAt(Math.max(st.from, st.to)).number;
+  for (let n = first; n <= last; n++) builder.add(state.doc.line(n).from, state.doc.line(n).from, statementLine);
+  return builder.finish();
+}
+const statementField = StateField.define<DecorationSet>({
+  create: statementBand,
+  update: (band, tr) => (tr.docChanged || tr.selection ? statementBand(tr.state) : band),
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+// The mounted editor, for the quick-start buttons beside it.
+let mountedView: EditorView | null = null;
+
+/** Replaces the active tab's SQL through the editor (so it can be undone), and focuses it. */
+export function insertIntoEditor(sql: string): void {
+  const view = mountedView;
+  if (!view) return;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: sql }, selection: { anchor: sql.length } });
+  view.focus();
+}
+
+function reportCursor(state: EditorState): void {
+  const head = state.selection.main.head;
+  const line = state.doc.lineAt(head);
+  usePanelSqlStore.getState().setCursor(line.number, head - line.from + 1);
+}
 
 // The error underline: one mark at the engine's error position, dropped on the next edit.
 const setErrorMark = StateEffect.define<{ from: number; to: number } | null>();
@@ -64,6 +105,14 @@ const xrayTheme = EditorView.theme({
   '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--xray-font)' },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: 'var(--xray-active)', color: 'var(--xray-text)' },
   '.xray-sql-error-mark': { textDecoration: 'underline wavy var(--xray-red)', textUnderlineOffset: '3px' },
+  '.cm-placeholder': { color: 'var(--xray-hint)', fontStyle: 'normal' },
+  '.xray-sql-active-statement': {
+    backgroundColor: 'color-mix(in srgb, var(--xray-accent) 6%, transparent)',
+    boxShadow: 'inset 2px 0 0 color-mix(in srgb, var(--xray-accent) 55%, transparent)',
+  },
+  '.xray-sql-active-statement.cm-activeLine': {
+    backgroundColor: 'color-mix(in srgb, var(--xray-accent) 9%, transparent)',
+  },
 });
 
 function sqlExtension(schema: SchemaTree | null) {
@@ -115,9 +164,12 @@ export function SqlEditor(): React.ReactElement {
         syntaxHighlighting(xrayHighlight),
         xrayTheme,
         errorField,
+        statementField,
+        placeholder(editorPlaceholder(MAC)),
         EditorView.contentAttributes.of({ 'aria-label': 'SQL editor' }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) usePanelSqlStore.getState().updateTabSql(live.current.tabId, update.state.doc.toString());
+          if (update.docChanged || update.selectionSet) reportCursor(update.state);
         }),
       ],
     });
@@ -128,13 +180,16 @@ export function SqlEditor(): React.ReactElement {
     if (!host) return undefined;
     const view = new EditorView({ state: createState(tabSql), parent: host });
     viewRef.current = view;
+    mountedView = view;
     shownTabRef.current = activeTabId;
+    reportCursor(view.state);
     setSelectionReader(() => {
       const main = view.state.selection.main;
       return { from: main.from, to: main.to, head: main.head };
     });
     return () => {
       setSelectionReader(null);
+      if (mountedView === view) mountedView = null;
       view.destroy();
       viewRef.current = null;
     };
@@ -150,6 +205,7 @@ export function SqlEditor(): React.ReactElement {
       // Each tab gets its own undo history.
       shownTabRef.current = activeTabId;
       view.setState(createState(tabSql));
+      reportCursor(view.state);
     } else if (view.state.doc.toString() !== tabSql) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: tabSql } });
     }
@@ -169,4 +225,22 @@ export function SqlEditor(): React.ReactElement {
   }, [errorAt, activeTabId]);
 
   return <div ref={hostRef} className="xray-sql-editor" />;
+}
+
+// Starters for an empty tab, under the placeholder. They insert SQL and focus the editor; nothing runs.
+export function QuickStarts(): React.ReactElement | null {
+  const empty = usePanelSqlStore((s) => !s.tabs.find((t) => t.id === s.activeTabId)?.sql.trim());
+  const schema = usePanelSqlStore((s) => s.schema);
+  const starters = React.useMemo(() => quickStarts(schema), [schema]);
+  if (!empty) return null;
+  return (
+    <div className="xray-sql-quickstarts" role="group" aria-label="Quick starts">
+      <span className="xray-sql-quickstarts-label">Start with</span>
+      {starters.map((starter) => (
+        <button key={starter.label} type="button" className="xray-btn xray-btn-sm" title={starter.sql} onClick={() => insertIntoEditor(starter.sql)}>
+          {starter.label}
+        </button>
+      ))}
+    </div>
+  );
 }
