@@ -687,6 +687,8 @@ function _getSqlManager() {
       lastError: () => chrome.runtime.lastError?.message,
       runtimeId: chrome.runtime.id,
       now: () => Date.now(),
+      setTimeout: (fn, ms) => setTimeout(fn, ms),
+      clearTimeout: (handle) => clearTimeout(handle),
     });
   }
   return _sqlManager;
@@ -696,8 +698,24 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'xray-sql') {
     // handlePort validates the sender (sql.html of this extension) itself (C-9).
     const manager = _getSqlManager();
-    if (manager) manager.handlePort(port);
-    else port.disconnect();
+    if (manager) {
+      manager.handlePort(port);
+      return;
+    }
+    // The manager failed to load: answer every request instead of a silent
+    // disconnect, so the page shows an error rather than waiting.
+    if (port.sender?.id !== chrome.runtime.id) {
+      port.disconnect();
+      return;
+    }
+    port.onMessage.addListener((msg) => {
+      if (!msg || (typeof msg.id !== 'number' && typeof msg.id !== 'string')) return;
+      try {
+        port.postMessage({ id: msg.id, ok: false, error: { code: 'internal', message: 'The SQL connection manager failed to load.' } });
+      } catch {
+        /* the page went away */
+      }
+    });
     return;
   }
   if (port.name !== 'xray-devtools') return;

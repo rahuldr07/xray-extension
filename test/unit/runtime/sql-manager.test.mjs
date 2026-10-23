@@ -97,7 +97,17 @@ function defaultScript(msg, reply) {
   }
 }
 
-function setup({ helper = fakeHelper(), local = {}, session = {}, permission = true } = {}) {
+// Fake timers: nothing fires until a test calls fire(ms) for that delay.
+function fakeTimers() {
+  const t = { list: [] };
+  t.setTimeout = (fn, ms) => { const h = { fn, ms, done: false }; t.list.push(h); return h; };
+  t.clearTimeout = (h) => { if (h) h.done = true; };
+  t.pending = (ms) => t.list.filter((h) => !h.done && h.ms === ms).length;
+  t.fire = (ms) => { for (const h of t.list.filter((x) => !x.done && x.ms === ms)) { h.done = true; h.fn(); } };
+  return t;
+}
+
+function setup({ helper = fakeHelper(), local = {}, session = {}, permission = true, timers = fakeTimers() } = {}) {
   const storageLocal = fakeStorage(local);
   const storageSession = fakeStorage(session);
   const { createSqlManager } = loadManager();
@@ -108,8 +118,10 @@ function setup({ helper = fakeHelper(), local = {}, session = {}, permission = t
     lastError: () => helper.lastError,
     runtimeId: RUNTIME_ID,
     now: () => 1_700_000_000_000,
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
   });
-  return { manager, helper, storageLocal, storageSession };
+  return { manager, helper, storageLocal, storageSession, timers };
 }
 
 function pagePort(manager, { url = SQL_URL, id = RUNTIME_ID } = {}) {
@@ -347,4 +359,138 @@ test('sql-manager: closing the page closes its sessions on the helper', async ()
   page.onDisconnect.fire(page);
   await until(() => helper.sent.find((m) => m.op === 'close'));
   assert.equal(helper.sent.find((m) => m.op === 'close').sessionId, sessionId);
+});
+
+// ------------------------------------------------ Ruling M3-R19: no hangs
+
+test('sql-manager: a helper that never answers hello times out after 5 s as missing, and the next call starts a new one', async () => {
+  const helper = fakeHelper(() => {}); // silent
+  const { manager, timers } = setup({ helper });
+  const page = pagePort(manager);
+  page.onMessage.fire({ id: 1, op: 'helper.status' }, page);
+  await until(() => timers.pending(5000) === 1, 'the hello timer');
+  assert.equal(page.posted.length, 0);
+  timers.fire(5000);
+  const res = await until(() => page.posted.find((m) => m.id === 1));
+  assert.deepEqual(res.value, { state: 'missing' });
+  assert.equal(helper.ports[0].alive, false, 'the silent helper is disconnected');
+  page.onMessage.fire({ id: 2, op: 'helper.status' }, page);
+  await until(() => helper.opened === 2, 'a new native port');
+});
+
+test('sql-manager: a pending call is rejected helper-missing when hello times out', async () => {
+  const helper = fakeHelper(() => {});
+  const { manager, timers } = setup({ helper, local: { sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
+  const page = pagePort(manager);
+  page.onMessage.fire({ id: 1, op: 'connect', profileId: 'p1', readOnly: true }, page);
+  await until(() => timers.pending(5000) === 1);
+  timers.fire(5000);
+  const res = await until(() => page.posted.find((m) => m.id === 1));
+  assert.equal(res.error.code, 'helper-missing');
+});
+
+test('sql-manager: an ok:false hello is outdated, drops the port, and a retry starts a new one', async () => {
+  const helper = fakeHelper((msg, reply) => {
+    if (msg.op === 'hello') reply({ id: msg.id, ok: false, error: { code: 'bad-request', message: 'malformed request' } });
+  });
+  const { manager } = setup({ helper });
+  const page = pagePort(manager);
+  assert.deepEqual((await page.request({ id: 1, op: 'helper.status' })).value, { state: 'outdated' });
+  assert.equal(helper.ports[0].alive, false);
+  await page.request({ id: 2, op: 'helper.status' });
+  assert.equal(helper.opened, 2);
+});
+
+test('sql-manager: a helper wedged on cancel is disconnected after 5 s and every pending call gets connection-lost', async () => {
+  let execId;
+  const { helper, page, sessionId, timers } = await connected((msg, reply) => {
+    if (msg.op === 'execute') { execId = msg.id; return; }
+    if (msg.op === 'cancel') return; // wedged
+    return defaultScript(msg, reply);
+  });
+  page.onMessage.fire({ id: 20, op: 'execute', sessionId, tabId: 't1', sql: 'select 1', maxRows: 10 }, page);
+  await until(() => execId);
+  page.onMessage.fire({ id: 21, op: 'cancel', queryId: 20 }, page);
+  await until(() => helper.sent.some((m) => m.op === 'cancel'));
+  assert.equal(timers.pending(5000), 1, 'only the cancel is timed');
+  timers.fire(5000);
+  const cancel = await until(() => page.posted.find((m) => m.id === 21));
+  const exec = await until(() => page.posted.find((m) => m.id === 20));
+  assert.equal(cancel.error.code, 'connection-lost');
+  assert.equal(exec.error.code, 'connection-lost');
+  assert.equal(helper.ports[0].alive, false);
+  const after = await page.request({ id: 22, op: 'introspect', sessionId });
+  assert.equal(after.error.code, 'connection-lost', 'its sessions are dead');
+});
+
+test('sql-manager: a helper wedged on close is disconnected after 5 s', async () => {
+  const { helper, page, sessionId, timers } = await connected((msg, reply) => (msg.op === 'close' ? undefined : defaultScript(msg, reply)));
+  page.onMessage.fire({ id: 30, op: 'close', sessionId }, page);
+  await until(() => helper.sent.some((m) => m.op === 'close'));
+  timers.fire(5000);
+  const res = await until(() => page.posted.find((m) => m.id === 30));
+  assert.equal(res.error.code, 'connection-lost');
+  assert.equal(helper.ports[0].alive, false);
+});
+
+test('sql-manager: connect times out after 15 s and introspect after 30 s; execute and fetchMore are never timed', async () => {
+  const TIMEOUT = { code: 'timeout', message: 'The database helper did not answer in time.' };
+  let silentConnect = false;
+  let lateConnect;
+  const { helper, page, sessionId, timers } = await connected((msg, reply) => {
+    if (msg.op === 'connect' && silentConnect) { lateConnect = () => reply({ id: msg.id, ok: true, value: { sessionId: 'late', serverVersion: '16', capabilities: CAPS } }); return; }
+    if (msg.op === 'introspect' || msg.op === 'execute' || msg.op === 'fetchMore') return; // silent
+    return defaultScript(msg, reply);
+  });
+  page.onMessage.fire({ id: 40, op: 'introspect', sessionId }, page);
+  await until(() => timers.pending(30000) === 1, 'the introspect timer');
+  timers.fire(30000);
+  assert.deepEqual((await until(() => page.posted.find((m) => m.id === 40))).error, TIMEOUT);
+
+  silentConnect = true;
+  page.onMessage.fire({ id: 41, op: 'connect', profileId: 'p1', readOnly: true }, page);
+  await until(() => timers.pending(15000) === 1, 'the connect timer');
+  timers.fire(15000);
+  assert.deepEqual((await until(() => page.posted.find((m) => m.id === 41))).error, TIMEOUT);
+  lateConnect();
+  await until(() => helper.sent.some((m) => m.op === 'close' && m.sessionId === 'late'), 'the late session to be closed');
+
+  const before = timers.list.length;
+  page.onMessage.fire({ id: 42, op: 'execute', sessionId, tabId: 't1', sql: 'select pg_sleep(600)', maxRows: 10 }, page);
+  page.onMessage.fire({ id: 43, op: 'fetchMore', sessionId, tabId: 't1', n: 10 }, page);
+  await until(() => helper.sent.some((m) => m.op === 'fetchMore'));
+  assert.equal(timers.list.length, before, 'no timer for execute or fetchMore');
+  assert.equal(helper.ports[0].alive, true);
+});
+
+test('sql-manager: an empty password keeps the saved one, and a re-save without savePassword keeps the secret where it is', async () => {
+  const { manager, storageLocal, storageSession } = setup();
+  const page = pagePort(manager);
+  const local = (await page.request({ id: 1, op: 'profiles.save', profile: { ...PROFILE, password: 'keep', savePassword: true } })).value;
+  await page.request({ id: 2, op: 'profiles.save', profile: { ...PROFILE, id: local.id, password: '', savePassword: true } });
+  assert.equal(storageLocal.data.sql_connections[0].password, 'keep');
+  await page.request({ id: 3, op: 'profiles.save', profile: { ...PROFILE, id: local.id, name: 'Renamed' } });
+  assert.equal(storageLocal.data.sql_connections[0].password, 'keep', 'a saved password stays saved');
+
+  const sess = (await page.request({ id: 4, op: 'profiles.save', profile: { ...PROFILE, password: 'temp', savePassword: false } })).value;
+  await page.request({ id: 5, op: 'profiles.save', profile: { ...PROFILE, id: sess.id, name: 'Renamed too' } });
+  assert.equal('password' in storageLocal.data.sql_connections[1], false, 'a session secret is not written to disk');
+  assert.equal(storageSession.data.sql_session_secrets[sess.id], 'temp');
+});
+
+test('sql-manager: a page that closes while connect is in flight gets its session closed on the helper', async () => {
+  let answer;
+  const helper = fakeHelper((msg, reply) => {
+    if (msg.op === 'connect') { answer = () => reply({ id: msg.id, ok: true, value: { sessionId: 'orphan', serverVersion: '16', capabilities: CAPS } }); return; }
+    return defaultScript(msg, reply);
+  });
+  const { manager } = setup({ helper, local: { sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
+  const page = pagePort(manager);
+  page.onMessage.fire({ id: 1, op: 'connect', profileId: 'p1', readOnly: true }, page);
+  await until(() => answer, 'connect to reach the helper');
+  page.onDisconnect.fire(page);
+  answer();
+  const close = await until(() => helper.sent.find((m) => m.op === 'close'));
+  assert.equal(close.sessionId, 'orphan');
+  assert.equal(page.posted.length, 0);
 });

@@ -32,7 +32,13 @@
     permission: { code: 'helper-missing', message: 'Allow XRAY to use the database helper.', detail: 'no-permission' },
     outdated: { code: 'helper-outdated', message: 'Update the XRAY database helper.' },
     lost: { code: 'connection-lost', message: 'The connection to the database helper was lost.' },
+    timeout: { code: 'timeout', message: 'The database helper did not answer in time.' },
   };
+
+  // Ruling M3-R19: nothing the page awaits may hang on a silent helper.
+  // execute and fetchMore have no limit: a long query is the user's to cancel.
+  const HELLO_TIMEOUT_MS = 5000;
+  const REQUEST_TIMEOUT_MS = { connect: 15000, introspect: 30000, cancel: 5000, close: 5000 };
 
   function badRequest(message) {
     return { code: 'bad-request', message };
@@ -95,6 +101,10 @@
   function createSqlManager(deps) {
     const { storageLocal, storageSession, connectNative, permissionsContains, runtimeId } = deps;
     const lastError = typeof deps.lastError === 'function' ? deps.lastError : () => undefined;
+    const setTimer = deps.setTimeout;
+    const clearTimer = (handle) => {
+      if (handle !== undefined) deps.clearTimeout(handle);
+    };
     let idCounter = 0;
 
     // ------------------------------------------------------------- storage
@@ -155,14 +165,16 @@
         if (input.id !== undefined && !existing) throw new OpError(badRequest('Unknown profile.'));
         const id = existing ? existing.id : newProfileId(profiles);
         const profile = cleanProfile(input, id);
-        // An omitted password keeps whichever secret exists, moved to where the
-        // user now wants it.
-        const password = typeof input.password === 'string'
+        // An omitted or empty password keeps whichever secret exists. It moves
+        // only when savePassword says where; without it, it stays where it is.
+        const savedLocally = Boolean(existing && typeof existing.password === 'string' && existing.password !== '');
+        const password = typeof input.password === 'string' && input.password !== ''
           ? input.password
-          : (existing && existing.password) || secrets[id];
+          : (savedLocally ? existing.password : secrets[id]);
+        const local = typeof input.savePassword === 'boolean' ? input.savePassword : savedLocally;
         delete secrets[id];
         if (typeof password === 'string' && password !== '') {
-          if (input.savePassword === true) profile.password = password;
+          if (local) profile.password = password;
           else secrets[id] = password;
         }
         const next = existing ? profiles.map((p) => (p.id === id ? profile : p)) : [...profiles, profile];
@@ -189,60 +201,76 @@
     let nextNativeId = 1;
     const sessions = new Map(); // sessionId -> { owner: pagePort, alive: boolean }
 
+    // Tears a native connection down: drops the port and rejects the hello and
+    // every pending call with `body`. Sessions on it are dead until reconnected.
+    function teardown(state, body, { disconnect = true } = {}) {
+      if (native === state) native = null;
+      if (state.dead) return;
+      state.dead = true;
+      if (state.helloTimer !== undefined) clearTimer(state.helloTimer);
+      if (disconnect && state.port) {
+        try {
+          state.port.disconnect();
+        } catch {
+          /* already gone */
+        }
+      }
+      state.rejectHello(new OpError(body));
+      const calls = [...state.pending.values()];
+      state.pending.clear();
+      for (const call of calls) call.reject(new OpError(body));
+      for (const s of sessions.values()) s.alive = false;
+    }
+
     function openNative() {
-      const state = { port: null, pending: new Map(), helloDone: false };
+      const state = { port: null, pending: new Map(), helloDone: false, dead: false };
       let resolveHello;
-      let rejectHello;
       state.ready = new Promise((resolve, reject) => {
         resolveHello = resolve;
-        rejectHello = reject;
+        state.rejectHello = reject;
       });
       state.ready.catch(() => {});
       try {
         state.port = connectNative(HOST_NAME);
       } catch {
-        rejectHello(new OpError(ERR.missing));
+        teardown(state, ERR.missing, { disconnect: false });
         return state;
       }
       state.port.onMessage.addListener((msg) => onNativeMessage(state, msg));
       state.port.onDisconnect.addListener(() => {
         const reason = lastError();
-        if (native === state) native = null;
-        const error = state.helloDone ? ERR.lost : ERR.missing;
         // A missing host is reported whatever the stage; Chrome's exact text.
-        const body = /not found/i.test(String(reason || '')) ? ERR.missing : error;
-        rejectHello(new OpError(body));
-        for (const call of state.pending.values()) call.reject(new OpError(body));
-        state.pending.clear();
-        for (const s of sessions.values()) s.alive = false;
+        const body = /not found/i.test(String(reason || '')) || !state.helloDone ? ERR.missing : ERR.lost;
+        teardown(state, body, { disconnect: false });
       });
       const helloId = nextNativeId++;
       state.pending.set(helloId, {
         op: 'hello',
+        // An `ok:false` hello arrives here as null: an old helper (Ruling M3-R19 M2).
         resolve: (value) => {
           state.helloDone = true;
+          clearTimer(state.helloTimer);
           if (!value || value.protocolVersion !== PROTOCOL_VERSION) {
             // An old process keeps running the old binary: drop it so the
             // next call (a Retry after updating) starts the new one.
-            if (native === state) native = null;
-            try {
-              state.port.disconnect();
-            } catch {
-              /* already gone */
-            }
             const err = new OpError(ERR.outdated);
             err.helperVersion = value && typeof value.helperVersion === 'string' ? value.helperVersion : undefined;
-            rejectHello(err);
+            state.rejectHello(err);
+            teardown(state, ERR.outdated);
             return;
           }
           resolveHello(value);
         },
-        reject: (err) => rejectHello(err),
+        reject: () => {},
       });
+      // A helper that never answers hello must not hang every SQL call.
+      state.helloTimer = setTimer(() => {
+        if (!state.helloDone) teardown(state, ERR.missing);
+      }, HELLO_TIMEOUT_MS);
       try {
         state.port.postMessage({ id: helloId, op: 'hello' });
       } catch {
-        rejectHello(new OpError(ERR.missing));
+        teardown(state, ERR.missing, { disconnect: false });
       }
       return state;
     }
@@ -261,6 +289,7 @@
       }
       state.pending.delete(msg.id);
       if (msg.ok === true) call.resolve(msg.value);
+      else if (call.op === 'hello') call.resolve(null);
       else call.reject(new OpError(normalizeHelperError(msg.error)));
     }
 
@@ -277,7 +306,7 @@
 
     async function ensureNative() {
       if (!(await permissionsContains('nativeMessaging'))) throw new OpError(ERR.permission);
-      if (!native) native = openNative();
+      if (!native || native.dead) native = openNative();
       const state = native;
       const hello = await state.ready;
       return { state, hello };
@@ -288,21 +317,52 @@
       const { state } = await ensureNative();
       const id = nextNativeId++;
       return new Promise((resolve, reject) => {
-        const call = { op, columns: [], rows: [], resolve: null, reject };
+        let timer;
+        const call = { op, columns: [], rows: [] };
         call.resolve = (value) => {
+          clearTimer(timer);
           if (op === 'execute' || op === 'fetchMore') {
             resolve({ columns: call.columns, rows: call.rows, ...queryFields(value) });
           } else {
             resolve(value);
           }
         };
+        call.reject = (err) => {
+          clearTimer(timer);
+          reject(err);
+        };
         state.pending.set(id, call);
         if (track) track(id);
+        const limit = REQUEST_TIMEOUT_MS[op];
+        if (limit !== undefined) {
+          timer = setTimer(() => {
+            if (state.pending.get(id) !== call) return;
+            if (op === 'cancel' || op === 'close') {
+              // A helper that cannot even cancel or close is wedged.
+              teardown(state, ERR.lost);
+              return;
+            }
+            state.pending.delete(id);
+            if (op === 'connect') {
+              // A late success would leave a session nobody owns: close it.
+              state.pending.set(id, {
+                op,
+                resolve: (value) => {
+                  if (value && typeof value.sessionId === 'string') {
+                    callNative('close', { sessionId: value.sessionId }).catch(() => {});
+                  }
+                },
+                reject: () => {},
+              });
+            }
+            reject(new OpError(ERR.timeout));
+          }, limit);
+        }
         try {
           state.port.postMessage({ id, op, ...payload });
         } catch {
           state.pending.delete(id);
-          reject(new OpError(ERR.lost));
+          call.reject(new OpError(ERR.lost));
         }
       });
     }
@@ -365,6 +425,13 @@
         request.statementTimeoutMs = profile.statementTimeoutMs;
       }
       const value = await callNative('connect', request);
+      if (page.closed) {
+        // Nobody is left to use or close this session (Ruling M3-R19 M4).
+        if (value && typeof value.sessionId === 'string') {
+          callNative('close', { sessionId: value.sessionId }).catch(() => {});
+        }
+        return {};
+      }
       if (supplied !== null) await serialized(() => storeSecret(profile.id, supplied, msg.remember === true));
       if (value && typeof value.sessionId === 'string') sessions.set(value.sessionId, { owner: page.port, alive: true });
       return { sessionId: value.sessionId, serverVersion: value.serverVersion, capabilities: value.capabilities };

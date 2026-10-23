@@ -281,3 +281,27 @@ test('M3 SQL manager: the xray-sql onConnect branch hands the port to handlePort
   connectListener(own);
   assert.equal(own.disconnected, false);
 });
+
+test('M3 SQL manager: if the manager fails to load, xray-sql requests are answered with an internal error', () => {
+  let connectListener;
+  const noopEvent = { addListener() {} };
+  const chrome = {
+    runtime: { id: 'xray-test', getURL: name => name, onConnect: { addListener: fn => { connectListener = fn; } }, onMessage: noopEvent },
+    tabs: {}, action: { onClicked: noopEvent }, commands: { onCommand: noopEvent },
+    windows: { onRemoved: noopEvent }, debugger: { onDetach: noopEvent },
+  };
+  const errors = [];
+  const context = { chrome, console: { ...console, error: (...a) => errors.push(a) }, URL, fetch: async () => ({ text: async () => '' }) };
+  context.importScripts = () => { throw new Error('NetworkError: failed to load'); };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(require.resolve('../background.js'), 'utf8'), context);
+  assert.equal(errors.length, 1, 'the load failure is logged');
+  let onMessage;
+  const port = { name: 'xray-sql', sender: { id: 'xray-test', url: 'chrome-extension://xray-test/sql.html' }, posted: [], disconnected: false,
+    onMessage: { addListener(fn) { onMessage = fn; } }, onDisconnect: noopEvent,
+    postMessage(m) { this.posted.push(JSON.parse(JSON.stringify(m))); }, disconnect() { this.disconnected = true; } };
+  connectListener(port);
+  assert.equal(port.disconnected, false, 'the port stays open');
+  onMessage({ id: 7, op: 'profiles.list' });
+  assert.deepEqual(port.posted, [{ id: 7, ok: false, error: { code: 'internal', message: 'The SQL connection manager failed to load.' } }]);
+});
