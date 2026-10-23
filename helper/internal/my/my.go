@@ -858,6 +858,14 @@ func (s *mySession) ReadOnlyRefusal(sql string) string {
 	return readOnlyRefusal(sql, s.mariaDB)
 }
 
+const fileWriteMsg = "Writing files on the server needs Read-only off."
+
+// intoFileRe finds SELECT/TABLE … INTO OUTFILE/DUMPFILE, which writes a file
+// on the server even inside a READ ONLY transaction (Ruling M3-R16). It reads
+// raw text, case-insensitively, allowing whitespace and comments between the
+// words; the words inside a string literal match too (fail closed).
+var intoFileRe = regexp.MustCompile(`(?is)\binto(?:\s|/\*.*?\*/|#[^\n]*|--[\x00-\x20][^\n]*)*(?:outfile|dumpfile)\b`)
+
 const versionCommentMsg = "Version comments (/*! … */) are not allowed with Read-only on."
 
 // readOnlyRefusal returns the refusal text when read-only mode must refuse
@@ -865,10 +873,14 @@ const versionCommentMsg = "Version comments (/*! … */) are not allowed with Re
 //   - any executable comment, anywhere (even inside a string literal), is
 //     refused: the server may or may not run its body, by version, so the
 //     guard cannot know what runs (Ruling M3-R15);
-//   - a statement without a first keyword is refused.
+//   - a statement without a first keyword is refused;
+//   - INTO OUTFILE/DUMPFILE, which writes server files, is refused.
 //
 // The keyword is read the way MySQL reads it.
 func readOnlyRefusal(sql string, mariaDB bool) string {
+	if intoFileRe.MatchString(sql) {
+		return fileWriteMsg
+	}
 	if strings.Contains(sql, "/*!") || (mariaDB && strings.Contains(sql, "/*M!")) {
 		return versionCommentMsg
 	}

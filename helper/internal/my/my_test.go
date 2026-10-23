@@ -1061,3 +1061,77 @@ func TestMySQLStatementTimeoutBoundsWithUpdate(t *testing.T) {
 		t.Fatalf("timed-out update zeroed %v rows", n)
 	}
 }
+
+func TestFileWriteGuard(t *testing.T) {
+	if fileWriteMsg != "Writing files on the server needs Read-only off." {
+		t.Fatal(fileWriteMsg)
+	}
+	cases := []struct{ sql, want string }{
+		{"table orders into outfile '/var/lib/mysql-files/x'", fileWriteMsg},
+		{"select 1 into dumpfile '/tmp/x'", fileWriteMsg},
+		{"select 1 into/**/outfile '/tmp/x'", fileWriteMsg},
+		{"SELECT 1 INTO\n\tOUTFILE '/tmp/x'", fileWriteMsg},
+		{"select 1 into /* a */ # b\n -- c\n dumpfile '/tmp/x'", fileWriteMsg},
+		{"select * from t into outfile '/tmp/x' fields terminated by ','", fileWriteMsg},
+		{"select 1 into @x", ""},
+		{"select pinto, outfile from t", ""},
+	}
+	for _, c := range cases {
+		if got := readOnlyRefusal(c.sql, false); got != c.want {
+			t.Errorf("readOnlyRefusal(%q) = %q, want %q", c.sql, got, c.want)
+		}
+	}
+}
+
+// Fail closed by design: the check reads raw text, so the words inside a
+// string literal are refused too.
+func TestFileWriteGuardRefusesTheWordsEvenInsideAString(t *testing.T) {
+	if got := readOnlyRefusal("select 'into outfile'", false); got != fileWriteMsg {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// Ruling M3-R16: SELECT/TABLE … INTO OUTFILE/DUMPFILE writes a file on the
+// server even inside a READ ONLY transaction, so read-only refuses it.
+func TestMySQLIntoOutfileRefused(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	a := admin(t, cfg)
+	var dir sql.NullString
+	if err := a.QueryRow("select @@secure_file_priv").Scan(&dir); err != nil {
+		t.Fatal(err)
+	}
+	base := "/tmp/"
+	if dir.Valid && dir.String != "" {
+		base = strings.TrimSuffix(dir.String, "/") + "/"
+	}
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	for i, form := range []string{
+		"table orders into outfile '%s'",
+		"select 1 into dumpfile '%s'",
+		"select 1 into/**/outfile '%s'",
+		"select 'into outfile'",
+	} {
+		path := base + db + "_" + strconv.Itoa(i)
+		q := form
+		if strings.Contains(form, "%s") {
+			q = fmt.Sprintf(form, path)
+		}
+		// Twice: a written file would make the second run fail with
+		// "already exists" rather than read-only.
+		for run := 0; run < 2; run++ {
+			_, f := exec(c, sid, "t1", q, 10)
+			if testclient.ErrCode(f) != "read-only" || errField(f, "message") != fileWriteMsg {
+				t.Fatalf("%q run %d: %v", q, run, f)
+			}
+		}
+		var content sql.NullString
+		if err := a.QueryRow("select load_file(?)", path).Scan(&content); err != nil {
+			t.Fatal(err)
+		}
+		if content.Valid {
+			t.Fatalf("%s was written", path)
+		}
+	}
+}
