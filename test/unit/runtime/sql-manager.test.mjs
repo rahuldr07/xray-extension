@@ -494,3 +494,69 @@ test('sql-manager: a page that closes while connect is in flight gets its sessio
   assert.equal(close.sessionId, 'orphan');
   assert.equal(page.posted.length, 0);
 });
+
+// ------------------------------------------------ Ruling M3-R23: Test connection stores nothing
+
+test('sql-manager: profiles.test connects read-only with the given fields, closes at once and stores nothing', async () => {
+  const { manager, helper, storageLocal, storageSession } = setup();
+  const page = pagePort(manager);
+  const res = await page.request({ id: 1, op: 'profiles.test', profile: { ...PROFILE, readOnly: false }, password: 'hunter2' });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.value, { serverVersion: '16.4' });
+  const req = helper.sent.find((m) => m.op === 'connect');
+  assert.deepEqual(req, { id: req.id, op: 'connect', engine: 'postgres', host: 'db.example.com', port: 5432, database: 'app', user: 'alice', password: 'hunter2', tls: 'require', readOnly: true });
+  await until(() => helper.sent.find((m) => m.op === 'close' && m.sessionId === 'sess-1'), 'close after the test');
+  assert.deepEqual(storageLocal.data, {});
+  assert.deepEqual(storageSession.data, {});
+  assert.doesNotMatch(JSON.stringify(page.posted), /hunter2/);
+});
+
+test('sql-manager: profiles.test with a blank password reads the stored secret without moving it', async () => {
+  const local = { sql_connections: [{ ...PROFILE, id: 'p1', password: 'saved-pw' }] };
+  const session = { sql_session_secrets: { p2: 'session-pw' } };
+  const { manager, helper, storageLocal, storageSession } = setup({ local, session });
+  const page = pagePort(manager);
+  const before = JSON.stringify([storageLocal.data, storageSession.data]);
+  const a = await page.request({ id: 1, op: 'profiles.test', profile: { ...PROFILE, id: 'p1', host: 'edited.example.com' }, password: '' });
+  assert.equal(a.ok, true);
+  const b = await page.request({ id: 2, op: 'profiles.test', profile: { ...PROFILE, id: 'p2' } });
+  assert.equal(b.ok, true);
+  const connects = helper.sent.filter((m) => m.op === 'connect');
+  assert.deepEqual(connects.map((m) => [m.host, m.password]), [['edited.example.com', 'saved-pw'], ['db.example.com', 'session-pw']]);
+  assert.equal(JSON.stringify([storageLocal.data, storageSession.data]), before, 'storage untouched');
+  const c = await page.request({ id: 3, op: 'profiles.test', profile: { ...PROFILE } });
+  assert.equal(c.ok, false);
+  assert.equal(c.error.detail, 'password-required');
+});
+
+test('sql-manager: profiles.test passes helper errors and field validation through', async () => {
+  const helper = fakeHelper((msg, reply) => {
+    if (msg.op === 'connect') return reply({ id: msg.id, ok: false, error: { code: 'auth-failed', message: 'Password authentication failed.' } });
+    return defaultScript(msg, reply);
+  });
+  const { manager, storageLocal } = setup({ helper });
+  const page = pagePort(manager);
+  const res = await page.request({ id: 1, op: 'profiles.test', profile: PROFILE, password: 'x' });
+  assert.deepEqual(res.error, { code: 'auth-failed', message: 'Password authentication failed.' });
+  const bad = await page.request({ id: 2, op: 'profiles.test', profile: { ...PROFILE, port: 0 }, password: 'x' });
+  assert.deepEqual(bad.error, { code: 'bad-request', message: 'Port must be between 1 and 65535.' });
+  assert.deepEqual(storageLocal.data, {});
+});
+
+test('sql-manager: the helper is stopped 30 s after the last page leaves, unless a page comes back', async () => {
+  const { manager, helper, timers } = setup();
+  const page = pagePort(manager);
+  await page.request({ id: 1, op: 'helper.status' });
+  assert.equal(timers.pending(30000), 0, 'no idle timer while a page is connected');
+  page.onDisconnect.fire(page);
+  assert.equal(timers.pending(30000), 1);
+  const again = pagePort(manager);
+  assert.equal(timers.pending(30000), 0, 'a returning page cancels it');
+  again.onDisconnect.fire(again);
+  timers.fire(30000);
+  assert.equal(helper.ports[0].alive, false, 'the native port is disconnected');
+  const next = pagePort(manager);
+  const status = await next.request({ id: 2, op: 'helper.status' });
+  assert.equal(status.value.state, 'ready');
+  assert.equal(helper.opened, 2, 'the next call starts the helper again');
+});

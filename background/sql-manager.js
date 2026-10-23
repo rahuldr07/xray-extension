@@ -39,6 +39,9 @@
   // execute and fetchMore have no limit: a long query is the user's to cancel.
   const HELLO_TIMEOUT_MS = 5000;
   const REQUEST_TIMEOUT_MS = { connect: 15000, introspect: 30000, cancel: 5000, close: 5000 };
+  // Ruling M3-R23: with no sql.html connected and no open session, the helper
+  // process is stopped after this long; the next call starts it again.
+  const IDLE_DISCONNECT_MS = 30000;
 
   function badRequest(message) {
     return { code: 'bad-request', message };
@@ -196,10 +199,65 @@
       });
     }
 
+    // Test connection: connects with the given fields (read-only) and closes at
+    // once. It never writes sql_connections or sql_session_secrets. With no typed
+    // password, an existing profile's stored secret is read (never moved).
+    async function testProfile(msg) {
+      const input = msg.profile;
+      if (!input || typeof input !== 'object') throw new OpError(badRequest('A profile is required.'));
+      const profile = cleanProfile(input, 'test');
+      let password = typeof msg.password === 'string' && msg.password !== '' ? msg.password : null;
+      if (password === null && typeof input.id === 'string') {
+        const stored = (await readProfiles()).find((p) => p.id === input.id);
+        if (stored && typeof stored.password === 'string' && stored.password !== '') password = stored.password;
+        if (password === null) {
+          const secret = (await readSessionSecrets())[input.id];
+          if (typeof secret === 'string' && secret !== '') password = secret;
+        }
+      }
+      if (password === null) {
+        throw new OpError({ code: 'auth-failed', message: `Enter the password for ${profile.name}.`, detail: 'password-required' });
+      }
+      const request = {
+        engine: profile.engine,
+        host: profile.host,
+        port: profile.port,
+        database: profile.database,
+        user: profile.user,
+        password,
+        tls: profile.tls,
+        readOnly: true,
+      };
+      if (profile.caFile) request.caFile = profile.caFile;
+      if (profile.statementTimeoutMs) request.statementTimeoutMs = profile.statementTimeoutMs;
+      const value = await callNative('connect', request);
+      if (value && typeof value.sessionId === 'string') {
+        callNative('close', { sessionId: value.sessionId }).catch(() => {});
+      }
+      return { serverVersion: value && typeof value.serverVersion === 'string' ? value.serverVersion : '' };
+    }
+
     // -------------------------------------------------------- native port
     let native = null; // { port, ready: Promise<helloValue>, pending: Map<nativeId, call> }
     let nextNativeId = 1;
     const sessions = new Map(); // sessionId -> { owner: pagePort, alive: boolean }
+    const pages = new Set(); // connected sql.html pages
+    let idleTimer;
+
+    function cancelIdle() {
+      clearTimer(idleTimer);
+      idleTimer = undefined;
+    }
+
+    // Nobody can use the helper: stop it after IDLE_DISCONNECT_MS unless a page comes back.
+    function scheduleIdle() {
+      cancelIdle();
+      if (pages.size > 0 || sessions.size > 0 || !native) return;
+      idleTimer = setTimer(() => {
+        idleTimer = undefined;
+        if (pages.size === 0 && sessions.size === 0 && native) teardown(native, ERR.lost);
+      }, IDLE_DISCONNECT_MS);
+    }
 
     // Tears a native connection down: drops the port and rejects the hello and
     // every pending call with `body`. Sessions on it are dead until reconnected.
@@ -462,6 +520,8 @@
           return saveProfile(msg.profile);
         case 'profiles.delete':
           return deleteProfile(msg.profileId);
+        case 'profiles.test':
+          return testProfile(msg);
         case 'helper.status':
           return helperStatus();
         case 'connect':
@@ -525,6 +585,7 @@
 
     function onPageGone(page) {
       page.closed = true;
+      pages.delete(page);
       if (native) {
         for (const nativeId of page.queries.values()) callNative('cancel', { queryId: nativeId }).catch(() => {});
       }
@@ -534,6 +595,7 @@
         if (s.alive && native) callNative('close', { sessionId }).catch(() => {});
       }
       page.queries.clear();
+      scheduleIdle();
     }
 
     function handlePort(port) {
@@ -546,6 +608,8 @@
         return;
       }
       const page = { port, queries: new Map(), closed: false };
+      pages.add(page);
+      cancelIdle();
       port.onMessage.addListener((msg) => onPageMessage(page, msg));
       port.onDisconnect.addListener(() => onPageGone(page));
     }
