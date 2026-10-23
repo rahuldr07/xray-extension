@@ -79,6 +79,8 @@ export interface SqlError {
 
 export interface ExecuteOptions {
   maxRows: number;
+  // Which result tab the statement belongs to; remote drivers keep one cursor per tab.
+  tabId?: string;
 }
 
 export interface SqlDriver {
