@@ -243,3 +243,41 @@ test('without the debugger API the worker still registers every listener', () =>
   assert.doesNotThrow(() => vm.runInContext(fs.readFileSync(require.resolve('../background.js'), 'utf8'), context));
   for (const name of ['onMessage', 'onConnect', 'commands', 'action']) assert.ok(registered.includes(name), `${name} listener registered`);
 });
+
+test('M3 SQL manager: the xray-sql onConnect branch hands the port to handlePort', () => {
+  const background = read('background.js');
+  assert.match(background, /port\.name === 'xray-sql'[\s\S]{0,200}manager\.handlePort\(port\)/);
+  // The worker stays dependency-free: no ES imports, no require, and the only
+  // importScripts target is the repo's own manager file.
+  assert.doesNotMatch(background, /^\s*import\s/m);
+  assert.doesNotMatch(background, /\brequire\(/);
+  assert.deepEqual([...background.matchAll(/importScripts\(([^)]*)\)/g)].map(m => m[1]), ["'background/sql-manager.js'"]);
+  assert.doesNotMatch(read('background/sql-manager.js'), /^\s*import\s|\brequire\(|importScripts\(/m);
+
+  // Executed: the real manager, loaded the way the worker loads it, refuses a
+  // web page's xray-sql port and keeps the extension's own sql.html.
+  let connectListener;
+  const noopEvent = { addListener() {} };
+  const chrome = {
+    runtime: { id: 'xray-test', getURL: name => name, onConnect: { addListener: fn => { connectListener = fn; } }, onMessage: noopEvent },
+    storage: { local: {}, session: {} }, permissions: { contains: async () => false },
+    tabs: {}, action: { onClicked: noopEvent }, commands: { onCommand: noopEvent },
+    windows: { onRemoved: noopEvent }, debugger: { onDetach: noopEvent },
+  };
+  const imported = [];
+  const context = { chrome, console, URL, fetch: async () => ({ text: async () => '' }) };
+  context.importScripts = (file) => {
+    imported.push(file);
+    vm.runInContext(fs.readFileSync(require.resolve(`../${file}`), 'utf8'), context);
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(require.resolve('../background.js'), 'utf8'), context);
+  assert.deepEqual(imported, ['background/sql-manager.js']);
+  const port = (url) => ({ name: 'xray-sql', sender: { id: 'xray-test', url }, onMessage: noopEvent, onDisconnect: noopEvent, disconnected: false, disconnect() { this.disconnected = true; } });
+  const evil = port('https://evil.example/sql.html');
+  connectListener(evil);
+  assert.equal(evil.disconnected, true);
+  const own = port('chrome-extension://xray-test/sql.html');
+  connectListener(own);
+  assert.equal(own.disconnected, false);
+});

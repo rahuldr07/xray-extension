@@ -1,6 +1,8 @@
 // manifest.json, devtools HTML, package.json metadata, and the packaging allow/deny lists.
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const { read, readManifest, readPkg, exists } = require('./helpers/source');
@@ -299,4 +301,16 @@ test('M3 helper: the release zip is extension-only and never ships helper/ or a 
   assert.doesNotMatch(list, /helper/);
   assert.doesNotMatch(list, /\.pem/);
   assert.doesNotMatch(list, /install/);
+});
+
+test('M3 SQL manager: the release ships background/sql-manager.js, which background.js imports', () => {
+  // Ruling M3-R3: only the manager file, not a growing background/ folder.
+  const list = read('scripts/package-extension.mjs').match(/const allowList = \[([\s\S]*?)\];/)[1];
+  assert.match(list, /'background\/sql-manager\.js'/);
+  assert.doesNotMatch(list, /'background\/?'/);
+  // Copy-Item would flatten a nested file, so the PowerShell script copies the
+  // folder; it must therefore hold nothing but the manager.
+  assert.match(read('scripts/package-extension.ps1'), /\$allowList = @\([^)]*"background"/);
+  assert.deepEqual(fs.readdirSync(path.join(__dirname, '..', 'background')), ['sql-manager.js']);
+  assert.match(read('background.js'), /importScripts\('background\/sql-manager\.js'\)/);
 });

@@ -1,0 +1,493 @@
+// background/sql-manager.js — the SQL client's connection manager (service worker).
+//
+// Loaded by background.js with importScripts. It owns three things the SQL page
+// (sql.html) must never hold itself:
+//   - connection profiles and their passwords (C-12: secrets stay in the SW).
+//     Profiles live in chrome.storage.local under `sql_connections`; a password
+//     the user chose not to save lives in chrome.storage.session under
+//     `sql_session_secrets`. The page refers to profiles by id only.
+//   - the one connectNative port to the xray-db-helper (`com.xray.db_helper`),
+//     opened lazily, greeted with `hello`, and shared by every page.
+//   - the `xray-sql` runtime ports, one per open sql.html, each validated (C-9).
+//
+// Page → SW: { id, op, ... }. SW → page: { id, ok, value | error }, exactly once
+// per request. Page ids are remapped to native ids so two pages cannot collide,
+// and the helper's `columns`/`rows` stream messages are assembled here into one
+// QueryResult, so the page API stays promise-based.
+//
+// Every Chrome API arrives through `deps`, so tests run this file under Node.
+
+(function () {
+  'use strict';
+
+  const HOST_NAME = 'com.xray.db_helper';
+  const PROTOCOL_VERSION = 1;
+  const PROFILES_KEY = 'sql_connections';
+  const SESSION_SECRETS_KEY = 'sql_session_secrets';
+  const ENGINES = ['postgres', 'mysql'];
+  const TLS_MODES = ['require', 'verify-full', 'disable'];
+
+  const ERR = {
+    missing: { code: 'helper-missing', message: 'Install the XRAY database helper.' },
+    permission: { code: 'helper-missing', message: 'Allow XRAY to use the database helper.', detail: 'no-permission' },
+    outdated: { code: 'helper-outdated', message: 'Update the XRAY database helper.' },
+    lost: { code: 'connection-lost', message: 'The connection to the database helper was lost.' },
+  };
+
+  function badRequest(message) {
+    return { code: 'bad-request', message };
+  }
+
+  // A page request failed: carries a SqlError-shaped body to the page.
+  class OpError extends Error {
+    constructor(body) {
+      super(body.message);
+      this.body = body;
+    }
+  }
+
+  function isSqlPage(port, runtimeId) {
+    const sender = port && port.sender;
+    if (!sender || sender.id !== runtimeId || typeof sender.url !== 'string') return false;
+    try {
+      const url = new URL(sender.url);
+      // Any host: with use_dynamic_url the extension's origin is not its id.
+      return url.protocol === 'chrome-extension:' && url.pathname === '/sql.html';
+    } catch {
+      return false;
+    }
+  }
+
+  function str(v) {
+    return typeof v === 'string' ? v : '';
+  }
+
+  // Only known fields, with their types enforced. Never a password.
+  function cleanProfile(input, id) {
+    const port = Number(input.port);
+    const timeout = input.statementTimeoutMs;
+    const profile = {
+      id,
+      name: str(input.name).trim(),
+      engine: input.engine,
+      host: str(input.host).trim(),
+      port,
+      database: str(input.database),
+      user: str(input.user),
+      tls: input.tls === undefined ? 'require' : input.tls,
+      caFile: str(input.caFile),
+      statementTimeoutMs: Number.isInteger(timeout) && timeout > 0 ? timeout : null,
+      readOnly: input.readOnly !== false,
+    };
+    if (!ENGINES.includes(profile.engine)) throw new OpError(badRequest('Unsupported engine.'));
+    if (!TLS_MODES.includes(profile.tls)) throw new OpError(badRequest('Unsupported TLS mode.'));
+    if (profile.host === '') throw new OpError(badRequest('Host is required.'));
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new OpError(badRequest('Port must be between 1 and 65535.'));
+    if (profile.name === '') profile.name = `${profile.database || profile.engine}@${profile.host}`;
+    return profile;
+  }
+
+  function pageProfile(stored) {
+    const { password, ...rest } = stored;
+    return { ...rest, hasSavedPassword: typeof password === 'string' && password !== '' };
+  }
+
+  function createSqlManager(deps) {
+    const { storageLocal, storageSession, connectNative, permissionsContains, runtimeId } = deps;
+    const lastError = typeof deps.lastError === 'function' ? deps.lastError : () => undefined;
+    let idCounter = 0;
+
+    // ------------------------------------------------------------- storage
+    // Read-modify-write of the two keys is serialized so concurrent saves from
+    // two pages cannot drop each other's changes.
+    let storageQueue = Promise.resolve();
+    function serialized(fn) {
+      const run = storageQueue.then(fn, fn);
+      storageQueue = run.catch(() => {});
+      return run;
+    }
+
+    async function readProfiles() {
+      const got = await storageLocal.get(PROFILES_KEY);
+      const list = got && got[PROFILES_KEY];
+      return Array.isArray(list) ? list : [];
+    }
+
+    async function readSessionSecrets() {
+      const got = await storageSession.get(SESSION_SECRETS_KEY);
+      const map = got && got[SESSION_SECRETS_KEY];
+      return map && typeof map === 'object' ? map : {};
+    }
+
+    async function storeSecret(profileId, password, remember) {
+      const profiles = await readProfiles();
+      const secrets = await readSessionSecrets();
+      const stored = profiles.find((p) => p.id === profileId);
+      if (!stored) return;
+      if (remember) {
+        stored.password = password;
+        delete secrets[profileId];
+      } else {
+        delete stored.password;
+        secrets[profileId] = password;
+      }
+      await storageLocal.set({ [PROFILES_KEY]: profiles });
+      await storageSession.set({ [SESSION_SECRETS_KEY]: secrets });
+    }
+
+    function newProfileId(profiles) {
+      const random = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : null;
+      if (random) return random;
+      let id;
+      do id = `p${deps.now().toString(36)}${(idCounter++).toString(36)}`;
+      while (profiles.some((p) => p.id === id));
+      return id;
+    }
+
+    async function saveProfile(input) {
+      if (!input || typeof input !== 'object') throw new OpError(badRequest('A profile is required.'));
+      return serialized(async () => {
+        const profiles = await readProfiles();
+        const secrets = await readSessionSecrets();
+        const existing = typeof input.id === 'string' ? profiles.find((p) => p.id === input.id) : undefined;
+        if (input.id !== undefined && !existing) throw new OpError(badRequest('Unknown profile.'));
+        const id = existing ? existing.id : newProfileId(profiles);
+        const profile = cleanProfile(input, id);
+        // An omitted password keeps whichever secret exists, moved to where the
+        // user now wants it.
+        const password = typeof input.password === 'string'
+          ? input.password
+          : (existing && existing.password) || secrets[id];
+        delete secrets[id];
+        if (typeof password === 'string' && password !== '') {
+          if (input.savePassword === true) profile.password = password;
+          else secrets[id] = password;
+        }
+        const next = existing ? profiles.map((p) => (p.id === id ? profile : p)) : [...profiles, profile];
+        await storageLocal.set({ [PROFILES_KEY]: next });
+        await storageSession.set({ [SESSION_SECRETS_KEY]: secrets });
+        return pageProfile(profile);
+      });
+    }
+
+    async function deleteProfile(profileId) {
+      if (typeof profileId !== 'string' || profileId === '') throw new OpError(badRequest('A profile id is required.'));
+      return serialized(async () => {
+        const profiles = await readProfiles();
+        const secrets = await readSessionSecrets();
+        delete secrets[profileId];
+        await storageLocal.set({ [PROFILES_KEY]: profiles.filter((p) => p.id !== profileId) });
+        await storageSession.set({ [SESSION_SECRETS_KEY]: secrets });
+        return {};
+      });
+    }
+
+    // -------------------------------------------------------- native port
+    let native = null; // { port, ready: Promise<helloValue>, pending: Map<nativeId, call> }
+    let nextNativeId = 1;
+    const sessions = new Map(); // sessionId -> { owner: pagePort, alive: boolean }
+
+    function openNative() {
+      const state = { port: null, pending: new Map(), helloDone: false };
+      let resolveHello;
+      let rejectHello;
+      state.ready = new Promise((resolve, reject) => {
+        resolveHello = resolve;
+        rejectHello = reject;
+      });
+      state.ready.catch(() => {});
+      try {
+        state.port = connectNative(HOST_NAME);
+      } catch {
+        rejectHello(new OpError(ERR.missing));
+        return state;
+      }
+      state.port.onMessage.addListener((msg) => onNativeMessage(state, msg));
+      state.port.onDisconnect.addListener(() => {
+        const reason = lastError();
+        if (native === state) native = null;
+        const error = state.helloDone ? ERR.lost : ERR.missing;
+        // A missing host is reported whatever the stage; Chrome's exact text.
+        const body = /not found/i.test(String(reason || '')) ? ERR.missing : error;
+        rejectHello(new OpError(body));
+        for (const call of state.pending.values()) call.reject(new OpError(body));
+        state.pending.clear();
+        for (const s of sessions.values()) s.alive = false;
+      });
+      const helloId = nextNativeId++;
+      state.pending.set(helloId, {
+        op: 'hello',
+        resolve: (value) => {
+          state.helloDone = true;
+          if (!value || value.protocolVersion !== PROTOCOL_VERSION) {
+            // An old process keeps running the old binary: drop it so the
+            // next call (a Retry after updating) starts the new one.
+            if (native === state) native = null;
+            try {
+              state.port.disconnect();
+            } catch {
+              /* already gone */
+            }
+            const err = new OpError(ERR.outdated);
+            err.helperVersion = value && typeof value.helperVersion === 'string' ? value.helperVersion : undefined;
+            rejectHello(err);
+            return;
+          }
+          resolveHello(value);
+        },
+        reject: (err) => rejectHello(err),
+      });
+      try {
+        state.port.postMessage({ id: helloId, op: 'hello' });
+      } catch {
+        rejectHello(new OpError(ERR.missing));
+      }
+      return state;
+    }
+
+    function onNativeMessage(state, msg) {
+      if (!msg || typeof msg !== 'object') return;
+      const call = state.pending.get(msg.id);
+      if (!call) return;
+      if (msg.stream === 'columns') {
+        call.columns = Array.isArray(msg.columns) ? msg.columns : [];
+        return;
+      }
+      if (msg.stream === 'rows') {
+        if (Array.isArray(msg.rows)) for (const row of msg.rows) call.rows.push(row);
+        return;
+      }
+      state.pending.delete(msg.id);
+      if (msg.ok === true) call.resolve(msg.value);
+      else call.reject(new OpError(normalizeHelperError(msg.error)));
+    }
+
+    function normalizeHelperError(error) {
+      if (!error || typeof error !== 'object' || typeof error.code !== 'string') {
+        return { code: 'internal', message: 'Internal helper error.' };
+      }
+      const body = { code: error.code, message: typeof error.message === 'string' ? error.message : '' };
+      for (const key of ['sqlState', 'position', 'hint', 'detail']) {
+        if (error[key] !== undefined) body[key] = error[key];
+      }
+      return body;
+    }
+
+    async function ensureNative() {
+      if (!(await permissionsContains('nativeMessaging'))) throw new OpError(ERR.permission);
+      if (!native) native = openNative();
+      const state = native;
+      const hello = await state.ready;
+      return { state, hello };
+    }
+
+    // Sends one request; `track` receives the native id (for cancel).
+    async function callNative(op, payload, track) {
+      const { state } = await ensureNative();
+      const id = nextNativeId++;
+      return new Promise((resolve, reject) => {
+        const call = { op, columns: [], rows: [], resolve: null, reject };
+        call.resolve = (value) => {
+          if (op === 'execute' || op === 'fetchMore') {
+            resolve({ columns: call.columns, rows: call.rows, ...queryFields(value) });
+          } else {
+            resolve(value);
+          }
+        };
+        state.pending.set(id, call);
+        if (track) track(id);
+        try {
+          state.port.postMessage({ id, op, ...payload });
+        } catch {
+          state.pending.delete(id);
+          reject(new OpError(ERR.lost));
+        }
+      });
+    }
+
+    function queryFields(v) {
+      const value = v && typeof v === 'object' ? v : {};
+      return {
+        rowCount: value.rowCount,
+        affected: value.affected === undefined ? null : value.affected,
+        durationMs: value.durationMs,
+        notices: Array.isArray(value.notices) ? value.notices : [],
+        hasMore: value.hasMore === true,
+        truncatedCells: value.truncatedCells || 0,
+      };
+    }
+
+    async function helperStatus() {
+      if (!(await permissionsContains('nativeMessaging'))) return { state: 'no-permission' };
+      try {
+        const { hello } = await ensureNative();
+        return { state: 'ready', helperVersion: hello.helperVersion };
+      } catch (err) {
+        const code = err && err.body && err.body.code;
+        if (code === 'helper-outdated') {
+          return err.helperVersion ? { state: 'outdated', helperVersion: err.helperVersion } : { state: 'outdated' };
+        }
+        if (err && err.body && err.body.detail === 'no-permission') return { state: 'no-permission' };
+        return { state: 'missing' };
+      }
+    }
+
+    // ---------------------------------------------------------- page ops
+    async function connect(page, msg) {
+      if (typeof msg.profileId !== 'string') throw new OpError(badRequest('A profile id is required.'));
+      const profiles = await readProfiles();
+      const profile = profiles.find((p) => p.id === msg.profileId);
+      if (!profile) throw new OpError(badRequest('Unknown profile.'));
+      const supplied = typeof msg.password === 'string' && msg.password !== '' ? msg.password : null;
+      let password = supplied;
+      if (password === null) password = typeof profile.password === 'string' && profile.password !== '' ? profile.password : null;
+      if (password === null) {
+        const secret = (await readSessionSecrets())[profile.id];
+        password = typeof secret === 'string' && secret !== '' ? secret : null;
+      }
+      if (password === null) {
+        throw new OpError({ code: 'auth-failed', message: `Enter the password for ${profile.name}.`, detail: 'password-required' });
+      }
+      const request = {
+        engine: profile.engine,
+        host: profile.host,
+        port: profile.port,
+        database: profile.database,
+        user: profile.user,
+        password,
+        tls: profile.tls,
+        readOnly: typeof msg.readOnly === 'boolean' ? msg.readOnly : profile.readOnly !== false,
+      };
+      if (profile.caFile) request.caFile = profile.caFile;
+      if (Number.isInteger(profile.statementTimeoutMs) && profile.statementTimeoutMs > 0) {
+        request.statementTimeoutMs = profile.statementTimeoutMs;
+      }
+      const value = await callNative('connect', request);
+      if (supplied !== null) await serialized(() => storeSecret(profile.id, supplied, msg.remember === true));
+      if (value && typeof value.sessionId === 'string') sessions.set(value.sessionId, { owner: page.port, alive: true });
+      return { sessionId: value.sessionId, serverVersion: value.serverVersion, capabilities: value.capabilities };
+    }
+
+    // A session is usable only by the page that opened it, and only until the
+    // helper connection it lives on is lost.
+    function ownedSession(page, sessionId) {
+      const s = typeof sessionId === 'string' ? sessions.get(sessionId) : undefined;
+      if (!s || s.owner !== page.port || !s.alive) throw new OpError(ERR.lost);
+      return sessionId;
+    }
+
+    async function runQuery(page, msg, op, payload) {
+      const call = callNative(op, payload, (nativeId) => page.queries.set(msg.id, nativeId));
+      try {
+        return await call;
+      } finally {
+        page.queries.delete(msg.id);
+      }
+    }
+
+    async function dispatch(page, msg) {
+      switch (msg.op) {
+        case 'profiles.list':
+          return (await readProfiles()).map(pageProfile);
+        case 'profiles.save':
+          return saveProfile(msg.profile);
+        case 'profiles.delete':
+          return deleteProfile(msg.profileId);
+        case 'helper.status':
+          return helperStatus();
+        case 'connect':
+          return connect(page, msg);
+        case 'introspect':
+          return callNative('introspect', { sessionId: ownedSession(page, msg.sessionId) });
+        case 'execute': {
+          const sessionId = ownedSession(page, msg.sessionId);
+          const payload = { sessionId, tabId: str(msg.tabId), sql: str(msg.sql) };
+          if (Number.isInteger(msg.maxRows) && msg.maxRows > 0) payload.maxRows = msg.maxRows;
+          return runQuery(page, msg, 'execute', payload);
+        }
+        case 'fetchMore': {
+          const sessionId = ownedSession(page, msg.sessionId);
+          const payload = { sessionId, tabId: str(msg.tabId) };
+          if (Number.isInteger(msg.n) && msg.n > 0) payload.n = msg.n;
+          return runQuery(page, msg, 'fetchMore', payload);
+        }
+        case 'cancel': {
+          const nativeId = page.queries.get(msg.queryId);
+          if (nativeId === undefined || !native) return {};
+          await callNative('cancel', { queryId: nativeId });
+          return {};
+        }
+        case 'close': {
+          const s = typeof msg.sessionId === 'string' ? sessions.get(msg.sessionId) : undefined;
+          if (!s || s.owner !== page.port) return {};
+          sessions.delete(msg.sessionId);
+          if (s.alive && native) await callNative('close', { sessionId: msg.sessionId });
+          return {};
+        }
+        default:
+          throw new OpError(badRequest('Unknown operation.'));
+      }
+    }
+
+    function reply(page, message) {
+      if (page.closed) return;
+      try {
+        page.port.postMessage(message);
+      } catch {
+        /* the page went away while the request ran */
+      }
+    }
+
+    function onPageMessage(page, msg) {
+      if (!msg || typeof msg !== 'object') return;
+      const id = msg.id;
+      if (typeof id !== 'number' && typeof id !== 'string') return;
+      if (typeof msg.op !== 'string') return;
+      Promise.resolve()
+        .then(() => dispatch(page, msg))
+        .then(
+          (value) => reply(page, { id, ok: true, value: value === undefined ? {} : value }),
+          (err) => {
+            const body = err instanceof OpError ? err.body : { code: 'internal', message: 'Internal error.' };
+            reply(page, { id, ok: false, error: { ...body } });
+          },
+        );
+    }
+
+    function onPageGone(page) {
+      page.closed = true;
+      if (native) {
+        for (const nativeId of page.queries.values()) callNative('cancel', { queryId: nativeId }).catch(() => {});
+      }
+      for (const [sessionId, s] of sessions) {
+        if (s.owner !== page.port) continue;
+        sessions.delete(sessionId);
+        if (s.alive && native) callNative('close', { sessionId }).catch(() => {});
+      }
+      page.queries.clear();
+    }
+
+    function handlePort(port) {
+      if (!isSqlPage(port, runtimeId)) {
+        try {
+          port.disconnect();
+        } catch {
+          /* already gone */
+        }
+        return;
+      }
+      const page = { port, queries: new Map(), closed: false };
+      port.onMessage.addListener((msg) => onPageMessage(page, msg));
+      port.onDisconnect.addListener(() => onPageGone(page));
+    }
+
+    return { handlePort };
+  }
+
+  const api = { createSqlManager };
+  globalThis.XRAY_SqlManager = api;
+  /* global module */
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();
