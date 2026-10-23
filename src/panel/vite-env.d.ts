@@ -13,6 +13,10 @@ declare const chrome: {
     sendMessage?(message: unknown, callback?: (response?: unknown) => void): void;
     getURL?(path: string): string;
     lastError?: { message?: string };
+    onMessage?: {
+      addListener(listener: (message: unknown) => void): void;
+      removeListener(listener: (message: unknown) => void): void;
+    };
   };
   tabs?: {
     create?(options: { url: string }): void;

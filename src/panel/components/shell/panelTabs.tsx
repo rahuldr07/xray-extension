@@ -2,6 +2,7 @@ import React from 'react';
 import {
   IconChartBar,
   IconCircleCheck,
+  IconDatabase,
   IconNetwork,
   IconPlugConnected,
   IconTerminal2,
@@ -16,4 +17,5 @@ export const panelTabs: Array<{ id: ActiveTab; label: string; icon: React.ReactN
   { id: 'logs', label: 'Logs', icon: <IconCircleCheck {...iconProps} /> },
   { id: 'rules', label: 'Rules', icon: <IconPlugConnected {...iconProps} /> },
   { id: 'insights', label: 'Insights', icon: <IconChartBar {...iconProps} /> },
+  { id: 'sql', label: 'SQL', icon: <IconDatabase {...iconProps} /> },
 ];

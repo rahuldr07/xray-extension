@@ -139,6 +139,8 @@ async function open(t, shadow, stored = {}, { rootFailures = false } = {}) {
 }
 
 const dj = (page, name, ...args) => page.evaluate(([method, values]) => window.dj[method](...values), [name, args]);
+// Console, API, Logs, Rules, Insights and SQL.
+const TOP_TABS = 6;
 const tabs = (page) => dj(page, 'count', '[role="tab"]');
 
 async function click(page, selector, label) {
@@ -158,7 +160,7 @@ async function treeAndRaw(page) {
   await click(page, '[aria-label="Body views"] button', 'Raw');
   await page.waitForFunction(() => window.dj.rawHead() !== null, null, { timeout: 8000 });
   assert.match(await dj(page, 'rawHead'), /^\[{20}/, 'Raw: the captured text');
-  assert.equal(await tabs(page), 5, 'the panel is still mounted');
+  assert.equal(await tabs(page), TOP_TABS, 'the panel is still mounted');
 }
 
 for (const shadow of [false, true]) {
@@ -166,9 +168,9 @@ for (const shadow of [false, true]) {
 
   test(`a 100,000-deep response captured live keeps the panel mounted; Tree and Raw show it (${surface})`, async (t) => {
     const page = await open(t, shadow);
-    assert.equal(await tabs(page), 5);
+    assert.equal(await tabs(page), TOP_TABS);
     await dj(page, 'addDeep');
-    assert.equal(await tabs(page), 5, 'five tabs after the capture');
+    assert.equal(await tabs(page), TOP_TABS, 'six tabs after the capture');
     assert.deepEqual(await dj(page, 'entryIds'), ['deep']);
     await treeAndRaw(page);
   });
@@ -184,7 +186,7 @@ for (const shadow of [false, true]) {
 
     const reloaded = await open(t, shadow, stored);
     assert.deepEqual(await dj(reloaded, 'entryIds'), ['deep'], 'restored');
-    assert.equal(await tabs(reloaded), 5, 'five tabs after the restore');
+    assert.equal(await tabs(reloaded), TOP_TABS, 'six tabs after the restore');
     await treeAndRaw(reloaded);
   });
 
@@ -194,12 +196,12 @@ for (const shadow of [false, true]) {
     assert.deepEqual(await dj(page, 'entryIds'), ['old']);
     await dj(page, 'state', 'selectEntry', 'old');
     await page.waitForFunction(() => (window.dj.text('.xray-request-detail h3') || '') === '/old', null, { timeout: 8000 });
-    assert.equal(await tabs(page), 5, 'selecting it keeps the panel');
+    assert.equal(await tabs(page), TOP_TABS, 'selecting it keeps the panel');
     assert.equal(await dj(page, 'count', '.xray-root-fallback'), 0);
     // The Request facet shows the value as a tree.
     await click(page, '.xray-request-detail .xray-detail-tab', 'Request');
     await page.waitForFunction(() => window.dj.treeLevels().length > 0, null, { timeout: 8000 });
-    assert.equal(await tabs(page), 5);
+    assert.equal(await tabs(page), TOP_TABS);
     // Copy cURL (the shared helpers, as on every surface) leaves the body out and says why.
     const curl = await page.evaluate(() => window.XRAY_ConsoleHelpers.generateCurl(window.dj.entry('old')));
     assert.match(curl, /^# Partial: the request body is nested too deeply to print as JSON, so it is left out\.\ncurl /);
@@ -208,7 +210,7 @@ for (const shadow of [false, true]) {
   test(`a failure outside the views shows the root fallback: Reload panel retries, Clear session asks first, then clears (${surface})`, async (t) => {
     const page = await open(t, shadow, {}, { rootFailures: true });
     await dj(page, 'addTrap');
-    assert.equal(await tabs(page), 5);
+    assert.equal(await tabs(page), TOP_TABS);
 
     await page.evaluate(() => { window.dj.armed = true; window.dj.touch(); });
     await page.waitForFunction(() => Boolean(window.dj.q('.xray-root-fallback')), null, { timeout: 4000 });
@@ -228,7 +230,7 @@ for (const shadow of [false, true]) {
     // Fixed: Reload panel brings the panel back, entries intact.
     await page.evaluate(() => { window.dj.armed = false; });
     await click(page, '.xray-root-fallback button', 'Reload panel');
-    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 5, null, { timeout: 4000 });
+    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 6, null, { timeout: 4000 });
     assert.equal(await dj(page, 'count', '.xray-root-fallback'), 0);
     assert.deepEqual(await dj(page, 'entryIds'), ['ok', 'trap']);
 
@@ -244,7 +246,7 @@ for (const shadow of [false, true]) {
     await click(page, '.xray-root-fallback button', 'Clear session');
     await page.waitForFunction(() => /Clear the captured session\?/.test(window.dj.text('.xray-root-fallback') || ''), null, { timeout: 4000 });
     await click(page, '.xray-root-fallback .xray-btn.danger', 'Clear session');
-    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 5, null, { timeout: 4000 });
+    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 6, null, { timeout: 4000 });
     assert.deepEqual(await dj(page, 'entryIds'), []);
     assert.equal(await dj(page, 'count', '.xray-root-fallback'), 0);
 
@@ -254,7 +256,7 @@ for (const shadow of [false, true]) {
     await page.evaluate(() => { window.dj.armed = true; window.dj.touch(); });
     await page.waitForFunction(() => Boolean(window.dj.q('.xray-root-fallback')), null, { timeout: 4000 });
     await click(page, '.xray-root-fallback button', 'Clear session');
-    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 5, null, { timeout: 4000 });
+    await page.waitForFunction(() => window.dj.count('[role="tab"]') === 6, null, { timeout: 4000 });
     assert.deepEqual(await dj(page, 'entryIds'), []);
   });
 }

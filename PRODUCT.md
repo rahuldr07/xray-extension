@@ -77,7 +77,7 @@ checker, shareable theme codes).
 
 **Durable technical constraints:**
 
-- Manifest V3, Chrome and Edge. Node >= 20.11.
+- Manifest V3, Chrome and Edge. Node >= 22.
 - The capture runtime (`content/`, `shared/`, `background.js`) is vanilla JS and must
   stay dependency-free. React/TypeScript live only in `src/panel/`, built to IIFE
   bundles in `dist/`.

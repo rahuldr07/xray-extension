@@ -3,6 +3,7 @@
 
 const _devtoolsPortsByTab = new Map();
 let popoutWindowId = null;
+let sqlWindowId = null;
 const CONSOLE_EVAL_TIMEOUT_MS = 10000;
 const VALID_CONSOLE_NAME = /^[A-Za-z_$][\w$]*$/;
 const RUNTIME_HELPER_NAMES = [
@@ -117,6 +118,28 @@ async function _openPopoutWindow() {
   });
   popoutWindowId = win?.id ?? null;
   return { ok: true, focused: false, id: popoutWindowId };
+}
+
+// The SQL client gets its own window: the HUD lives inside the inspected page, and database
+// rows must never render there.
+async function _openSqlWindow() {
+  if (sqlWindowId !== null) {
+    try {
+      await chrome.windows.update(sqlWindowId, { focused: true });
+      return { ok: true, focused: true };
+    } catch {
+      sqlWindowId = null;
+    }
+  }
+
+  const win = await chrome.windows.create({
+    url: chrome.runtime.getURL('sql.html'),
+    type: 'popup',
+    width: 1280,
+    height: 800,
+  });
+  sqlWindowId = win?.id ?? null;
+  return { ok: true, focused: false, id: sqlWindowId };
 }
 
 // Index just past the last top-level statement separator (`;` or newline outside
@@ -625,6 +648,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.windows.onRemoved.addListener((id) => {
   if (id === popoutWindowId) popoutWindowId = null;
+  if (id === sqlWindowId) sqlWindowId = null;
 });
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
@@ -687,6 +711,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     _openPopoutWindow()
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+
+  if (msg.type === 'XRAY_OPEN_SQL_WINDOW') {
+    _openSqlWindow()
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+
+  // sql.html framed by the HUD's inline option reports that it loaded; the HUD (the tab's top frame)
+  // falls back to the window card without it. Relayed here so nothing is posted to the page's window.
+  // Under use_dynamic_url the frame's host is a per-session GUID, so only scheme and path are checked.
+  if (msg.type === 'xray:sql-frame-ready') {
+    let url = null;
+    try { url = new URL(sender?.url || ''); } catch { url = null; }
+    const tabId = sender?.tab?.id;
+    if (!url || url.protocol !== 'chrome-extension:' || url.pathname !== '/sql.html' || !Number.isInteger(tabId)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    chrome.tabs.sendMessage(sender.tab.id, { type: 'xray:sql-frame-ready' }, { frameId: 0 })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
     return true;
   }
 

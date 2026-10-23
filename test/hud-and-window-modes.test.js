@@ -42,6 +42,8 @@ test('React shell exposes a mode switcher and background opens HUD or pop-out wi
   assert.match(shell, /IconArrowsMaximize/);
   assert.match(surfaces, /XRAY_HUD_TOGGLE_ACTIVE/);
   assert.match(surfaces, /XRAY_OPEN_WINDOW/);
+  // The HUD's SQL tab asks the background for the SQL client's own window.
+  assert.match(surfaces, /export function openSqlWindowSurface[\s\S]*?type: 'XRAY_OPEN_SQL_WINDOW'/);
   assert.match(shell, /xray-mode-switcher/);
   assert.match(shell, /mode === 'devtools'/);
   assert.match(shell, /mode === 'hud'/);
@@ -59,4 +61,8 @@ test('React shell exposes a mode switcher and background opens HUD or pop-out wi
   assert.match(background, /chrome\.windows\.create/);
   assert.match(background, /chrome\.windows\.update/);
   assert.match(background, /window\.html/);
+  assert.match(background, /let sqlWindowId = null/);
+  assert.match(background, /msg\.type === 'XRAY_OPEN_SQL_WINDOW'[\s\S]*?_openSqlWindow\(\)/);
+  assert.match(background, /async function _openSqlWindow[\s\S]*?chrome\.windows\.update\(sqlWindowId[\s\S]*?getURL\('sql\.html'\)[\s\S]*?width: 1280,\s*height: 800/);
+  assert.match(background, /if \(id === sqlWindowId\) sqlWindowId = null/);
 });

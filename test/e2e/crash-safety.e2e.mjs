@@ -130,8 +130,11 @@ async function waitForText(page, selector, needle) {
   await page.waitForFunction(([s, n]) => (window.crash.text(s) || '').includes(n), [selector, needle], { timeout: 4000 });
 }
 
+// Console, API, Logs, Rules, Insights and SQL.
+const TOP_TABS = 6;
+
 async function assertPanelMounted(page) {
-  assert.equal(await page.evaluate(() => window.crash.count('[role="tab"]')), 5, 'the panel and its tabs are still mounted');
+  assert.equal(await page.evaluate(() => window.crash.count('[role="tab"]')), TOP_TABS, 'the panel and its tabs are still mounted');
 }
 
 for (const fixture of [

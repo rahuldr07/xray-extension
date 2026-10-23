@@ -158,7 +158,8 @@ Console results and the command context use the same typed model, as text both w
 ### ISOLATED / panel → service worker (`chrome.runtime.sendMessage`)
 
 `xray:capture`, `xray:capture-batch`, `xray:capture-update`, `xray:console-eval`,
-`xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`.
+`xray:ai-explain`, `xray:page-bridge`, `XRAY_HUD_TOGGLE_ACTIVE`, `XRAY_OPEN_WINDOW`,
+`XRAY_OPEN_SQL_WINDOW`.
 
 ### DevTools panel ↔ service worker
 
@@ -269,6 +270,36 @@ read only for an entry saved before J4, FormData fields and a binary descriptor.
 `devtools.inspectedWindow.tabId`, so config pushes and replay both degrade to a toast. It
 reads persisted state from `chrome.storage.local` only.
 
+### SQL client (`sql.html`)
+
+A standalone extension page that opens local SQLite files. Four files make it up:
+
+- `sql.html` — the page, loading `dist/sql-ui.js` (the editor, schema rail and results grid).
+- `dist/sql-worker.js` — a dedicated worker hosting sqlite-wasm; every query runs there, so
+  Stop can terminate it without freezing the page.
+- `dist/sqlite3.wasm` — loaded by the worker from beside itself (copied from
+  `@sqlite.org/sqlite-wasm` at build time), always from the extension origin.
+
+It is reached two ways. The DevTools panel and the pop-out window frame it in an
+`<iframe>` under their **SQL** tab (`SqlFrame`, `chrome.runtime.getURL('sql.html')`); the
+frame stays mounted once visited, so switching tabs never loses an open database. The HUD
+runs inside a web page, so by default its SQL tab sends `XRAY_OPEN_SQL_WINDOW` and the service
+worker opens (or focuses) `sql.html` in its own window. With the opt-in setting **Show SQL client
+inside the page HUD** (`sqlInlineInHud`, off by default) the HUD frames `sql.html` inline instead,
+kept mounted like the others, and falls back to the window card if the frame's
+`xray:sql-frame-ready` signal (relayed by the service worker, never posted to the page) has not
+arrived within 4 s (`SQL_FRAME_READY_TIMEOUT_MS`). With the option off, sql.html under a web
+origin shows a notice instead of the client.
+
+Only `sql.html` is in `web_accessible_resources`, for that inline option, in its own entry with
+`use_dynamic_url: true`. Its bundles, worker and wasm are not: the framed document is
+extension-origin and loads them itself, so no web page can load them directly.
+The manifest's `'wasm-unsafe-eval'` is in `content_security_policy.extension_pages`, so it
+applies to extension pages and their workers only, never to content scripts or the pages
+they run in. Inside the DevTools panel the frame is a cross-origin subframe of a
+`devtools://` page, where `showOpenFilePicker` throws; the client falls back to a file
+input there, and saves as a download.
+
 ---
 
 ## 4. The bridge token
@@ -303,13 +334,14 @@ displace the real one.
 
 ## 6. Build
 
-`vite.config.ts` emits three IIFE bundles:
+`vite.config.ts` emits five IIFE bundles:
 
 - `dist/panel-ui.js` — Vite lib mode, from `src/panel/main.tsx`
-- `dist/hud-ui.js` and `dist/window-ui.js` — a table-driven esbuild `closeBundle` step,
-  because Vite's single-entry lib build cannot express additional entrypoints
+- `dist/hud-ui.js`, `dist/window-ui.js`, `dist/sql-ui.js` and `dist/sql-worker.js` — a
+  table-driven esbuild `closeBundle` step, because Vite's single-entry lib build cannot
+  express additional entrypoints. The same step copies `dist/sqlite3.wasm`.
 
-All three are minified and injected with a `__XRAY_BUILD__` stamp. The stamp honours
+All five are minified and injected with a `__XRAY_BUILD__` stamp. The stamp honours
 `SOURCE_DATE_EPOCH`, so identical source produces byte-identical bundles — CI verifies this
 by building twice and diffing hashes.
 
