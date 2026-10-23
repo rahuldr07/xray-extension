@@ -56,6 +56,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27'
+      - run: bash install/install.test.sh
       - run: go vet ./...
       - run: go test ./...
 

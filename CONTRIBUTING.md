@@ -61,6 +61,21 @@ any change under `src/`.** CI's `dist-sync` job fails the build otherwise.
 Builds are reproducible: set `SOURCE_DATE_EPOCH` to pin the build stamp, and
 identical source produces byte-identical bundles.
 
+## Release: Web Store key
+
+`manifest.json` carries a `"key"` (the base64 public key) so the unpacked and the
+store builds share one extension ID, `kjfoocnkoajdcjabnadfojdfaghpbeep`. The
+database helper's host manifest allows only `chrome-extension://<that ID>/`
+(`helper/install/install.sh`, `install.ps1` and `HELPER_EXTENSION_ID` in
+`src/panel/models/sqlProfiles.ts` hold the same ID; a test pins all three).
+
+- The private key was never written to the repository, and `*.pem` is gitignored.
+  Unpacked builds do not need it.
+- Chrome Web Store: the store assigns the published item its own ID. Before the
+  first publish, check that ID against the one above; if it differs, change it in
+  all three places (the pinned test fails until they agree) and re-release the helper.
+- Never change `"key"` after release: users' helper installs would stop matching.
+
 ## Architecture, briefly
 
 Three runtimes share this tree, and they have different rules:
