@@ -293,8 +293,10 @@ origin shows a notice instead of the client. Framed inside a web page, the clien
 files only: the service worker refuses saved-connection ops from a port whose `sender.tab` is a web
 page, and the page shows an **Open in window** link instead of Connect. A second opt-in, **Allow
 saved database connections in the page HUD** (`sqlDatabasesInHud`, off by default, effective only
-with `sqlInlineInHud` on, confirmed when turned on), lifts both; the worker reads the two settings
-from the stored panel preferences on each port connect.
+with `sqlInlineInHud` on, confirmed when turned on), lifts both. Both options live in the service
+worker's `sql_hud_options` key (`src/panel/runtime/sqlHudOptions.ts` reads and writes it through
+runtime messages); the worker refuses changes from a web tab, so the in-page panel links to the
+options page instead, and it reads the key on each port connect.
 
 Only `sql.html` is in `web_accessible_resources`, for that inline option, in its own entry with
 `use_dynamic_url: true`. Its bundles, worker and wasm are not: the framed document is
