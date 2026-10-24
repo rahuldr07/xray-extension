@@ -355,7 +355,10 @@ test('the helper dying mid-query shows Connection lost, and Reconnect starts it 
 });
 
 test('a wrong password is rejected, the prompt asks again, and no password shows in the page or console', { skip, timeout: 120_000 }, async (t) => {
-  const { page, consoleText } = await openRemotePage(t);
+  const { page, worker, consoleText } = await openRemotePage(t);
+  // The collector sees the service worker's console too (the password passes through it).
+  await worker.evaluate(() => console.log('xray-e2e-console-probe'));
+  await assertEventually(() => consoleText.some((line) => line.includes('xray-e2e-console-probe')), 'the worker console is collected', 5_000);
   const url = new URL(PG_DSN);
   const realPassword = decodeURIComponent(url.password);
   const wrongPassword = 'Wrong-e2e-guess9';
