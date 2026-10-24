@@ -6,6 +6,7 @@ import { getStoredValue } from './runtime/storageBridge';
 import { applyPanelPreferences, REACT_PANEL_PREFERENCES_KEY, type SerializedPanelPreferences } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS } from './models/panelSettings';
 import { SQL_FRAME_READY_MESSAGE, sqlClientAllowedIn } from './models/sqlFrameReady';
+import { readSqlHudOptions } from './runtime/sqlHudOptions';
 import { EmptyState } from './components/common/EmptyState';
 import type { PanelSettings } from './types';
 import tokensCss from './styles/tokens.css?inline';
@@ -34,15 +35,17 @@ if (root) {
 
     root.className = 'xray-app-root';
     const settings = await readSettings();
+    // The HUD options are the service worker's (Ruling M3-R28), not the panel's stored settings.
+    const hud = await readSqlHudOptions();
     // sql.html is web-accessible for the inline HUD option; with it off, a web page framing the client
     // gets a notice instead, before any stored SQL tabs or history load, and no ready signal.
-    if (!sqlClientAllowedIn(Array.from(location.ancestorOrigins ?? []), settings.sqlInlineInHud)) {
+    if (!sqlClientAllowedIn(Array.from(location.ancestorOrigins ?? []), hud.sqlInlineInHud)) {
       createRoot(root).render(<EmptyState label="The SQL client is not enabled for this page." />);
       return;
     }
     await loadSqlStorage();
     window.addEventListener('pagehide', flushSqlPersistence);
-    createRoot(root).render(<SqlApp settings={settings} />);
+    createRoot(root).render(<SqlApp settings={settings} hud={hud} />);
     // The HUD's inline frame waits for this before giving up on a blocked frame (sqlFrameReady.ts).
     // It goes through the service worker, which relays it to the tab: never to the page's window.
     if (window.parent !== window) chrome?.runtime?.sendMessage?.({ type: SQL_FRAME_READY_MESSAGE }, () => void chrome?.runtime?.lastError);

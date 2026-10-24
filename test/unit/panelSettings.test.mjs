@@ -231,14 +231,8 @@ test('a fully hostile settings blob normalizes into something the panel can rend
   });
 });
 
-test('saved databases in the HUD are a second opt-in that needs the inline client (Ruling M3-R27)', () => {
-  const { sqlDatabasesInHudActive } = P;
+test('the legacy HUD databases setting still parses, so its stored value can be migrated (Rulings M3-R27, M3-R28)', () => {
   assert.equal(DEFAULT_PANEL_SETTINGS.sqlDatabasesInHud, false, 'off by default');
   assert.equal(normalizePanelSettings(undefined).sqlDatabasesInHud, false);
   assert.equal(normalizePanelSettings({ sqlDatabasesInHud: true }).sqlDatabasesInHud, true, 'a stored true is kept');
-  const combos = [[false, false, false], [false, true, false], [true, false, false], [true, true, true]];
-  for (const [inline, databases, want] of combos) {
-    const settings = normalizePanelSettings({ sqlInlineInHud: inline, sqlDatabasesInHud: databases });
-    assert.equal(sqlDatabasesInHudActive(settings), want, `inline ${inline}, databases ${databases}`);
-  }
 });

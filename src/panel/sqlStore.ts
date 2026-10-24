@@ -612,7 +612,9 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         messages: withMessage(get().messages, err.message),
       });
       if (lost) dropTransactions();
+      else if (onRemote && typeof err.inTransaction === 'boolean') noteTransaction(q.tabId, err.inTransaction);
       else if (onRemote && ENDS_TRANSACTION.has(firstKeyword(item.text, connectionDialect(get().connection)))) {
+        // An older helper sends no state with errors: a failed COMMIT still ends the transaction.
         noteTransaction(q.tabId, false);
       }
       // A cancel restarts the worker from the last saved bytes; the schema may have rolled back.
@@ -1245,6 +1247,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           messages: withMessage(get().messages, err.message),
         });
         if (lost) dropTransactions();
+        else if (typeof err.inTransaction === 'boolean') noteTransaction(tabId, err.inTransaction);
       }
     },
 

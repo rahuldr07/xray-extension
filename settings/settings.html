@@ -377,6 +377,34 @@
         </div>
       </div>
 
+      <div class="setting">
+        <label>SQL client in the page HUD</label>
+        <div class="switch-row">
+          <div class="switch-copy">Show SQL client inside the page HUD</div>
+          <label class="switch">
+            <input type="checkbox" id="sqlInlineInHud">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="hint">Shows the client in a frame inside the page instead of a separate window. The page cannot read the frame, but any site could embed the client.</div>
+        <div class="switch-row">
+          <div class="switch-copy">Allow saved database connections in the page HUD</div>
+          <label class="switch">
+            <input type="checkbox" id="sqlDatabasesInHud">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="hint" id="sqlDatabasesHint">Turn on the option above first.</div>
+        <div class="hint">These apply at once. Only this page, DevTools and the pop-out window can change them, never the panel inside a web page.</div>
+      </div>
+
+      <dialog id="hudDialog" aria-labelledby="hudDialogTitle">
+        <p id="hudDialogTitle"><strong>Allow saved database connections in the page HUD?</strong></p>
+        <p id="hudDialogMessage">The page you are on cannot read the client, but it could try to trick you into clicking it. Keep connections read-only, or leave this off.</p>
+        <button type="button" id="hudCancel">Cancel</button>
+        <button type="button" id="hudAllow">Allow</button>
+      </dialog>
+
       <button class="save-btn" id="save">Save Settings</button>
     </section>
   </main>

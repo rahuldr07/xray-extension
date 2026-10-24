@@ -18,7 +18,8 @@ import {
 import { hasOpenTransaction, usePanelSqlStore } from '../../sqlStore';
 import { databasesAllowedIn } from '../../models/sqlFrameReady';
 import { openSqlWindowSurface } from '../../runtime/surfaces';
-import { PANEL_FONT_VALUES, resolveAccentValue, sqlDatabasesInHudActive } from '../../models/panelSettings';
+import { PANEL_FONT_VALUES, resolveAccentValue } from '../../models/panelSettings';
+import { DEFAULT_SQL_HUD_OPTIONS, sqlDatabasesInHudActive, type SqlHudOptions } from '../../runtime/sqlHudOptions';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { DEFAULT_SQL_LAYOUT, EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
 import { formatFileSize, isMacPlatform, shortcutLabels } from '../../models/sqlUi';
@@ -764,7 +765,7 @@ function Dialogs(): React.ReactElement | null {
   return null;
 }
 
-export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactElement {
+export function SqlApp({ settings, hud = DEFAULT_SQL_HUD_OPTIONS }: { settings: PanelSettings; hud?: SqlHudOptions }): React.ReactElement {
   const dirty = usePanelSqlStore((s) => s.dirty);
   const connected = usePanelSqlStore((s) => !!s.connection);
   const railPx = usePanelSqlStore((s) => s.layout.railPx);
@@ -772,7 +773,7 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dropping = useFileDrop();
   usePageShortcuts();
-  const databasesInHud = sqlDatabasesInHudActive(settings);
+  const databasesInHud = sqlDatabasesInHudActive(hud);
   const databases = useMemo(() => databasesAllowedIn(Array.from(location.ancestorOrigins ?? []), databasesInHud), [databasesInHud]);
   const openTransaction = usePanelSqlStore((s) => s.connection?.kind === 'remote' && s.openTransactions.length > 0);
 

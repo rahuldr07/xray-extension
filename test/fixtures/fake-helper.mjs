@@ -84,7 +84,8 @@ function handle(msg) {
   log(msg);
   switch (op) {
     case 'hello':
-      return ok(id, { protocolVersion: 1, helperVersion: '0.9.0-fake' });
+      // FAKE_HELPER_PROTOCOL plays an older or newer helper (the extension then reads it as outdated).
+      return ok(id, { protocolVersion: Number(process.env.FAKE_HELPER_PROTOCOL || 1), helperVersion: '0.9.0-fake' });
     case 'connect': {
       if (msg.password === 'wrong') return fail(id, 'auth-failed', 'Password authentication failed for user "postgres".');
       const sessionId = crypto.randomBytes(16).toString('hex');

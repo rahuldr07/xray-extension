@@ -246,7 +246,7 @@ test('the framed client keeps its open database across tab switches', { timeout:
 });
 
 // Opens the in-page HUD on a fixture page and returns a clicker that reaches into its closed shadow
-// root. `inline` writes settings.sqlInlineInHud through the storage the panel reads before the page
+// root. `inline` writes the worker-owned sql_hud_options (Ruling M3-R28) before the page
 // loads; `csp` serves the fixture with that Content-Security-Policy header.
 async function openHud(t, { inline = false, csp = null, databases = false } = {}) {
   const server = http.createServer((req, res) => {
@@ -261,7 +261,8 @@ async function openHud(t, { inline = false, csp = null, databases = false } = {}
   if (inline) {
     const worker = context.serviceWorkers()[0];
     // themeRefreshPending is stored too, or the record reads as settings from before the theme refresh.
-    await worker.evaluate((db) => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: db, themeRefreshPending: false } } }), databases);
+    // Ruling M3-R28: the worker owns these options (sql_hud_options); set as the options page would.
+    await worker.evaluate((db) => chrome.storage.local.set({ sql_hud_options: { sqlInlineInHud: true, sqlDatabasesInHud: db } }), databases);
   }
   const page = context.pages()[0] || (await context.newPage());
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
@@ -381,7 +382,7 @@ test('with the inline option off, sql.html framed by a web page shows a notice i
   await click('#xray-tab-sql', null);
   const frame = await sqlFrameOf(page);
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
-  await context.serviceWorkers()[0].evaluate(() => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: false, themeRefreshPending: false } } }));
+  await context.serviceWorkers()[0].evaluate(() => chrome.storage.local.set({ sql_hud_options: { sqlInlineInHud: false, sqlDatabasesInHud: false } }));
   await frame.evaluate(() => location.reload());
   const reloaded = await sqlFrameOf(page);
   await reloaded.getByText('The SQL client is not enabled for this page.', { exact: true }).waitFor();
@@ -745,7 +746,7 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
 // real service worker and connection manager run against the fake.
 // The fake helper appends each request to `helperLog` as JSON, a connect's password redacted to
 // "<redacted:N>"; helperRequests() reads it back.
-async function openRemotePage(t, { helper = true } = {}) {
+async function openRemotePage(t, { helper = true, protocol = 1 } = {}) {
   const ext = extensionCopyWithNativeMessaging();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xray-e2e-sql-remote-'));
   const helperLog = path.join(userDataDir, 'fake-helper.log');
@@ -756,7 +757,7 @@ async function openRemotePage(t, { helper = true } = {}) {
     viewport: { width: 1280, height: 900 },
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--no-sandbox'],
     // Chrome starts the native host with its own environment.
-    env: { ...process.env, FAKE_HELPER_LOG: helperLog },
+    env: { ...process.env, FAKE_HELPER_LOG: helperLog, FAKE_HELPER_PROTOCOL: String(protocol) },
   });
   t.after(async () => {
     await context.close();
@@ -1052,4 +1053,12 @@ test('an open transaction asks before Read-only switches sessions, and before th
   await toggle.click();
   await assertEventually(async () => !(await toggle.isChecked()), 'Read-only off after COMMIT');
   assert.equal(await prompt.count(), 0, 'no prompt without an open transaction');
+});
+
+test('an outdated helper shows the update card with the update copy', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t, { protocol: 2 });
+  const dialog = await openConnectionDialog(page);
+  const card = dialog.getByRole('region', { name: 'Update the XRAY database helper', exact: true });
+  await card.waitFor();
+  await card.getByText('Postgres and MySQL need a small helper app on this computer. Run this again to update, then click Retry.', { exact: true }).waitFor();
 });

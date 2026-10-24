@@ -70,7 +70,15 @@ test('the HUD databases option sits under the inline option, needs it, and asks 
   assert.ok(inline > 0 && databases > inline, 'directly under the inline option');
   assert.match(modal, /Turn on the option above first\./);
   assert.match(modal, /The page you are on cannot read the client, but it could try to trick you into clicking it\. Keep connections read-only, or leave this off\./);
-  assert.match(modal, /disabled=\{!settings\.sqlInlineInHud\}/);
+  assert.match(modal, /disabled=\{!sqlHud\.sqlInlineInHud\}/);
+  // Ruling M3-R28: the toggles write the worker-owned options; the in-page panel only links out.
+  assert.match(modal, /surface === 'hud' \?/);
+  assert.match(modal, /Change this in\{' '\}/);
+  assert.match(modal, /XRAY&apos;s settings page/);
+  assert.match(modal, /type: 'XRAY_OPEN_OPTIONS'/);
+  assert.match(modal, /writeSqlHudOptions\(patch\)/);
+  assert.doesNotMatch(modal, /updateSettings\(\{ sqlInlineInHud/);
+  assert.doesNotMatch(modal, /updateSettings\(\{ sqlDatabasesInHud/);
   assert.match(modal, /confirmLabel: 'Allow'/);
   assert.match(modal, /cancelLabel: 'Cancel'/);
   assert.match(modal, /always: true/);

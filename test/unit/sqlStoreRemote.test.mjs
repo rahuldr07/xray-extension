@@ -718,3 +718,22 @@ test('a stored password the server rejects opens the password prompt', async () 
   assert.deepEqual(s.pendingPassword, { profileId: 'p1', name: 'shop@db.example.com' });
   assert.ok(s.messages.includes('The server rejected the user name or password.'));
 });
+
+// Ruling M3-R28: an error answer says whether the tab is still in a transaction.
+test('an error carrying inTransaction updates the open transactions', async () => {
+  const session = stubSession('postgres', {
+    execute: (sql) => {
+      if (/^select 1\/0/i.test(sql)) throw { code: 'server', message: 'division by zero', inTransaction: true };
+      if (/^select 2/i.test(sql)) throw { code: 'server', message: 'The connection to the database was lost, so the open transaction was rolled back.', inTransaction: false };
+      return result([1], { inTransaction: true });
+    },
+  });
+  await openTx([session]);
+  const tab = usePanelSqlStore.getState().activeTabId;
+  typeSql('SELECT 1/0');
+  await usePanelSqlStore.getState().run('current');
+  assert.deepEqual(usePanelSqlStore.getState().openTransactions, [tab], 'still open after an error inside it');
+  typeSql('SELECT 2');
+  await usePanelSqlStore.getState().run('current');
+  assert.deepEqual(usePanelSqlStore.getState().openTransactions, [], 'gone after the helper reports it lost');
+});

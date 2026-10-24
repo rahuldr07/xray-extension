@@ -52,7 +52,11 @@ export function HelperInstallCard({ state, compact = false }: { state: 'missing'
         </span>
         <h2 id={titleId}>{title}</h2>
       </div>
-      <p>Postgres and MySQL need a small helper app on this computer. Run this once in a terminal, then click Retry.</p>
+      <p>
+        {state === 'outdated'
+          ? 'Postgres and MySQL need a small helper app on this computer. Run this again to update, then click Retry.'
+          : 'Postgres and MySQL need a small helper app on this computer. Run this once in a terminal, then click Retry.'}
+      </p>
       <div className="xray-sql-helper-command">
         {/* <wbr> after each slash: a narrow card wraps the URL at path boundaries, never mid-word. */}
         <code>

@@ -157,6 +157,49 @@
   themeSelect.addEventListener('change', applyAccent);
   accentSelect.addEventListener('change', applyAccent);
 
+  // The HUD SQL options belong to the service worker (Ruling M3-R28): they are read and changed
+  // through it, at once, not by Save. Turning on saved databases in the HUD asks first.
+  const HUD_DATABASES_WARNING = 'The page you are on cannot read the client, but it could try to trick you into clicking it. Keep connections read-only, or leave this off.';
+  const inlineInput = document.getElementById('sqlInlineInHud');
+  const databasesInput = document.getElementById('sqlDatabasesInHud');
+  const databasesHint = document.getElementById('sqlDatabasesHint');
+  const hudDialog = document.getElementById('hudDialog');
+  const runtime = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime : null;
+  const hudMessage = (msg) => new Promise((resolve) => {
+    if (!runtime) return resolve(null);
+    runtime.sendMessage(msg, (response) => resolve(runtime.lastError ? null : response));
+  });
+  function showHud(options) {
+    inlineInput.checked = options.sqlInlineInHud === true;
+    databasesInput.checked = options.sqlDatabasesInHud === true;
+    databasesInput.disabled = !inlineInput.checked;
+    databasesHint.textContent = inlineInput.checked ? HUD_DATABASES_WARNING : 'Turn on the option above first.';
+  }
+  async function setHud(patch) {
+    const res = await hudMessage({ type: 'xray:sql-hud-options:set', options: patch });
+    if (res && res.ok) showHud(res.value);
+    return res;
+  }
+  showHud({});
+  hudMessage({ type: 'xray:sql-hud-options:get' }).then((res) => { if (res && res.ok) showHud(res.value); });
+  inlineInput.addEventListener('change', () => { void setHud({ sqlInlineInHud: !!inlineInput.checked }); });
+  databasesInput.addEventListener('change', () => {
+    if (!databasesInput.checked) {
+      void setHud({ sqlDatabasesInHud: false });
+      return;
+    }
+    // Not on until the user allows it in the dialog.
+    databasesInput.checked = false;
+    if (hudDialog.showModal) hudDialog.showModal();
+  });
+  document.getElementById('hudAllow').addEventListener('click', async () => {
+    if (hudDialog.close) hudDialog.close();
+    await setHud({ sqlDatabasesInHud: true });
+  });
+  document.getElementById('hudCancel').addEventListener('click', () => {
+    if (hudDialog.close) hudDialog.close();
+  });
+
   saveBtn.addEventListener('click', async () => {
     const latest = await loadPreferences();
     const latestSettings = latest.settings || {};

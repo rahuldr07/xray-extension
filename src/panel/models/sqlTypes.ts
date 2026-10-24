@@ -78,6 +78,8 @@ export interface SqlError {
   position?: number;
   hint?: string;
   detail?: string;
+  // Remote execute/fetchMore errors: whether the tab is still inside the user's transaction.
+  inTransaction?: boolean;
 }
 
 export interface ExecuteOptions {
