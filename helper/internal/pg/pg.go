@@ -35,6 +35,22 @@ const (
 	deadlineDelay = 2 * time.Second
 )
 
+// Idle cursors (final review Important 5): a cursor nobody fetched from for
+// cursorIdle is closed, ending its read-only transaction and freeing the
+// server. Connect reads these once, so a test may replace them first.
+var (
+	cursorIdle = 60 * time.Second
+	sweepEvery = 10 * time.Second
+	clock      = time.Now
+)
+
+const (
+	noMoreRows    = "There are no more rows to fetch. Run the query again."
+	cursorExpired = "Cursor expired, run the query again."
+	txFailed      = "The transaction had failed and was rolled back."
+	txLostMsg     = "The connection to the database was lost, so the open transaction was rolled back."
+)
+
 // Connect dials the probe connection, reads the server version and returns
 // the session. Tab connections are dialled on each tab's first execute.
 func Connect(ctx context.Context, p session.Params) (session.Session, error) {
@@ -43,7 +59,7 @@ func Connect(ctx context.Context, p session.Params) (session.Session, error) {
 		return nil, err
 	}
 	base, stop := context.WithCancel(context.Background())
-	s := &pgSession{cfg: cfg, password: p.Password, readOnly: p.ReadOnly, base: base, stop: stop, tabs: map[string]*tab{}}
+	s := &pgSession{cfg: cfg, password: p.Password, readOnly: p.ReadOnly, base: base, stop: stop, tabs: map[string]*tab{}, now: clock}
 	probe, err := s.dial(ctx)
 	if err != nil && p.StatementTimeout > 0 && refusedStartupParam(err) {
 		// Transaction poolers (PgBouncer, Supavisor) refuse statement_timeout
@@ -64,6 +80,7 @@ func Connect(ctx context.Context, p session.Params) (session.Session, error) {
 		s.Close()
 		return nil, e
 	}
+	go s.sweep(sweepEvery, cursorIdle)
 	return s, nil
 }
 
@@ -133,6 +150,7 @@ type pgSession struct {
 	version       string
 	base          context.Context // cancelled by Close
 	stop          context.CancelFunc
+	now           func() time.Time
 
 	probeMu sync.Mutex
 	probe   *tabConn
@@ -166,6 +184,14 @@ type tab struct {
 	mu  sync.Mutex
 	c   *tabConn
 	cur *cursor
+	// txOpen: the user's transaction was open after the tab's last statement.
+	// If the connection goes while it is, the next statement reports the
+	// rollback instead of running on a fresh connection.
+	txOpen bool
+	// expired: the idle sweep closed the tab's cursor.
+	expired bool
+	// gone: CloseTab removed the tab; a request still waiting for it stops.
+	gone bool
 }
 
 // cursor is a result left open after maxRows. In read-only mode its READ ONLY
@@ -180,6 +206,8 @@ type cursor struct {
 	complete   bool
 	pending    []values.Cell // the look-ahead row that proved hasMore
 	pendingCut []bool
+	kw         string    // the statement's first keyword
+	last       time.Time // when the cursor last sent rows, for the idle sweep
 }
 
 func (s *pgSession) ServerVersion() string { return s.version }
@@ -226,15 +254,24 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	defer t.mu.Unlock()
 	// The request may have been cancelled while it waited for the tab, or
 	// while the tab's previous cursor closed: then it must not run at all.
+	if ctx.Err() != nil || t.gone {
+		return session.Summary{}, cancelled()
+	}
+	s.closeCursor(ctx, t)
 	if ctx.Err() != nil {
 		return session.Summary{}, cancelled()
 	}
-	s.closeCursor(t)
-	if ctx.Err() != nil {
-		return session.Summary{}, cancelled()
-	}
+	t.expired = false
 	if t.c == nil || t.c.conn.IsClosed() {
 		t.c = nil
+		if t.txOpen {
+			// The connection went (a cancel that had to close it, a network
+			// failure) inside the user's transaction, so the server rolled it
+			// back. Say so rather than run this statement, perhaps the COMMIT,
+			// on a fresh connection where it would succeed.
+			t.txOpen = false
+			return session.Summary{}, session.Errorf(session.CodeServer, txLostMsg)
+		}
 		c, err := s.dial(ctx)
 		if err != nil {
 			return session.Summary{}, s.dialErr(err)
@@ -248,7 +285,8 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	curCtx, curCancel := context.WithCancel(s.base)
 	stopWatch := context.AfterFunc(ctx, curCancel)
 	defer stopWatch()
-	cur := &cursor{cancel: curCancel, complete: !s.readOnly && !readsOnly(sql)}
+	kw := session.FirstKeyword(sql)
+	cur := &cursor{cancel: curCancel, complete: !s.readOnly && !readOnlyFirst[kw], kw: kw}
 	if s.readOnly {
 		if _, err := t.c.conn.Exec(curCtx, "BEGIN TRANSACTION READ ONLY"); err != nil {
 			curCancel()
@@ -285,11 +323,14 @@ func (s *pgSession) FetchMore(ctx context.Context, tabID string, n int, out *ses
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || t.gone {
 		return session.Summary{}, cancelled()
 	}
 	if t.cur == nil {
-		return session.Summary{}, session.Errorf(session.CodeBadRequest, "No open cursor")
+		if t.expired {
+			return session.Summary{}, session.Errorf(session.CodeServer, cursorExpired)
+		}
+		return session.Summary{}, session.Errorf(session.CodeBadRequest, noMoreRows)
 	}
 	ctx, cancelLimit := s.limit(ctx)
 	defer cancelLimit()
@@ -335,7 +376,8 @@ func (s *pgSession) read(ctx context.Context, t *tab, n int, out *session.Emitte
 		}
 	} else if sent == n && c.rows.Next() {
 		c.pending, c.pendingCut = mapRow(fields, c.rows.RawValues())
-		return session.Summary{HasMore: true, Notices: t.c.takeNotices()}, nil
+		c.last = s.now()
+		return session.Summary{HasMore: true, Notices: t.c.takeNotices(), InTransaction: s.noteTx(t)}, nil
 	}
 	c.rows.Close()
 	if err := c.rows.Err(); err != nil {
@@ -344,6 +386,12 @@ func (s *pgSession) read(ctx context.Context, t *tab, n int, out *session.Emitte
 	tag := c.rows.CommandTag()
 	sum := session.Summary{Notices: t.c.takeNotices()}
 	s.finish(t)
+	sum.InTransaction = s.noteTx(t)
+	// COMMIT (or END) of a transaction that had failed rolls it back and
+	// answers with the tag ROLLBACK: that is not a success.
+	if (c.kw == "COMMIT" || c.kw == "END") && tag.String() == "ROLLBACK" {
+		return session.Summary{}, session.Errorf(session.CodeServer, txFailed)
+	}
 	if extra > 0 {
 		sum.Notices = append(sum.Notices, fmt.Sprintf("Showing the first %d of %d returned rows.", sent, sent+extra))
 	}
@@ -364,7 +412,27 @@ func (s *pgSession) abort(ctx context.Context, t *tab, err error) error {
 	}
 	mapped := s.execErr(ctx, t, err)
 	s.finish(t)
+	s.noteTx(t)
 	return mapped
+}
+
+// noteTx records and returns whether the tab's connection is inside the
+// user's transaction. The read-only wrapper is not one. While the connection
+// is gone, the last known state is kept for the next execute to report.
+func (s *pgSession) noteTx(t *tab) bool {
+	if s.readOnly {
+		return false
+	}
+	if t.c != nil && !t.c.conn.IsClosed() {
+		t.txOpen = t.c.conn.PgConn().TxStatus() != 'I'
+	}
+	return t.txOpen
+}
+
+// inUserTx reports, before a statement runs, that the tab is inside the
+// user's transaction (TxStatus is the server's state at its last ready).
+func (s *pgSession) inUserTx(t *tab) bool {
+	return !s.readOnly && t.c != nil && !t.c.conn.IsClosed() && t.c.conn.PgConn().TxStatus() != 'I'
 }
 
 func cancelled() error { return session.Errorf(session.CodeCancelled, "Query cancelled.") }
@@ -374,22 +442,92 @@ func cancelled() error { return session.Errorf(session.CodeCancelled, "Query can
 // other statement runs to completion first (Ruling M3-R11).
 var readOnlyFirst = map[string]bool{"SELECT": true, "VALUES": true, "TABLE": true, "SHOW": true, "FETCH": true, "(": true}
 
-func readsOnly(sql string) bool { return readOnlyFirst[session.FirstKeyword(sql)] }
-
-// closeCursor ends an open cursor before the tab's next statement.
+// closeCursor ends an open cursor before the tab's next statement; ctx is
+// that statement's request.
 //
-// The cursor is cancelled, not drained: cancelling its context makes pgx send
-// a protocol cancel request and set a socket deadline, so Close returns at
-// once, or within deadlineDelay with the connection closed (the next execute
-// redials). Only statements that cannot write keep cursors (see complete).
-func (s *pgSession) closeCursor(t *tab) {
+// Outside a user transaction the cursor is cancelled, not drained: cancelling
+// its context makes pgx send a protocol cancel request and set a socket
+// deadline, so Close returns at once, or within deadlineDelay with the
+// connection closed (the next execute redials). Only statements that cannot
+// write keep cursors (see complete).
+//
+// Inside the user's transaction a cancel would abort the transaction, and its
+// COMMIT would then roll back. So the rest of the result is read and thrown
+// away; a cancel of the next request still interrupts that (and is reported
+// when the transaction ends).
+func (s *pgSession) closeCursor(ctx context.Context, t *tab) {
 	c := t.cur
 	if c == nil {
+		return
+	}
+	if s.inUserTx(t) {
+		stop := context.AfterFunc(ctx, c.cancel)
+		for c.rows.Next() {
+		}
+		c.rows.Close()
+		stop()
+		s.finish(t)
 		return
 	}
 	c.cancel()
 	c.rows.Close()
 	s.finish(t)
+}
+
+// sweep closes cursors left idle for idle, checking every every, until the
+// session closes. A tab busy with a request is skipped, and so is a cursor in
+// the user's transaction: closing it means draining it (see closeCursor),
+// and the transaction holds its locks whether or not the cursor stays.
+func (s *pgSession) sweep(every, idle time.Duration) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.base.Done():
+			return
+		case <-tick.C:
+		}
+		s.mu.Lock()
+		tabs := make([]*tab, 0, len(s.tabs))
+		for _, t := range s.tabs {
+			tabs = append(tabs, t)
+		}
+		s.mu.Unlock()
+		for _, t := range tabs {
+			if !t.mu.TryLock() {
+				continue
+			}
+			if c := t.cur; c != nil && s.now().Sub(c.last) >= idle && !s.inUserTx(t) {
+				s.closeCursor(context.Background(), t)
+				t.expired = true
+			}
+			t.mu.Unlock()
+		}
+	}
+}
+
+// CloseTab closes the tab's cursor and connection (the editor tab closed).
+// The server rolls back a transaction left open on it.
+func (s *pgSession) CloseTab(id string) {
+	s.mu.Lock()
+	t, ok := s.tabs[id]
+	delete(s.tabs, id)
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.gone = true
+	if c := t.cur; c != nil {
+		c.cancel()
+		c.rows.Close()
+		t.cur = nil
+	}
+	if t.c != nil {
+		closeConn(t.c.conn)
+		t.c = nil
+	}
 }
 
 // finish drops the cursor, ends its read-only transaction and releases its

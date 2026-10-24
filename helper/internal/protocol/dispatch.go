@@ -12,7 +12,7 @@ import (
 )
 
 // Handler serves the database ops (connect, introspect, execute, fetchMore,
-// cancel, close). Handle runs on the request's own goroutine and must answer
+// cancel, close, closeTab). Handle runs on the request's own goroutine and must answer
 // through r exactly once with OK or Fail, after any stream messages.
 type Handler interface {
 	Handle(ctx context.Context, op string, id int64, payload []byte, r *Reply)
@@ -151,8 +151,12 @@ func (s *server) handle(ctx context.Context, payload []byte) {
 	}
 	switch env.Op {
 	case "hello", "ping":
-		var strict envelope
-		if err := strictDecode(payload, &strict); err != nil {
+		// hello may name the protocol version the extension speaks; nothing else.
+		var strict any = &envelope{}
+		if env.Op == "hello" {
+			strict = &helloRequest{}
+		}
+		if err := strictDecode(payload, strict); err != nil {
 			s.fail(env.ID, CodeBadRequest, "malformed request")
 			return
 		}
@@ -161,7 +165,7 @@ func (s *server) handle(ctx context.Context, payload []byte) {
 		} else {
 			s.ok(env.ID, struct{}{})
 		}
-	case "connect", "introspect", "execute", "fetchMore", "cancel", "close":
+	case "connect", "introspect", "execute", "fetchMore", "cancel", "close", "closeTab":
 		if s.h == nil {
 			s.fail(env.ID, CodeBadRequest, "not implemented")
 			return

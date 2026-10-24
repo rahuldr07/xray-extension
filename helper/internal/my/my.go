@@ -41,6 +41,22 @@ const (
 	giveUp = 1500 * time.Millisecond
 )
 
+// Idle cursors (final review Important 5): a cursor nobody fetched from for
+// cursorIdle is closed, ending its read-only transaction. Connect reads these
+// once, so a test may replace them first.
+var (
+	cursorIdle = 60 * time.Second
+	sweepEvery = 10 * time.Second
+	clock      = time.Now
+)
+
+const (
+	noMoreRows    = "There are no more rows to fetch. Run the query again."
+	cursorExpired = "Cursor expired, run the query again."
+	txFailed      = "The transaction had failed and was rolled back."
+	txLostMsg     = "The connection to the database was lost, so the open transaction was rolled back."
+)
+
 // Connect opens the pool, reads the server version and returns the session.
 // Tab connections are dialled on each tab's first execute.
 func Connect(ctx context.Context, p session.Params) (session.Session, error) {
@@ -60,7 +76,7 @@ func Connect(ctx context.Context, p session.Params) (session.Session, error) {
 	db.SetMaxOpenConns(2)
 	base, stop := context.WithCancel(context.Background())
 	s := &mySession{db: db, password: p.Password, readOnly: p.ReadOnly, timeout: p.StatementTimeout,
-		base: base, stop: stop, tabs: map[string]*tab{}, socks: map[*sockSlot]bool{}}
+		base: base, stop: stop, tabs: map[string]*tab{}, socks: map[*sockSlot]bool{}, now: clock}
 	vctx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 	var version string
@@ -77,6 +93,7 @@ func Connect(ctx context.Context, p session.Params) (session.Session, error) {
 	if !s.mariaDB {
 		s.version = "MySQL " + version
 	}
+	go s.sweep(sweepEvery, cursorIdle)
 	return s, nil
 }
 
@@ -182,6 +199,7 @@ type mySession struct {
 	mariaDB  bool            // MariaDB executes /*M! … */ comments; MySQL does not
 	base     context.Context // cancelled by Close
 	stop     context.CancelFunc
+	now      func() time.Time
 
 	mu     sync.Mutex
 	tabs   map[string]*tab
@@ -201,6 +219,16 @@ type tab struct {
 	c         *tabConn
 	cur       *cursor
 	stopWatch func() // ends the running statement's cancel watch
+	// txOpen: the user's transaction was open after the tab's last statement
+	// (tracked by txAfter: the driver does not expose the server's flag). If
+	// the connection goes while it is, the next statement reports the rollback
+	// instead of running on a fresh connection.
+	txOpen bool
+	// txFailed: the server rolled the transaction back (a deadlock); its
+	// COMMIT reports that instead of committing nothing.
+	txFailed bool
+	expired  bool // the idle sweep closed the tab's cursor
+	gone     bool // CloseTab removed the tab
 }
 
 // cursor is the tab's current statement. A result left open after maxRows
@@ -216,6 +244,7 @@ type cursor struct {
 	complete   bool
 	pending    []values.Cell // the look-ahead row that proved hasMore
 	pendingCut []bool
+	last       time.Time // when the cursor last sent rows, for the idle sweep
 }
 
 func (s *mySession) ServerVersion() string { return s.version }
@@ -383,15 +412,29 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	defer t.unwatch()
 	// The request may have been cancelled while it waited for the tab, or
 	// while the tab's previous cursor closed: then it must not run at all.
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || t.gone {
 		return session.Summary{}, cancelled()
 	}
 	s.closeCursor(t)
 	if ctx.Err() != nil {
 		return session.Summary{}, cancelled()
 	}
+	t.expired = false
 	if t.c != nil && !valid(t.c) {
 		s.drop(t)
+	}
+	if t.c == nil && t.txOpen {
+		// The connection went (a cursor or cancel that had to close the
+		// socket, a network failure) inside the user's transaction, so the
+		// server rolled it back. Say so rather than run this statement,
+		// perhaps the COMMIT, on a fresh connection where it would succeed.
+		t.txOpen, t.txFailed = false, false
+		return session.Summary{}, session.Errorf(session.CodeServer, txLostMsg)
+	}
+	kw := keyword(sql, s.mariaDB)
+	if t.txFailed && kw == "COMMIT" {
+		t.txFailed = false
+		return session.Summary{}, session.Errorf(session.CodeServer, txFailed)
 	}
 	if t.c == nil {
 		c, err := s.dialTab(ctx)
@@ -404,7 +447,6 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 		t.c = c
 	}
 
-	kw := keyword(sql, s.mariaDB)
 	curCtx, curCancel := context.WithCancel(s.base)
 	cur := &cursor{cancel: curCancel, complete: !s.readOnly && !readKeywords[kw]}
 	t.cur = cur
@@ -448,7 +490,7 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 			return session.Summary{}, err
 		}
 		n, _ := res.RowsAffected()
-		return session.Summary{Affected: &n, Notices: []string{}}, nil
+		return session.Summary{Affected: &n, Notices: []string{}, InTransaction: s.noteTx(t, sql)}, nil
 	}
 
 	rows, err := t.c.conn.QueryContext(curCtx, sql)
@@ -480,11 +522,14 @@ func (s *mySession) FetchMore(ctx context.Context, tabID string, n int, out *ses
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	defer t.unwatch()
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || t.gone {
 		return session.Summary{}, cancelled()
 	}
 	if t.cur == nil || t.cur.rows == nil {
-		return session.Summary{}, session.Errorf(session.CodeBadRequest, "No open cursor")
+		if t.expired {
+			return session.Summary{}, session.Errorf(session.CodeServer, cursorExpired)
+		}
+		return session.Summary{}, session.Errorf(session.CodeBadRequest, noMoreRows)
 	}
 	s.watch(ctx, t)
 	return s.read(ctx, t, "", n, out)
@@ -545,7 +590,8 @@ func (s *mySession) read(ctx context.Context, t *tab, sql string, n int, out *se
 			return session.Summary{}, s.abort(ctx, t, sql, nil)
 		}
 		c.pending, c.pendingCut = row, cut
-		return session.Summary{HasMore: true, Notices: []string{}}, nil
+		c.last = s.now()
+		return session.Summary{HasMore: true, Notices: []string{}, InTransaction: s.noteTx(t, "")}, nil
 	}
 	if err := c.rows.Close(); err != nil {
 		return session.Summary{}, s.abort(ctx, t, sql, err)
@@ -560,7 +606,7 @@ func (s *mySession) read(ctx context.Context, t *tab, sql string, n int, out *se
 	if ctx.Err() != nil && (s.readOnly || !c.complete) {
 		return session.Summary{}, ctxErr(ctx)
 	}
-	sum := session.Summary{Notices: []string{}}
+	sum := session.Summary{Notices: []string{}, InTransaction: s.noteTx(t, sql)}
 	if extra > 0 {
 		sum.Notices = append(sum.Notices, "Showing the first "+strconv.Itoa(sent)+" of "+strconv.Itoa(sent+extra)+" returned rows.")
 	}
@@ -579,7 +625,118 @@ func (s *mySession) abort(ctx context.Context, t *tab, sql string, err error) er
 		mapped = s.execErr(ctx, t, sql, err)
 	}
 	s.finish(t)
+	var me *mysql.MySQLError
+	if errors.As(err, &me) && me.Number == 1213 && t.txOpen {
+		// A deadlock rolls the whole transaction back.
+		t.txOpen, t.txFailed = false, true
+	}
 	return mapped
+}
+
+// noteTx records the user's transaction state after a statement that
+// succeeded ("" for one that leaves it as it was) and returns it.
+func (s *mySession) noteTx(t *tab, sql string) bool {
+	if s.readOnly {
+		return false
+	}
+	if sql != "" {
+		was := t.txOpen
+		t.txOpen = txAfter(was, sql, s.mariaDB)
+		if t.txOpen != was || endsTx(sql, s.mariaDB) {
+			t.txFailed = false
+		}
+	}
+	return t.txOpen
+}
+
+// implicitCommit are first keywords of statements that commit the open
+// transaction before they run (MySQL "Statements That Cause an Implicit
+// Commit"; CREATE/DROP TEMPORARY TABLE excepted).
+var implicitCommit = map[string]bool{
+	"ALTER": true, "CREATE": true, "DROP": true, "RENAME": true, "TRUNCATE": true, "GRANT": true,
+	"REVOKE": true, "LOCK": true, "ANALYZE": true, "OPTIMIZE": true, "REPAIR": true, "FLUSH": true,
+	"CACHE": true, "INSTALL": true, "UNINSTALL": true, "RESET": true, "IMPORT": true, "CHANGE": true,
+	"STOP": true, "XA": true,
+}
+
+// words returns up to n leading words of sql, upper-cased, read as keyword
+// reads them (comments skipped); it stops at the first other byte.
+func words(sql string, mariaDB bool, n int) []string {
+	var out []string
+	i := 0
+	for i < len(sql) && len(out) < n {
+		c := sql[i]
+		switch {
+		case c <= 0x20 || c == ';':
+			i++
+		case commentEnd(sql, i, mariaDB) >= 0:
+			i = commentEnd(sql, i, mariaDB)
+		case isWordByte(c):
+			j := i
+			for j < len(sql) && isWordByte(sql[j]) {
+				j++
+			}
+			out = append(out, strings.ToUpper(sql[i:j]))
+			i = j
+		default:
+			return out
+		}
+	}
+	return out
+}
+
+// txAfter is whether the user's transaction is open after sql succeeded,
+// given whether it was open before. MySQL's driver keeps the server's
+// SERVER_STATUS_IN_TRANS flag private, so this follows the statements:
+// BEGIN and START TRANSACTION open one; COMMIT and ROLLBACK end it (unless AND
+// CHAIN, or ROLLBACK TO a savepoint); statements that commit implicitly end
+// it. Known gaps: SET autocommit = 0 starts transactions this does not see,
+// and a transaction the server rolls back on an error other than a deadlock.
+func txAfter(open bool, sql string, mariaDB bool) bool {
+	w := words(sql, mariaDB, 6)
+	if len(w) == 0 {
+		return open
+	}
+	has := func(word string) bool {
+		for _, x := range w[1:] {
+			if x == word {
+				return true
+			}
+		}
+		return false
+	}
+	switch w[0] {
+	case "BEGIN":
+		return true
+	case "START":
+		return len(w) > 1 && w[1] == "TRANSACTION"
+	case "COMMIT", "ROLLBACK":
+		if w[0] == "ROLLBACK" && has("TO") {
+			return open
+		}
+		return has("CHAIN") && !has("NO")
+	case "CREATE", "DROP":
+		if len(w) > 1 && w[1] == "TEMPORARY" {
+			return open
+		}
+		return false
+	case "SET":
+		if strings.Contains(strings.ToUpper(sql), "AUTOCOMMIT") {
+			return false
+		}
+		return open
+	}
+	if implicitCommit[w[0]] {
+		return false
+	}
+	return open
+}
+
+// endsTx reports a statement that ends or starts a transaction whatever the
+// tracked state was (it clears a reported failure).
+func endsTx(sql string, mariaDB bool) bool {
+	w := words(sql, mariaDB, 1)
+	return len(w) == 1 && (w[0] == "BEGIN" || w[0] == "START" || w[0] == "ROLLBACK" || w[0] == "COMMIT")
 }
 
 func cancelled() error { return session.Errorf(session.CodeCancelled, "Query cancelled.") }
@@ -625,6 +782,11 @@ func (s *mySession) closeRows(t *tab, c *cursor) {
 // closeCursor ends an open cursor before the tab's next statement. The
 // cursor is cancelled, not drained (see closeRows). Only statements that
 // cannot write keep cursors (see complete).
+//
+// Unlike Postgres, this is safe inside the user's transaction: KILL QUERY
+// ends only the SELECT, and the transaction stays open. If the socket has to
+// be closed instead (giveUp), the transaction is lost with the connection;
+// the next statement reports that (see Execute).
 func (s *mySession) closeCursor(t *tab) {
 	c := t.cur
 	if c == nil {
@@ -871,6 +1033,10 @@ const fileWriteMsg = "Writing files on the server needs Read-only off."
 // combination, and any reading that finds INTO OUTFILE/DUMPFILE refuses it.
 // The words of a string literal's contents count too (fail closed).
 func writesFile(sql string, mariaDB bool) bool {
+	// The readings differ only in how a backslash inside a literal is read.
+	if !strings.Contains(sql, "\\") {
+		return intoFile(sql, mariaDB, lexMode{})
+	}
 	for _, m := range []lexMode{{true, true}, {true, false}, {false, true}, {false, false}} {
 		if intoFile(sql, mariaDB, m) {
 			return true
@@ -883,12 +1049,17 @@ func writesFile(sql string, mariaDB bool) bool {
 // "…" literals.
 type lexMode struct{ singleBackslash, doubleBackslash bool }
 
+// intoFile reads sql under one lexMode. It relies on the version-comment
+// refusal that readOnlyRefusal applies right after it: commentEnd does not
+// skip an executable comment ("/*!", "/*M!" on MariaDB), so its body is read
+// here as ordinary tokens, and whatever this reading gets wrong about such a
+// body never runs, because any statement holding one is refused next.
 func intoFile(sql string, mariaDB bool, m lexMode) bool {
-	prev := ""
-	emit := func(tok string) bool {
-		tok = strings.ToUpper(tok)
-		hit := prev == "INTO" && (tok == "OUTFILE" || tok == "DUMPFILE")
-		prev = tok
+	prevInto := false
+	// word takes one token and reports whether it ends INTO OUTFILE/DUMPFILE.
+	word := func(tok string) bool {
+		hit := prevInto && (strings.EqualFold(tok, "OUTFILE") || strings.EqualFold(tok, "DUMPFILE"))
+		prevInto = strings.EqualFold(tok, "INTO")
 		return hit
 	}
 	i := 0
@@ -898,21 +1069,31 @@ func intoFile(sql string, mariaDB bool, m lexMode) bool {
 			i++
 			continue
 		}
-		if e := commentEnd(sql, i, mariaDB); e >= 0 {
-			i = e
-			continue
+		if c == '#' || c == '-' || c == '/' {
+			if e := commentEnd(sql, i, mariaDB); e >= 0 {
+				i = e
+				continue
+			}
 		}
 		if c == '\'' || c == '"' || c == '`' {
 			bs := (c == '\'' && m.singleBackslash) || (c == '"' && m.doubleBackslash)
 			end := quotedEnd(sql, i, bs)
-			emit(string(c))
+			prevInto = false // the opening quote is a token
 			// The literal's words count as tokens too (fail closed).
-			for _, w := range strings.FieldsFunc(sql[i+1:end], func(r rune) bool { return r <= 0x20 || r == '\'' || r == '"' || r == '`' }) {
-				if emit(w) {
+			for j := i + 1; j < end; {
+				for j < end && literalSep(sql[j]) {
+					j++
+				}
+				k := j
+				for k < end && !literalSep(sql[k]) {
+					k++
+				}
+				if k > j && word(sql[j:k]) {
 					return true
 				}
+				j = k
 			}
-			emit(string(c))
+			prevInto = false // the closing quote is a token
 			i = end
 			continue
 		}
@@ -921,15 +1102,20 @@ func intoFile(sql string, mariaDB bool, m lexMode) bool {
 			j++
 		}
 		if j == i {
-			j = i + 1 // one punctuation byte
+			prevInto = false // one punctuation byte
+			i++
+			continue
 		}
-		if emit(sql[i:j]) {
+		if word(sql[i:j]) {
 			return true
 		}
 		i = j
 	}
 	return false
 }
+
+// literalSep separates the words read inside a literal.
+func literalSep(b byte) bool { return b <= 0x20 || b == '\'' || b == '"' || b == '`' }
 
 // quotedEnd returns the index just past the literal that opens at sql[i]. A
 // doubled quote stays inside; with backslash, "\x" does too. An unclosed
@@ -1051,6 +1237,69 @@ func typeName(dbType string) string {
 		return "unknown"
 	}
 	return t
+}
+
+// sweep closes cursors left idle for idle, checking every every, until the
+// session closes. A tab busy with a request is skipped, and so is a cursor in
+// the user's transaction, which holds its locks whether or not the cursor
+// stays (and closing it could cost the transaction, see closeCursor).
+func (s *mySession) sweep(every, idle time.Duration) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.base.Done():
+			return
+		case <-tick.C:
+		}
+		s.mu.Lock()
+		tabs := make([]*tab, 0, len(s.tabs))
+		for _, t := range s.tabs {
+			tabs = append(tabs, t)
+		}
+		s.mu.Unlock()
+		for _, t := range tabs {
+			if !t.mu.TryLock() {
+				continue
+			}
+			if c := t.cur; c != nil && c.rows != nil && s.now().Sub(c.last) >= idle && !(t.txOpen && !s.readOnly) {
+				s.closeCursor(t)
+				t.expired = true
+			}
+			t.mu.Unlock()
+		}
+	}
+}
+
+// CloseTab closes the tab's cursor and connection (the editor tab closed).
+// The server rolls back a transaction left open on it.
+func (s *mySession) CloseTab(id string) {
+	s.mu.Lock()
+	t, ok := s.tabs[id]
+	delete(s.tabs, id)
+	if ok {
+		s.db.SetMaxOpenConns(len(s.tabs) + 2)
+	}
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.gone = true
+	t.unwatch()
+	if t.c != nil {
+		// Closing the socket first makes an open result fail at once.
+		t.c.sock.close()
+	}
+	if c := t.cur; c != nil {
+		if c.rows != nil {
+			c.rows.Close()
+		}
+		c.cancel()
+		t.cur = nil
+	}
+	s.drop(t)
 }
 
 func (s *mySession) Close() {

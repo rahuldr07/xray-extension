@@ -58,6 +58,21 @@ func TestHello(t *testing.T) {
 	}
 }
 
+// The service worker's hello names the protocol it speaks (final review minor 9).
+func TestHelloAcceptsProtocolVersion(t *testing.T) {
+	r := run(t, "1.2.3", `{"id":1,"op":"hello","protocolVersion":1}`, `{"id":2,"op":"hello","protocolVersion":1,"x":2}`)
+	byID := map[float64]map[string]any{}
+	for _, f := range r.frames {
+		byID[f["id"].(float64)] = f
+	}
+	if f := byID[1]; f["ok"] != true || f["value"].(map[string]any)["protocolVersion"] != float64(1) {
+		t.Fatalf("hello with protocolVersion: %v", r.frames)
+	}
+	if errCode(byID[2]) != "bad-request" {
+		t.Fatalf("other unknown fields are still refused: %v", r.frames)
+	}
+}
+
 func TestPing(t *testing.T) {
 	r := run(t, "x", `{"id":2,"op":"ping"}`)
 	f := r.frames[0]

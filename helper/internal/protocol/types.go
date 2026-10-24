@@ -55,11 +55,20 @@ type ExecuteResult struct {
 	Notices        []string `json:"notices"`
 	HasMore        bool     `json:"hasMore"`
 	TruncatedCells int      `json:"truncatedCells"`
+	InTransaction  bool     `json:"inTransaction"`
 }
 
 type envelope struct {
 	ID int64  `json:"id"`
 	Op string `json:"op"`
+}
+
+// helloRequest is the hello op. ProtocolVersion is the version the extension
+// speaks; the reply carries the helper's, and the extension decides.
+type helloRequest struct {
+	ID              int64  `json:"id"`
+	Op              string `json:"op"`
+	ProtocolVersion *int   `json:"protocolVersion"`
 }
 
 // HelloValue is the reply to the hello op.

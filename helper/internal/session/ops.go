@@ -72,6 +72,13 @@ type fetchMoreRequest struct {
 	N         int    `json:"n"`
 }
 
+type closeTabRequest struct {
+	ID        int64  `json:"id"`
+	Op        string `json:"op"`
+	SessionID string `json:"sessionId"`
+	TabID     string `json:"tabId"`
+}
+
 type cancelRequest struct {
 	ID      int64  `json:"id"`
 	Op      string `json:"op"`
@@ -129,6 +136,18 @@ func (o *Ops) Handle(ctx context.Context, op string, id int64, payload []byte, r
 			return
 		}
 		o.reg.Cancel(req.QueryID)
+		r.OK(struct{}{})
+	case "closeTab":
+		var req closeTabRequest
+		if decode(payload, &req) != nil {
+			badRequest(r, "malformed request")
+			return
+		}
+		s, ok := o.session(r, req.SessionID)
+		if !ok {
+			return
+		}
+		s.CloseTab(req.TabID)
 		r.OK(struct{}{})
 	case "close":
 		var req sessionRequest
@@ -192,7 +211,8 @@ func (o *Ops) connect(ctx context.Context, payload []byte, r *protocol.Reply) {
 func (o *Ops) session(r *protocol.Reply, id string) (Session, bool) {
 	s, ok := o.reg.Get(id)
 	if !ok {
-		badRequest(r, "Unknown session.")
+		// The helper restarted or the session was closed: the page offers Reconnect.
+		r.Fail(protocol.ErrorBody{Code: CodeConnectionLost, Message: "The connection to the database was lost. Reconnect to continue."})
 	}
 	return s, ok
 }
@@ -291,6 +311,7 @@ func (o *Ops) run(ctx context.Context, id int64, r *protocol.Reply, f func(conte
 		Notices:        notices,
 		HasMore:        sum.HasMore,
 		TruncatedCells: out.Truncated(),
+		InTransaction:  sum.InTransaction,
 	})
 }
 

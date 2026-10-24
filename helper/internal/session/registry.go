@@ -62,6 +62,10 @@ type Summary struct {
 	Affected *int64
 	Notices  []string
 	HasMore  bool
+	// InTransaction reports that the tab's connection is inside a transaction
+	// the user opened (never the read-only wrapper). Closing the session, or
+	// the tab, rolls it back.
+	InTransaction bool
 }
 
 // Session is one connect: a tab-less connection plus one connection per tab.
@@ -73,6 +77,9 @@ type Session interface {
 	Execute(ctx context.Context, tab, sql string, maxRows int, out *Emitter) (Summary, error)
 	// FetchMore sends up to n more rows from tab's open cursor.
 	FetchMore(ctx context.Context, tab string, n int, out *Emitter) (Summary, error)
+	// CloseTab closes tab's cursor and connection; the next execute on it
+	// dials again. A transaction open on it is rolled back by the server.
+	CloseTab(tab string)
 	Close()
 }
 
@@ -108,12 +115,19 @@ type ColumnNode struct {
 	PK           bool    `json:"pk"`
 }
 
+// earlyCancelCap bounds the query ids remembered from cancels that arrived
+// before their query was tracked.
+const earlyCancelCap = 64
+
 // Registry maps session ids to sessions and running query ids to their
 // cancel functions. Its locks are never held while a driver works.
 type Registry struct {
 	mu       sync.Mutex
 	sessions map[string]Session
 	queries  map[int64]context.CancelFunc
+	// early holds ids cancelled before they were tracked, oldest first. Query
+	// ids are request ids, which the extension never reuses on one helper.
+	early []int64
 }
 
 func NewRegistry() *Registry {
@@ -147,11 +161,23 @@ func (r *Registry) Remove(id string) (Session, bool) {
 	return s, ok
 }
 
-// Track records cancel for queryID until the returned func is called.
+// Track records cancel for queryID until the returned func is called. A query
+// whose cancel came first is cancelled at once.
 func (r *Registry) Track(queryID int64, cancel context.CancelFunc) (untrack func()) {
 	r.mu.Lock()
 	r.queries[queryID] = cancel
+	early := false
+	for i, id := range r.early {
+		if id == queryID {
+			r.early = append(r.early[:i], r.early[i+1:]...)
+			early = true
+			break
+		}
+	}
 	r.mu.Unlock()
+	if early {
+		cancel()
+	}
 	return func() {
 		r.mu.Lock()
 		delete(r.queries, queryID)
@@ -159,10 +185,18 @@ func (r *Registry) Track(queryID int64, cancel context.CancelFunc) (untrack func
 	}
 }
 
-// Cancel cancels a tracked query and reports whether one was running.
+// Cancel cancels a tracked query and reports whether one was running. An
+// untracked id is remembered, so a query whose cancel overtook it (the two
+// requests run on their own goroutines) is cancelled when it registers.
 func (r *Registry) Cancel(queryID int64) bool {
 	r.mu.Lock()
 	cancel, ok := r.queries[queryID]
+	if !ok {
+		r.early = append(r.early, queryID)
+		if len(r.early) > earlyCancelCap {
+			r.early = r.early[len(r.early)-earlyCancelCap:]
+		}
+	}
 	r.mu.Unlock()
 	if ok {
 		cancel()

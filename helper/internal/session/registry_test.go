@@ -13,13 +13,15 @@ import (
 )
 
 type fakeSession struct {
-	readOnly bool
-	mu       sync.Mutex
-	execSQL  []string
-	maxRows  []int
-	fetchN   []int
-	closed   bool
-	block    bool
+	readOnly   bool
+	mu         sync.Mutex
+	execSQL    []string
+	maxRows    []int
+	fetchN     []int
+	closed     bool
+	block      bool
+	inTx       bool
+	closedTabs []string
 }
 
 func (f *fakeSession) ServerVersion() string { return "Fake 1.0" }
@@ -46,7 +48,13 @@ func (f *fakeSession) Execute(ctx context.Context, tab, sql string, maxRows int,
 	if err := out.Row([]values.Cell{"y"}, nil); err != nil {
 		return Summary{}, err
 	}
-	return Summary{HasMore: true}, nil
+	return Summary{HasMore: true, InTransaction: f.inTx}, nil
+}
+
+func (f *fakeSession) CloseTab(tab string) {
+	f.mu.Lock()
+	f.closedTabs = append(f.closedTabs, tab)
+	f.mu.Unlock()
 }
 
 func (f *fakeSession) FetchMore(ctx context.Context, tab string, n int, out *Emitter) (Summary, error) {
@@ -72,7 +80,7 @@ func start(t *testing.T) (*testclient.Client, *[]*fakeSession) {
 		if p.Password == "bad" {
 			return nil, Errorf(CodeAuthFailed, "Wrong password.")
 		}
-		f := &fakeSession{readOnly: p.ReadOnly, block: p.Database == "block"}
+		f := &fakeSession{readOnly: p.ReadOnly, block: p.Database == "block", inTx: p.Database == "tx"}
 		made = append(made, f)
 		return f, nil
 	}})
@@ -222,8 +230,10 @@ func TestExecuteStreamsColumnsRowsSummary(t *testing.T) {
 
 func TestUnknownSession(t *testing.T) {
 	c, _ := start(t)
-	for _, op := range []string{"introspect", "execute", "fetchMore"} {
-		if _, f := c.Call(map[string]any{"op": op, "sessionId": "nope"}); testclient.ErrCode(f) != "bad-request" {
+	// A session the helper no longer knows is a lost connection, so the page offers Reconnect.
+	for _, op := range []string{"introspect", "execute", "fetchMore", "closeTab"} {
+		_, f := c.Call(map[string]any{"op": op, "sessionId": "nope"})
+		if testclient.ErrCode(f) != "connection-lost" || f["error"].(map[string]any)["message"] != "The connection to the database was lost. Reconnect to continue." {
 			t.Fatalf("%s: %v", op, f)
 		}
 	}
@@ -254,7 +264,7 @@ func TestCloseClosesSession(t *testing.T) {
 	if !(*made)[0].closed {
 		t.Fatal("session not closed")
 	}
-	if _, f := c.Call(map[string]any{"op": "introspect", "sessionId": sid}); testclient.ErrCode(f) != "bad-request" {
+	if _, f := c.Call(map[string]any{"op": "introspect", "sessionId": sid}); testclient.ErrCode(f) != "connection-lost" {
 		t.Fatal("closed session must be gone")
 	}
 }
@@ -294,5 +304,65 @@ func TestEngineGuardReplacesSharedGuard(t *testing.T) {
 	}
 	if len(g.execSQL) != 1 {
 		t.Fatalf("driver saw %v", g.execSQL)
+	}
+}
+
+// A cancel that arrives before its query is tracked still cancels it, the
+// moment it registers (final review minor 7).
+func TestRegistryCancelBeforeTrack(t *testing.T) {
+	r := NewRegistry()
+	if r.Cancel(9) {
+		t.Fatal("nothing was running")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	untrack := r.Track(9, cancel)
+	defer untrack()
+	if ctx.Err() == nil {
+		t.Fatal("an early cancel must cancel the query when it is tracked")
+	}
+	// The set is bounded: old early cancels are forgotten.
+	for i := int64(100); i < 100+2*earlyCancelCap; i++ {
+		r.Cancel(i)
+	}
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer r.Track(100, cancel2)()
+	if ctx2.Err() != nil {
+		t.Fatal("the oldest early cancel should have been dropped")
+	}
+	ctx3, cancel3 := context.WithCancel(context.Background())
+	defer r.Track(100+2*earlyCancelCap-1, cancel3)()
+	if ctx3.Err() == nil {
+		t.Fatal("the newest early cancel must be kept")
+	}
+	r.mu.Lock()
+	n := len(r.early)
+	r.mu.Unlock()
+	if n > earlyCancelCap {
+		t.Fatalf("%d early cancels kept", n)
+	}
+}
+
+func TestSummaryCarriesInTransaction(t *testing.T) {
+	c, _ := start(t)
+	for db, want := range map[string]bool{"tx": true, "d": false} {
+		sid := connect(t, c, map[string]any{"database": db})
+		_, f := c.Call(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "select", "maxRows": 1})
+		if v := testclient.Value(f); v["inTransaction"] != want {
+			t.Fatalf("%s: %v", db, v)
+		}
+	}
+}
+
+func TestCloseTabOp(t *testing.T) {
+	c, made := start(t)
+	sid := connect(t, c, nil)
+	if _, f := c.Call(map[string]any{"op": "closeTab", "sessionId": sid, "tabId": "t3"}); f["ok"] != true {
+		t.Fatalf("closeTab: %v", f)
+	}
+	if got := (*made)[0].closedTabs; len(got) != 1 || got[0] != "t3" {
+		t.Fatalf("closed tabs %v", got)
+	}
+	if _, f := c.Call(map[string]any{"op": "closeTab", "sessionId": sid, "tabId": "t3", "x": 1}); testclient.ErrCode(f) != "bad-request" {
+		t.Fatalf("unknown field: %v", f)
 	}
 }

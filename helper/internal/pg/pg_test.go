@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -197,7 +198,7 @@ func TestPostgresCursorAndFetchMore(t *testing.T) {
 		t.Fatalf("fetchMore rows %v summary %v", rows, v)
 	}
 	_, f = c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 10})
-	if testclient.ErrCode(f) != "bad-request" || errField(f, "message") != "No open cursor" {
+	if testclient.ErrCode(f) != "bad-request" || errField(f, "message") != "There are no more rows to fetch. Run the query again." {
 		t.Fatalf("exhausted cursor: %v", f)
 	}
 	// A new execute on a tab with an open cursor closes it first.
@@ -616,5 +617,240 @@ func TestPostgresTypeNames(t *testing.T) {
 	}
 	if rowsOf(stream)[0][3] != "ok" {
 		t.Fatalf("enum value %v", rowsOf(stream)[0])
+	}
+}
+
+// mustOK runs sql on tab and fails the test unless it answers ok.
+func mustOK(t *testing.T, c *testclient.Client, sid, tab, sql string, maxRows int) ([]testclient.Frame, map[string]any) {
+	t.Helper()
+	stream, f := exec(c, sid, tab, sql, maxRows)
+	if f["ok"] != true {
+		t.Fatalf("%s: %v", sql, f)
+	}
+	return stream, testclient.Value(f)
+}
+
+// The final review's critical finding: BEGIN; INSERT; a SELECT left open as a
+// cursor; COMMIT. The cursor is drained inside the open transaction, never
+// cancelled (a cancel would abort it, and COMMIT would silently roll back).
+func TestPostgresCommitAfterOpenCursorKeepsTheInsert(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	if _, v := mustOK(t, c, sid, "t1", "begin", 10); v["inTransaction"] != true {
+		t.Fatalf("begin: inTransaction %v", v)
+	}
+	mustOK(t, c, sid, "t1", "insert into "+schema+".orders(total) values (777)", 10)
+	// 2,000 rows of 10 kB: 20 MB, far past the socket buffers, over 2x maxRows.
+	_, v := mustOK(t, c, sid, "t1", "select g, repeat('x', 10000) from generate_series(1, 2000) g", 100)
+	if v["hasMore"] != true || v["inTransaction"] != true {
+		t.Fatalf("cursor: %v", v)
+	}
+	_, v = mustOK(t, c, sid, "t1", "commit", 10)
+	if v["inTransaction"] != false {
+		t.Fatalf("commit: %v", v)
+	}
+	stream, _ := mustOK(t, c, sid, "check", "select count(*) from "+schema+".orders where total = 777", 10)
+	if rowsOf(stream)[0][0] != "1" {
+		t.Fatalf("the insert was rolled back: %v", rowsOf(stream))
+	}
+}
+
+// COMMIT of a failed transaction answers the tag ROLLBACK: that is an error.
+func TestPostgresCommitOfFailedTransactionIsAnError(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	for _, end := range []string{"commit", "end"} {
+		mustOK(t, c, sid, "t1", "begin", 10)
+		mustOK(t, c, sid, "t1", "insert into "+schema+".orders(total) values (778)", 10)
+		if _, f := exec(c, sid, "t1", "select 1/0", 10); f["ok"] == true {
+			t.Fatalf("division by zero: %v", f)
+		}
+		_, f := exec(c, sid, "t1", end, 10)
+		if testclient.ErrCode(f) != "server" || errField(f, "message") != "The transaction had failed and was rolled back." {
+			t.Fatalf("%s of a failed transaction: %v", end, f)
+		}
+		if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != false {
+			t.Fatalf("after %s: %v", end, v)
+		}
+	}
+	stream, _ := mustOK(t, c, sid, "check", "select count(*) from "+schema+".orders where total = 778", 10)
+	if rowsOf(stream)[0][0] != "0" {
+		t.Fatalf("rows %v", rowsOf(stream))
+	}
+}
+
+// The drain of a cursor inside a transaction can still be interrupted: the
+// next request's cancel stops it (and that aborts the transaction, which the
+// COMMIT then reports).
+func TestPostgresCancelInterruptsTheDrain(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into "+schema+".orders(total) values (779)", 10)
+	mustOK(t, c, sid, "t1", "select * from generate_series(1, 50000000)", 10)
+	start := time.Now()
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "select 1", "maxRows": 10})
+	time.Sleep(300 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	if _, f := c.Wait(q, 10*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("cancelled drain: %v", f)
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("cancel took %v", d)
+	}
+	_, f := exec(c, sid, "t1", "commit", 10)
+	if errField(f, "message") != "The transaction had failed and was rolled back." {
+		t.Fatalf("commit after an interrupted drain: %v", f)
+	}
+}
+
+// inTransaction is the user's transaction only: the read-only wrapper and an
+// autocommit cursor are not one.
+func TestPostgresInTransactionFlag(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	c := newClient(t)
+	ro := open(t, c, connectReq(t, dsn, true))
+	if _, v := mustOK(t, c, ro, "t1", "select * from generate_series(1, 100)", 10); v["inTransaction"] != false {
+		t.Fatalf("read-only cursor: %v", v)
+	}
+	rw := open(t, c, connectReq(t, dsn, false))
+	if _, v := mustOK(t, c, rw, "t1", "select * from generate_series(1, 100)", 10); v["inTransaction"] != false {
+		t.Fatalf("autocommit cursor: %v", v)
+	}
+	mustOK(t, c, rw, "t1", "begin", 10)
+	if _, v := mustOK(t, c, rw, "t2", "select 1", 10); v["inTransaction"] != false {
+		t.Fatalf("another tab is not in t1's transaction: %v", v)
+	}
+	if _, v := mustOK(t, c, rw, "t1", "rollback", 10); v["inTransaction"] != false {
+		t.Fatalf("rollback: %v", v)
+	}
+}
+
+// fakeClock is a clock a test moves by hand.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (f *fakeClock) now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.t
+}
+
+func (f *fakeClock) add(d time.Duration) {
+	f.mu.Lock()
+	f.t = f.t.Add(d)
+	f.mu.Unlock()
+}
+
+// useFakeClock makes sessions connected after it sweep every 5 ms on fc.
+func useFakeClock(t *testing.T) *fakeClock {
+	fc := &fakeClock{t: time.Unix(1_700_000_000, 0)}
+	oldClock, oldEvery := clock, sweepEvery
+	clock, sweepEvery = fc.now, 5*time.Millisecond
+	t.Cleanup(func() { clock, sweepEvery = oldClock, oldEvery })
+	return fc
+}
+
+func backendState(t *testing.T, c *testclient.Client, sid string, pid any) any {
+	t.Helper()
+	stream, _ := mustOK(t, c, sid, "watch", fmt.Sprintf("select coalesce((select state from pg_stat_activity where pid = %v), 'gone')", pid), 10)
+	return rowsOf(stream)[0][0]
+}
+
+// A cursor idle for 60 s is closed, which ends its read-only transaction; a
+// later Fetch more says the cursor expired.
+func TestPostgresIdleCursorExpires(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	fc := useFakeClock(t)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, true))
+	stream, _ := mustOK(t, c, sid, "t1", "select pg_backend_pid(), g from generate_series(1, 100) g", 2)
+	pid := rowsOf(stream)[0][0]
+	if st := backendState(t, c, sid, pid); st != "idle in transaction" {
+		t.Fatalf("open cursor state %v", st)
+	}
+	fc.add(59 * time.Second)
+	time.Sleep(50 * time.Millisecond)
+	if _, f := c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2}); f["ok"] != true {
+		t.Fatalf("fetchMore at 59 s: %v", f)
+	}
+	fc.add(61 * time.Second)
+	time.Sleep(100 * time.Millisecond)
+	_, f := c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2})
+	if testclient.ErrCode(f) != "server" || errField(f, "message") != "Cursor expired, run the query again." {
+		t.Fatalf("fetchMore after 120 s idle: %v", f)
+	}
+	if st := backendState(t, c, sid, pid); st != "idle" {
+		t.Fatalf("the read-only wrapper was not rolled back: %v", st)
+	}
+	// A new statement works and clears the expiry.
+	mustOK(t, c, sid, "t1", "select 1", 10)
+	_, f = c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2})
+	if errField(f, "message") != "There are no more rows to fetch. Run the query again." {
+		t.Fatalf("after a new statement: %v", f)
+	}
+}
+
+// closeTab closes the tab's connection: its open transaction rolls back.
+func TestPostgresCloseTab(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	stream, _ := mustOK(t, c, sid, "t1", "select pg_backend_pid()", 10)
+	pid := rowsOf(stream)[0][0]
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into "+schema+".orders(total) values (780)", 10)
+	mustOK(t, c, sid, "t1", "select * from generate_series(1, 1000)", 10)
+	if _, f := c.Call(map[string]any{"op": "closeTab", "sessionId": sid, "tabId": "t1"}); f["ok"] != true {
+		t.Fatalf("closeTab: %v", f)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for backendState(t, c, sid, pid) != "gone" {
+		if time.Now().After(deadline) {
+			t.Fatal("the tab's connection is still open")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	stream, _ = mustOK(t, c, sid, "check", "select count(*) from "+schema+".orders where total = 780", 10)
+	if rowsOf(stream)[0][0] != "0" {
+		t.Fatalf("closing the tab must roll its transaction back: %v", rowsOf(stream))
+	}
+	if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != false {
+		t.Fatalf("the tab starts afresh: %v", v)
+	}
+}
+
+// A tab connection lost inside a transaction is reported, not redialled
+// silently: the COMMIT that follows must never answer ok.
+func TestPostgresConnectionLostInTransactionIsReported(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	schema := fixture(t, dsn)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	stream, _ := mustOK(t, c, sid, "t1", "select pg_backend_pid()", 10)
+	pid := rowsOf(stream)[0][0]
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into "+schema+".orders(total) values (781)", 10)
+	mustOK(t, c, sid, "t2", fmt.Sprintf("select pg_terminate_backend(%v)", pid), 10)
+	time.Sleep(100 * time.Millisecond)
+	_, first := exec(c, sid, "t1", "commit", 10)
+	_, second := exec(c, sid, "t1", "commit", 10)
+	if first["ok"] == true || second["ok"] == true {
+		t.Fatalf("commit after the connection was lost: %v / %v", first, second)
+	}
+	if errField(second, "message") != "The connection to the database was lost, so the open transaction was rolled back." {
+		t.Fatalf("second commit: %v", second)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != false {
+		t.Fatalf("then the tab works again: %v", v)
 	}
 }

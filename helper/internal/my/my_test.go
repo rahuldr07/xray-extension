@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -236,7 +237,7 @@ func TestMySQLCursorAndFetchMore(t *testing.T) {
 		t.Fatalf("fetchMore rows %v summary %v", rows, v)
 	}
 	_, f = c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 10})
-	if testclient.ErrCode(f) != "bad-request" || errField(f, "message") != "No open cursor" {
+	if testclient.ErrCode(f) != "bad-request" || errField(f, "message") != "There are no more rows to fetch. Run the query again." {
 		t.Fatalf("exhausted cursor: %v", f)
 	}
 	// A new execute on a tab with an open cursor closes it first.
@@ -1168,4 +1169,323 @@ func TestMySQLIntoOutfileRefused(t *testing.T) {
 	if err := a.QueryRow("select load_file(?)", path).Scan(&content); err != nil || content.Valid {
 		t.Fatalf("%s was written (%v)", path, err)
 	}
+}
+
+// Deferred guard tests (final review item 7). Prefixed literals (N'…',
+// _charset'…', X'…', B'…') are strings to MySQL: a comment opener inside one
+// must not hide what follows, and INTO OUTFILE text inside one is refused
+// anyway (fail closed).
+func TestReadOnlyGuardPrefixedLiterals(t *testing.T) {
+	ro := session.ReadOnlyMessage
+	cases := []struct{ sql, want string }{
+		{"select N'/*' into outfile '/tmp/x' -- */", fileWriteMsg},
+		{"select N'#' into outfile '/tmp/x'", fileWriteMsg},
+		{"select N'-- ' into dumpfile '/tmp/x'", fileWriteMsg},
+		{"select _utf8mb4'/*' into outfile '/tmp/x' -- */", fileWriteMsg},
+		{"select _utf8mb4'#' into /**/ outfile '/tmp/x'", fileWriteMsg},
+		{"select _latin1'it''s /*' into dumpfile '/tmp/x'", fileWriteMsg},
+		{"select X'2f2a' into outfile '/tmp/x'", fileWriteMsg},
+		{"select x'/*' into outfile '/tmp/x' -- */", fileWriteMsg},
+		{"select B'0101' into outfile '/tmp/x'", fileWriteMsg},
+		{"select b'#' into outfile '/tmp/x'", fileWriteMsg},
+		// The words inside a prefixed literal are refused too.
+		{"select N'into outfile'", fileWriteMsg},
+		{"select _utf8mb4'into dumpfile'", fileWriteMsg},
+		{"select X'into outfile'", fileWriteMsg},
+		{"select B'into outfile'", fileWriteMsg},
+		// Harmless prefixed literals pass, and a comment opener inside one
+		// does not hide the first keyword.
+		{"select N'/*', _utf8mb4'#', X'2f2a', B'0101'", ""},
+		{"select N'*/ commit /*'", ""},
+		{"select _utf8mb4'/*' /* */ union select 1", ""},
+		// A version comment inside a prefixed literal is refused (fail closed).
+		{"select N'/*! drop table t */'", versionCommentMsg},
+		{"commit -- N'", ro("COMMIT")},
+	}
+	for _, c := range cases {
+		if got := readOnlyRefusal(c.sql, false); got != c.want {
+			t.Errorf("readOnlyRefusal(%q) = %q, want %q", c.sql, got, c.want)
+		}
+	}
+}
+
+// A statement that is only an unterminated comment has no first keyword:
+// read-only refuses it.
+func TestReadOnlyGuardUnterminatedComment(t *testing.T) {
+	for _, q := range []string{"/*", "/* select 1", "  /*", "/*/", "-- x\n/*"} {
+		if got := readOnlyRefusal(q, false); got != session.ReadOnlyMessage("") {
+			t.Errorf("readOnlyRefusal(%q) = %q", q, got)
+		}
+	}
+}
+
+// The guard reads a 10 MB statement in under a second, whatever its shape.
+func TestReadOnlyGuardIsFastOn10MB(t *testing.T) {
+	const size = 10 << 20
+	fill := func(unit string) string { return strings.Repeat(unit, size/len(unit)) }
+	shapes := map[string]string{
+		"words":         "select " + fill("a1 ") + "1",
+		"literal words": "select '" + fill("into ") + "'",
+		"comments":      "select 1 " + fill("/**/"),
+		"open comment":  "select 1 /*" + fill("x"),
+		"quotes":        "select " + fill("'a',"),
+		"line comments": "select 1 " + fill("-- c\n"),
+		"punctuation":   "select " + fill("(),"),
+		"backslashes":   "select " + fill(`'a\'b',`),
+	}
+	limit := time.Second
+	if raceEnabled {
+		limit *= 10 // the race detector slows the lexer down several times
+	}
+	for name, q := range shapes {
+		start := time.Now()
+		readOnlyRefusal(q, false)
+		keyword(q, false)
+		if d := time.Since(start); d > limit {
+			t.Errorf("%s: %v", name, d)
+		}
+	}
+}
+
+func mustOK(t *testing.T, c *testclient.Client, sid, tab, sql string, maxRows int) ([]testclient.Frame, map[string]any) {
+	t.Helper()
+	stream, f := exec(c, sid, tab, sql, maxRows)
+	if f["ok"] != true {
+		t.Fatalf("%s: %v", sql, f)
+	}
+	return stream, testclient.Value(f)
+}
+
+// bigRows is 2,000 rows of 10 kB (20 MB): past the socket buffers.
+var bigRows = "select t0.d, repeat('x', 10000) from " + crossJoin(4) + " limit 2000"
+
+// BEGIN; INSERT; a SELECT left open as a cursor; COMMIT: the insert commits.
+func TestMySQLCommitAfterOpenCursorKeepsTheInsert(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	for _, begin := range []string{"begin", "start transaction"} {
+		if _, v := mustOK(t, c, sid, "t1", begin, 10); v["inTransaction"] != true {
+			t.Fatalf("%s: %v", begin, v)
+		}
+		mustOK(t, c, sid, "t1", "insert into orders(total) values (777)", 10)
+		_, v := mustOK(t, c, sid, "t1", bigRows, 100)
+		if v["hasMore"] != true || v["inTransaction"] != true {
+			t.Fatalf("cursor: %v", v)
+		}
+		if _, v = mustOK(t, c, sid, "t1", "commit", 10); v["inTransaction"] != false {
+			t.Fatalf("commit: %v", v)
+		}
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 777"); n != "2" {
+		t.Fatalf("the inserts were rolled back: %v", n)
+	}
+}
+
+// A deadlock rolls the victim's transaction back; its COMMIT is an error.
+func TestMySQLCommitOfFailedTransactionIsAnError(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "update orders set total = 1 where id = 1", 10)
+	mustOK(t, c, sid, "t2", "begin", 10)
+	mustOK(t, c, sid, "t2", "update orders set total = 2 where id = 2", 10)
+	q1 := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "update orders set total = 1 where id = 2", "maxRows": 10})
+	time.Sleep(300 * time.Millisecond)
+	q2 := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t2", "sql": "update orders set total = 2 where id = 1", "maxRows": 10})
+	_, f1 := c.Wait(q1, 10*time.Second)
+	_, f2 := c.Wait(q2, 10*time.Second)
+	victim, winner := "t1", "t2"
+	if f1["ok"] == true {
+		victim, winner = "t2", "t1"
+		f1 = f2
+	}
+	if errField(f1, "sqlState") != "40001" {
+		t.Fatalf("expected a deadlock: %v / %v", f1, f2)
+	}
+	_, f := exec(c, sid, victim, "commit", 10)
+	if testclient.ErrCode(f) != "server" || errField(f, "message") != "The transaction had failed and was rolled back." {
+		t.Fatalf("commit of the deadlock victim: %v", f)
+	}
+	if _, v := mustOK(t, c, sid, winner, "commit", 10); v["inTransaction"] != false {
+		t.Fatalf("winner commit: %v", v)
+	}
+	// The failure is reported once; the tab then works as usual.
+	if _, v := mustOK(t, c, sid, victim, "commit", 10); v["inTransaction"] != false {
+		t.Fatalf("second commit: %v", v)
+	}
+}
+
+// A huge cursor left open inside a transaction is stopped with KILL QUERY,
+// which ends only the SELECT: the next statement answers at once and the
+// transaction (and its insert) survives.
+func TestMySQLHugeCursorInTransactionKeepsIt(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (779)", 10)
+	mustOK(t, c, sid, "t1", "select t0.d, t1.d from "+crossJoin(8)+" limit 50000000", 10)
+	start := time.Now()
+	if _, v := mustOK(t, c, sid, "t1", "commit", 10); v["inTransaction"] != false {
+		t.Fatalf("commit: %v", v)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("commit took %v", d)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 779"); n != "1" {
+		t.Fatalf("the insert was rolled back: %v", n)
+	}
+}
+
+// When the cursor cannot be stopped and its socket is closed inside a
+// transaction, the rollback is reported: the next COMMIT never answers ok.
+func TestMySQLSocketCloseInTransactionIsReported(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	killSQL = "DO "
+	t.Cleanup(func() { killSQL = "KILL QUERY " })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (780)", 10)
+	mustOK(t, c, sid, "t1", "select t0.d, t1.d from "+crossJoin(8)+" limit 50000000", 10)
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "commit", "maxRows": 10})
+	time.Sleep(300 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	if _, f := c.Wait(q, 10*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("cancelled commit: %v", f)
+	}
+	_, f := exec(c, sid, "t1", "commit", 10)
+	if errField(f, "message") != "The connection to the database was lost, so the open transaction was rolled back." {
+		t.Fatalf("commit after the socket closed: %v", f)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 780"); n != "0" {
+		t.Fatalf("rows %v", n)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != false {
+		t.Fatalf("then the tab works: %v", v)
+	}
+}
+
+// MySQL's driver does not expose SERVER_STATUS_IN_TRANS, so the open
+// transaction is tracked from the statements that succeed.
+func TestTxAfter(t *testing.T) {
+	cases := []struct {
+		open bool
+		sql  string
+		want bool
+	}{
+		{false, "begin", true},
+		{false, "BEGIN WORK", true},
+		{false, "start transaction read write", true},
+		{false, "/* c */ start transaction", true},
+		{false, "select 1", false},
+		{true, "select 1", true},
+		{true, "insert into t values (1)", true},
+		{true, "commit", false},
+		{true, "commit work", false},
+		{true, "rollback", false},
+		{true, "commit and chain", true},
+		{true, "rollback and no chain", false},
+		{true, "rollback to savepoint a", true},
+		{true, "rollback work to a", true},
+		{true, "savepoint a", true},
+		{true, "release savepoint a", true},
+		{true, "create table t(a int)", false},
+		{true, "create temporary table t(a int)", true},
+		{true, "drop temporary table t", true},
+		{true, "alter table t add b int", false},
+		{true, "truncate t", false},
+		{true, "lock tables t write", false},
+		{true, "set autocommit = 1", false},
+		{true, "set @x = 1", true},
+		{true, "start replica", false},
+		{false, "start replica", false},
+	}
+	for _, c := range cases {
+		if got := txAfter(c.open, c.sql, false); got != c.want {
+			t.Errorf("txAfter(%v, %q) = %v, want %v", c.open, c.sql, got, c.want)
+		}
+	}
+}
+
+// A cursor idle for 60 s is closed (ending its read-only transaction) and
+// Fetch more says it expired.
+func TestMySQLIdleCursorExpires(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	fc := &fakeClock{t: time.Unix(1_700_000_000, 0)}
+	oldClock, oldEvery := clock, sweepEvery
+	clock, sweepEvery = fc.now, 5*time.Millisecond
+	t.Cleanup(func() { clock, sweepEvery = oldClock, oldEvery })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, true))
+	mustOK(t, c, sid, "t1", "select t0.d from "+crossJoin(3), 2)
+	fc.add(59 * time.Second)
+	time.Sleep(50 * time.Millisecond)
+	if _, f := c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2}); f["ok"] != true {
+		t.Fatalf("fetchMore at 59 s: %v", f)
+	}
+	fc.add(61 * time.Second)
+	time.Sleep(100 * time.Millisecond)
+	_, f := c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2})
+	if testclient.ErrCode(f) != "server" || errField(f, "message") != "Cursor expired, run the query again." {
+		t.Fatalf("fetchMore after 120 s idle: %v", f)
+	}
+	mustOK(t, c, sid, "t1", "select 1", 10)
+	_, f = c.Call(map[string]any{"op": "fetchMore", "sessionId": sid, "tabId": "t1", "n": 2})
+	if errField(f, "message") != "There are no more rows to fetch. Run the query again." {
+		t.Fatalf("after a new statement: %v", f)
+	}
+}
+
+// closeTab closes the tab's connection: its open transaction rolls back.
+func TestMySQLCloseTab(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	stream, _ := mustOK(t, c, sid, "t1", "select connection_id()", 10)
+	id := rowsOf(stream)[0][0]
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (781)", 10)
+	mustOK(t, c, sid, "t1", bigRows, 10)
+	if _, f := c.Call(map[string]any{"op": "closeTab", "sessionId": sid, "tabId": "t1"}); f["ok"] != true {
+		t.Fatalf("closeTab: %v", f)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for count(t, c, sid, fmt.Sprintf("select count(*) from information_schema.processlist where id = %v", id)) != "0" {
+		if time.Now().After(deadline) {
+			t.Fatal("the tab's connection is still open")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 781"); n != "0" {
+		t.Fatalf("closing the tab must roll its transaction back: %v", n)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != false {
+		t.Fatalf("the tab starts afresh: %v", v)
+	}
+}
+
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (f *fakeClock) now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.t
+}
+
+func (f *fakeClock) add(d time.Duration) {
+	f.mu.Lock()
+	f.t = f.t.Add(d)
+	f.mu.Unlock()
 }

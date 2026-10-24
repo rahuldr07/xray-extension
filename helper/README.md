@@ -40,14 +40,25 @@ extension until you delete them there, or remove the extension.
   limit, so result rows are sent in `rows` chunks of at most 524,288 bytes.
 - **Requests** are `{ "id": <n>, "op": <name>, ... }`. Decoding is strict: an unknown op or an
   unknown field is refused with `bad-request`. The fixed ops are:
-  - `hello` returns `protocolVersion` (1) and `helperVersion`. `ping` answers with an empty value.
+  - `hello` may carry the extension's `protocolVersion` and returns the helper's `protocolVersion`
+    (1) and `helperVersion`. `ping` answers with an empty value.
   - `connect` takes engine, host, port, database, user, password, tls, caFile,
     statementTimeoutMs and readOnly. It returns `sessionId`, `serverVersion` and `capabilities`.
   - `introspect` returns schemas, tables, views, columns and indexes.
   - `execute` takes sessionId, tabId, sql and maxRows, and runs one statement.
-  - `fetchMore` takes sessionId, tabId and n, and reads more rows from the tab's open cursor.
-  - `cancel` takes the queryId of a running request.
+  - `fetchMore` takes sessionId, tabId and n, and reads more rows from the tab's open cursor. A
+    cursor left unread for 60 s is closed (ending its read-only transaction); fetchMore then
+    answers "Cursor expired, run the query again."
+  - `cancel` takes the queryId of a running request. A cancel that arrives first is remembered,
+    and the request is cancelled as soon as it starts.
+  - `closeTab` takes sessionId and tabId, and closes that tab's cursor and connection. The server
+    rolls back a transaction left open on it.
   - `close` ends a session.
+- **Summaries.** `execute` and `fetchMore` answer with rowCount, affected, durationMs, notices,
+  hasMore, truncatedCells and `inTransaction`: whether the tab's connection is inside a
+  transaction the user opened (never the read-only wrapper). Closing the session or the tab rolls
+  that transaction back. A COMMIT of a failed transaction is an error, not a success, and so is
+  the first statement after a tab's connection was lost inside a transaction.
 - **Responses.** Each request ends with exactly one final message: `{ "id", "ok": true, "value" }`
   or `{ "id", "ok": false, "error": { "code", "message", ... } }`. Before the final message, an
   `execute` or `fetchMore` streams one `columns` message and then any number of `rows` messages,
