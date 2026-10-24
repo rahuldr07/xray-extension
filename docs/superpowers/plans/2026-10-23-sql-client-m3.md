@@ -350,7 +350,7 @@
 - The dialect for the editor, the classifier, `selectTableSql` and `toCompletionSchema` comes from the connection: sqlite, or the engine.
 - Execute passes `tabId` = the active editor tab id.
 - Save, the disk-behind state and recent files apply to sqlite only.
-- Read-only toggling on a remote connection reconnects the session with the new mode (no data to discard). It's still the same switch.
+- Read-only toggling on a remote connection reconnects the session with the new mode. The page holds no data, but an open transaction is rolled back, so with one open it asks "Discard the open transaction?" first (final review, Ruling M3-R26). It's still the same switch.
 - Run all continues to send one statement per execute.
 - `hasMore` with `capabilities.cursor` shows "Fetch more" (Task 9). Fetched rows append to the result, keep the sort and filter, and update `rowCount`/`hasMore`.
 - `connection-lost` marks the connection lost and shows Reconnect; the editor text is kept.

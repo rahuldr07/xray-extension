@@ -146,7 +146,7 @@ submission-ready wording lives in [store-listing.md](store-listing.md).
 | `windows` | The pop-out window | No |
 | `<all_urls>` | Capture is the product; it cannot know in advance which origins matter | No, but see C-14 on scoping *retention* |
 | CSP `'wasm-unsafe-eval'` (`extension_pages` only) | Lets SQLite-WASM compile in the SQL client's worker on `sql.html`. It does not apply to content scripts or to any web page, and allows no JS `eval`. `dist/sql-ui.js`, `dist/sql-worker.js` and `dist/sqlite3.wasm` are deliberately not web-accessible, so no page can load them; `sql.html` is, through its dynamic URL only, for the opt-in inline HUD (next row) | No, while the SQL client runs SQLite in the browser |
-| `web_accessible_resources`: `sql.html`, `use_dynamic_url: true`, `<all_urls>` | Lets the HUD frame the SQL client inline when the user turns on **Show SQL client inside the page HUD** (`sqlInlineInHud`, **off by default**). The page cannot read the cross-origin frame or the rows it shows. The resource is exposed whether or not the option is on, so treat it as: any site can embed the client. Chrome denies the static `chrome-extension://<id>/sql.html` URL to pages and serves only the per-session dynamic one, which the HUD keeps in its closed shadow root (it did not show in the page's `window.frames` or Resource Timing, observed on Chromium 151), but that is defence in depth, not a boundary. With the option off, sql.html refuses to run under a web origin (`location.ancestorOrigins`): it shows a notice and loads no stored SQL state, so the exposure is live only while the user has opted in. Clickjacking the client still requires the user to pick a file, and connections open read-only by default. Readiness is relayed through the extension runtime (sql.html → service worker, which checks the sender is a `chrome-extension:` `/sql.html` frame in a tab → the tab's top frame); nothing is posted to the page's window, so the page gets no `WindowProxy` to the frame and cannot swallow the signal. Once framed, the HUD keeps the frame until it is reopened, even if the option is turned off. Only `sql.html` is listed: its bundles, worker and wasm are loaded by the extension-origin document. A page's `frame-src` CSP does not block the frame (observed on Chromium 151); if it ever fails to load, the HUD falls back to the window after 4 s | Yes: drop the entry and the option, leaving the window |
+| `web_accessible_resources`: `sql.html`, `use_dynamic_url: true`, `<all_urls>` | Lets the HUD frame the SQL client inline when the user turns on **Show SQL client inside the page HUD** (`sqlInlineInHud`, **off by default**). The page cannot read the cross-origin frame or the rows it shows. The resource is exposed whether or not the option is on, so treat it as: any site can embed the client. Chrome denies the static `chrome-extension://<id>/sql.html` URL to pages and serves only the per-session dynamic one, which the HUD keeps in its closed shadow root (it did not show in the page's `window.frames` or Resource Timing, observed on Chromium 151), but that is defence in depth, not a boundary. With the option off, sql.html refuses to run under a web origin (`location.ancestorOrigins`): it shows a notice and loads no stored SQL state, so the exposure is live only while the user has opted in. Framed inside a web page, the client offers SQLite files only: the service worker refuses `profiles.*`, `connect`, `profiles.test` and `helper.status` from a port whose `sender.tab` is a web page, and the page shows an **Open in window** link instead of Connect and saved connections (unless the separate opt-in in the next row is on). Clickjacking the client then still requires the user to pick a file. Readiness is relayed through the extension runtime (sql.html → service worker, which checks the sender is a `chrome-extension:` `/sql.html` frame in a tab → the tab's top frame); nothing is posted to the page's window, so the page gets no `WindowProxy` to the frame and cannot swallow the signal. Once framed, the HUD keeps the frame until it is reopened, even if the option is turned off. Only `sql.html` is listed: its bundles, worker and wasm are loaded by the extension-origin document. A page's `frame-src` CSP does not block the frame (observed on Chromium 151); if it ever fails to load, the HUD falls back to the window after 4 s | Yes: drop the entry and the option, leaving the window |
 | Setting **Allow saved database connections in the page HUD** (`sqlDatabasesInHud`, **off by default**, effective only with `sqlInlineInHud` on) | Lets the HUD's inline client use saved Postgres/MySQL profiles and the helper (section 6). Off, a `sql.html` whose port's `sender.tab` is a web page is refused `profiles.*`, `connect`, `profiles.test` and `helper.status` by the service worker ("Database connections open in the XRAY window, not inside a web page."), and the page hides Connect and saved connections behind an **Open in window** link. On, the exposure grows: the page still cannot read the cross-origin frame, its rows or any password, but it can overlay or reposition it to trick the user into clicking Connect, a saved connection or Run (clickjacking). Turning it on asks for confirmation with that warning. The worker reads both settings from the panel's stored preferences each time a client connects its port, so turning either off applies from the client's next load. Connections still open read-only by default and passwords stay in the worker | Yes: leave it off (the default) |
 | `nativeMessaging` (`optional_permissions`) | Lets the service worker start `xray-db-helper`, the native host that connects the SQL client to Postgres and MySQL (section 6). It is optional: `sql.html` requests it on the first **Connect** or **Test connection** to a Postgres/MySQL profile, a user gesture, so users who only open SQLite files never grant it. Chrome starts only hosts whose manifest lists this extension in `allowed_origins` | Already optional; drop it together with Postgres/MySQL support |
 
@@ -200,7 +200,7 @@ the database connections.
   `allowed_origins`, which lists only `chrome-extension://kjfoocnkoajdcjabnadfojdfaghpbeep/`. Web
   pages and other extensions cannot reach it. The helper never listens on a network port.
 - **What it accepts.** It accepts a fixed set of operations: `hello`, `ping`, `connect`,
-  `introspect`, `execute`, `fetchMore`, `cancel` and `close`. Requests are decoded strictly: an unknown op or an
+  `introspect`, `execute`, `fetchMore`, `cancel`, `closeTab` and `close`. Requests are decoded strictly: an unknown op or an
   unknown field is refused with `bad-request`, and incoming frames are capped at 64 MiB. A panic
   in a handler answers `internal` and does not take down the process.
 - **What it logs.** stderr carries only error codes. Secrets, SQL text and results are never logged.
@@ -209,7 +209,14 @@ the database connections.
   --tlsv1.2`. Everything is installed per-user, and an upgrade copies then renames, so it never
   leaves a half-written binary.
 - **Lifetime.** When no `sql.html` page and no session is left, the worker closes the native port
-  after 30 s and Chrome stops the helper.
+  after 30 s and Chrome stops the helper. A cursor left unread for 60 s is closed (ending its
+  read-only transaction and the locks it holds), and closing an editor tab closes its connection.
+- **Who can reach saved connections.** Only extension pages: the worker refuses the
+  saved-connection ops from a `sql.html` framed inside a web page unless the user turned on both
+  HUD options (section 5).
+- **Result size.** The worker counts each request's assembled rows; past 32 MiB it cancels the
+  query and answers "Result too large; lower the row limit.", so a result never exceeds what a
+  port message can carry.
 
 ### TLS
 
@@ -235,6 +242,9 @@ without write grants when writes must be impossible.
   - `dblink`/`dblink_exec` writes over a second connection.
   - `COPY … TO PROGRAM` as a superuser (through a function or a DO block).
   - Advisory locks.
+  - `pg_cancel_backend` and `pg_terminate_backend`: they are plain function calls, so they pass
+    the guard and the read-only transaction, and stop other sessions' queries or connections when
+    the role is allowed to (superuser, the same role, or `pg_signal_backend`).
   - Any side effect a function performs outside the transaction.
 
   The database itself still blocks ordinary writes inside the transaction, including writes
@@ -256,7 +266,13 @@ without write grants when writes must be impossible.
 - **Extension pre-check.** Before anything is sent, the page's classifier refuses writes on a
   read-only connection and asks for confirmation before dangerous statements (such as DROP, or an
   UPDATE without WHERE) on a writable one.
-- Turning Read-only off reconnects in read-write mode. Each statement then commits as it runs.
+- Turning Read-only off reconnects in read-write mode. Each statement then commits as it runs,
+  unless the user opens a transaction with BEGIN. The helper reports such an open transaction
+  (`inTransaction`), and the page asks before anything that would end the session or the tab with
+  one open (the Read-only switch, another connection, opening a file, closing the tab or the page).
+  A transaction lost anyway is reported as rolled back, never as committed: a COMMIT of a failed
+  transaction is an error, and so is the first statement after a tab's connection was lost inside
+  one.
 
 ### Results
 
