@@ -50,6 +50,8 @@ export type SaveProfileInput = {
 export interface RemoteSession extends SqlDriver {
   readonly serverVersion: string;
   fetchMore(tabId: string, n: number, signal?: AbortSignal): Promise<QueryResult>;
+  /** The editor tab closed: the helper closes its cursor and connection (rolling back its transaction). */
+  closeTab(tabId: string): Promise<void>;
 }
 
 export interface RemoteApi {
@@ -201,6 +203,14 @@ export function createRemoteClient(connectPort: () => PortLike): RemoteApi {
       fetchMore: async (tabId: string, n: number, signal?: AbortSignal) => {
         if (!tabId) throw { ...NO_TAB };
         return query('fetchMore', { tabId, n }, signal);
+      },
+      closeTab: async (tabId: string) => {
+        try {
+          await request('closeTab', { sessionId, tabId });
+        } catch (e) {
+          // A dead session has no tabs left.
+          if ((e as SqlError).code !== 'connection-lost') throw e;
+        }
       },
       close: async () => {
         try {

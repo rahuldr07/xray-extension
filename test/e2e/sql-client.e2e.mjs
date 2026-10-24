@@ -223,6 +223,9 @@ test('the framed client keeps its open database across tab switches', { timeout:
   await frameEl.waitFor();
   const frame = page.frameLocator('iframe[title="SQL client"]');
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  // Inside a web page the client offers files only: saved connections open in the XRAY window.
+  await frame.getByRole('button', { name: 'Open in window', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Connect to a database' }).count(), 0, 'no Connect inside the page');
   await frame.locator('input[type="file"]').setInputFiles(shopPath);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   // Marks this document: a reloaded or re-created frame would lose it.
@@ -347,6 +350,9 @@ async function assertInlineClientWorks(t, options) {
   assert.ok(box && box.width > 200 && box.height > 200, `the frame fills the tab: ${JSON.stringify(box)}`);
 
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  // Inside a web page the client offers files only: saved connections open in the XRAY window.
+  await frame.getByRole('button', { name: 'Open in window', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Connect to a database' }).count(), 0, 'no Connect inside the page');
   await frame.locator('input[type="file"]').setInputFiles(shopPath);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   assert.equal(context.pages().length, pagesBefore, 'no window opened');
@@ -1007,3 +1013,34 @@ async function assertEventually(check, label, timeout = 15_000) {
   }
   assert.fail(`timed out: ${label}`);
 }
+
+test('an open transaction asks before Read-only switches sessions, and before the page closes', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app:pw@db.example.com:5432/shop', name: 'Shop PG' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await railItem(page, 'orders').waitFor();
+  await runSql(page, 'begin');
+  await assertEventually(async () => /rows affected/.test((await summary(page).textContent()) ?? ''), 'BEGIN ran');
+
+  await page.getByRole('switch', { name: 'Read-only', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Discard the open transaction?', exact: true });
+  await prompt.getByText('Its changes will be rolled back.', { exact: true }).waitFor();
+  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await prompt.waitFor({ state: 'detached' });
+
+  // Closing the page asks too (the browser's own leave-page dialog).
+  const asked = new Promise((resolve) => page.once('dialog', async (d) => { resolve(d.type()); await d.dismiss(); }));
+  await page.close({ runBeforeUnload: true });
+  assert.equal(await asked, 'beforeunload');
+  assert.equal(page.isClosed(), false, 'dismissing the dialog keeps the page');
+
+  // After COMMIT nothing is open: the switch reconnects without asking.
+  await runSql(page, 'commit');
+  await assertEventually(async () => /rows affected/.test((await summary(page).textContent()) ?? ''), 'COMMIT ran');
+  const toggle = page.getByRole('switch', { name: 'Read-only', exact: true });
+  await toggle.click();
+  await assertEventually(async () => !(await toggle.isChecked()), 'Read-only off after COMMIT');
+  assert.equal(await prompt.count(), 0, 'no prompt without an open transaction');
+});

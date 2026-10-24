@@ -11,6 +11,7 @@ const {
   isSqlFrameReadyMessage,
   nextSqlFrameReadiness,
   sqlClientAllowedIn,
+  databasesAllowedIn,
 } = await import('../../src/panel/models/sqlFrameReady.ts');
 
 const ready = { type: 'xray:sql-frame-ready' };
@@ -56,4 +57,12 @@ test('sql.html runs inside a web page only with the inline option on', () => {
   assert.equal(sqlClientAllowedIn(['https://example.com'], true), true, 'the inline HUD with the option on');
   assert.equal(sqlClientAllowedIn(['chrome-extension://abc', 'https://evil.test'], false), false, 'a web page anywhere up the chain');
   assert.equal(sqlClientAllowedIn(['null'], false), false, 'an opaque origin is not an extension');
+});
+
+test('saved database connections show only on extension pages (final review I6)', () => {
+  assert.equal(databasesAllowedIn([]), true, 'its own window');
+  assert.equal(databasesAllowedIn(['chrome-extension://abc']), true, 'the pop-out');
+  assert.equal(databasesAllowedIn(['chrome-extension://abc', 'devtools://devtools']), true, 'the DevTools panel');
+  assert.equal(databasesAllowedIn(['https://shop.example']), false, 'the inline HUD inside a web page');
+  assert.equal(databasesAllowedIn(['chrome-extension://abc', 'https://shop.example']), false, 'a web origin anywhere up the chain');
 });

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IconAlertTriangle,
   IconChevronDown,
   IconDatabase,
   IconDeviceFloppy,
   IconDots,
+  IconExternalLink,
   IconLock,
   IconLockOpen,
   IconPlayerPlay,
@@ -14,7 +15,9 @@ import {
   IconServer2,
   IconX,
 } from '@tabler/icons-react';
-import { usePanelSqlStore } from '../../sqlStore';
+import { hasOpenTransaction, usePanelSqlStore } from '../../sqlStore';
+import { databasesAllowedIn } from '../../models/sqlFrameReady';
+import { openSqlWindowSurface } from '../../runtime/surfaces';
 import { PANEL_FONT_VALUES, resolveAccentValue } from '../../models/panelSettings';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { DEFAULT_SQL_LAYOUT, EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
@@ -33,6 +36,20 @@ import { ResultsPane } from './ResultsPane';
 import { QuickStarts, SqlEditor } from './SqlEditor';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
+
+// False when sql.html is framed inside a web page (the opt-in inline HUD): saved connections stay in
+// the extension's own pages, and the service worker refuses them there too.
+const DatabasesAllowed = createContext(true);
+
+// Opens the client in its own extension window, where saved connections are available.
+function OpenInWindow({ className }: { className: string }): React.ReactElement {
+  return (
+    <button type="button" className={className} onClick={() => openSqlWindowSurface({ showToast: () => undefined })}>
+      <IconExternalLink size={14} stroke={1.8} aria-hidden="true" />
+      Open in window
+    </button>
+  );
+}
 
 const MAC = isMacPlatform(typeof navigator === 'undefined' ? '' : navigator.platform);
 const SHORTCUTS = shortcutLabels(MAC);
@@ -200,6 +217,7 @@ function MenuConnections({ disabled, onDone }: { disabled: boolean; onDone(): vo
 
 // The open file, as a button that opens a small panel to open another file.
 function SourceControl(): React.ReactElement | null {
+  const databases = useContext(DatabasesAllowed);
   const connection = usePanelSqlStore((s) => s.connection);
   const busy = usePanelSqlStore((s) => !!s.running || s.opening);
   const [open, setOpen] = useState(false);
@@ -209,7 +227,7 @@ function SourceControl(): React.ReactElement | null {
 
   useEffect(() => {
     if (!open) return undefined;
-    void usePanelSqlStore.getState().checkHelper();
+    if (databases) void usePanelSqlStore.getState().checkHelper();
     // Focus moves into the panel when it opens.
     menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
     const onPointerDown = (e: PointerEvent) => {
@@ -217,7 +235,7 @@ function SourceControl(): React.ReactElement | null {
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
+  }, [open, databases]);
 
   if (!connection) return null;
   const close = () => {
@@ -280,7 +298,14 @@ function SourceControl(): React.ReactElement | null {
             <h2 id="xray-sql-menu-connections" className="xray-sql-menu-heading">
               Connections
             </h2>
-            <MenuConnections disabled={busy} onDone={() => setOpen(false)} />
+            {databases ? (
+              <MenuConnections disabled={busy} onDone={() => setOpen(false)} />
+            ) : (
+              <>
+                <p className="xray-sql-source-note">Database connections open in the XRAY window, not inside a web page.</p>
+                <OpenInWindow className="xray-menu-item" />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -461,6 +486,7 @@ function SavedConnections(): React.ReactElement | null {
 }
 
 function Welcome(): React.ReactElement {
+  const databases = useContext(DatabasesAllowed);
   const opening = usePanelSqlStore((s) => s.opening);
   const error = usePanelSqlStore((s) => s.error);
   const helper = usePanelSqlStore((s) => s.helper.state);
@@ -472,16 +498,21 @@ function Welcome(): React.ReactElement {
       <h1 id="xray-sql-welcome-title">Open a database</h1>
       <div className="xray-sql-welcome-actions">
         <OpenFileButton className="xray-btn primary xray-sql-welcome-open" title={`Open a database (${SHORTCUTS.open})`} disabled={opening} />
-        <button type="button" className="xray-btn xray-sql-welcome-open" disabled={opening} onClick={ui.newConnection}>
-          <IconPlugConnected size={16} stroke={1.8} aria-hidden="true" />
-          Connect to a database
-        </button>
+        {databases ? (
+          <button type="button" className="xray-btn xray-sql-welcome-open" disabled={opening} onClick={ui.newConnection}>
+            <IconPlugConnected size={16} stroke={1.8} aria-hidden="true" />
+            Connect to a database
+          </button>
+        ) : (
+          <OpenInWindow className="xray-btn xray-sql-welcome-open" />
+        )}
       </div>
       <p className="xray-sql-welcome-drop">or drop a .sqlite / .db file anywhere on this page</p>
       <p className="xray-sql-welcome-note">Files open read-only. Nothing leaves your machine.</p>
-      {(helper === 'missing' || helper === 'outdated') && <HelperInstallCard state={helper} />}
+      {!databases && <p className="xray-sql-welcome-note">Database connections open in the XRAY window, not inside a web page.</p>}
+      {databases && (helper === 'missing' || helper === 'outdated') && <HelperInstallCard state={helper} />}
       {recentFilesAvailable() && <RecentFiles />}
-      <SavedConnections />
+      {databases && <SavedConnections />}
       {opening && (
         <p className="xray-sql-welcome-note" role="status">
           Opening…
@@ -741,24 +772,32 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dropping = useFileDrop();
   usePageShortcuts();
+  const databases = useMemo(() => databasesAllowedIn(Array.from(location.ancestorOrigins ?? [])), []);
+  const openTransaction = usePanelSqlStore((s) => s.connection?.kind === 'remote' && s.openTransactions.length > 0);
 
   // Saved connections for the welcome screen and the source menu. The helper's state (which
   // starts the helper) is asked only when there is a saved connection to use it for; the
   // connection dialog and the Databases menu ask when they open.
   useEffect(() => {
+    if (!databases) return;
     const store = usePanelSqlStore.getState();
     void store.loadProfiles().then(() => {
       if (usePanelSqlStore.getState().profiles.length) void store.checkHelper();
     });
-  }, []);
+  }, [databases]);
 
-  // Unsaved writes live only in the worker; leaving the page would drop them silently.
+  // Unsaved writes live only in the worker, and closing the page rolls back an open remote
+  // transaction: leaving would drop either silently, so the browser asks first.
   useEffect(() => {
-    if (!dirty) return undefined;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    if (!dirty && !openTransaction) return undefined;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty && !hasOpenTransaction()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [dirty]);
+  }, [dirty, openTransaction]);
 
   // Same theme scope as App.tsx: tokens live on this wrapper, and sql.html reads the theme
   // class back with :has() for the document background.
@@ -772,6 +811,7 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
 
   return (
     <div className={`xray-theme-scope xray-theme-${settings.theme} xray-font-${settings.font}`} style={themeVars}>
+      <DatabasesAllowed.Provider value={databases}>
       <ConnectionUiProvider>
       <div className="xray-sql-app">
         <Toolbar />
@@ -817,6 +857,7 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
       <FileOpenInput />
       <Dialogs />
       </ConnectionUiProvider>
+      </DatabasesAllowed.Provider>
     </div>
   );
 }

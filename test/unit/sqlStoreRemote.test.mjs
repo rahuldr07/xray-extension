@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import './harness.mjs';
 
-const { usePanelSqlStore, connectionDialect, __setRemoteApiForTests } = await import('../../src/panel/sqlStore.ts');
+const { usePanelSqlStore, connectionDialect, __setRemoteApiForTests, hasOpenTransaction } = await import('../../src/panel/sqlStore.ts');
 
 const CAPS = { readOnlyEnforced: true, cancel: true, transactions: true, cursor: true, multiStatement: false };
 const SCHEMA = { schemas: [{ name: 'public', tables: [{ name: 'orders', columns: [], indexes: [] }], views: [] }] };
@@ -49,8 +49,16 @@ function stubSession(engine = 'postgres', script = {}) {
     serverVersion: 'PostgreSQL 16.4',
     executes: [],
     fetches: [],
+    closedTabs: [],
+    introspects: 0,
     closed: 0,
-    introspect: async () => SCHEMA,
+    introspect: async () => {
+      session.introspects += 1;
+      return SCHEMA;
+    },
+    async closeTab(tabId) {
+      session.closedTabs.push(tabId);
+    },
     async execute(sql, opts, signal) {
       session.executes.push({ sql, opts });
       const answer = script.execute ?? result([1]);
@@ -99,6 +107,7 @@ function reset() {
     canFetchMore: false,
     messages: [],
     rowFilter: '',
+    openTransactions: [],
   });
 }
 
@@ -547,4 +556,165 @@ test('loadProfiles never asks for the helper status; checkHelper does', async ()
   await usePanelSqlStore.getState().checkHelper();
   assert.equal(statusCalls, 1);
   assert.equal(usePanelSqlStore.getState().helper.state, 'missing');
+});
+
+// ------------------------------------------------ final review (Ruling M3-R26)
+
+const DISCARD_TX = { title: 'Discard the open transaction?', message: 'Its changes will be rolled back.', confirmLabel: 'Discard transaction' };
+const ROLLED_BACK = 'An open transaction was rolled back.';
+
+// A read-write session whose execute answers inTransaction the way a server would.
+function txSession() {
+  const open = new Set(); // per editor tab: each has its own connection
+  return stubSession('postgres', {
+    execute: (sql, opts) => {
+      const kw = sql.trim().split(/\s+/)[0].toLowerCase();
+      if (kw === 'begin') open.add(opts.tabId);
+      if (kw === 'commit' || kw === 'rollback') open.delete(opts.tabId);
+      return result([1], { inTransaction: open.has(opts.tabId) });
+    },
+  });
+}
+
+async function openTx(sessions = [txSession(), txSession()]) {
+  reset();
+  const api = stubApi([...sessions], [profile({ readOnly: false }), profile({ id: 'p2', name: 'other', readOnly: false })]);
+  __setRemoteApiForTests(api);
+  await usePanelSqlStore.getState().connectProfile('p1');
+  typeSql('BEGIN');
+  await usePanelSqlStore.getState().run('current');
+  return { api, first: sessions[0], second: sessions[1] };
+}
+
+test('inTransaction is kept per editor tab', async () => {
+  await openTx();
+  const s = usePanelSqlStore.getState();
+  const txTab = s.activeTabId;
+  assert.deepEqual(s.openTransactions, [txTab]);
+  assert.equal(hasOpenTransaction(), true);
+  s.addTab();
+  typeSql('SELECT 1');
+  await usePanelSqlStore.getState().run('current');
+  assert.deepEqual(usePanelSqlStore.getState().openTransactions, [txTab], "another tab's SELECT does not end it");
+  usePanelSqlStore.getState().setActiveTab(txTab);
+  typeSql('COMMIT');
+  await usePanelSqlStore.getState().run('current');
+  assert.deepEqual(usePanelSqlStore.getState().openTransactions, []);
+  assert.equal(hasOpenTransaction(), false);
+});
+
+test('a failed COMMIT ends the tracked transaction', async () => {
+  const session = stubSession('postgres', {
+    execute: (sql) => {
+      if (/^commit/i.test(sql)) throw { code: 'server', message: 'The transaction had failed and was rolled back.' };
+      return result([1], { inTransaction: true });
+    },
+  });
+  await openTx([session]);
+  typeSql('COMMIT');
+  await usePanelSqlStore.getState().run('current');
+  assert.deepEqual(usePanelSqlStore.getState().openTransactions, []);
+});
+
+test('turning Read-only on with an open transaction asks first; Cancel keeps the session', async () => {
+  const { api, first } = await openTx();
+  await usePanelSqlStore.getState().setReadOnly(true);
+  assert.deepEqual(usePanelSqlStore.getState().pendingPrompt, DISCARD_TX);
+  usePanelSqlStore.getState().cancelPrompt();
+  assert.equal(api.connects.length, 1);
+  assert.equal(first.closed, 0);
+  await usePanelSqlStore.getState().setReadOnly(true);
+  await usePanelSqlStore.getState().confirmPrompt();
+  const s = usePanelSqlStore.getState();
+  assert.equal(api.connects[1].readOnly, true);
+  assert.equal(first.closed, 1);
+  assert.equal(s.connection.readOnly, true);
+  assert.deepEqual(s.openTransactions, []);
+  assert.ok(s.messages.includes(ROLLED_BACK), s.messages.join('\n'));
+});
+
+test('connecting another profile with an open transaction asks first', async () => {
+  const { api } = await openTx();
+  await usePanelSqlStore.getState().connectProfile('p2');
+  assert.deepEqual(usePanelSqlStore.getState().pendingPrompt, DISCARD_TX);
+  assert.equal(api.connects.length, 1);
+  await usePanelSqlStore.getState().confirmPrompt();
+  const s = usePanelSqlStore.getState();
+  assert.equal(s.connection.profileId, 'p2');
+  assert.deepEqual(s.openTransactions, []);
+  assert.ok(s.messages.includes(ROLLED_BACK));
+});
+
+test('opening a SQLite file with an open transaction asks first', async () => {
+  await openTx();
+  await usePanelSqlStore.getState().openFile(new File([new Uint8Array(0)], 'x.sqlite'));
+  assert.deepEqual(usePanelSqlStore.getState().pendingPrompt, DISCARD_TX);
+  usePanelSqlStore.getState().cancelPrompt();
+  assert.equal(usePanelSqlStore.getState().connection.kind, 'remote');
+});
+
+test('closing an editor tab closes its helper tab; with an open transaction it asks first', async () => {
+  const { first } = await openTx();
+  const s = usePanelSqlStore.getState();
+  const txTab = s.activeTabId;
+  s.addTab();
+  const plain = usePanelSqlStore.getState().activeTabId;
+  usePanelSqlStore.getState().closeTab(plain);
+  assert.equal(usePanelSqlStore.getState().pendingPrompt, null);
+  assert.deepEqual(first.closedTabs, [plain]);
+  usePanelSqlStore.getState().closeTab(txTab);
+  assert.deepEqual(usePanelSqlStore.getState().pendingPrompt, DISCARD_TX);
+  assert.deepEqual(first.closedTabs, [plain]);
+  await usePanelSqlStore.getState().confirmPrompt();
+  const after = usePanelSqlStore.getState();
+  assert.deepEqual(first.closedTabs, [plain, txTab]);
+  assert.equal(after.tabs.some((t) => t.id === txTab), false);
+  assert.deepEqual(after.openTransactions, []);
+  assert.ok(after.messages.includes(ROLLED_BACK));
+});
+
+test('a connection lost with an open transaction says it was rolled back', async () => {
+  const session = stubSession('postgres', {
+    execute: (sql) => {
+      if (/^select/i.test(sql)) throw { code: 'connection-lost', message: 'The connection to the database was lost.' };
+      return result([1], { inTransaction: true });
+    },
+  });
+  await openTx([session]);
+  typeSql('SELECT 1');
+  await usePanelSqlStore.getState().run('current');
+  const s = usePanelSqlStore.getState();
+  assert.equal(s.connectionLost, true);
+  assert.deepEqual(s.openTransactions, []);
+  assert.ok(s.messages.includes(ROLLED_BACK));
+});
+
+test('200 INSERTs refresh the remote schema at most once; DDL refreshes it', async () => {
+  reset();
+  const session = stubSession('postgres', { execute: result([], { columns: [], affected: 1 }) });
+  const api = stubApi([session], [profile({ readOnly: false })]);
+  __setRemoteApiForTests(api);
+  await usePanelSqlStore.getState().connectProfile('p1');
+  const before = session.introspects;
+  typeSql(Array.from({ length: 200 }, (_, i) => `INSERT INTO orders(id) VALUES (${i});`).join('\n'));
+  await usePanelSqlStore.getState().run('all');
+  assert.equal(session.executes.length, 200);
+  assert.ok(session.introspects - before <= 1, `${session.introspects - before} introspects`);
+  const mid = session.introspects;
+  typeSql('CREATE TABLE t2 (a int)');
+  await usePanelSqlStore.getState().run('current');
+  assert.equal(session.introspects - mid, 1, 'a CREATE refreshes the rail');
+  typeSql('SELECT 1');
+  await usePanelSqlStore.getState().run('current');
+  assert.equal(session.introspects - mid, 1, 'a read never does');
+});
+
+test('a stored password the server rejects opens the password prompt', async () => {
+  reset();
+  const api = stubApi([{ code: 'auth-failed', message: 'The server rejected the user name or password.' }]);
+  __setRemoteApiForTests(api);
+  await usePanelSqlStore.getState().connectProfile('p1');
+  const s = usePanelSqlStore.getState();
+  assert.deepEqual(s.pendingPassword, { profileId: 'p1', name: 'shop@db.example.com' });
+  assert.ok(s.messages.includes('The server rejected the user name or password.'));
 });

@@ -226,3 +226,27 @@ test('aborting fetchMore sends cancel with the fetchMore request id', async () =
   const cancel = env.ports[0].sent.find((m) => m.op === 'cancel');
   assert.equal(cancel.queryId, fm.id);
 });
+
+test('closeTab sends the session and tab ids; inTransaction passes through', async () => {
+  const env = fakeEnv((m, port) => {
+    if (m.op === 'execute') return port.reply({ id: m.id, ok: true, value: { ...RESULT, inTransaction: true } });
+    return sw(m, port);
+  });
+  const api = createRemoteClient(env.connectPort);
+  const s = await api.connect('p1', true);
+  const res = await s.execute('begin', { maxRows: 10, tabId: 't1' });
+  assert.equal(res.inTransaction, true);
+  await s.closeTab('t1');
+  const req = env.ports[0].sent.at(-1);
+  assert.deepEqual(req, { id: req.id, op: 'closeTab', sessionId: 's1', tabId: 't1' });
+});
+
+test('closeTab on a dead session is quiet', async () => {
+  const env = fakeEnv((m, port) => {
+    if (m.op === 'closeTab') return port.reply({ id: m.id, ok: false, error: { code: 'connection-lost', message: 'gone' } });
+    return sw(m, port);
+  });
+  const api = createRemoteClient(env.connectPort);
+  const s = await api.connect('p1', true);
+  await s.closeTab('t1');
+});

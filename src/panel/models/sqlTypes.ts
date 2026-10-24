@@ -51,6 +51,9 @@ export interface QueryResult {
   notices: string[];
   hasMore: boolean;
   truncatedCells: number;
+  // Remote only: the tab's connection is inside a transaction the user opened. Closing the session
+  // (or the tab) rolls it back.
+  inTransaction?: boolean;
 }
 
 export type SqlErrorCode =

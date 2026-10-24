@@ -92,13 +92,22 @@ function handle(msg) {
       return ok(id, { sessionId, serverVersion: SERVER_VERSION, capabilities: CAPABILITIES });
     }
     case 'introspect':
-      if (!sessions.has(msg.sessionId)) return fail(id, 'bad-request', 'Unknown session.');
+      if (!sessions.has(msg.sessionId)) return fail(id, 'connection-lost', 'The connection to the database was lost. Reconnect to continue.');
       return ok(id, SCHEMA);
     case 'execute': {
       const tabs = sessions.get(msg.sessionId);
-      if (!tabs) return fail(id, 'bad-request', 'Unknown session.');
+      if (!tabs) return fail(id, 'connection-lost', 'The connection to the database was lost. Reconnect to continue.');
       // The helper process dies mid-query: the extension sees its port disconnect.
       if (/pg_crash_helper/i.test(msg.sql ?? '')) process.exit(1);
+      // BEGIN/COMMIT/ROLLBACK track a transaction per tab, as the real helper reports it.
+      const control = /^\s*(begin|start transaction|commit|rollback|end)\b/i.exec(msg.sql ?? '');
+      if (control) {
+        tabs.inTx ??= new Set();
+        if (/^(begin|start)/i.test(control[1])) tabs.inTx.add(msg.tabId);
+        else tabs.inTx.delete(msg.tabId);
+        send({ id, stream: 'columns', columns: [] });
+        return ok(id, { rowCount: 0, affected: 0, durationMs: 0.5, notices: [], hasMore: false, truncatedCells: 0, inTransaction: tabs.inTx.has(msg.tabId) });
+      }
       if (!/\borders\b/i.test(msg.sql ?? '')) return fail(id, 'syntax', 'relation does not exist');
       const cursor = { offset: 0 };
       tabs.set(msg.tabId, cursor);
@@ -106,10 +115,13 @@ function handle(msg) {
     }
     case 'fetchMore': {
       const cursor = sessions.get(msg.sessionId)?.get(msg.tabId);
-      if (!cursor) return fail(id, 'bad-request', 'No open cursor for this tab.');
+      if (!cursor) return fail(id, 'bad-request', 'There are no more rows to fetch. Run the query again.');
       return streamRows(id, cursor, msg.n > 0 ? msg.n : 1000);
     }
     case 'cancel':
+      return ok(id, {});
+    case 'closeTab':
+      sessions.get(msg.sessionId)?.delete(msg.tabId);
       return ok(id, {});
     case 'close':
       sessions.delete(msg.sessionId);

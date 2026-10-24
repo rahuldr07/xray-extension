@@ -17,7 +17,7 @@ import {
 } from './runtime/remoteClient';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
 import { rememberRecentFile } from './runtime/recentFiles';
-import { classifyStatement, type StatementKind } from './models/sqlClassify';
+import { changesSchema, classifyStatement, firstKeyword, type StatementKind } from './models/sqlClassify';
 import { normalizeSqlError } from './models/sqlErrors';
 import { selectTableSql } from './models/sqlSchema';
 import { splitStatements, statementAt } from './models/sqlStatements';
@@ -128,6 +128,9 @@ export interface SqlState {
   // The editor tab whose statement produced the shown result: remote cursors are per tab, so
   // Fetch more shows only there.
   cursorTabId: string | null;
+  // Remote editor tabs whose connection is inside a transaction the user opened (each tab has its
+  // own connection). Closing the session, or the tab, rolls it back, so those actions ask first.
+  openTransactions: string[];
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   // Files dropped on the page: the first opens through openFile (no handle, so Save downloads).
@@ -177,6 +180,14 @@ const NOT_A_DATABASE = 'This file is not a SQLite database.';
 const QUERY_CANCELLED: SqlError = { code: 'cancelled', message: 'Query cancelled.' };
 const REMOTE_LOST: SqlError = { code: 'connection-lost', message: 'The connection to the database was lost.' };
 const FETCH_MORE_ROWS = 1000;
+const DISCARD_TRANSACTION: SqlPrompt = {
+  title: 'Discard the open transaction?',
+  message: 'Its changes will be rolled back.',
+  confirmLabel: 'Discard transaction',
+};
+const ROLLED_BACK = 'An open transaction was rolled back.';
+// Statements whose failure still ends the transaction (a failed COMMIT rolls it back).
+const ENDS_TRANSACTION = new Set(['commit', 'end', 'rollback', 'abort']);
 const MESSAGE_LIMIT = 500;
 const PERSIST_DELAY_MS = 300;
 
@@ -209,6 +220,8 @@ let fileHandle: FileSystemFileHandle | null = null;
 let diskBehind = false;
 let selectionReader: (() => EditorSelection) | null = null;
 let queue: RunQueue | null = null;
+// A remote write ran since the schema was last read: the rail is re-read once the run ends.
+let schemaStale = false;
 let promptAction: (() => Promise<void> | void) | null = null;
 let storedHistory: Record<string, HistoryItem[]> = {};
 let storedTabs: Record<string, EditorTab[]> = {};
@@ -258,10 +271,16 @@ function closeRemote(): void {
 }
 
 // What the UI calls unsaved: changes only the worker holds, or a save that never reached the disk.
-// A remote connection holds nothing in the page.
+// A remote connection holds nothing in the page (its open transaction is openTransactions).
 function unsaved(): boolean {
   if (isRemote()) return false;
   return sqlClient().dirty || diskBehind;
+}
+
+/** Whether leaving or switching would roll back a transaction open on the remote connection. */
+export function hasOpenTransaction(): boolean {
+  const s = usePanelSqlStore.getState();
+  return s.connection?.kind === 'remote' && s.openTransactions.length > 0;
 }
 
 /** The editor registers how to read its selection; run('current') needs it. */
@@ -384,14 +403,37 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     set({ pendingPrompt: prompt });
   }
 
+  // Records whether the tab's remote connection is inside the user's transaction.
+  function noteTransaction(tabId: string, open: boolean): void {
+    const list = get().openTransactions;
+    if (open && !list.includes(tabId)) set({ openTransactions: [...list, tabId] });
+    else if (!open && list.includes(tabId)) set({ openTransactions: list.filter((t) => t !== tabId) });
+  }
+
+  // The remote session closed or was lost: any transaction on it was rolled back (spec §5).
+  function dropTransactions(): void {
+    if (!get().openTransactions.length) return;
+    set({ openTransactions: [] });
+    say(ROLLED_BACK);
+  }
+
+  // Asks before an action that would roll back an open remote transaction; true when it asked.
+  function askBeforeDiscardingTransaction(action: () => Promise<void> | void): boolean {
+    if (!hasOpenTransaction()) return false;
+    ask(DISCARD_TRANSACTION, action);
+    return true;
+  }
+
   async function refreshSchema(): Promise<void> {
     try {
       const schema = await driver().introspect();
       set({ schema, dirty: unsaved() });
     } catch (raw) {
       const err = friendly(normalizeSqlError(raw));
-      set({ dirty: unsaved(), ...(isRemote() && err.code === 'connection-lost' ? { connectionLost: true, canFetchMore: false } : {}) });
+      const lost = isRemote() && err.code === 'connection-lost';
+      set({ dirty: unsaved(), ...(lost ? { connectionLost: true, canFetchMore: false } : {}) });
       say(err.message);
+      if (lost) dropTransactions();
     }
   }
 
@@ -452,6 +494,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     fileHandle = handle ?? null;
     diskBehind = false;
     closeRemote();
+    dropTransactions();
     // Picker-opened files come back on the welcome screen's recent list.
     if (handle) void rememberRecentFile(handle, file);
     const key = connectionKeyForFile(file.name, file.size);
@@ -520,6 +563,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       // Remote drivers keep one cursor per editor tab, so every statement names its tab.
       const d = driver();
       const result = await d.execute(item.text, { maxRows: q.maxRows, tabId: q.tabId }, controller.signal);
+      if (onRemote) noteTransaction(q.tabId, result.inTransaction === true);
       recordHistory({
         sql: item.text,
         at,
@@ -542,7 +586,12 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         bottomTab: 'results',
         messages: withMessage(get().messages, resultSummary(result), ...extra),
       });
-      if (kind !== 'read') await refreshSchema();
+      if (kind !== 'read') {
+        // A remote introspect is a round trip: only DDL-like statements re-read the rail at once;
+        // other writes mark it stale, and it is re-read once when the run ends.
+        if (!onRemote || changesSchema(item.text, connectionDialect(get().connection))) await refreshSchema();
+        else schemaStale = true;
+      }
       return true;
     } catch (raw) {
       let err = friendly(normalizeSqlError(raw));
@@ -562,6 +611,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         bottomTab: 'messages',
         messages: withMessage(get().messages, err.message),
       });
+      if (lost) dropTransactions();
+      else if (onRemote && ENDS_TRANSACTION.has(firstKeyword(item.text, connectionDialect(get().connection)))) {
+        noteTransaction(q.tabId, false);
+      }
       // A cancel restarts the worker from the last saved bytes; the schema may have rolled back.
       if (err.code === 'cancelled' && !onRemote) await refreshSchema();
       return false;
@@ -569,6 +622,17 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
   }
 
   async function drain(q: RunQueue, confirmedIndex: number): Promise<void> {
+    try {
+      await drainQueue(q, confirmedIndex);
+    } finally {
+      if (schemaStale) {
+        schemaStale = false;
+        if (isRemote() && !get().connectionLost) await refreshSchema();
+      }
+    }
+  }
+
+  async function drainQueue(q: RunQueue, confirmedIndex: number): Promise<void> {
     queue = null;
     while (q.index < q.items.length) {
       const conn = get().connection;
@@ -630,6 +694,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       );
       return;
     }
+    if (askBeforeDiscardingTransaction(proceed)) return;
     await proceed();
   }
 
@@ -667,6 +732,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         set({ pendingPassword: { profileId, name } });
         return null;
       }
+      if (err.code === 'auth-failed' && password === undefined) {
+        // The stored password was rejected (changed on the server): ask for the current one.
+        passwordMode = readOnly;
+        set({ pendingPassword: { profileId, name }, error: err, errorAt: null, bottomTab: 'messages' });
+        say(err.message);
+        return null;
+      }
       noteHelperError(err);
       set({ error: err, errorAt: null, bottomTab: 'messages' });
       say(err.message);
@@ -680,6 +752,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     const session = await openSession(conn.profileId, conn.name, readOnly);
     if (!session) return;
     closeRemote();
+    dropTransactions();
     remote = session;
     set({
       connection: { ...conn, readOnly, serverVersion: session.serverVersion },
@@ -719,6 +792,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       flushSqlPersistence();
       const prev = get().connection;
       closeRemote();
+      dropTransactions();
       remote = session;
       if (prev?.kind === 'sqlite') {
         // The file's unsaved changes were discarded at the prompt; free the worker.
@@ -778,6 +852,30 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     }
   }
 
+  // Removes an editor tab; on a remote connection the helper closes the tab's cursor and connection.
+  function closeEditorTab(id: string): void {
+    const s = get();
+    const index = s.tabs.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    let tabs = s.tabs.filter((t) => t.id !== id);
+    if (!tabs.length) tabs = [blankTab(1)];
+    const activeTabId = s.activeTabId === id ? tabs[Math.min(index, tabs.length - 1)].id : s.activeTabId;
+    set({
+      tabs,
+      activeTabId,
+      errorAt: s.errorAt?.tabId === id ? null : s.errorAt,
+      ...(id === s.cursorTabId ? { canFetchMore: false } : {}),
+    });
+    persistTabs();
+    if (isRemote() && remote) {
+      void remote.closeTab(id).catch(() => undefined);
+      if (s.openTransactions.includes(id)) {
+        noteTransaction(id, false);
+        say(ROLLED_BACK);
+      }
+    }
+  }
+
   return {
     connection: null,
     schema: null,
@@ -806,6 +904,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     connectionLost: false,
     canFetchMore: false,
     cursorTabId: null,
+    openTransactions: [],
 
     async openFile(file, handle) {
       await requestOpen(file, handle, null);
@@ -849,7 +948,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const running = get().running;
       if (!running) return;
       // Only worker-held changes are lost: after a failed disk write the restart keeps the export.
-      // A remote query holds nothing in the page, so it stops without asking.
+      // A remote query is cancelled on the server, so it stops without asking (a cancel inside an
+      // open transaction is reported by the helper when the transaction ends).
       if (get().connection?.kind === 'sqlite' && sqlClient().dirty) {
         ask(
           {
@@ -907,14 +1007,19 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       }
       if (on === s.connection.readOnly || s.running || s.opening) return;
       if (s.connection.kind === 'remote') {
-        // Nothing is held in memory, so the switch reconnects in the new mode without a prompt.
+        // The page holds nothing, so the switch reconnects in the new mode; only an open
+        // transaction, which the new session cannot keep, asks first.
         const conn = s.connection;
-        set({ readOnlyChoice: on, opening: true });
-        try {
-          await reconnectRemote(conn, on);
-        } finally {
-          set({ opening: false, readOnlyChoice: get().connection?.readOnly ?? true });
-        }
+        const proceed = async () => {
+          set({ readOnlyChoice: on, opening: true });
+          try {
+            await reconnectRemote(conn, on);
+          } finally {
+            set({ opening: false, readOnlyChoice: get().connection?.readOnly ?? true });
+          }
+        };
+        if (askBeforeDiscardingTransaction(proceed)) return;
+        await proceed();
         return;
       }
       if (on && (s.dirty || unsaved())) {
@@ -1000,18 +1105,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     closeTab(id) {
       const s = get();
       if (s.running?.tabId === id) return;
-      const index = s.tabs.findIndex((t) => t.id === id);
-      if (index < 0) return;
-      let tabs = s.tabs.filter((t) => t.id !== id);
-      if (!tabs.length) tabs = [blankTab(1)];
-      const activeTabId = s.activeTabId === id ? tabs[Math.min(index, tabs.length - 1)].id : s.activeTabId;
-      set({
-        tabs,
-        activeTabId,
-        errorAt: s.errorAt?.tabId === id ? null : s.errorAt,
-        ...(id === s.cursorTabId ? { canFetchMore: false } : {}),
-      });
-      persistTabs();
+      if (!s.tabs.some((t) => t.id === id)) return;
+      // The tab's remote connection closes with it, rolling back its transaction.
+      if (isRemote() && s.openTransactions.includes(id)) {
+        ask(DISCARD_TRANSACTION, () => closeEditorTab(id));
+        return;
+      }
+      closeEditorTab(id);
     },
 
     setActiveTab(id) {
@@ -1067,6 +1167,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       if (s.pendingPassword) set({ pendingPassword: null });
       if (!retry) passwordMode = null;
       const proceed = () => connectNow(profileId, opts, retry);
+      if (!retry && askBeforeDiscardingTransaction(proceed)) return;
       if (!retry && s.connection?.kind === 'sqlite' && s.dirty) {
         ask(
           {
@@ -1112,6 +1213,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       set({ running: { tabId, controller }, error: null, errorAt: null });
       try {
         const more = await session.fetchMore(tabId, FETCH_MORE_ROWS, controller.signal);
+        noteTransaction(tabId, more.inTransaction === true);
         const result: QueryResult = {
           ...prev,
           rows: [...prev.rows, ...more.rows],
@@ -1142,6 +1244,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           bottomTab: 'messages',
           messages: withMessage(get().messages, err.message),
         });
+        if (lost) dropTransactions();
       }
     },
 
