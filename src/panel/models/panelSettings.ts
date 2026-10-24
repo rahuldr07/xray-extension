@@ -198,6 +198,8 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   themeRefreshPending: false,
   // Opt-in: off for new installs, Reset and settings stored before the option existed.
   sqlInlineInHud: false,
+  // Opt-in under sqlInlineInHud: saved database connections inside the page HUD.
+  sqlDatabasesInHud: false,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -282,5 +284,11 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
     sqlInlineInHud: Boolean(base.sqlInlineInHud),
+    sqlDatabasesInHud: Boolean(base.sqlDatabasesInHud),
   };
+}
+
+/** Saved database connections are allowed in the HUD's inline client only with both options on. */
+export function sqlDatabasesInHudActive(settings: Pick<PanelSettings, 'sqlInlineInHud' | 'sqlDatabasesInHud'>): boolean {
+  return settings.sqlInlineInHud && settings.sqlDatabasesInHud;
 }

@@ -66,3 +66,9 @@ test('saved database connections show only on extension pages (final review I6)'
   assert.equal(databasesAllowedIn(['https://shop.example']), false, 'the inline HUD inside a web page');
   assert.equal(databasesAllowedIn(['chrome-extension://abc', 'https://shop.example']), false, 'a web origin anywhere up the chain');
 });
+
+test('with both HUD options on, saved connections show inside a web page too (Ruling M3-R27)', () => {
+  assert.equal(databasesAllowedIn(['https://shop.example'], true), true);
+  assert.equal(databasesAllowedIn(['https://shop.example'], false), false);
+  assert.equal(databasesAllowedIn([], false), true);
+});

@@ -757,3 +757,31 @@ test('sql-manager: sql.html framed in a web page cannot reach saved connections 
     assert.equal(res.ok, true, JSON.stringify(tab));
   }
 });
+
+// Ruling M3-R27: a second opt-in (sqlDatabasesInHud, under sqlInlineInHud) lets the framed client use
+// saved connections. Both are read from the panel's stored preferences, fresh on each port connect.
+for (const [inline, databases] of [[false, false], [false, true], [true, false], [true, true]]) {
+  test(`sql-manager: framed client with sqlInlineInHud ${inline} and sqlDatabasesInHud ${databases}`, async () => {
+    const prefs = { xray_react_panel_preferences: { settings: { sqlInlineInHud: inline, sqlDatabasesInHud: databases } } };
+    const { manager } = setup({ local: { ...prefs, sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
+    const framed = pagePort(manager, { tab: { id: 4, url: 'https://shop.example/' } });
+    const res = await framed.request({ id: 1, op: 'profiles.list' });
+    assert.equal(res.ok, inline && databases, JSON.stringify(res));
+    if (!res.ok) assert.equal(res.error.message, 'Database connections open in the XRAY window, not inside a web page.');
+    const status = await framed.request({ id: 2, op: 'helper.status' });
+    assert.equal(status.ok, inline && databases);
+    // Not framed: always allowed, whatever the settings.
+    for (const tab of [undefined, { id: 5, url: SQL_URL }]) {
+      const own = await pagePort(manager, { tab }).request({ id: 3, op: 'profiles.list' });
+      assert.equal(own.ok, true);
+    }
+  });
+}
+
+test('sql-manager: the HUD database settings are read again for each new port', async () => {
+  const { manager, storageLocal } = setup({ local: { sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
+  const tab = { id: 4, url: 'https://shop.example/' };
+  assert.equal((await pagePort(manager, { tab }).request({ id: 1, op: 'profiles.list' })).ok, false);
+  await storageLocal.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: true } } });
+  assert.equal((await pagePort(manager, { tab }).request({ id: 1, op: 'profiles.list' })).ok, true);
+});

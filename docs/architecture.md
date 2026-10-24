@@ -289,7 +289,12 @@ inside the page HUD** (`sqlInlineInHud`, off by default) the HUD frames `sql.htm
 kept mounted like the others, and falls back to the window card if the frame's
 `xray:sql-frame-ready` signal (relayed by the service worker, never posted to the page) has not
 arrived within 4 s (`SQL_FRAME_READY_TIMEOUT_MS`). With the option off, sql.html under a web
-origin shows a notice instead of the client.
+origin shows a notice instead of the client. Framed inside a web page, the client offers SQLite
+files only: the service worker refuses saved-connection ops from a port whose `sender.tab` is a web
+page, and the page shows an **Open in window** link instead of Connect. A second opt-in, **Allow
+saved database connections in the page HUD** (`sqlDatabasesInHud`, off by default, effective only
+with `sqlInlineInHud` on, confirmed when turned on), lifts both; the worker reads the two settings
+from the stored panel preferences on each port connect.
 
 Only `sql.html` is in `web_accessible_resources`, for that inline option, in its own entry with
 `use_dynamic_url: true`. Its bundles, worker and wasm are not: the framed document is

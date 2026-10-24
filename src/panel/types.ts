@@ -403,6 +403,11 @@ export interface PanelSettings {
    * it makes sql.html web-accessible to pages (dynamic URL only), so any site could embed the client.
    */
   sqlInlineInHud: boolean;
+  /**
+   * Allow saved database connections (Postgres/MySQL through the helper) in the HUD's inline client.
+   * A second opt-in: it has effect only while sqlInlineInHud is on (Ruling M3-R27).
+   */
+  sqlDatabasesInHud: boolean;
 }
 
 export type DockSide = 'left' | 'right';

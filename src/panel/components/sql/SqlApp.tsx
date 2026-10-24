@@ -18,7 +18,7 @@ import {
 import { hasOpenTransaction, usePanelSqlStore } from '../../sqlStore';
 import { databasesAllowedIn } from '../../models/sqlFrameReady';
 import { openSqlWindowSurface } from '../../runtime/surfaces';
-import { PANEL_FONT_VALUES, resolveAccentValue } from '../../models/panelSettings';
+import { PANEL_FONT_VALUES, resolveAccentValue, sqlDatabasesInHudActive } from '../../models/panelSettings';
 import { buildCustomThemeVars } from '../../models/customTheme';
 import { DEFAULT_SQL_LAYOUT, EDITOR_PCT_MAX, EDITOR_PCT_MIN, editorPctAfter, RAIL_PX_MAX, RAIL_PX_MIN } from '../../models/sqlLayout';
 import { formatFileSize, isMacPlatform, shortcutLabels } from '../../models/sqlUi';
@@ -772,7 +772,8 @@ export function SqlApp({ settings }: { settings: PanelSettings }): React.ReactEl
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dropping = useFileDrop();
   usePageShortcuts();
-  const databases = useMemo(() => databasesAllowedIn(Array.from(location.ancestorOrigins ?? [])), []);
+  const databasesInHud = sqlDatabasesInHudActive(settings);
+  const databases = useMemo(() => databasesAllowedIn(Array.from(location.ancestorOrigins ?? []), databasesInHud), [databasesInHud]);
   const openTransaction = usePanelSqlStore((s) => s.connection?.kind === 'remote' && s.openTransactions.length > 0);
 
   // Saved connections for the welcome screen and the source menu. The helper's state (which

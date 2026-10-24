@@ -253,6 +253,26 @@ export function SettingsModal(): React.ReactElement | null {
               <NumberRow label="Slow threshold" desc="Requests at or above this are marked slow in the list, Insights and Findings." value={settings.slowThresholdMs} min={100} max={5000} step={50} suffix="ms" onChange={(value) => updateSettings({ slowThresholdMs: value })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing captured data, console output, pins, rules, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
               <ToggleRow label="Show SQL client inside the page HUD" desc="Shows the client in a frame inside the page instead of a separate window. The page cannot read the frame, but any site could embed the client." checked={settings.sqlInlineInHud} onChange={(value) => updateSettings({ sqlInlineInHud: value })} />
+              <ToggleRow
+                label="Allow saved database connections in the page HUD"
+                desc={settings.sqlInlineInHud ? HUD_DATABASES_WARNING : 'Turn on the option above first.'}
+                checked={settings.sqlDatabasesInHud}
+                disabled={!settings.sqlInlineInHud}
+                onChange={(value) => {
+                  if (!value) {
+                    updateSettings({ sqlDatabasesInHud: false });
+                    return;
+                  }
+                  requestConfirmation({
+                    title: 'Allow saved database connections in the page HUD?',
+                    message: HUD_DATABASES_WARNING,
+                    confirmLabel: 'Allow',
+                    cancelLabel: 'Cancel',
+                    always: true,
+                    onConfirm: () => updateSettings({ sqlDatabasesInHud: true }),
+                  });
+                }}
+              />
             </>
           )}
           {section === 'capture' && (
@@ -746,11 +766,14 @@ function SettingsSectionTitle({ label }: { label: string }): React.ReactElement 
   return <div className="xray-settings-section-title">{label}</div>;
 }
 
-function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange(value: boolean): void }): React.ReactElement {
+// Ruling M3-R27: shown as the hint of the HUD databases option and in its confirmation.
+const HUD_DATABASES_WARNING = 'The page you are on cannot read the client, but it could try to trick you into clicking it. Keep connections read-only, or leave this off.';
+
+function ToggleRow({ label, desc, checked, disabled = false, onChange }: { label: string; desc: string; checked: boolean; disabled?: boolean; onChange(value: boolean): void }): React.ReactElement {
   return (
     <div className="xray-settings-row">
       <span><strong>{label}</strong><small>{desc}</small></span>
-      <button className={`xray-toggle ${checked ? 'on' : ''}`} aria-label={label} aria-pressed={checked} onClick={() => onChange(!checked)} />
+      <button className={`xray-toggle ${checked ? 'on' : ''}`} aria-label={label} aria-pressed={checked} disabled={disabled} onClick={() => onChange(!checked)} />
     </div>
   );
 }

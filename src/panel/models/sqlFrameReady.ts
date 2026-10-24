@@ -43,9 +43,10 @@ export function sqlClientAllowedIn(ancestorOrigins: readonly string[], inlineInH
 
 /**
  * Whether saved database connections (the Connections menu, Connect, the helper) may show where
- * sql.html is framed. Only extension pages: inside a web page (the inline HUD) the service worker
- * refuses those ops too, and the page offers "Open in window" instead.
+ * sql.html is framed. Extension pages always; inside a web page (the inline HUD) only when the user
+ * turned on both HUD options (`databasesInHud`, Ruling M3-R27). Otherwise the service worker refuses
+ * those ops too, and the page offers "Open in window" instead.
  */
-export function databasesAllowedIn(ancestorOrigins: readonly string[]): boolean {
-  return ancestorOrigins.every((origin) => EXTENSION_ORIGIN.test(origin));
+export function databasesAllowedIn(ancestorOrigins: readonly string[], databasesInHud = false): boolean {
+  return databasesInHud || ancestorOrigins.every((origin) => EXTENSION_ORIGIN.test(origin));
 }

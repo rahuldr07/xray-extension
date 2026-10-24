@@ -62,6 +62,20 @@ test('the HUD frames the client only with the opt-in setting, and falls back to 
   assert.match(modal, /desc="Shows the client in a frame inside the page instead of a separate window\. The page cannot read the frame, but any site could embed the client\."/);
 });
 
+// Ruling M3-R27: saved databases inside the page HUD are a second, confirmed opt-in under the first.
+test('the HUD databases option sits under the inline option, needs it, and asks before it turns on', () => {
+  const modal = read('src/panel/components/settings/SettingsModal.tsx');
+  const inline = modal.indexOf('label="Show SQL client inside the page HUD"');
+  const databases = modal.indexOf('label="Allow saved database connections in the page HUD"');
+  assert.ok(inline > 0 && databases > inline, 'directly under the inline option');
+  assert.match(modal, /Turn on the option above first\./);
+  assert.match(modal, /The page you are on cannot read the client, but it could try to trick you into clicking it\. Keep connections read-only, or leave this off\./);
+  assert.match(modal, /disabled=\{!settings\.sqlInlineInHud\}/);
+  assert.match(modal, /confirmLabel: 'Allow'/);
+  assert.match(modal, /cancelLabel: 'Cancel'/);
+  assert.match(modal, /always: true/);
+});
+
 test('sql.html loads only relative scripts, the shared store before its bundle', () => {
   const html = read('sql.html');
   const scripts = [...html.matchAll(/<script\s+src="([^"]+)"/g)].map((m) => m[1]);

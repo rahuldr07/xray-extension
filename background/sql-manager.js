@@ -23,6 +23,9 @@
   const HOST_NAME = 'com.xray.db_helper';
   const PROTOCOL_VERSION = 1;
   const PROFILES_KEY = 'sql_connections';
+  // The panel's stored preferences (REACT_PANEL_PREFERENCES_KEY behind shared/store.js's xray_
+  // prefix): the HUD options live there.
+  const PANEL_PREFERENCES_KEY = 'xray_react_panel_preferences';
   const SESSION_SECRETS_KEY = 'sql_session_secrets';
   const ENGINES = ['postgres', 'mysql'];
   const TLS_MODES = ['require', 'verify-full', 'disable'];
@@ -580,8 +583,21 @@
       }
     }
 
+    // Ruling M3-R27: the framed client may use saved connections only while the user has turned on
+    // both "Show SQL client inside the page HUD" and "Allow saved database connections in the page
+    // HUD". Read once per port connect, so a change applies from the client's next load.
+    async function framedDatabasesAllowed() {
+      try {
+        const got = await storageLocal.get(PANEL_PREFERENCES_KEY);
+        const settings = got && got[PANEL_PREFERENCES_KEY] && got[PANEL_PREFERENCES_KEY].settings;
+        return Boolean(settings && settings.sqlInlineInHud === true && settings.sqlDatabasesInHud === true);
+      } catch {
+        return false;
+      }
+    }
+
     async function dispatch(page, msg) {
-      if (page.framed && WINDOW_ONLY_OPS.has(msg.op)) throw new OpError(ERR.framed);
+      if (page.framed && WINDOW_ONLY_OPS.has(msg.op) && !(await page.databasesAllowed)) throw new OpError(ERR.framed);
       switch (msg.op) {
         case 'profiles.list':
           return (await readProfiles()).map(pageProfile);
@@ -714,10 +730,12 @@
         queries: new Map(),
         closed: false,
         framed: framedInWebPage(port),
+        databasesAllowed: Promise.resolve(false),
         inflight: new Set(),
         refused: new Set(),
         earlyCancels: new Set(),
       };
+      if (page.framed) page.databasesAllowed = framedDatabasesAllowed();
       pages.add(page);
       cancelIdle();
       port.onMessage.addListener((msg) => onPageMessage(page, msg));

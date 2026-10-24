@@ -248,7 +248,7 @@ test('the framed client keeps its open database across tab switches', { timeout:
 // Opens the in-page HUD on a fixture page and returns a clicker that reaches into its closed shadow
 // root. `inline` writes settings.sqlInlineInHud through the storage the panel reads before the page
 // loads; `csp` serves the fixture with that Content-Security-Policy header.
-async function openHud(t, { inline = false, csp = null } = {}) {
+async function openHud(t, { inline = false, csp = null, databases = false } = {}) {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html', ...(csp ? { 'content-security-policy': csp } : {}) });
     // The page records every window message it receives: the SQL frame must never post to it.
@@ -261,7 +261,7 @@ async function openHud(t, { inline = false, csp = null } = {}) {
   if (inline) {
     const worker = context.serviceWorkers()[0];
     // themeRefreshPending is stored too, or the record reads as settings from before the theme refresh.
-    await worker.evaluate(() => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, themeRefreshPending: false } } }));
+    await worker.evaluate((db) => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: db, themeRefreshPending: false } } }), databases);
   }
   const page = context.pages()[0] || (await context.newPage());
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
@@ -386,6 +386,15 @@ test('with the inline option off, sql.html framed by a web page shows a notice i
   const reloaded = await sqlFrameOf(page);
   await reloaded.getByText('The SQL client is not enabled for this page.', { exact: true }).waitFor();
   assert.equal(await reloaded.getByRole('button', { name: 'Open SQLite file' }).count(), 0, 'no client');
+});
+
+// Ruling M3-R27: with the second opt-in on too, the inline client offers saved connections.
+test('with both HUD options on, the inline client offers Connect to a database', { timeout: 120_000 }, async (t) => {
+  const { page, click } = await openHud(t, { inline: true, databases: true });
+  await click('#xray-tab-sql', null);
+  const frame = await sqlFrameOf(page);
+  await frame.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Open in window', exact: true }).count(), 0);
 });
 
 test('a page CSP of frame-src \'none\' does not block the inline client', { timeout: 120_000 }, async (t) => {
