@@ -2,9 +2,22 @@
 # Runs the helper's Go tests against throwaway Postgres 16, MySQL 8.4 and
 # PgBouncer (transaction mode) containers on random free local ports.
 # Every container and the network it starts are removed on exit, pass or fail.
+#
+#   bash scripts/test-with-docker.sh [go test args]   the helper's Go tests
+#   bash scripts/test-with-docker.sh --e2e            the extension's real end-to-end test
+#                                                     (test/e2e/sql-remote.e2e.mjs) against
+#                                                     Postgres 16 and MySQL 8.4, no PgBouncer
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+e2e=false
+if [ "${1:-}" = "--e2e" ]; then
+  e2e=true
+  shift
+fi
+# The e2e asserts the password never shows in the page, so it needs one that no UI text contains.
+if $e2e; then pw=xray-E2e-pw7; else pw=xray; fi
 
 run_id="xray-test-$$-$RANDOM"
 net="$run_id-net"
@@ -28,19 +41,21 @@ docker network create "$net" >/dev/null
 
 started+=("$pg")
 docker run -d --name "$pg" --network "$net" \
-  -e POSTGRES_PASSWORD=xray -e POSTGRES_DB=xray \
+  -e POSTGRES_PASSWORD="$pw" -e POSTGRES_DB=xray \
   -p 127.0.0.1::5432 postgres:16 >/dev/null
 
 started+=("$my")
 docker run -d --name "$my" --network "$net" \
-  -e MYSQL_ROOT_PASSWORD=xray -e MYSQL_DATABASE=xray \
+  -e MYSQL_ROOT_PASSWORD="$pw" -e MYSQL_DATABASE=xray \
   -p 127.0.0.1::3306 mysql:8.4 >/dev/null
 
-started+=("$bouncer")
-docker run -d --name "$bouncer" --network "$net" \
-  -e DB_HOST="$pg" -e DB_PORT=5432 -e DB_USER=postgres -e DB_PASSWORD=xray -e DB_NAME=xray \
-  -e POOL_MODE=transaction -e AUTH_TYPE=scram-sha-256 -e LISTEN_PORT=6432 \
-  -p 127.0.0.1::6432 edoburu/pgbouncer >/dev/null
+if ! $e2e; then
+  started+=("$bouncer")
+  docker run -d --name "$bouncer" --network "$net" \
+    -e DB_HOST="$pg" -e DB_PORT=5432 -e DB_USER=postgres -e DB_PASSWORD="$pw" -e DB_NAME=xray \
+    -e POOL_MODE=transaction -e AUTH_TYPE=scram-sha-256 -e LISTEN_PORT=6432 \
+    -p 127.0.0.1::6432 edoburu/pgbouncer >/dev/null
+fi
 
 host_port() { docker port "$1" "$2" | head -n1 | sed 's/.*://'; }
 
@@ -56,15 +71,26 @@ wait_for() {
 
 # pg_isready alone is true during the init restart; require a real query.
 wait_for postgres docker exec "$pg" psql -U postgres -d xray -h 127.0.0.1 -c 'select 1'
-wait_for pgbouncer docker exec -e PGPASSWORD=xray "$pg" psql -h "$bouncer" -p 6432 -U postgres -d xray -c 'select 1'
-wait_for mysql docker exec "$my" mysql -h 127.0.0.1 -uroot -pxray -e 'select 1' xray
+$e2e || wait_for pgbouncer docker exec -e PGPASSWORD="$pw" "$pg" psql -h "$bouncer" -p 6432 -U postgres -d xray -c 'select 1'
+wait_for mysql docker exec "$my" mysql -h 127.0.0.1 -uroot -p"$pw" -e 'select 1' xray
 
 pg_port=$(host_port "$pg" 5432)
 my_port=$(host_port "$my" 3306)
+
+if $e2e; then
+  # Connection strings as a user pastes them into the connection dialog.
+  export XRAY_E2E_PG_DSN="postgres://postgres:$pw@127.0.0.1:$pg_port/xray?sslmode=disable"
+  export XRAY_E2E_MYSQL_DSN="mysql://root:$pw@127.0.0.1:$my_port/xray?ssl-mode=disabled"
+  cd ..
+  npm run build
+  node --test test/e2e/sql-remote.e2e.mjs
+  exit
+fi
+
 bouncer_port=$(host_port "$bouncer" 6432)
 
-export XRAY_TEST_PG_DSN="postgres://postgres:xray@127.0.0.1:$pg_port/xray?sslmode=disable"
-export XRAY_TEST_MYSQL_DSN="root:xray@tcp(127.0.0.1:$my_port)/xray"
-export XRAY_TEST_PGBOUNCER_DSN="postgres://postgres:xray@127.0.0.1:$bouncer_port/xray?sslmode=disable"
+export XRAY_TEST_PG_DSN="postgres://postgres:$pw@127.0.0.1:$pg_port/xray?sslmode=disable"
+export XRAY_TEST_MYSQL_DSN="root:$pw@tcp(127.0.0.1:$my_port)/xray"
+export XRAY_TEST_PGBOUNCER_DSN="postgres://postgres:$pw@127.0.0.1:$bouncer_port/xray?sslmode=disable"
 
 go test -count=1 "$@" ./...
