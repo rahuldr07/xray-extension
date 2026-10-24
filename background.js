@@ -751,6 +751,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // inside the listener on the first property access.
   if (!msg || typeof msg !== 'object') return false;
 
+  // The HUD SQL options are owned by the SQL connection manager (Ruling M3-R28): it answers reads
+  // from any surface and refuses writes from a web tab.
+  const hudOptions = _getSqlManager()?.handleMessage(msg, sender);
+  if (hudOptions) {
+    hudOptions.then(sendResponse);
+    return true;
+  }
+
+  // The in-page panel cannot change the HUD SQL options; it links to the options page instead.
+  if (msg.type === 'XRAY_OPEN_OPTIONS') {
+    chrome.runtime.openOptionsPage()
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
+
   if (msg.type === 'XRAY_HUD_TOGGLE_ACTIVE') {
     _toggleHudOnBestTab(sender?.tab)
       .then((ok) => sendResponse({ ok }))

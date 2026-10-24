@@ -24,8 +24,15 @@
   const PROTOCOL_VERSION = 1;
   const PROFILES_KEY = 'sql_connections';
   // The panel's stored preferences (REACT_PANEL_PREFERENCES_KEY behind shared/store.js's xray_
-  // prefix): the HUD options live there.
+  // prefix): where the HUD options lived before Ruling M3-R28, read once to migrate them.
   const PANEL_PREFERENCES_KEY = 'xray_react_panel_preferences';
+  // The HUD SQL options (Show SQL client inside the page HUD, Allow saved database connections in
+  // the page HUD). Owned by this worker: written only through HUD_OPTIONS_SET from an extension
+  // page, never by the in-page panel (Ruling M3-R28).
+  const HUD_OPTIONS_KEY = 'sql_hud_options';
+  const HUD_OPTIONS_GET = 'xray:sql-hud-options:get';
+  const HUD_OPTIONS_SET = 'xray:sql-hud-options:set';
+  const HUD_OPTIONS_REFUSED = 'Change this in XRAY\u2019s settings page.';
   const SESSION_SECRETS_KEY = 'sql_session_secrets';
   const ENGINES = ['postgres', 'mysql'];
   const TLS_MODES = ['require', 'verify-full', 'disable'];
@@ -85,7 +92,11 @@
   // sender.tab is that page. The client's own tab, the pop-out window's frame
   // (chrome-extension: tab URLs) and DevTools (no tab) are extension pages.
   function framedInWebPage(port) {
-    const tab = port && port.sender && port.sender.tab;
+    return inWebTab(port && port.sender);
+  }
+
+  function inWebTab(sender) {
+    const tab = sender && sender.tab;
     if (!tab) return false;
     if (typeof tab.url !== 'string') return true;
     try {
@@ -422,7 +433,7 @@
         return { code: 'internal', message: 'Internal helper error.' };
       }
       const body = { code: error.code, message: typeof error.message === 'string' ? error.message : '' };
-      for (const key of ['sqlState', 'position', 'hint', 'detail']) {
+      for (const key of ['sqlState', 'position', 'hint', 'detail', 'inTransaction']) {
         if (error[key] !== undefined) body[key] = error[key];
       }
       return body;
@@ -588,12 +599,59 @@
     // HUD". Read once per port connect, so a change applies from the client's next load.
     async function framedDatabasesAllowed() {
       try {
-        const got = await storageLocal.get(PANEL_PREFERENCES_KEY);
-        const settings = got && got[PANEL_PREFERENCES_KEY] && got[PANEL_PREFERENCES_KEY].settings;
-        return Boolean(settings && settings.sqlInlineInHud === true && settings.sqlDatabasesInHud === true);
+        const options = await readHudOptions();
+        return options.sqlInlineInHud && options.sqlDatabasesInHud;
       } catch {
         return false;
       }
+    }
+
+    function cleanHudOptions(raw) {
+      const o = raw && typeof raw === 'object' ? raw : {};
+      return { sqlInlineInHud: o.sqlInlineInHud === true, sqlDatabasesInHud: o.sqlDatabasesInHud === true };
+    }
+
+    // The worker-owned HUD options. The first read after the move takes the values the panel
+    // stored before (its preferences), so nobody's choice is lost, and writes them here.
+    async function readHudOptions() {
+      return serialized(async () => {
+        const got = await storageLocal.get(HUD_OPTIONS_KEY);
+        if (got && got[HUD_OPTIONS_KEY] && typeof got[HUD_OPTIONS_KEY] === 'object') return cleanHudOptions(got[HUD_OPTIONS_KEY]);
+        const prefs = await storageLocal.get(PANEL_PREFERENCES_KEY);
+        const options = cleanHudOptions(prefs && prefs[PANEL_PREFERENCES_KEY] && prefs[PANEL_PREFERENCES_KEY].settings);
+        await storageLocal.set({ [HUD_OPTIONS_KEY]: options });
+        return options;
+      });
+    }
+
+    // An extension page of this extension that is not inside a web tab: the options page, DevTools,
+    // the pop-out, sql.html opened directly. The in-page panel (a content script) and a sql.html
+    // framed by the inline HUD are refused.
+    function mayChangeHudOptions(sender) {
+      if (!sender || sender.id !== runtimeId || inWebTab(sender)) return false;
+      try {
+        return new URL(sender.url).protocol === 'chrome-extension:';
+      } catch {
+        return false;
+      }
+    }
+
+    // chrome.runtime.onMessage for the HUD options; undefined for any other message.
+    function handleMessage(msg, sender) {
+      if (!msg || (msg.type !== HUD_OPTIONS_GET && msg.type !== HUD_OPTIONS_SET)) return undefined;
+      const run = async () => {
+        if (msg.type === HUD_OPTIONS_GET) return { ok: true, value: await readHudOptions() };
+        if (!mayChangeHudOptions(sender)) return { ok: false, error: HUD_OPTIONS_REFUSED };
+        const current = await readHudOptions();
+        const patch = msg.options && typeof msg.options === 'object' ? msg.options : {};
+        const next = { ...current };
+        for (const key of ['sqlInlineInHud', 'sqlDatabasesInHud']) {
+          if (typeof patch[key] === 'boolean') next[key] = patch[key];
+        }
+        await serialized(() => storageLocal.set({ [HUD_OPTIONS_KEY]: next }));
+        return { ok: true, value: next };
+      };
+      return run().catch(() => ({ ok: false, error: 'The settings could not be read.' }));
     }
 
     async function dispatch(page, msg) {
@@ -742,7 +800,7 @@
       port.onDisconnect.addListener(() => onPageGone(page));
     }
 
-    return { handlePort };
+    return { handlePort, handleMessage };
   }
 
   const api = { createSqlManager };

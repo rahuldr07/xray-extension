@@ -782,6 +782,73 @@ test('sql-manager: the HUD database settings are read again for each new port', 
   const { manager, storageLocal } = setup({ local: { sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
   const tab = { id: 4, url: 'https://shop.example/' };
   assert.equal((await pagePort(manager, { tab }).request({ id: 1, op: 'profiles.list' })).ok, false);
-  await storageLocal.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: true } } });
+  // Ruling M3-R28: the options now live in the worker-owned key, changed from an extension page.
+  await manager.handleMessage({ type: 'xray:sql-hud-options:set', options: { sqlInlineInHud: true, sqlDatabasesInHud: true } }, { id: RUNTIME_ID, url: `chrome-extension://${RUNTIME_ID}/settings/settings.html` });
+  assert.ok(storageLocal.data.sql_hud_options.sqlDatabasesInHud);
   assert.equal((await pagePort(manager, { tab }).request({ id: 1, op: 'profiles.list' })).ok, true);
+});
+
+// ------------------------------------------------ Ruling M3-R28
+
+test('sql-manager: execute errors carry inTransaction to the page', async () => {
+  const { page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') return reply({ id: msg.id, ok: false, error: { code: 'server', message: 'boom', inTransaction: true } });
+    return defaultScript(msg, reply);
+  });
+  const res = await page.request({ id: 50, op: 'execute', sessionId, tabId: 't1', sql: 'select 1/0' });
+  assert.deepEqual(res.error, { code: 'server', message: 'boom', inTransaction: true });
+});
+
+const HUD_KEY = 'sql_hud_options';
+const OPTIONS_URL = `chrome-extension://${RUNTIME_ID}/settings/settings.html`;
+
+test('sql-manager: the HUD SQL options live in a worker-owned key, migrated once from the panel preferences', async () => {
+  const { manager, storageLocal } = setup({ local: { xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: false } } } });
+  const got = hostify(await manager.handleMessage({ type: 'xray:sql-hud-options:get' }, { id: RUNTIME_ID, url: OPTIONS_URL }));
+  assert.deepEqual(got, { ok: true, value: { sqlInlineInHud: true, sqlDatabasesInHud: false } });
+  assert.deepEqual(storageLocal.data[HUD_KEY], { sqlInlineInHud: true, sqlDatabasesInHud: false });
+  // Later panel-preference writes no longer change it.
+  await storageLocal.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: false, sqlDatabasesInHud: true } } });
+  const again = hostify(await manager.handleMessage({ type: 'xray:sql-hud-options:get' }, { id: RUNTIME_ID, url: OPTIONS_URL }));
+  assert.deepEqual(again.value, { sqlInlineInHud: true, sqlDatabasesInHud: false });
+});
+
+test('sql-manager: only extension pages may change the HUD SQL options', async () => {
+  const { manager, storageLocal } = setup();
+  const set = { type: 'xray:sql-hud-options:set', options: { sqlInlineInHud: true, sqlDatabasesInHud: true } };
+  for (const sender of [
+    { id: RUNTIME_ID, url: 'https://shop.example/', tab: { id: 3, url: 'https://shop.example/' } }, // the in-page panel's content script
+    { id: RUNTIME_ID, url: SQL_URL, tab: { id: 3, url: 'https://shop.example/' } }, // sql.html framed in the page
+    { id: RUNTIME_ID, url: OPTIONS_URL, tab: { id: 3 } }, // a tab whose URL cannot be seen
+    { id: 'other-extension', url: OPTIONS_URL },
+  ]) {
+    const res = await manager.handleMessage(set, sender);
+    assert.equal(res.ok, false, JSON.stringify(sender));
+    assert.equal(res.error, 'Change this in XRAY’s settings page.');
+  }
+  assert.equal(storageLocal.data[HUD_KEY], undefined, 'nothing was written');
+  for (const sender of [
+    { id: RUNTIME_ID, url: OPTIONS_URL, tab: { id: 4, url: OPTIONS_URL } }, // the options page
+    { id: RUNTIME_ID, url: `chrome-extension://${RUNTIME_ID}/devtools/panel.html` }, // DevTools: no tab
+    { id: RUNTIME_ID, url: `chrome-extension://${RUNTIME_ID}/window.html`, tab: { id: 5, url: `chrome-extension://${RUNTIME_ID}/window.html` } },
+    { id: RUNTIME_ID, url: SQL_URL, tab: { id: 6, url: SQL_URL } },
+  ]) {
+    await storageLocal.set({ [HUD_KEY]: { sqlInlineInHud: false, sqlDatabasesInHud: false } });
+    const res = hostify(await manager.handleMessage(set, sender));
+    assert.deepEqual(res, { ok: true, value: { sqlInlineInHud: true, sqlDatabasesInHud: true } }, JSON.stringify(sender));
+  }
+  assert.equal(manager.handleMessage({ type: 'other' }, { id: RUNTIME_ID }), undefined, 'other messages are not ours');
+});
+
+test('sql-manager: the framed-client decision reads the worker-owned key, not the panel preferences', async () => {
+  const { manager } = setup({
+    local: {
+      xray_react_panel_preferences: { settings: { sqlInlineInHud: true, sqlDatabasesInHud: true } },
+      [HUD_KEY]: { sqlInlineInHud: true, sqlDatabasesInHud: false },
+      sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }],
+    },
+  });
+  const framed = pagePort(manager, { tab: { id: 4, url: 'https://shop.example/' } });
+  const res = await framed.request({ id: 1, op: 'profiles.list' });
+  assert.equal(res.ok, false);
 });
