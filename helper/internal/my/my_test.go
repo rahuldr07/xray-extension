@@ -1489,3 +1489,102 @@ func (f *fakeClock) add(d time.Duration) {
 	f.t = f.t.Add(d)
 	f.mu.Unlock()
 }
+
+// Ruling M3-R28: with autocommit off every statement runs inside a transaction
+// that only COMMIT or ROLLBACK ends, so inTransaction must say so.
+func TestMySQLAutocommitOffIsTracked(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	if _, v := mustOK(t, c, sid, "t1", "set autocommit = 0", 10); v["inTransaction"] != true {
+		t.Fatalf("set autocommit=0: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "insert into orders(total) values (782)", 10); v["inTransaction"] != true {
+		t.Fatalf("insert: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "commit", 10); v["inTransaction"] != false {
+		t.Fatalf("commit: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "select 1", 10); v["inTransaction"] != true {
+		t.Fatalf("a select opens the next one: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "rollback", 10); v["inTransaction"] != false {
+		t.Fatalf("rollback: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "set autocommit = 1", 10); v["inTransaction"] != false {
+		t.Fatalf("set autocommit=1: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "insert into orders(total) values (783)", 10); v["inTransaction"] != false {
+		t.Fatalf("autocommit back on: %v", v)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total in (782, 783)"); n != "2" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+// autocommit=0 then a socket close: the next COMMIT reports the rollback.
+func TestMySQLAutocommitOffSocketCloseIsReported(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	killSQL = "DO "
+	t.Cleanup(func() { killSQL = "KILL QUERY " })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "set autocommit = 0", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (784)", 10)
+	mustOK(t, c, sid, "t1", "select t0.d, t1.d from "+crossJoin(8)+" limit 50000000", 10)
+	q := c.Send(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "commit", "maxRows": 10})
+	time.Sleep(300 * time.Millisecond)
+	c.Call(map[string]any{"op": "cancel", "queryId": q})
+	if _, f := c.Wait(q, 10*time.Second); testclient.ErrCode(f) != "cancelled" {
+		t.Fatalf("cancelled commit: %v", f)
+	}
+	_, f := exec(c, sid, "t1", "commit", 10)
+	if errField(f, "message") != "The connection to the database was lost, so the open transaction was rolled back." {
+		t.Fatalf("commit after the socket closed: %v", f)
+	}
+	if f["error"].(map[string]any)["inTransaction"] != false {
+		t.Fatalf("the error says the transaction is gone: %v", f)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 784"); n != "0" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+// A server (or session) default of autocommit=0 is read at dial.
+func TestMySQLServerDefaultAutocommitOff(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	testSessionParams = map[string]string{"autocommit": "0"}
+	t.Cleanup(func() { testSessionParams = nil })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	if _, v := mustOK(t, c, sid, "t1", "insert into orders(total) values (785)", 10); v["inTransaction"] != true {
+		t.Fatalf("insert with autocommit=0 by default: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "rollback", 10); v["inTransaction"] != false {
+		t.Fatalf("rollback: %v", v)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 785"); n != "0" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+// Error replies carry inTransaction too: a deadlock victim's is false.
+func TestMySQLErrorCarriesInTransaction(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	_, f := exec(c, sid, "t1", "select * from no_such_table", 10)
+	if f["ok"] == true || f["error"].(map[string]any)["inTransaction"] != true {
+		t.Fatalf("an error inside a transaction: %v", f)
+	}
+	mustOK(t, c, sid, "t1", "rollback", 10)
+	_, f = exec(c, sid, "t1", "select * from no_such_table", 10)
+	if f["error"].(map[string]any)["inTransaction"] != false {
+		t.Fatalf("an error outside one: %v", f)
+	}
+}

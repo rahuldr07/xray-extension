@@ -245,13 +245,14 @@ func (s *pgSession) getTab(id string) (*tab, error) {
 	return t, nil
 }
 
-func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (session.Summary, error) {
+func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (sum session.Summary, err error) {
 	t, err := s.getTab(tabID)
 	if err != nil {
 		return session.Summary{}, err
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer s.errTx(t, &sum, &err)
 	// The request may have been cancelled while it waited for the tab, or
 	// while the tab's previous cursor closed: then it must not run at all.
 	if ctx.Err() != nil || t.gone {
@@ -316,13 +317,14 @@ func (s *pgSession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	return s.read(ctx, t, maxRows, out)
 }
 
-func (s *pgSession) FetchMore(ctx context.Context, tabID string, n int, out *session.Emitter) (session.Summary, error) {
+func (s *pgSession) FetchMore(ctx context.Context, tabID string, n int, out *session.Emitter) (sum session.Summary, err error) {
 	t, err := s.getTab(tabID)
 	if err != nil {
 		return session.Summary{}, err
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer s.errTx(t, &sum, &err)
 	if ctx.Err() != nil || t.gone {
 		return session.Summary{}, cancelled()
 	}
@@ -427,6 +429,14 @@ func (s *pgSession) noteTx(t *tab) bool {
 		t.txOpen = t.c.conn.PgConn().TxStatus() != 'I'
 	}
 	return t.txOpen
+}
+
+// errTx gives an error answer the tab's transaction state, so the page's
+// view of it does not go stale (Ruling M3-R28).
+func (s *pgSession) errTx(t *tab, sum *session.Summary, err *error) {
+	if *err != nil {
+		*sum = session.Summary{InTransaction: !s.readOnly && t.txOpen}
+	}
 }
 
 // inUserTx reports, before a statement runs, that the tab is inside the

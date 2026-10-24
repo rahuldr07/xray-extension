@@ -15,6 +15,9 @@ type ErrorBody struct {
 	Position *int   `json:"position,omitempty"`
 	Hint     string `json:"hint,omitempty"`
 	Detail   string `json:"detail,omitempty"`
+	// InTransaction is set on execute and fetchMore errors: whether the tab
+	// is still inside the user's transaction.
+	InTransaction *bool `json:"inTransaction,omitempty"`
 }
 
 type Response struct {

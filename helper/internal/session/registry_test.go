@@ -22,6 +22,7 @@ type fakeSession struct {
 	block      bool
 	inTx       bool
 	closedTabs []string
+	failWith   error
 }
 
 func (f *fakeSession) ServerVersion() string { return "Fake 1.0" }
@@ -35,6 +36,9 @@ func (f *fakeSession) Execute(ctx context.Context, tab, sql string, maxRows int,
 	f.execSQL = append(f.execSQL, sql)
 	f.maxRows = append(f.maxRows, maxRows)
 	f.mu.Unlock()
+	if f.failWith != nil {
+		return Summary{InTransaction: f.inTx}, f.failWith
+	}
 	if f.block {
 		<-ctx.Done()
 		return Summary{}, Errorf(CodeCancelled, "Query cancelled.")
@@ -364,5 +368,21 @@ func TestCloseTabOp(t *testing.T) {
 	}
 	if _, f := c.Call(map[string]any{"op": "closeTab", "sessionId": sid, "tabId": "t3", "x": 1}); testclient.ErrCode(f) != "bad-request" {
 		t.Fatalf("unknown field: %v", f)
+	}
+}
+
+func TestErrorCarriesInTransaction(t *testing.T) {
+	c, made := start(t)
+	sid := connect(t, c, map[string]any{"database": "tx"})
+	(*made)[0].failWith = Errorf(CodeServer, "boom")
+	_, f := c.Call(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t1", "sql": "select", "maxRows": 1})
+	e := f["error"].(map[string]any)
+	if e["code"] != "server" || e["inTransaction"] != true {
+		t.Fatalf("error %v", f)
+	}
+	// Errors before a session is found carry no transaction state.
+	_, f = c.Call(map[string]any{"op": "execute", "sessionId": "nope", "tabId": "t1", "sql": "select", "maxRows": 1})
+	if _, has := f["error"].(map[string]any)["inTransaction"]; has {
+		t.Fatalf("unknown session: %v", f)
 	}
 }

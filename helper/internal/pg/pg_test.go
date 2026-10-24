@@ -854,3 +854,23 @@ func TestPostgresConnectionLostInTransactionIsReported(t *testing.T) {
 		t.Fatalf("then the tab works again: %v", v)
 	}
 }
+
+// Error replies carry inTransaction (Ruling M3-R28).
+func TestPostgresErrorCarriesInTransaction(t *testing.T) {
+	dsn := dsnOrSkip(t, "XRAY_TEST_PG_DSN")
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, dsn, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	_, f := exec(c, sid, "t1", "select 1/0", 10)
+	if f["ok"] == true || f["error"].(map[string]any)["inTransaction"] != true {
+		t.Fatalf("an error inside a transaction: %v", f)
+	}
+	_, f = exec(c, sid, "t1", "commit", 10)
+	if f["error"].(map[string]any)["inTransaction"] != false {
+		t.Fatalf("the failed commit ends it: %v", f)
+	}
+	_, f = exec(c, sid, "t1", "select 1/0", 10)
+	if f["error"].(map[string]any)["inTransaction"] != false {
+		t.Fatalf("an error outside one: %v", f)
+	}
+}

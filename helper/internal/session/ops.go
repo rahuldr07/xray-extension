@@ -297,7 +297,14 @@ func (o *Ops) run(ctx context.Context, id int64, r *protocol.Reply, f func(conte
 		err = out.flush()
 	}
 	if err != nil {
-		fail(r, err)
+		body := protocol.ErrorBody{Code: CodeInternal, Message: "Internal helper error."}
+		var e *Error
+		if errors.As(err, &e) {
+			body = e.ErrorBody
+		}
+		inTx := sum.InTransaction
+		body.InTransaction = &inTx
+		r.Fail(body)
 		return
 	}
 	notices := sum.Notices

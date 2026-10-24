@@ -56,7 +56,8 @@ extension until you delete them there, or remove the extension.
   - `close` ends a session.
 - **Summaries.** `execute` and `fetchMore` answer with rowCount, affected, durationMs, notices,
   hasMore, truncatedCells and `inTransaction`: whether the tab's connection is inside a
-  transaction the user opened (never the read-only wrapper). Closing the session or the tab rolls
+  transaction the user opened (never the read-only wrapper; on MySQL this includes autocommit
+  off). Errors from execute and fetchMore carry `inTransaction` too. Closing the session or the tab rolls
   that transaction back. A COMMIT of a failed transaction is an error, not a success, and so is
   the first statement after a tab's connection was lost inside a transaction.
 - **Responses.** Each request ends with exactly one final message: `{ "id", "ok": true, "value" }`

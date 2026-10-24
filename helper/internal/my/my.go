@@ -123,6 +123,12 @@ func buildConfig(p session.Params) (*mysql.Config, error) {
 	// The driver logs connection errors to stderr; stderr carries only codes.
 	cfg.Logger = &mysql.NopLogger{}
 	cfg.DialFunc = dialSock
+	for k, v := range testSessionParams {
+		if cfg.Params == nil {
+			cfg.Params = map[string]string{}
+		}
+		cfg.Params[k] = v
+	}
 	if err := cfg.Apply(mysql.Charset("utf8mb4", "")); err != nil {
 		return nil, session.Errorf(session.CodeBadRequest, "Invalid connection settings.")
 	}
@@ -212,6 +218,10 @@ type tabConn struct {
 	conn *sql.Conn
 	id   int64 // CONNECTION_ID(), the KILL QUERY target
 	sock *sockSlot
+	// autocommitOff: @@autocommit is 0 (a server or session default, or SET
+	// autocommit = 0), so every statement runs inside a transaction that only
+	// COMMIT or ROLLBACK ends (Ruling M3-R28).
+	autocommitOff bool
 }
 
 type tab struct {
@@ -300,6 +310,9 @@ func (s *mySession) dialTab(ctx context.Context) (*tabConn, error) {
 	if err == nil && s.timeout > 0 {
 		_, err = conn.ExecContext(ctx, "SET SESSION max_execution_time = "+strconv.FormatInt(s.timeout.Milliseconds(), 10))
 	}
+	if err == nil && !s.readOnly {
+		err = readAutocommit(ctx, c)
+	}
 	if err != nil {
 		discard(c)
 		return nil, s.dialErr(err)
@@ -313,6 +326,16 @@ func (s *mySession) dialTab(ctx context.Context) (*tabConn, error) {
 	s.socks[slot] = true
 	s.mu.Unlock()
 	return c, nil
+}
+
+// readAutocommit records whether the connection's @@autocommit is 0.
+func readAutocommit(ctx context.Context, c *tabConn) error {
+	var on int
+	if err := c.conn.QueryRowContext(ctx, "SELECT @@autocommit").Scan(&on); err != nil {
+		return err
+	}
+	c.autocommitOff = on == 0
+	return nil
 }
 
 // drop discards the tab's connection; the next execute redials.
@@ -345,6 +368,10 @@ func valid(c *tabConn) bool {
 	})
 	return err == nil && ok
 }
+
+// testSessionParams are session variables a test sets at connect (the driver
+// sends each as SET), standing in for a server default such as autocommit=0.
+var testSessionParams map[string]string
 
 // killSQL is the statement that stops connection <id>'s running statement.
 // Tests replace it to check the socket fallback.
@@ -397,7 +424,7 @@ func (t *tab) unwatch() {
 	}
 }
 
-func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (session.Summary, error) {
+func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int, out *session.Emitter) (sum session.Summary, err error) {
 	if s.readOnly {
 		if msg := s.ReadOnlyRefusal(sql); msg != "" {
 			return session.Summary{}, session.Errorf(session.CodeReadOnly, msg)
@@ -409,6 +436,7 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer s.errTx(t, &sum, &err)
 	defer t.unwatch()
 	// The request may have been cancelled while it waited for the tab, or
 	// while the tab's previous cursor closed: then it must not run at all.
@@ -514,13 +542,14 @@ func (s *mySession) Execute(ctx context.Context, tabID, sql string, maxRows int,
 	return s.read(ctx, t, sql, maxRows, out)
 }
 
-func (s *mySession) FetchMore(ctx context.Context, tabID string, n int, out *session.Emitter) (session.Summary, error) {
+func (s *mySession) FetchMore(ctx context.Context, tabID string, n int, out *session.Emitter) (sum session.Summary, err error) {
 	t, err := s.getTab(tabID)
 	if err != nil {
 		return session.Summary{}, err
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer s.errTx(t, &sum, &err)
 	defer t.unwatch()
 	if ctx.Err() != nil || t.gone {
 		return session.Summary{}, cancelled()
@@ -626,11 +655,23 @@ func (s *mySession) abort(ctx context.Context, t *tab, sql string, err error) er
 	}
 	s.finish(t)
 	var me *mysql.MySQLError
-	if errors.As(err, &me) && me.Number == 1213 && t.txOpen {
+	switch {
+	case errors.As(err, &me) && me.Number == 1213 && t.txOpen:
 		// A deadlock rolls the whole transaction back.
 		t.txOpen, t.txFailed = false, true
+	case !s.readOnly && t.c != nil && t.c.autocommitOff:
+		// With autocommit off the failed statement still began a transaction.
+		t.txOpen = true
 	}
 	return mapped
+}
+
+// errTx gives an error answer the tab's transaction state, so the page's
+// view of it does not go stale (Ruling M3-R28).
+func (s *mySession) errTx(t *tab, sum *session.Summary, err *error) {
+	if *err != nil {
+		*sum = session.Summary{InTransaction: !s.readOnly && t.txOpen}
+	}
 }
 
 // noteTx records the user's transaction state after a statement that
@@ -641,12 +682,46 @@ func (s *mySession) noteTx(t *tab, sql string) bool {
 	}
 	if sql != "" {
 		was := t.txOpen
-		t.txOpen = txAfter(was, sql, s.mariaDB)
+		next := txAfter(was, sql, s.mariaDB)
+		if t.c != nil && strings.Contains(strings.ToUpper(sql), "AUTOCOMMIT") {
+			ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+			if readAutocommit(ctx, t.c) != nil {
+				s.drop(t) // the state is unknown: start afresh, and report a lost transaction
+			}
+			cancel()
+		}
+		if t.c != nil && t.c.autocommitOff && !endsChain(sql, s.mariaDB) {
+			next = true
+		}
+		t.txOpen = next
 		if t.txOpen != was || endsTx(sql, s.mariaDB) {
 			t.txFailed = false
 		}
+	} else if t.c != nil && t.c.autocommitOff {
+		t.txOpen = true
 	}
 	return t.txOpen
+}
+
+// endsChain reports COMMIT or ROLLBACK (not ROLLBACK TO a savepoint) without
+// AND CHAIN: with autocommit off, only these leave no transaction open.
+func endsChain(sql string, mariaDB bool) bool {
+	w := words(sql, mariaDB, 6)
+	if len(w) == 0 || (w[0] != "COMMIT" && w[0] != "ROLLBACK") {
+		return false
+	}
+	chain, no := false, false
+	for _, x := range w[1:] {
+		switch x {
+		case "TO":
+			return false
+		case "CHAIN":
+			chain = true
+		case "NO":
+			no = true
+		}
+	}
+	return !chain || no
 }
 
 // implicitCommit are first keywords of statements that commit the open
@@ -690,8 +765,9 @@ func words(sql string, mariaDB bool, n int) []string {
 // SERVER_STATUS_IN_TRANS flag private, so this follows the statements:
 // BEGIN and START TRANSACTION open one; COMMIT and ROLLBACK end it (unless AND
 // CHAIN, or ROLLBACK TO a savepoint); statements that commit implicitly end
-// it. Known gaps: SET autocommit = 0 starts transactions this does not see,
-// and a transaction the server rolls back on an error other than a deadlock.
+// it. With autocommit off (read at dial and after a statement that mentions
+// it) noteTx keeps the transaction open until COMMIT or ROLLBACK. Known gap: a
+// transaction the server rolls back on an error other than a deadlock.
 func txAfter(open bool, sql string, mariaDB bool) bool {
 	w := words(sql, mariaDB, 6)
 	if len(w) == 0 {
