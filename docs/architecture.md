@@ -272,7 +272,7 @@ reads persisted state from `chrome.storage.local` only.
 
 ### SQL client (`sql.html`)
 
-A standalone extension page that opens local SQLite files. Four files make it up:
+A standalone extension page that opens local SQLite files, and Postgres and MySQL databases through the native helper (below). Four files make it up:
 
 - `sql.html` — the page, loading `dist/sql-ui.js` (the editor, schema rail and results grid).
 - `dist/sql-worker.js` — a dedicated worker hosting sqlite-wasm; every query runs there, so
@@ -299,6 +299,54 @@ applies to extension pages and their workers only, never to content scripts or t
 they run in. Inside the DevTools panel the frame is a cross-origin subframe of a
 `devtools://` page, where `showOpenFilePicker` throws; the client falls back to a file
 input there, and saves as a download.
+
+### Postgres and MySQL: the helper and the port flow
+
+The browser cannot open TCP connections, so Postgres and MySQL go through `xray-db-helper`, a Go
+native-messaging host in `helper/` (installed separately, see [helper/README.md](../helper/README.md)).
+Three hops carry every request:
+
+```
+sql.html (RemoteClient)  ──runtime port "xray-sql"──▶  service worker (background/sql-manager.js)
+                                                          │  chrome.runtime.connectNative('com.xray.db_helper')
+                                                          ▼
+                                                     xray-db-helper  ──TCP/TLS──▶  Postgres / MySQL
+```
+
+- **Page → worker.** Each `sql.html` opens one `xray-sql` port (`createRemoteClient`, in
+  `src/panel/runtime/remoteClient.ts`). Its ops are `profiles.list`/`save`/`delete`/`test`,
+  `helper.status`, `connect`, `introspect`, `execute`, `fetchMore`, `cancel` and `close`. The page
+  refers to a profile by id and never receives a password. When the port disconnects (the worker
+  restarted, or the manager failed to load), every pending call rejects with `connection-lost`, and
+  the next call reconnects lazily.
+- **Worker.** `background.js` loads `background/sql-manager.js` with `importScripts`. The manager
+  checks each port's sender (this extension's `/sql.html`), keeps profiles in
+  `chrome.storage.local` (`sql_connections`) and session-only secrets in `chrome.storage.session`
+  (`sql_session_secrets`), and owns the single native port.
+  - It starts the helper on the first need and sends `hello` (protocol version 1).
+  - It maps each page request to a helper request id, and records which page owns each session.
+  - It enforces the timeouts: hello 5 s, connect 15 s, introspect 30 s, cancel and close 5 s.
+    `execute` and `fetchMore` have no timeout, and Stop sends `cancel`.
+  - When no page and no session is left, it closes the native port after 30 s, which stops the
+    helper.
+- **Worker → helper.** Chrome's framing carries the messages: a 4-byte native-endian length,
+  then JSON. Requests are fixed ops, decoded strictly. A result streams as one `columns` message,
+  then `rows` chunks of at most 524,288 bytes, and ends with one final `{ ok, value | error }`.
+  The helper keeps one session per `connect`, and one connection and at most one open cursor per
+  editor tab. Read-only sessions wrap every statement in a read-only transaction that is rolled
+  back.
+- **Helper lost.** If the helper exits or the native port drops, every session on it is marked
+  dead and pending requests reject with `connection-lost`. The page shows "Connection lost." with
+  Reconnect, which opens a new session and starts the helper again.
+
+Test coverage spans three levels:
+- Go tests against real servers: `helper/scripts/test-with-docker.sh`.
+- The page and worker against a scripted fake helper: `test/fixtures/fake-helper.mjs`, used in
+  `test/e2e/sql-client.e2e.mjs`.
+- Everything real end to end: `test/e2e/sql-remote.e2e.mjs`, run by
+  `helper/scripts/test-with-docker.sh --e2e` and by the `e2e-remote` CI job.
+
+The trust boundary is in [threat-model.md](threat-model.md#6-database-connections-and-the-native-helper).
 
 ---
 
