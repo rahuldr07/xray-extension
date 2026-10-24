@@ -110,6 +110,56 @@ jobs:
       - name: Load the unpacked extension and capture real traffic
         run: npm run test:e2e
 
+  e2e-remote:
+    name: End-to-end Postgres and MySQL through the helper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: xray-E2e-pw7
+          POSTGRES_DB: xray
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: xray-E2e-pw7
+          MYSQL_DATABASE: xray
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pxray-E2e-pw7" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+    # Connection strings as a user pastes them; the password is one no UI text contains, since
+    # the test asserts it never shows in the page (same as helper/scripts/test-with-docker.sh --e2e).
+    env:
+      XRAY_E2E_PG_DSN: postgres://postgres:xray-E2e-pw7@127.0.0.1:5432/xray?sslmode=disable
+      XRAY_E2E_MYSQL_DSN: mysql://root:xray-E2e-pw7@127.0.0.1:3306/xray?ssl-mode=disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: helper/go.sum
+      - run: npm ci
+      # The full Chromium build, as in the e2e job: the headless shell cannot load extensions.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Build the helper
+        working-directory: helper
+        run: go build -o "$RUNNER_TEMP/xray-db-helper" ./cmd/xray-db-helper
+      # The test builds the helper again into a temp folder and registers it as a native host.
+      - name: Real Postgres and MySQL through the helper
+        run: node --test test/e2e/sql-remote.e2e.mjs
+
   package:
     name: Package extension
     runs-on: ubuntu-latest
