@@ -1,13 +1,23 @@
-// State for the SQL page (sql.html): one SQLite client for the page's lifetime, the open
-// connection, editor tabs, the latest result, Messages and History. Decisions about SQL live in
+// State for the SQL page (sql.html): one SQLite client for the page's lifetime, or one remote
+// (Postgres/MySQL) session through the service worker; the open connection, editor tabs, the
+// latest result, Messages and History. Decisions about SQL live in
 // the models (classification, splitting, values, history shapes); this store only sequences them.
 // It must never import ./store: that would pull the capture console into dist/sql-ui.js.
 
 import { create } from 'zustand';
 import { createSqliteClient, spawnSqliteWorker, type SqliteClient } from './runtime/sqliteClient';
+import {
+  createRemoteClient,
+  SQL_PORT_NAME,
+  type HelperStatus,
+  type PortLike,
+  type RemoteApi,
+  type RemoteSession,
+  type SaveProfileInput,
+} from './runtime/remoteClient';
 import { getStoredValue, setStoredValue } from './runtime/storageBridge';
 import { rememberRecentFile } from './runtime/recentFiles';
-import { classifyStatement, type StatementKind } from './models/sqlClassify';
+import { changesSchema, classifyStatement, firstKeyword, type StatementKind } from './models/sqlClassify';
 import { normalizeSqlError } from './models/sqlErrors';
 import { selectTableSql } from './models/sqlSchema';
 import { splitStatements, statementAt } from './models/sqlStatements';
@@ -18,6 +28,7 @@ import { ignoredFilesMessage, pickDroppedFile } from './models/sqlUi';
 import {
   appendHistory,
   connectionKeyForFile,
+  connectionKeyForProfile,
   EDITOR_TABS_KEY,
   HISTORY_KEY,
   newTabId,
@@ -25,13 +36,33 @@ import {
   type EditorTab,
   type HistoryItem,
 } from './models/sqlHistory';
-import { DEFAULT_MAX_ROWS, type QueryResult, type SchemaTree, type SqlError } from './models/sqlTypes';
+import type { PageProfile, SqlEngine } from './models/sqlProfiles';
+import {
+  DEFAULT_MAX_ROWS,
+  type QueryResult,
+  type SchemaTree,
+  type SqlDialect,
+  type SqlDriver,
+  type SqlError,
+} from './models/sqlTypes';
 
-export interface SqlConnection {
-  name: string;
-  size: number;
-  readOnly: boolean;
-  key: string;
+export type SqlConnection =
+  | { kind: 'sqlite'; name: string; size: number; readOnly: boolean; key: string }
+  | {
+      kind: 'remote';
+      profileId: string;
+      name: string;
+      engine: SqlEngine;
+      host: string;
+      database: string;
+      readOnly: boolean;
+      key: string;
+      serverVersion: string;
+    };
+
+/** The SQL dialect of a connection: the remote engine, or SQLite (also with nothing open). */
+export function connectionDialect(conn: SqlConnection | null): SqlDialect {
+  return conn?.kind === 'remote' ? conn.engine : 'sqlite';
 }
 
 export interface SqlPrompt {
@@ -41,6 +72,12 @@ export interface SqlPrompt {
 }
 
 export type SqlBottomTab = 'results' | 'messages' | 'history';
+
+/** The database helper as last heard: 'unknown' until a status check or a connect answers. */
+export interface SqlHelperInfo {
+  state: HelperStatus['state'] | 'unknown';
+  helperVersion?: string;
+}
 
 export interface EditorSelection {
   from: number;
@@ -79,6 +116,21 @@ export interface SqlState {
   // same columns keeps them; the sort and the inspected cell belong to one column set (columnsKey).
   gridView: { key: string; sort: SortState | null; inspected: { row: number; col: number } | null };
   rowFilter: string;
+  // Saved Postgres/MySQL profiles (never with a password) and the helper's state.
+  profiles: PageProfile[];
+  helper: SqlHelperInfo;
+  // Set when a connect needs a password the worker does not hold: the password prompt.
+  pendingPassword: { profileId: string; name: string } | null;
+  // The remote session died (helper, worker or server gone): Reconnect is offered, tabs are kept.
+  connectionLost: boolean;
+  // The shown result came from a remote cursor that has more rows: Fetch more appends them.
+  canFetchMore: boolean;
+  // The editor tab whose statement produced the shown result: remote cursors are per tab, so
+  // Fetch more shows only there.
+  cursorTabId: string | null;
+  // Remote editor tabs whose connection is inside a transaction the user opened (each tab has its
+  // own connection). Closing the session, or the tab, rolls it back, so those actions ask first.
+  openTransactions: string[];
 
   openFile(file: File, handle?: FileSystemFileHandle): Promise<void>;
   // Files dropped on the page: the first opens through openFile (no handle, so Save downloads).
@@ -102,9 +154,40 @@ export interface SqlState {
   setCursor(line: number, col: number): void;
   setGridView(view: SqlState['gridView']): void;
   setRowFilter(text: string): void;
+  // Connects to a saved profile; a password typed into the prompt is passed here (never stored in the page).
+  connectProfile(profileId: string, opts?: { password?: string; remember?: boolean }): Promise<void>;
+  fetchMore(): Promise<void>;
+  reconnect(): Promise<void>;
+  // Closes the password prompt without connecting.
+  cancelPassword(): void;
+  // Reloads the saved profiles and the helper status.
+  refreshRemote(): Promise<void>;
+  // Saves a profile (the password goes to the worker and is never kept here) and reloads the list.
+  // Rejects with a SqlError.
+  saveProfile(input: SaveProfileInput): Promise<PageProfile>;
+  deleteProfile(profileId: string): Promise<void>;
+  // Test connection: the worker connects with these fields, reads the server version and closes,
+  // storing nothing. A blank password on an existing profile uses its stored secret. Resolves with
+  // the raw server version; rejects with a SqlError.
+  testProfile(input: SaveProfileInput): Promise<string>;
+  // The saved profiles only: never starts the helper.
+  loadProfiles(): Promise<void>;
+  // Asks the worker for the helper's state (this starts the helper when it is installed).
+  checkHelper(): Promise<void>;
 }
 
 const NOT_A_DATABASE = 'This file is not a SQLite database.';
+const QUERY_CANCELLED: SqlError = { code: 'cancelled', message: 'Query cancelled.' };
+const REMOTE_LOST: SqlError = { code: 'connection-lost', message: 'The connection to the database was lost.' };
+const FETCH_MORE_ROWS = 1000;
+const DISCARD_TRANSACTION: SqlPrompt = {
+  title: 'Discard the open transaction?',
+  message: 'Its changes will be rolled back.',
+  confirmLabel: 'Discard transaction',
+};
+const ROLLED_BACK = 'An open transaction was rolled back.';
+// Statements whose failure still ends the transaction (a failed COMMIT rolls it back).
+const ENDS_TRANSACTION = new Set(['commit', 'end', 'rollback', 'abort']);
 const MESSAGE_LIMIT = 500;
 const PERSIST_DELAY_MS = 300;
 
@@ -123,6 +206,11 @@ interface RunQueue {
 }
 
 let client: SqliteClient | null = null;
+let remoteApi: RemoteApi | null = null;
+// The open remote session, when the connection is remote.
+let remote: RemoteSession | null = null;
+// The Read-only mode a pending password retry connects with (a reconnect or a mode switch).
+let passwordMode: boolean | null = null;
 // The bytes a re-open starts from: the file as opened, or as last saved.
 let bytes: Uint8Array | null = null;
 let fileHandle: FileSystemFileHandle | null = null;
@@ -132,6 +220,8 @@ let fileHandle: FileSystemFileHandle | null = null;
 let diskBehind = false;
 let selectionReader: (() => EditorSelection) | null = null;
 let queue: RunQueue | null = null;
+// A remote write ran since the schema was last read: the rail is re-read once the run ends.
+let schemaStale = false;
 let promptAction: (() => Promise<void> | void) | null = null;
 let storedHistory: Record<string, HistoryItem[]> = {};
 let storedTabs: Record<string, EditorTab[]> = {};
@@ -145,9 +235,52 @@ function sqlClient(): SqliteClient {
   return client;
 }
 
+function remoteClient(): RemoteApi {
+  remoteApi ??= createRemoteClient(() => {
+    // The ambient `chrome` type only declares what the capture panel uses; sql.html has runtime.connect.
+    const runtime = (typeof chrome === 'undefined' ? undefined : chrome.runtime) as
+      | { connect?(info: { name: string }): PortLike }
+      | undefined;
+    if (!runtime?.connect) throw new Error('The database helper is only available on the extension page.');
+    return runtime.connect({ name: SQL_PORT_NAME });
+  });
+  return remoteApi;
+}
+
+/** Tests drive the store with a stub instead of the service-worker port. */
+export function __setRemoteApiForTests(api: RemoteApi | null): void {
+  remoteApi = api;
+}
+
+function isRemote(): boolean {
+  return usePanelSqlStore.getState().connection?.kind === 'remote';
+}
+
+// The driver for the open connection. A remote connection never touches (or spawns) the SQLite worker.
+function driver(): SqlDriver {
+  if (!isRemote()) return sqlClient();
+  if (!remote) throw { ...REMOTE_LOST } satisfies SqlError;
+  return remote;
+}
+
+// Closing a session the page no longer uses; a dead one is already closed.
+function closeRemote(): void {
+  const session = remote;
+  remote = null;
+  session?.close().catch(() => undefined);
+}
+
 // What the UI calls unsaved: changes only the worker holds, or a save that never reached the disk.
+// A remote connection holds nothing in the page (its open transaction is openTransactions).
 function unsaved(): boolean {
+  if (isRemote()) return false;
   return sqlClient().dirty || diskBehind;
+}
+
+/** Whether leaving or switching would roll back a transaction open on the remote connection. */
+export function hasOpenTransaction(): boolean {
+  const s = usePanelSqlStore.getState();
+  return s.connection?.kind === 'remote' && s.openTransactions.length > 0;
 }
 
 /** The editor registers how to read its selection; run('current') needs it. */
@@ -270,14 +403,37 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     set({ pendingPrompt: prompt });
   }
 
+  // Records whether the tab's remote connection is inside the user's transaction.
+  function noteTransaction(tabId: string, open: boolean): void {
+    const list = get().openTransactions;
+    if (open && !list.includes(tabId)) set({ openTransactions: [...list, tabId] });
+    else if (!open && list.includes(tabId)) set({ openTransactions: list.filter((t) => t !== tabId) });
+  }
+
+  // The remote session closed or was lost: any transaction on it was rolled back (spec §5).
+  function dropTransactions(): void {
+    if (!get().openTransactions.length) return;
+    set({ openTransactions: [] });
+    say(ROLLED_BACK);
+  }
+
+  // Asks before an action that would roll back an open remote transaction; true when it asked.
+  function askBeforeDiscardingTransaction(action: () => Promise<void> | void): boolean {
+    if (!hasOpenTransaction()) return false;
+    ask(DISCARD_TRANSACTION, action);
+    return true;
+  }
+
   async function refreshSchema(): Promise<void> {
     try {
-      const schema = await sqlClient().introspect();
+      const schema = await driver().introspect();
       set({ schema, dirty: unsaved() });
     } catch (raw) {
       const err = friendly(normalizeSqlError(raw));
-      set({ dirty: unsaved() });
+      const lost = isRemote() && err.code === 'connection-lost';
+      set({ dirty: unsaved(), ...(lost ? { connectionLost: true, canFetchMore: false } : {}) });
       say(err.message);
+      if (lost) dropTransactions();
     }
   }
 
@@ -310,8 +466,15 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       fileHandle = null;
       diskBehind = false;
       // The previous file's tabs were persisted under its key; they must not follow into the next file.
+      // A remote connection was not replaced by the failed open: it stays, with its tabs and schema.
+      if (get().connection?.kind === 'remote') {
+        set({ opening: false, error: err, bottomTab: 'messages', messages: withMessage(get().messages, `${file.name}: ${err.message}`) });
+        return;
+      }
       const blank = hadConnection ? restoreEditorTabs(undefined, '') : null;
       set({
+        connectionLost: false,
+        canFetchMore: false,
         ...(blank ? { tabs: blank, activeTabId: blank[0].id, errorAt: null } : {}),
         opening: false,
         connection: null,
@@ -330,6 +493,8 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     bytes = data;
     fileHandle = handle ?? null;
     diskBehind = false;
+    closeRemote();
+    dropTransactions();
     // Picker-opened files come back on the welcome screen's recent list.
     if (handle) void rememberRecentFile(handle, file);
     const key = connectionKeyForFile(file.name, file.size);
@@ -344,7 +509,9 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     }
     set({
       opening: false,
-      connection: { name: file.name, size: file.size, readOnly, key },
+      connection: { kind: 'sqlite', name: file.name, size: file.size, readOnly, key },
+      connectionLost: false,
+      canFetchMore: false,
       readOnlyChoice: readOnly,
       schema,
       tabs,
@@ -391,8 +558,12 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     const controller = new AbortController();
     set({ running: { tabId: q.tabId, controller }, error: null, errorAt: null });
     const at = Date.now();
+    const onRemote = isRemote();
     try {
-      const result = await sqlClient().execute(item.text, { maxRows: q.maxRows }, controller.signal);
+      // Remote drivers keep one cursor per editor tab, so every statement names its tab.
+      const d = driver();
+      const result = await d.execute(item.text, { maxRows: q.maxRows, tabId: q.tabId }, controller.signal);
+      if (onRemote) noteTransaction(q.tabId, result.inTransaction === true);
       recordHistory({
         sql: item.text,
         at,
@@ -403,9 +574,11 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const extra = [...result.notices];
       if (result.truncatedCells > 0) extra.push(`${result.truncatedCells} long text values were cut for display.`);
       set({
+        cursorTabId: q.tabId,
         running: null,
         result,
         resultTable: q.resultTable,
+        canFetchMore: result.hasMore && d.capabilities.cursor,
         // A new result keeps the sort (same columns) but never the inspected cell: its row index
         // would point at different data.
         gridView: { ...get().gridView, inspected: null },
@@ -413,34 +586,68 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         bottomTab: 'results',
         messages: withMessage(get().messages, resultSummary(result), ...extra),
       });
-      if (kind !== 'read') await refreshSchema();
+      if (kind !== 'read') {
+        // A remote introspect is a round trip: only DDL-like statements re-read the rail at once;
+        // other writes mark it stale, and it is re-read once when the run ends.
+        if (!onRemote || changesSchema(item.text, connectionDialect(get().connection))) await refreshSchema();
+        else schemaStale = true;
+      }
       return true;
     } catch (raw) {
-      const err = friendly(normalizeSqlError(raw));
+      let err = friendly(normalizeSqlError(raw));
+      const lost = onRemote && err.code === 'connection-lost';
+      // A Stop on a remote query can be answered either way (the helper may drop the tab's
+      // connection to interrupt it); both read as the cancel the user asked for.
+      if (onRemote && controller.signal.aborted && (err.code === 'cancelled' || lost)) err = { ...QUERY_CANCELLED };
       recordHistory({ sql: item.text, at, durationMs: Date.now() - at, rowCount: null, ok: false, error: err.message });
       set({
         running: null,
         error: err,
+        // The tab's statement ended its cursor; a lost session ends every cursor.
+        ...(lost || q.tabId === get().cursorTabId ? { canFetchMore: false } : {}),
+        ...(lost ? { connectionLost: true } : {}),
         errorAt: err.position === undefined ? null : { tabId: q.tabId, position: err.position + item.from },
         dirty: unsaved(),
         bottomTab: 'messages',
         messages: withMessage(get().messages, err.message),
       });
+      if (lost) dropTransactions();
+      else if (onRemote && typeof err.inTransaction === 'boolean') noteTransaction(q.tabId, err.inTransaction);
+      else if (onRemote && ENDS_TRANSACTION.has(firstKeyword(item.text, connectionDialect(get().connection)))) {
+        // An older helper sends no state with errors: a failed COMMIT still ends the transaction.
+        noteTransaction(q.tabId, false);
+      }
       // A cancel restarts the worker from the last saved bytes; the schema may have rolled back.
-      if (err.code === 'cancelled') await refreshSchema();
+      if (err.code === 'cancelled' && !onRemote) await refreshSchema();
       return false;
     }
   }
 
   async function drain(q: RunQueue, confirmedIndex: number): Promise<void> {
+    try {
+      await drainQueue(q, confirmedIndex);
+    } finally {
+      if (schemaStale) {
+        schemaStale = false;
+        if (isRemote() && !get().connectionLost) await refreshSchema();
+      }
+    }
+  }
+
+  async function drainQueue(q: RunQueue, confirmedIndex: number): Promise<void> {
     queue = null;
     while (q.index < q.items.length) {
       const conn = get().connection;
       if (!conn) return;
+      if (conn.kind === 'remote' && get().connectionLost) {
+        say('The connection was lost. Reconnect to run queries.');
+        return;
+      }
       const item = q.items[q.index];
-      const c = classifyStatement(item.text, 'sqlite');
-      // R10: on a read-only connection an unparseable statement goes to SQLite, which answers
-      // with the real syntax error (and still refuses any write).
+      const c = classifyStatement(item.text, connectionDialect(conn));
+      // R10: on a read-only connection an unparseable statement goes to the engine, which answers
+      // with the real syntax error and still refuses any write: SQLite opens the file read-only;
+      // on Postgres/MySQL the server's read-only transaction and the helper's keyword guard do.
       if (conn.readOnly && c.kind !== 'read' && c.reason !== 'could not parse') {
         const err: SqlError = {
           code: 'read-only',
@@ -489,7 +696,186 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       );
       return;
     }
+    if (askBeforeDiscardingTransaction(proceed)) return;
     await proceed();
+  }
+
+  // A connect failure that says something about the helper updates the install card's state.
+  function noteHelperError(err: SqlError): void {
+    if (err.code === 'helper-missing') set({ helper: { state: err.detail === 'no-permission' ? 'no-permission' : 'missing' } });
+    if (err.code === 'helper-outdated') set({ helper: { ...get().helper, state: 'outdated' } });
+  }
+
+  async function reloadProfiles(): Promise<void> {
+    try {
+      set({ profiles: await remoteClient().profiles.list() });
+    } catch {
+      // The list stays as it was; the next refresh retries.
+    }
+  }
+
+  // Opens a session for a profile. On failure it reports and returns null: a missing password
+  // opens the password prompt, a missing or outdated helper is recorded for the install card.
+  async function openSession(
+    profileId: string,
+    name: string,
+    readOnly: boolean,
+    password?: string,
+    remember?: boolean,
+  ): Promise<RemoteSession | null> {
+    try {
+      const session = await remoteClient().connect(profileId, readOnly, password, remember);
+      set({ helper: { ...get().helper, state: 'ready' } });
+      return session;
+    } catch (raw) {
+      const err = normalizeSqlError(raw);
+      if (err.detail === 'password-required') {
+        passwordMode = readOnly;
+        set({ pendingPassword: { profileId, name } });
+        return null;
+      }
+      if (err.code === 'auth-failed' && password === undefined) {
+        // The stored password was rejected (changed on the server): ask for the current one.
+        passwordMode = readOnly;
+        set({ pendingPassword: { profileId, name }, error: err, errorAt: null, bottomTab: 'messages' });
+        say(err.message);
+        return null;
+      }
+      noteHelperError(err);
+      set({ error: err, errorAt: null, bottomTab: 'messages' });
+      say(err.message);
+      return null;
+    }
+  }
+
+  // A new session for the open remote connection (Reconnect, or the Read-only switch). The old
+  // session stays until the new one is up, so a failed attempt changes nothing.
+  async function reconnectRemote(conn: Extract<SqlConnection, { kind: 'remote' }>, readOnly: boolean): Promise<void> {
+    const session = await openSession(conn.profileId, conn.name, readOnly);
+    if (!session) return;
+    closeRemote();
+    dropTransactions();
+    remote = session;
+    set({
+      connection: { ...conn, readOnly, serverVersion: session.serverVersion },
+      readOnlyChoice: readOnly,
+      connectionLost: false,
+      canFetchMore: false,
+      error: null,
+    });
+    say(readOnly ? `${conn.name} is read-only.` : `${conn.name} is open for writing. Statements commit as they run.`);
+    await refreshSchema();
+  }
+
+  async function connectNow(profileId: string, opts: { password?: string; remember?: boolean } | undefined, retry: boolean): Promise<void> {
+    await loadSqlStorage();
+    const mode = retry ? passwordMode : null;
+    passwordMode = null;
+    set({ opening: true, error: null, errorAt: null });
+    try {
+      let profiles: PageProfile[];
+      try {
+        profiles = await remoteClient().profiles.list();
+      } catch (raw) {
+        const err = normalizeSqlError(raw);
+        set({ error: err, bottomTab: 'messages' });
+        say(err.message);
+        return;
+      }
+      set({ profiles });
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!profile) {
+        say('That connection no longer exists.');
+        return;
+      }
+      const readOnly = mode ?? profile.readOnly;
+      const session = await openSession(profile.id, profile.name, readOnly, opts?.password, opts?.remember);
+      if (!session) return;
+      flushSqlPersistence();
+      const prev = get().connection;
+      closeRemote();
+      dropTransactions();
+      remote = session;
+      if (prev?.kind === 'sqlite') {
+        // The file's unsaved changes were discarded at the prompt; free the worker.
+        bytes = null;
+        fileHandle = null;
+        diskBehind = false;
+        void sqlClient()
+          .close()
+          .catch(() => undefined);
+      }
+      const key = connectionKeyForProfile(profile.id);
+      // Same rule as a file: a scratch query typed before the first connection carries over.
+      const sameKey = prev?.key === key;
+      const tabs = sameKey ? get().tabs : storedTabs[key] || prev ? restoreEditorTabs(storedTabs, key) : get().tabs;
+      let schema: SchemaTree | null = null;
+      let schemaError: SqlError | null = null;
+      try {
+        schema = await session.introspect();
+      } catch (raw) {
+        schemaError = normalizeSqlError(raw);
+      }
+      set({
+        cursorTabId: null,
+        connection: {
+          kind: 'remote',
+          profileId: profile.id,
+          name: profile.name,
+          engine: profile.engine,
+          host: profile.host,
+          database: profile.database,
+          readOnly,
+          key,
+          serverVersion: session.serverVersion,
+        },
+        readOnlyChoice: readOnly,
+        schema,
+        tabs,
+        activeTabId: sameKey ? get().activeTabId : tabs[0].id,
+        result: null,
+        resultTable: null,
+        error: null,
+        errorAt: null,
+        dirty: false,
+        connectionLost: schemaError?.code === 'connection-lost',
+        canFetchMore: false,
+        history: storedHistory[key] ?? [],
+        bottomTab: 'results',
+        messages: withMessage(
+          get().messages,
+          `Connected to ${profile.name}${readOnly ? ' (read-only)' : ''}.`,
+          ...(schemaError ? [schemaError.message] : []),
+        ),
+      });
+      persistTabs();
+    } finally {
+      set({ opening: false });
+    }
+  }
+
+  // Removes an editor tab; on a remote connection the helper closes the tab's cursor and connection.
+  function closeEditorTab(id: string): void {
+    const s = get();
+    const index = s.tabs.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    let tabs = s.tabs.filter((t) => t.id !== id);
+    if (!tabs.length) tabs = [blankTab(1)];
+    const activeTabId = s.activeTabId === id ? tabs[Math.min(index, tabs.length - 1)].id : s.activeTabId;
+    set({
+      tabs,
+      activeTabId,
+      errorAt: s.errorAt?.tabId === id ? null : s.errorAt,
+      ...(id === s.cursorTabId ? { canFetchMore: false } : {}),
+    });
+    persistTabs();
+    if (isRemote() && remote) {
+      void remote.closeTab(id).catch(() => undefined);
+      if (s.openTransactions.includes(id)) {
+        noteTransaction(id, false);
+        say(ROLLED_BACK);
+      }
+    }
   }
 
   return {
@@ -514,6 +900,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     cursor: { line: 1, col: 1 },
     gridView: { key: '', sort: null, inspected: null },
     rowFilter: '',
+    profiles: [],
+    helper: { state: 'unknown' },
+    pendingPassword: null,
+    connectionLost: false,
+    canFetchMore: false,
+    cursorTabId: null,
+    openTransactions: [],
 
     async openFile(file, handle) {
       await requestOpen(file, handle, null);
@@ -531,9 +924,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
       if (!tab) return;
       const doc = tab.sql;
+      const dialect = connectionDialect(s.connection);
       let items: RunItem[] = [];
       if (mode === 'all') {
-        items = splitStatements(doc, 'sqlite').map((st) => ({ text: st.text, from: st.from }));
+        items = splitStatements(doc, dialect).map((st) => ({ text: st.text, from: st.from }));
       } else {
         const sel = selectionReader?.() ?? { from: doc.length, to: doc.length, head: doc.length };
         const from = Math.max(0, Math.min(sel.from, doc.length));
@@ -541,7 +935,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         if (to > from && doc.slice(from, to).trim()) {
           items = [{ text: doc.slice(from, to), from }];
         } else {
-          const st = statementAt(doc, Math.min(sel.head, doc.length), 'sqlite');
+          const st = statementAt(doc, Math.min(sel.head, doc.length), dialect);
           if (st) items = [{ text: st.text, from: st.from }];
         }
       }
@@ -556,7 +950,9 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const running = get().running;
       if (!running) return;
       // Only worker-held changes are lost: after a failed disk write the restart keeps the export.
-      if (sqlClient().dirty) {
+      // A remote query is cancelled on the server, so it stops without asking (a cancel inside an
+      // open transaction is reported by the helper when the transaction ends).
+      if (get().connection?.kind === 'sqlite' && sqlClient().dirty) {
         ask(
           {
             title: 'Stop the query?',
@@ -597,7 +993,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
 
     async previewTable(schemaName, table) {
       if (!canRun()) return;
-      const sql = selectTableSql(schemaName, table, 'sqlite');
+      const sql = selectTableSql(schemaName, table, connectionDialect(get().connection));
       const existing = get().tabs.find((t) => t.title === table && t.sql === sql);
       const tab = existing ?? { id: newTabId(), title: table, sql, maxRows: DEFAULT_MAX_ROWS };
       set({ tabs: existing ? get().tabs : [...get().tabs, tab], activeTabId: tab.id });
@@ -612,6 +1008,22 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
         return;
       }
       if (on === s.connection.readOnly || s.running || s.opening) return;
+      if (s.connection.kind === 'remote') {
+        // The page holds nothing, so the switch reconnects in the new mode; only an open
+        // transaction, which the new session cannot keep, asks first.
+        const conn = s.connection;
+        const proceed = async () => {
+          set({ readOnlyChoice: on, opening: true });
+          try {
+            await reconnectRemote(conn, on);
+          } finally {
+            set({ opening: false, readOnlyChoice: get().connection?.readOnly ?? true });
+          }
+        };
+        if (askBeforeDiscardingTransaction(proceed)) return;
+        await proceed();
+        return;
+      }
       if (on && (s.dirty || unsaved())) {
         ask(
           {
@@ -642,7 +1054,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     async save() {
       const s = get();
       const conn = s.connection;
-      if (!conn || !s.dirty || s.running) return;
+      if (!conn || conn.kind !== 'sqlite' || !s.dirty || s.running) return;
       let out: Uint8Array;
       try {
         out = await sqlClient().exportBytes();
@@ -695,13 +1107,13 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     closeTab(id) {
       const s = get();
       if (s.running?.tabId === id) return;
-      const index = s.tabs.findIndex((t) => t.id === id);
-      if (index < 0) return;
-      let tabs = s.tabs.filter((t) => t.id !== id);
-      if (!tabs.length) tabs = [blankTab(1)];
-      const activeTabId = s.activeTabId === id ? tabs[Math.min(index, tabs.length - 1)].id : s.activeTabId;
-      set({ tabs, activeTabId, errorAt: s.errorAt?.tabId === id ? null : s.errorAt });
-      persistTabs();
+      if (!s.tabs.some((t) => t.id === id)) return;
+      // The tab's remote connection closes with it, rolling back its transaction.
+      if (isRemote() && s.openTransactions.includes(id)) {
+        ask(DISCARD_TRANSACTION, () => closeEditorTab(id));
+        return;
+      }
+      closeEditorTab(id);
     },
 
     setActiveTab(id) {
@@ -743,6 +1155,153 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     setCursor(line, col) {
       const now = get().cursor;
       if (now.line !== line || now.col !== col) set({ cursor: { line, col } });
+    },
+
+    async connectProfile(profileId, opts) {
+      const s = get();
+      // The answer to the password prompt: the discard prompt (if any) was already passed.
+      const retry = s.pendingPassword?.profileId === profileId;
+      if (!idle()) {
+        // The prompt stays open, so the typed password can be sent once the store is free.
+        if (s.pendingPassword) say('Wait for the current query to finish.');
+        return;
+      }
+      if (s.pendingPassword) set({ pendingPassword: null });
+      if (!retry) passwordMode = null;
+      const proceed = () => connectNow(profileId, opts, retry);
+      if (!retry && askBeforeDiscardingTransaction(proceed)) return;
+      if (!retry && s.connection?.kind === 'sqlite' && s.dirty) {
+        ask(
+          {
+            title: 'Discard unsaved changes?',
+            message: `Connecting discards the unsaved changes in ${s.connection.name}.`,
+            confirmLabel: 'Discard changes',
+          },
+          proceed,
+        );
+        return;
+      }
+      await proceed();
+    },
+
+    cancelPassword() {
+      passwordMode = null;
+      set({ pendingPassword: null });
+    },
+
+    async reconnect() {
+      const conn = get().connection;
+      if (conn?.kind !== 'remote' || !idle()) return;
+      set({ opening: true });
+      try {
+        await reconnectRemote(conn, conn.readOnly);
+      } finally {
+        set({ opening: false });
+      }
+    },
+
+    async fetchMore() {
+      const s = get();
+      const session = remote;
+      const prev = s.result;
+      if (s.connection?.kind !== 'remote' || !session || !prev || !s.canFetchMore || s.connectionLost || !idle()) return;
+      // The cursor belongs to the tab that ran the statement.
+      if (s.activeTabId !== s.cursorTabId) {
+        say('Fetch more works from the tab that ran this query.');
+        return;
+      }
+      const tabId = s.activeTabId;
+      const controller = new AbortController();
+      set({ running: { tabId, controller }, error: null, errorAt: null });
+      try {
+        const more = await session.fetchMore(tabId, FETCH_MORE_ROWS, controller.signal);
+        noteTransaction(tabId, more.inTransaction === true);
+        const result: QueryResult = {
+          ...prev,
+          rows: [...prev.rows, ...more.rows],
+          rowCount: prev.rowCount + more.rowCount,
+          hasMore: more.hasMore,
+          truncatedCells: prev.truncatedCells + more.truncatedCells,
+        };
+        const extra = [...more.notices];
+        if (more.truncatedCells > 0) extra.push(`${more.truncatedCells} long text values were cut for display.`);
+        // Appended rows keep every existing row index, so the sort, filter and inspected cell stay.
+        set({
+          running: null,
+          result,
+          canFetchMore: result.hasMore && session.capabilities.cursor,
+          bottomTab: 'results',
+          messages: withMessage(get().messages, `Fetched ${more.rowCount} more rows · ${formatMs(more.durationMs)}`, ...extra),
+        });
+      } catch (raw) {
+        let err = normalizeSqlError(raw);
+        const lost = err.code === 'connection-lost';
+        // Same reading as a stopped execute: the rows already shown stay.
+        if (controller.signal.aborted && (err.code === 'cancelled' || lost)) err = { ...QUERY_CANCELLED };
+        set({
+          running: null,
+          error: err,
+          canFetchMore: false,
+          ...(lost ? { connectionLost: true } : {}),
+          bottomTab: 'messages',
+          messages: withMessage(get().messages, err.message),
+        });
+        if (lost) dropTransactions();
+        else if (typeof err.inTransaction === 'boolean') noteTransaction(tabId, err.inTransaction);
+      }
+    },
+
+    async refreshRemote() {
+      const api = remoteClient();
+      const [profiles, helper] = await Promise.allSettled([api.profiles.list(), api.helperStatus()]);
+      if (profiles.status === 'fulfilled') set({ profiles: profiles.value });
+      if (helper.status === 'fulfilled') set({ helper: helper.value });
+      else if (normalizeSqlError(helper.reason).code === 'helper-missing') set({ helper: { state: 'missing' } });
+    },
+
+    async saveProfile(input) {
+      let saved: PageProfile;
+      try {
+        saved = await remoteClient().profiles.save(input);
+      } catch (raw) {
+        throw normalizeSqlError(raw);
+      }
+      await reloadProfiles();
+      return saved;
+    },
+
+    async deleteProfile(profileId) {
+      try {
+        await remoteClient().profiles.delete(profileId);
+      } catch (raw) {
+        throw normalizeSqlError(raw);
+      }
+      set({ profiles: get().profiles.filter((p) => p.id !== profileId) });
+      await reloadProfiles();
+    },
+
+    async testProfile(input) {
+      try {
+        const version = await remoteClient().profiles.test(input, input.password ?? '');
+        set({ helper: { ...get().helper, state: 'ready' } });
+        return version;
+      } catch (raw) {
+        const err = normalizeSqlError(raw);
+        noteHelperError(err);
+        throw err;
+      }
+    },
+
+    async loadProfiles() {
+      await reloadProfiles();
+    },
+
+    async checkHelper() {
+      try {
+        set({ helper: await remoteClient().helperStatus() });
+      } catch (raw) {
+        if (normalizeSqlError(raw).code === 'helper-missing') set({ helper: { state: 'missing' } });
+      }
     },
   };
 });

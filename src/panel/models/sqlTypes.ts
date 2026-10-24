@@ -51,6 +51,9 @@ export interface QueryResult {
   notices: string[];
   hasMore: boolean;
   truncatedCells: number;
+  // Remote only: the tab's connection is inside a transaction the user opened. Closing the session
+  // (or the tab) rolls it back.
+  inTransaction?: boolean;
 }
 
 export type SqlErrorCode =
@@ -75,10 +78,14 @@ export interface SqlError {
   position?: number;
   hint?: string;
   detail?: string;
+  // Remote execute/fetchMore errors: whether the tab is still inside the user's transaction.
+  inTransaction?: boolean;
 }
 
 export interface ExecuteOptions {
   maxRows: number;
+  // Which result tab the statement belongs to; remote drivers keep one cursor per tab.
+  tabId?: string;
 }
 
 export interface SqlDriver {

@@ -115,3 +115,26 @@ test('an exact statement keyword is never treated as a typo', () => {
   rows('write', 'sqlite', [['begin foo bar', 'unrecognized statement']]);
   rows('dangerous', 'sqlite', [['selec * from t', 'could not parse']]);
 });
+
+test('changesSchema: DDL-like first keywords only (remote schema refresh)', async () => {
+  const { changesSchema, firstKeyword } = await import('../../src/panel/models/sqlClassify.ts');
+  for (const [sql, d] of [
+    ['CREATE TABLE t (a int)', 'postgres'],
+    ['  -- c\n alter table t add b int', 'postgres'],
+    ['drop view v', 'mysql'],
+    ['RENAME TABLE a TO b', 'mysql'],
+    ['truncate t', 'postgres'],
+    ["COMMENT ON TABLE t IS 'x'", 'postgres'],
+    ['grant select on t to u', 'postgres'],
+    ['REVOKE select on t from u', 'mysql'],
+  ]) assert.equal(changesSchema(sql, d), true, sql);
+  for (const [sql, d] of [
+    ['insert into t values (1)', 'postgres'],
+    ['update t set a = 1 where b = 2', 'mysql'],
+    ['select 1', 'postgres'],
+    ['begin', 'postgres'],
+    ["select 'create table'", 'postgres'],
+  ]) assert.equal(changesSchema(sql, d), false, sql);
+  assert.equal(firstKeyword('/* x */ COMMIT', 'postgres'), 'commit');
+  assert.equal(firstKeyword('42', 'postgres'), '');
+});

@@ -1,6 +1,8 @@
 // manifest.json, devtools HTML, package.json metadata, and the packaging allow/deny lists.
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const { read, readManifest, readPkg, exists } = require('./helpers/source');
@@ -267,4 +269,48 @@ test('options page reads and writes the shared React preference record', () => {
   assert.match(settings, /captureFetch/);
   assert.match(settings, /slowThreshold/);
   assert.doesNotMatch(settings, /autoOpen/);
+});
+
+test('M3 helper: pinned extension key, optional nativeMessaging, one ID everywhere', () => {
+  const crypto = require('node:crypto');
+  const manifest = readManifest();
+
+  assert.deepEqual(manifest.optional_permissions, ['nativeMessaging']);
+  assert.ok(!manifest.permissions.includes('nativeMessaging'), 'never required at install time');
+
+  // Chrome derives the extension ID from the manifest key: sha256 of the DER
+  // SubjectPublicKeyInfo, first 32 hex chars, each of 0-f mapped onto a-p.
+  assert.match(manifest.key, /^[A-Za-z0-9+/]+=*$/);
+  const der = Buffer.from(manifest.key, 'base64');
+  const key = crypto.createPublicKey({ key: der, format: 'der', type: 'spki' });
+  assert.equal(key.asymmetricKeyType, 'rsa');
+  assert.equal(key.asymmetricKeyDetails.modulusLength, 2048);
+  const id = crypto.createHash('sha256').update(der).digest('hex').slice(0, 32)
+    .replace(/[0-9a-f]/g, (c) => String.fromCharCode('a'.charCodeAt(0) + parseInt(c, 16)));
+  assert.match(id, /^[a-p]{32}$/);
+
+  assert.match(read('helper/install/install.sh'), new RegExp(`^XRAY_EXTENSION_ID="${id}"$`, 'm'));
+  assert.match(read('helper/install/install.ps1'), new RegExp(`^\\$XrayExtensionId = '${id}'$`, 'm'));
+  assert.match(read('src/panel/models/sqlProfiles.ts'),
+    new RegExp(`export const HELPER_EXTENSION_ID = '${id}'`));
+});
+
+test('M3 helper: the release zip is extension-only and never ships helper/ or a private key', () => {
+  const script = read('scripts/package-extension.mjs');
+  const list = script.match(/const allowList = \[([\s\S]*?)\];/)[1];
+  assert.doesNotMatch(list, /helper/);
+  assert.doesNotMatch(list, /\.pem/);
+  assert.doesNotMatch(list, /install/);
+});
+
+test('M3 SQL manager: the release ships background/sql-manager.js, which background.js imports', () => {
+  // Ruling M3-R3: only the manager file, not a growing background/ folder.
+  const list = read('scripts/package-extension.mjs').match(/const allowList = \[([\s\S]*?)\];/)[1];
+  assert.match(list, /'background\/sql-manager\.js'/);
+  assert.doesNotMatch(list, /'background\/?'/);
+  // Copy-Item would flatten a nested file, so the PowerShell script copies the
+  // folder; it must therefore hold nothing but the manager.
+  assert.match(read('scripts/package-extension.ps1'), /\$allowList = @\([^)]*"background"/);
+  assert.deepEqual(fs.readdirSync(path.join(__dirname, '..', 'background')), ['sql-manager.js']);
+  assert.match(read('background.js'), /importScripts\('background\/sql-manager\.js'\)/);
 });

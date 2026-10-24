@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { shopDatabaseBytes } from '../helpers/sqliteFixture.mjs';
+import { extensionCopyWithNativeMessaging, registerNativeHost } from '../helpers/nativeHost.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -222,6 +223,9 @@ test('the framed client keeps its open database across tab switches', { timeout:
   await frameEl.waitFor();
   const frame = page.frameLocator('iframe[title="SQL client"]');
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  // The pop-out is an extension page: saved connections are offered there.
+  await frame.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Open in window', exact: true }).count(), 0);
   await frame.locator('input[type="file"]').setInputFiles(shopPath);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   // Marks this document: a reloaded or re-created frame would lose it.
@@ -242,9 +246,9 @@ test('the framed client keeps its open database across tab switches', { timeout:
 });
 
 // Opens the in-page HUD on a fixture page and returns a clicker that reaches into its closed shadow
-// root. `inline` writes settings.sqlInlineInHud through the storage the panel reads before the page
+// root. `inline` writes the worker-owned sql_hud_options (Ruling M3-R28) before the page
 // loads; `csp` serves the fixture with that Content-Security-Policy header.
-async function openHud(t, { inline = false, csp = null } = {}) {
+async function openHud(t, { inline = false, csp = null, databases = false } = {}) {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html', ...(csp ? { 'content-security-policy': csp } : {}) });
     // The page records every window message it receives: the SQL frame must never post to it.
@@ -257,7 +261,8 @@ async function openHud(t, { inline = false, csp = null } = {}) {
   if (inline) {
     const worker = context.serviceWorkers()[0];
     // themeRefreshPending is stored too, or the record reads as settings from before the theme refresh.
-    await worker.evaluate(() => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: true, themeRefreshPending: false } } }));
+    // Ruling M3-R28: the worker owns these options (sql_hud_options); set as the options page would.
+    await worker.evaluate((db) => chrome.storage.local.set({ sql_hud_options: { sqlInlineInHud: true, sqlDatabasesInHud: db } }), databases);
   }
   const page = context.pages()[0] || (await context.newPage());
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
@@ -346,6 +351,9 @@ async function assertInlineClientWorks(t, options) {
   assert.ok(box && box.width > 200 && box.height > 200, `the frame fills the tab: ${JSON.stringify(box)}`);
 
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  // Inside a web page the client offers files only: saved connections open in the XRAY window.
+  await frame.getByRole('button', { name: 'Open in window', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Connect to a database' }).count(), 0, 'no Connect inside the page');
   await frame.locator('input[type="file"]').setInputFiles(shopPath);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   assert.equal(context.pages().length, pagesBefore, 'no window opened');
@@ -374,11 +382,20 @@ test('with the inline option off, sql.html framed by a web page shows a notice i
   await click('#xray-tab-sql', null);
   const frame = await sqlFrameOf(page);
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
-  await context.serviceWorkers()[0].evaluate(() => chrome.storage.local.set({ xray_react_panel_preferences: { settings: { sqlInlineInHud: false, themeRefreshPending: false } } }));
+  await context.serviceWorkers()[0].evaluate(() => chrome.storage.local.set({ sql_hud_options: { sqlInlineInHud: false, sqlDatabasesInHud: false } }));
   await frame.evaluate(() => location.reload());
   const reloaded = await sqlFrameOf(page);
   await reloaded.getByText('The SQL client is not enabled for this page.', { exact: true }).waitFor();
   assert.equal(await reloaded.getByRole('button', { name: 'Open SQLite file' }).count(), 0, 'no client');
+});
+
+// Ruling M3-R27: with the second opt-in on too, the inline client offers saved connections.
+test('with both HUD options on, the inline client offers Connect to a database', { timeout: 120_000 }, async (t) => {
+  const { page, click } = await openHud(t, { inline: true, databases: true });
+  await click('#xray-tab-sql', null);
+  const frame = await sqlFrameOf(page);
+  await frame.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Open in window', exact: true }).count(), 0);
 });
 
 test('a page CSP of frame-src \'none\' does not block the inline client', { timeout: 120_000 }, async (t) => {
@@ -430,7 +447,7 @@ test('a file that is not a database is refused and the next one still opens', { 
 test('the first screen welcomes, and the editor/results divider steps with the keyboard and persists', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   // Before a file is open: the welcome holds the one open button; the header shows just the brand.
-  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Open a database', exact: true }).waitFor();
   await page.getByText('or drop a .sqlite / .db file anywhere on this page', { exact: true }).waitFor();
   await page.getByText('Files open read-only. Nothing leaves your machine.', { exact: true }).waitFor();
   await page.getByText('No database open.', { exact: true }).waitFor();
@@ -612,7 +629,7 @@ test('a fresh tab offers quick starts that insert SQL without running it, and th
 
 test('dropping files opens the first through the open path, and the rail filters tables', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
-  await page.getByRole('heading', { name: 'Open a SQLite database', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Open a database', exact: true }).waitFor();
 
   // A drop built in the page from the fixture's bytes, with a second file that is ignored.
   await page.evaluate((bytes) => {
@@ -723,6 +740,281 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
   assert.equal(await page.getByRole('heading', { name: 'Recent', exact: true }).count(), 0, 'removed for good');
 });
 
+// ---------------------------------------------------------------- Postgres/MySQL (Task 9)
+// A temp copy of the extension with nativeMessaging granted, and a profile whose NativeMessagingHosts
+// folder registers test/fixtures/fake-helper.mjs (unless `helper` is false: "helper missing"). The
+// real service worker and connection manager run against the fake.
+// The fake helper appends each request to `helperLog` as JSON, a connect's password redacted to
+// "<redacted:N>"; helperRequests() reads it back.
+async function openRemotePage(t, { helper = true, protocol = 1 } = {}) {
+  const ext = extensionCopyWithNativeMessaging();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xray-e2e-sql-remote-'));
+  const helperLog = path.join(userDataDir, 'fake-helper.log');
+  if (helper) registerNativeHost(userDataDir);
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: true,
+    channel: 'chromium',
+    viewport: { width: 1280, height: 900 },
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--no-sandbox'],
+    // Chrome starts the native host with its own environment.
+    env: { ...process.env, FAKE_HELPER_LOG: helperLog, FAKE_HELPER_PROTOCOL: String(protocol) },
+  });
+  t.after(async () => {
+    await context.close();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+    fs.rmSync(ext, { recursive: true, force: true });
+  });
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker', { timeout: 30_000 }));
+  const extensionId = new URL(worker.url()).host;
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/sql.html`);
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  const readHelperLog = () => (fs.existsSync(helperLog) ? fs.readFileSync(helperLog, 'utf8') : '');
+  const helperRequests = () =>
+    readHelperLog()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  return { context, page, worker, readHelperLog, helperRequests };
+}
+
+// The worker's stored profiles and session-only secrets.
+const storedSql = (worker) =>
+  worker.evaluate(async () => ({
+    local: (await chrome.storage.local.get('sql_connections')).sql_connections ?? null,
+    session: (await chrome.storage.session.get('sql_session_secrets')).sql_session_secrets ?? null,
+  }));
+
+const SUPABASE = 'postgresql://postgres.abcdefgh:s3cret%21@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require';
+const LINUX_INSTALL = ['curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh', 'bash'].join(' | ');
+
+async function openConnectionDialog(page) {
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
+  await dialog.waitFor();
+  return dialog;
+}
+
+// Fills the dialog by pasting a connection string, then names the connection.
+async function fillConnection(dialog, { url, name, savePassword = true }) {
+  await dialog.getByLabel('Connection string', { exact: true }).fill(url);
+  await dialog.getByLabel('Name', { exact: true }).fill(name);
+  const save = dialog.getByRole('checkbox', { name: 'Save password', exact: true });
+  if ((await save.isChecked()) !== savePassword) await save.click();
+}
+
+test('the connection dialog fills its fields from a pasted connection string and tests it', { timeout: 120_000 }, async (t) => {
+  const { page, worker, readHelperLog, helperRequests } = await openRemotePage(t);
+  const before = await storedSql(worker);
+  const dialog = await openConnectionDialog(page);
+  const box = dialog.getByLabel('Connection string', { exact: true });
+  await box.fill('redis://localhost');
+  await dialog.getByText('Use a postgres:// or mysql:// connection string.', { exact: true }).waitFor();
+
+  await box.fill(SUPABASE);
+  assert.equal(await dialog.getByText('Use a postgres:// or mysql:// connection string.').count(), 0, 'the error clears');
+  // The string (and the password in it) leaves the box once it has filled the fields.
+  await dialog.getByText('Filled in the fields below.', { exact: true }).waitFor();
+  assert.equal(await box.inputValue(), '', 'the paste box is cleared');
+  assert.equal(await dialog.getByRole('radio', { name: 'PostgreSQL', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByLabel('Host', { exact: true }).inputValue(), 'aws-0-us-east-1.pooler.supabase.com');
+  assert.equal(await dialog.getByLabel('Port', { exact: true }).inputValue(), '6543');
+  assert.equal(await dialog.getByLabel('Database', { exact: true }).inputValue(), 'postgres');
+  assert.equal(await dialog.getByLabel('User', { exact: true }).inputValue(), 'postgres.abcdefgh');
+  assert.equal(await dialog.getByLabel('Password', { exact: true }).inputValue(), 's3cret!');
+  assert.equal(await dialog.getByLabel('Name', { exact: true }).inputValue(), 'postgres@aws-0-us-east-1.pooler.supabase.com');
+  assert.equal(await dialog.getByRole('radio', { name: 'Require', exact: true }).isChecked(), true);
+  // TLS can be turned off only for a server on this computer.
+  assert.equal(await dialog.getByRole('radio', { name: 'Disable', exact: true }).isDisabled(), true);
+  await dialog
+    .getByText('This server is not on this computer, so XRAY requires TLS. Choose Require or Verify full.', { exact: true })
+    .waitFor();
+  assert.equal(await dialog.getByRole('switch', { name: 'Read-only', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByRole('checkbox', { name: 'Save password', exact: true }).isChecked(), true);
+  assert.equal(await dialog.getByLabel('CA file path', { exact: true }).count(), 0, 'CA file only for Verify full');
+  await dialog.getByRole('radio', { name: 'Verify full', exact: true }).check();
+  await dialog.getByLabel('CA file path', { exact: true }).waitFor();
+
+  await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await dialog.getByRole('status').getByText('Connected — PostgreSQL 16.4', { exact: true }).waitFor();
+  await dialog.getByLabel('Password', { exact: true }).fill('wrong');
+  await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await dialog.getByText('Password authentication failed for user "postgres".', { exact: true }).waitFor();
+
+  // A Test stores nothing: no profile, no secret.
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  assert.deepEqual(await storedSql(worker), before, 'sql_connections and sql_session_secrets are unchanged');
+  // The helper saw a read-only connect and an immediate close for each Test. The password went only
+  // inside connect (logged redacted, by length), and nowhere else.
+  const requests = helperRequests().filter((r) => r.op !== 'hello');
+  assert.deepEqual(
+    requests.map((r) => [r.op, r.password, r.readOnly]),
+    [
+      ['connect', '<redacted:7>', true],
+      ['close', undefined, undefined],
+      ['connect', '<redacted:5>', true],
+    ],
+  );
+  assert.equal(requests[0].host, 'aws-0-us-east-1.pooler.supabase.com');
+  assert.doesNotMatch(readHelperLog(), /s3cret|wrong/);
+  await page.reload();
+  await page.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  await sleep(500);
+  assert.equal(await page.getByRole('region', { name: 'Saved connections' }).count(), 0, 'nothing was saved');
+});
+
+test('without the helper, the welcome screen and the dialog show the install card', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t, { helper: false });
+  const card = page.getByRole('region', { name: 'Install the XRAY database helper', exact: true });
+  // Nothing asks for the helper until someone wants a connection: no saved ones, no dialog yet.
+  await sleep(500);
+  assert.equal(await card.count(), 0, 'no status check on a bare welcome screen');
+  const first = await openConnectionDialog(page);
+  await first.getByRole('region', { name: 'Install the XRAY database helper', exact: true }).waitFor();
+  await first.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await card.waitFor();
+  await card
+    .getByText('Postgres and MySQL need a small helper app on this computer. Run this once in a terminal, then click Retry.', { exact: true })
+    .waitFor();
+  assert.equal(await card.locator('code').textContent(), LINUX_INSTALL);
+  assert.equal(
+    await card.getByRole('link', { name: 'What does it install?', exact: true }).getAttribute('href'),
+    'https://github.com/rahuldr07/xray-extension/tree/main/helper#readme',
+  );
+  await card.getByRole('button', { name: 'Copy', exact: true }).waitFor();
+  await card.getByRole('button', { name: 'Retry', exact: true }).click();
+  await card.waitFor();
+
+  const dialog = await openConnectionDialog(page);
+  const inDialog = dialog.getByRole('region', { name: 'Install the XRAY database helper', exact: true });
+  await inDialog.waitFor();
+  assert.equal(await inDialog.locator('code').textContent(), LINUX_INSTALL);
+});
+
+test('a saved connection connects, lists in the source menu and on the welcome screen, and Fetch more appends rows', { timeout: 180_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app:pw@db.example.com:5432/shop', name: 'Shop PG' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source', { hasText: 'Shop PG · PostgreSQL 16.4 · db.example.com' }).waitFor();
+  await railItem(page, 'orders').waitFor();
+
+  // 25 rows behind a 10-row limit: Fetch more pulls the rest through the open cursor.
+  const maxRows = page.getByRole('spinbutton');
+  await maxRows.fill('10');
+  await maxRows.press('Enter');
+  await runSql(page, 'select * from public.orders');
+  await assertEventually(async () => /^10 rows/.test((await summary(page).textContent()) ?? ''), 'first page of 10 rows');
+  assert.doesNotMatch((await summary(page).textContent()) ?? '', /Run with higher limit/);
+  const fetchMore = page.getByRole('button', { name: 'Fetch more', exact: true });
+  await fetchMore.waitFor();
+  // The cursor belongs to the tab that ran the query: another tab shows no Fetch more.
+  await page.getByRole('button', { name: 'New query tab', exact: true }).click();
+  assert.equal(await fetchMore.count(), 0, 'no Fetch more on another tab');
+  await page.getByRole('tab', { name: 'Query 1', exact: true }).click();
+  await fetchMore.click();
+  await assertEventually(async () => /^25 rows/.test((await summary(page).textContent()) ?? ''), 'all 25 rows after Fetch more');
+  await fetchMore.waitFor({ state: 'detached' });
+  await page.getByRole('gridcell', { name: 'customer 25', exact: true }).waitFor();
+
+  // The source menu: files, then connections.
+  await page.locator('.xray-sql-source').click();
+  const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+  await menu.getByRole('group', { name: 'Files', exact: true }).getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  const conns = menu.getByRole('group', { name: 'Connections', exact: true });
+  await conns.getByRole('button', { name: /^Shop PG/ }).waitFor();
+  await conns.getByRole('button', { name: 'New connection…', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // The helper dies: the banner offers Reconnect, which starts it again.
+  await runSql(page, 'select pg_crash_helper() from orders');
+  const banner = page.getByRole('alert').filter({ hasText: 'Connection lost.' });
+  await banner.waitFor();
+  await banner.getByRole('button', { name: 'Reconnect', exact: true }).click();
+  await banner.waitFor({ state: 'detached' });
+  await runSql(page, 'select * from public.orders');
+  await assertEventually(async () => /^10 rows/.test((await summary(page).textContent()) ?? ''), 'queries run after Reconnect');
+
+  await page.reload();
+  const saved = page.getByRole('region', { name: 'Saved connections', exact: true });
+  const item = saved.getByRole('button', { name: /^Shop PG/ });
+  await item.waitFor();
+  assert.match(await item.textContent(), /PostgreSQL.*db\.example\.com/);
+  await item.click();
+  await railItem(page, 'orders').waitFor();
+});
+
+test('a connection without a saved password asks for it, and can be deleted from the source menu', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app@db.example.com/shop', name: 'No secret' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Password for No secret', exact: true });
+  await prompt.waitFor();
+  assert.equal(await prompt.getByRole('checkbox', { name: 'Remember on this computer', exact: true }).isChecked(), false);
+  await prompt.getByLabel('Password', { exact: true }).fill('typed');
+  await prompt.getByRole('button', { name: 'Connect', exact: true }).click();
+  await prompt.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source', { hasText: 'No secret · PostgreSQL 16.4 · db.example.com' }).waitFor();
+
+  await page.locator('.xray-sql-source').click();
+  const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+  await menu.getByRole('button', { name: 'More actions for No secret', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+  const confirm = page.getByRole('dialog', { name: 'Delete No secret?', exact: true });
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await confirm.waitFor({ state: 'detached' });
+  await page.locator('.xray-sql-source').click();
+  const after = page.getByRole('dialog', { name: 'Databases', exact: true }).getByRole('group', { name: 'Connections', exact: true });
+  await after.getByRole('button', { name: 'New connection…', exact: true }).waitFor();
+  assert.equal(await after.getByRole('button', { name: /^No secret/ }).count(), 0, 'the profile is gone');
+});
+
+// Ruling M3-R24: a saved password is bound to its server (engine, host, port, user).
+test('editing a saved connection to point at another server never sends it the saved password', { timeout: 120_000 }, async (t) => {
+  const { page, helperRequests } = await openRemotePage(t);
+  const create = await openConnectionDialog(page);
+  await fillConnection(create, { url: 'postgres://postgres:savedpw@db.example.com:5432/shop', name: 'Shop' });
+  await create.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await page.locator('.xray-sql-source', { hasText: 'Shop · PostgreSQL 16.4 · db.example.com' }).waitFor();
+
+  const openEdit = async () => {
+    await page.locator('.xray-sql-source').click();
+    const menu = page.getByRole('dialog', { name: 'Databases', exact: true });
+    await menu.getByRole('button', { name: 'More actions for Shop', exact: true }).click();
+    await menu.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit connection', exact: true });
+    await dialog.waitFor();
+    return dialog;
+  };
+
+  // Unchanged server: Test uses the saved password.
+  let edit = await openEdit();
+  assert.equal(await edit.getByLabel('Host', { exact: true }).inputValue(), 'db.example.com');
+  assert.equal(await edit.getByLabel('Password', { exact: true }).getAttribute('placeholder'), 'Saved — type to replace');
+  await edit.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await edit.getByRole('status').getByText('Connected — PostgreSQL 16.4', { exact: true }).waitFor();
+
+  // Another host, no password typed: refused before anything reaches the helper.
+  const connectsBefore = helperRequests().filter((r) => r.op === 'connect').length;
+  await edit.getByLabel('Connection string', { exact: true }).fill('postgres://postgres@other.example:5432/db');
+  assert.equal(await edit.getByLabel('Host', { exact: true }).inputValue(), 'other.example');
+  await edit.getByRole('button', { name: 'Test connection', exact: true }).click();
+  await edit.getByRole('status').getByText(/^Enter the password for /).waitFor();
+  assert.equal(helperRequests().filter((r) => r.op === 'connect').length, connectsBefore, 'the cross-host Test sent no connect');
+
+  // Save & connect drops the saved password with the server change, so it asks for one.
+  await edit.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: /^Password for / });
+  await prompt.waitFor();
+  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const toOther = helperRequests().filter((r) => r.op === 'connect' && r.host === 'other.example');
+  assert.deepEqual(toOther, [], 'other.example never received a connect');
+  assert.ok(helperRequests().every((r) => r.op !== 'connect' || r.host === 'db.example.com'));
+});
+
 async function assertEventually(check, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -731,3 +1023,42 @@ async function assertEventually(check, label, timeout = 15_000) {
   }
   assert.fail(`timed out: ${label}`);
 }
+
+test('an open transaction asks before Read-only switches sessions, and before the page closes', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t);
+  const dialog = await openConnectionDialog(page);
+  await fillConnection(dialog, { url: 'postgres://app:pw@db.example.com:5432/shop', name: 'Shop PG' });
+  await dialog.getByRole('button', { name: 'Save & connect', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await railItem(page, 'orders').waitFor();
+  await runSql(page, 'begin');
+  await assertEventually(async () => /rows affected/.test((await summary(page).textContent()) ?? ''), 'BEGIN ran');
+
+  await page.getByRole('switch', { name: 'Read-only', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Discard the open transaction?', exact: true });
+  await prompt.getByText('Its changes will be rolled back.', { exact: true }).waitFor();
+  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await prompt.waitFor({ state: 'detached' });
+
+  // Closing the page asks too (the browser's own leave-page dialog).
+  const asked = new Promise((resolve) => page.once('dialog', async (d) => { resolve(d.type()); await d.dismiss(); }));
+  await page.close({ runBeforeUnload: true });
+  assert.equal(await asked, 'beforeunload');
+  assert.equal(page.isClosed(), false, 'dismissing the dialog keeps the page');
+
+  // After COMMIT nothing is open: the switch reconnects without asking.
+  await runSql(page, 'commit');
+  await assertEventually(async () => /rows affected/.test((await summary(page).textContent()) ?? ''), 'COMMIT ran');
+  const toggle = page.getByRole('switch', { name: 'Read-only', exact: true });
+  await toggle.click();
+  await assertEventually(async () => !(await toggle.isChecked()), 'Read-only off after COMMIT');
+  assert.equal(await prompt.count(), 0, 'no prompt without an open transaction');
+});
+
+test('an outdated helper shows the update card with the update copy', { timeout: 120_000 }, async (t) => {
+  const { page } = await openRemotePage(t, { protocol: 2 });
+  const dialog = await openConnectionDialog(page);
+  const card = dialog.getByRole('region', { name: 'Update the XRAY database helper', exact: true });
+  await card.waitFor();
+  await card.getByText('Postgres and MySQL need a small helper app on this computer. Run this again to update, then click Retry.', { exact: true }).waitFor();
+});

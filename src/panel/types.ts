@@ -399,10 +399,15 @@ export interface PanelSettings {
    */
   themeRefreshPending: boolean;
   /**
-   * Frame the SQL client inline in the in-page HUD instead of opening it in its own window. Opt-in:
-   * it makes sql.html web-accessible to pages (dynamic URL only), so any site could embed the client.
+   * Legacy: frame the SQL client inline in the in-page HUD. Since Ruling M3-R28 the effective value
+   * is the service worker's `sql_hud_options` key; this stored value only seeds it once.
    */
   sqlInlineInHud: boolean;
+  /**
+   * Legacy: allow saved database connections in the HUD's inline client (Ruling M3-R27). Since
+   * Ruling M3-R28 the effective value is the service worker's `sql_hud_options` key.
+   */
+  sqlDatabasesInHud: boolean;
 }
 
 export type DockSide = 'left' | 'right';

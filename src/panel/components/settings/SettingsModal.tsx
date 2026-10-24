@@ -31,6 +31,7 @@ import { copyText } from '../../utils';
 import { XRAY_BUILD, XRAY_VERSION } from '../../version';
 import type { AiSettings, CustomTheme, PanelAccent, PanelDensity, PanelFont, PanelSettings } from '../../types';
 import { ModalShell } from '../common/ModalShell';
+import { useSqlHudOptions, writeSqlHudOptions, type SqlHudOptions } from '../../runtime/sqlHudOptions';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
 
@@ -162,6 +163,14 @@ export function SettingsModal(): React.ReactElement | null {
   const pinnedIds = usePanelStore((state) => state.pinnedIds);
   const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
   const showToast = usePanelStore((state) => state.showToast);
+  // The HUD SQL options are the service worker's (Ruling M3-R28); the toggles write through it.
+  const sqlHud = useSqlHudOptions();
+  const setSqlHud = (patch: Partial<SqlHudOptions>): void => {
+    writeSqlHudOptions(patch).catch((err: unknown) => showToast(err instanceof Error ? err.message : String(err)));
+  };
+  const openOptionsPage = (): void => {
+    if (typeof chrome !== 'undefined') chrome.runtime?.sendMessage?.({ type: 'XRAY_OPEN_OPTIONS' }, () => void chrome.runtime?.lastError);
+  };
   const settingsSection = usePanelStore((state) => state.settingsSection);
   const settingsSectionHint = usePanelStore((state) => state.settingsSectionHint);
   const consumeSettingsSectionHint = usePanelStore((state) => state.consumeSettingsSectionHint);
@@ -252,7 +261,46 @@ export function SettingsModal(): React.ReactElement | null {
               <SettingsSectionTitle label="General" />
               <NumberRow label="Slow threshold" desc="Requests at or above this are marked slow in the list, Insights and Findings." value={settings.slowThresholdMs} min={100} max={5000} step={50} suffix="ms" onChange={(value) => updateSettings({ slowThresholdMs: value })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing captured data, console output, pins, rules, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
-              <ToggleRow label="Show SQL client inside the page HUD" desc="Shows the client in a frame inside the page instead of a separate window. The page cannot read the frame, but any site could embed the client." checked={settings.sqlInlineInHud} onChange={(value) => updateSettings({ sqlInlineInHud: value })} />
+              {surface === 'hud' ? (
+                // The in-page panel runs inside the web page, so it cannot change who reaches the
+                // SQL client there (Ruling M3-R28): the options page, DevTools or the pop-out can.
+                <div className="xray-settings-row">
+                  <span>
+                    <strong>SQL client in the page HUD</strong>
+                    <small>
+                      Change this in{' '}
+                      <button type="button" className="xray-link-btn" onClick={openOptionsPage}>
+                        XRAY&apos;s settings page
+                      </button>
+                      .
+                    </small>
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <ToggleRow label="Show SQL client inside the page HUD" desc="Shows the client in a frame inside the page instead of a separate window. The page cannot read the frame, but any site could embed the client." checked={sqlHud.sqlInlineInHud} onChange={(value) => setSqlHud({ sqlInlineInHud: value })} />
+                  <ToggleRow
+                    label="Allow saved database connections in the page HUD"
+                    desc={sqlHud.sqlInlineInHud ? HUD_DATABASES_WARNING : 'Turn on the option above first.'}
+                    checked={sqlHud.sqlDatabasesInHud}
+                    disabled={!sqlHud.sqlInlineInHud}
+                    onChange={(value) => {
+                      if (!value) {
+                        setSqlHud({ sqlDatabasesInHud: false });
+                        return;
+                      }
+                      requestConfirmation({
+                        title: 'Allow saved database connections in the page HUD?',
+                        message: HUD_DATABASES_WARNING,
+                        confirmLabel: 'Allow',
+                        cancelLabel: 'Cancel',
+                        always: true,
+                        onConfirm: () => setSqlHud({ sqlDatabasesInHud: true }),
+                      });
+                    }}
+                  />
+                </>
+              )}
             </>
           )}
           {section === 'capture' && (
@@ -746,11 +794,14 @@ function SettingsSectionTitle({ label }: { label: string }): React.ReactElement 
   return <div className="xray-settings-section-title">{label}</div>;
 }
 
-function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange(value: boolean): void }): React.ReactElement {
+// Ruling M3-R27: shown as the hint of the HUD databases option and in its confirmation.
+const HUD_DATABASES_WARNING = 'The page you are on cannot read the client, but it could try to trick you into clicking it. Keep connections read-only, or leave this off.';
+
+function ToggleRow({ label, desc, checked, disabled = false, onChange }: { label: string; desc: string; checked: boolean; disabled?: boolean; onChange(value: boolean): void }): React.ReactElement {
   return (
     <div className="xray-settings-row">
       <span><strong>{label}</strong><small>{desc}</small></span>
-      <button className={`xray-toggle ${checked ? 'on' : ''}`} aria-label={label} aria-pressed={checked} onClick={() => onChange(!checked)} />
+      <button className={`xray-toggle ${checked ? 'on' : ''}`} aria-label={label} aria-pressed={checked} disabled={disabled} onClick={() => onChange(!checked)} />
     </div>
   );
 }

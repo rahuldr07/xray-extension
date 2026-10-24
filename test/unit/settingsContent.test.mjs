@@ -368,3 +368,45 @@ test('options page: every picked swatch reads on the Save button and as its focu
   }
   assert.deepEqual(problems, []);
 });
+
+// Ruling M3-R28: the HUD SQL options are changed here, through the service worker, at once.
+test('options page changes the HUD SQL options through the worker, and asks before allowing databases', async () => {
+  const vm = await import('node:vm');
+  const sent = [];
+  let options = { sqlInlineInHud: false, sqlDatabasesInHud: false };
+  const runtime = { sendMessage(msg, cb) {
+    sent.push(msg);
+    if (msg.type === 'xray:sql-hud-options:set') options = { ...options, ...msg.options };
+    cb({ ok: true, value: options });
+  } };
+  const elements = {};
+  const element = (id) => (elements[id] ??= {
+    id, value: '', checked: false, disabled: false, textContent: '', options: [], listeners: {}, opened: 0,
+    classList: { add() {}, remove() {} },
+    appendChild(option) { this.options.push(option); },
+    addEventListener(type, fn) { this.listeners[type] = fn; },
+    showModal() { this.opened++; },
+    close() {},
+  });
+  const context = {
+    document: { getElementById: element, createElement: () => ({}), documentElement: { style: { setProperty() {}, removeProperty() {} } } },
+    chrome: { runtime, storage: { local: { get: async () => ({}), set: async () => {} } } },
+    setTimeout: () => 0, structuredClone,
+  };
+  await vm.runInNewContext(readFileSync(new URL('../../settings/settings.js', import.meta.url), 'utf8'), context);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(element('sqlDatabasesInHud').disabled, true, 'needs the inline option first');
+  element('sqlInlineInHud').checked = true;
+  await element('sqlInlineInHud').listeners.change();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'xray:sql-hud-options:set', options: { sqlInlineInHud: true } });
+  assert.equal(element('sqlDatabasesInHud').disabled, false);
+  assert.match(element('sqlDatabasesHint').textContent, /could try to trick you into clicking it/);
+  element('sqlDatabasesInHud').checked = true;
+  element('sqlDatabasesInHud').listeners.change();
+  assert.equal(element('hudDialog').opened, 1, 'asks first');
+  assert.equal(options.sqlDatabasesInHud, false, 'not on before Allow');
+  await element('hudAllow').listeners.click();
+  assert.equal(options.sqlDatabasesInHud, true);
+  assert.equal(element('sqlDatabasesInHud').checked, true);
+});

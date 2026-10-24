@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconCopy, IconFilter, IconX } from '@tabler/icons-react';
-import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
+import { IconArrowBarToDown, IconCopy, IconFilter, IconPlugConnectedX, IconRefresh, IconX } from '@tabler/icons-react';
+import { connectionDialect, resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
 import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
 import { cellCopyText, columnsKey, filteredSummary, nextSort, primaryKeyColumns, viewOrder } from '../../models/sqlGrid';
@@ -12,7 +12,7 @@ type CopyFormat = 'CSV' | 'JSON' | 'INSERT';
 
 function copyText(format: CopyFormat, result: QueryResult, table: string): { text: string; truncated: number } {
   if (format === 'INSERT') {
-    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, 'sqlite');
+    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, connectionDialect(usePanelSqlStore.getState().connection));
     return { text, truncated: truncatedBlobs };
   }
   const text = format === 'CSV' ? toCsv(result.columns, result.rows) : toJsonRows(result.columns, result.rows);
@@ -121,7 +121,11 @@ function ResultsView(): React.ReactElement {
   const schema = usePanelSqlStore((s) => s.schema);
   const filter = usePanelSqlStore((s) => s.rowFilter);
   const gridView = usePanelSqlStore((s) => s.gridView);
-  const { setRowFilter, setGridView } = usePanelSqlStore.getState();
+  const canFetchMore = usePanelSqlStore((s) => s.canFetchMore);
+  // The cursor belongs to the tab that ran the statement; Fetch more shows only there.
+  const onCursorTab = usePanelSqlStore((s) => s.activeTabId === s.cursorTabId);
+  const running = usePanelSqlStore((s) => !!s.running);
+  const { setRowFilter, setGridView, fetchMore } = usePanelSqlStore.getState();
   const [hint, setHint] = useState(!inspectedOnce);
   const [toast, setToast] = useState<string[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -195,8 +199,20 @@ function ResultsView(): React.ReactElement {
       <div className="xray-sql-results-head">
         <span className="xray-sql-results-summary">
           {filtering && hasColumns ? filteredSummary(viewRows.length, result.rows.length, result.durationMs) : resultSummary(result)}
-          {result.hasMore ? ' · more rows available, Run with higher limit' : ''}
+          {result.hasMore ? (canFetchMore ? ' · more rows available' : ' · more rows available, Run with higher limit') : ''}
         </span>
+        {canFetchMore && onCursorTab && (
+          <button
+            type="button"
+            className="xray-btn xray-btn-sm xray-sql-fetch-more"
+            disabled={running}
+            title="Fetch the next 1,000 rows from the open cursor"
+            onClick={() => void fetchMore()}
+          >
+            <IconArrowBarToDown size={13} stroke={1.8} aria-hidden="true" />
+            Fetch more
+          </button>
+        )}
         <MaxRowsInput />
         {hasColumns && (
           <label className="xray-sql-filter">
@@ -333,6 +349,25 @@ const TABS: { id: SqlBottomTab; label: string }[] = [
   { id: 'history', label: 'History' },
 ];
 
+// The remote session died (helper, worker or server gone). Tabs and results stay; Reconnect opens
+// a new session for the same connection.
+function ConnectionLostBanner(): React.ReactElement | null {
+  const lost = usePanelSqlStore((s) => s.connectionLost && s.connection?.kind === 'remote');
+  const busy = usePanelSqlStore((s) => !!s.running || s.opening);
+  const reconnect = usePanelSqlStore((s) => s.reconnect);
+  if (!lost) return null;
+  return (
+    <div className="xray-sql-lost" role="alert">
+      <IconPlugConnectedX size={15} stroke={1.8} aria-hidden="true" />
+      <span>Connection lost.</span>
+      <button type="button" className="xray-btn xray-btn-sm" disabled={busy} onClick={() => void reconnect()}>
+        <IconRefresh size={13} stroke={1.8} aria-hidden="true" />
+        Reconnect
+      </button>
+    </div>
+  );
+}
+
 export function ResultsPane(): React.ReactElement {
   const bottomTab = usePanelSqlStore((s) => s.bottomTab);
   const running = usePanelSqlStore((s) => !!s.running);
@@ -361,6 +396,7 @@ export function ResultsPane(): React.ReactElement {
           </span>
         )}
       </div>
+      <ConnectionLostBanner />
       <div className="xray-sql-bottom-panel" id="xray-sql-bottom-panel" role="tabpanel" aria-labelledby={`xray-sql-tab-${bottomTab}`}>
         {bottomTab === 'results' && <ResultsView />}
         {bottomTab === 'messages' && <MessagesView />}

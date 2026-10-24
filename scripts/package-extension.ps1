@@ -14,6 +14,7 @@ $zip = Join-Path $OutDir "xray-extension-$version.zip"
 $allowList = @(
   "manifest.json",
   "background.js",
+  "background",
   "window.html",
   "sql.html",
   "content",

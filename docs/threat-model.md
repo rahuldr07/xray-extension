@@ -146,10 +146,168 @@ submission-ready wording lives in [store-listing.md](store-listing.md).
 | `windows` | The pop-out window | No |
 | `<all_urls>` | Capture is the product; it cannot know in advance which origins matter | No, but see C-14 on scoping *retention* |
 | CSP `'wasm-unsafe-eval'` (`extension_pages` only) | Lets SQLite-WASM compile in the SQL client's worker on `sql.html`. It does not apply to content scripts or to any web page, and allows no JS `eval`. `dist/sql-ui.js`, `dist/sql-worker.js` and `dist/sqlite3.wasm` are deliberately not web-accessible, so no page can load them; `sql.html` is, through its dynamic URL only, for the opt-in inline HUD (next row) | No, while the SQL client runs SQLite in the browser |
-| `web_accessible_resources`: `sql.html`, `use_dynamic_url: true`, `<all_urls>` | Lets the HUD frame the SQL client inline when the user turns on **Show SQL client inside the page HUD** (`sqlInlineInHud`, **off by default**). The page cannot read the cross-origin frame or the rows it shows. The resource is exposed whether or not the option is on, so treat it as: any site can embed the client. Chrome denies the static `chrome-extension://<id>/sql.html` URL to pages and serves only the per-session dynamic one, which the HUD keeps in its closed shadow root (it did not show in the page's `window.frames` or Resource Timing, observed on Chromium 151), but that is defence in depth, not a boundary. With the option off, sql.html refuses to run under a web origin (`location.ancestorOrigins`): it shows a notice and loads no stored SQL state, so the exposure is live only while the user has opted in. Clickjacking the client still requires the user to pick a file, and connections open read-only by default. Readiness is relayed through the extension runtime (sql.html → service worker, which checks the sender is a `chrome-extension:` `/sql.html` frame in a tab → the tab's top frame); nothing is posted to the page's window, so the page gets no `WindowProxy` to the frame and cannot swallow the signal. Once framed, the HUD keeps the frame until it is reopened, even if the option is turned off. Only `sql.html` is listed: its bundles, worker and wasm are loaded by the extension-origin document. A page's `frame-src` CSP does not block the frame (observed on Chromium 151); if it ever fails to load, the HUD falls back to the window after 4 s | Yes: drop the entry and the option, leaving the window |
+| `web_accessible_resources`: `sql.html`, `use_dynamic_url: true`, `<all_urls>` | Lets the HUD frame the SQL client inline when the user turns on **Show SQL client inside the page HUD** (`sqlInlineInHud`, **off by default**). The page cannot read the cross-origin frame or the rows it shows. The resource is exposed whether or not the option is on, so treat it as: any site can embed the client. Chrome denies the static `chrome-extension://<id>/sql.html` URL to pages and serves only the per-session dynamic one, which the HUD keeps in its closed shadow root (it did not show in the page's `window.frames` or Resource Timing, observed on Chromium 151), but that is defence in depth, not a boundary. With the option off, sql.html refuses to run under a web origin (`location.ancestorOrigins`): it shows a notice and loads no stored SQL state, so the exposure is live only while the user has opted in. Framed inside a web page, the client offers SQLite files only: the service worker refuses `profiles.*`, `connect`, `profiles.test` and `helper.status` from a port whose `sender.tab` is a web page, and the page shows an **Open in window** link instead of Connect and saved connections (unless the separate opt-in in the next row is on). Clickjacking the client then still requires the user to pick a file. Readiness is relayed through the extension runtime (sql.html → service worker, which checks the sender is a `chrome-extension:` `/sql.html` frame in a tab → the tab's top frame); nothing is posted to the page's window, so the page gets no `WindowProxy` to the frame and cannot swallow the signal. Once framed, the HUD keeps the frame until it is reopened, even if the option is turned off. Only `sql.html` is listed: its bundles, worker and wasm are loaded by the extension-origin document. A page's `frame-src` CSP does not block the frame (observed on Chromium 151); if it ever fails to load, the HUD falls back to the window after 4 s | Yes: drop the entry and the option, leaving the window |
+| Setting **Allow saved database connections in the page HUD** (`sqlDatabasesInHud`, **off by default**, effective only with `sqlInlineInHud` on) | Lets the HUD's inline client use saved Postgres/MySQL profiles and the helper (section 6). Off, a `sql.html` whose port's `sender.tab` is a web page is refused `profiles.*`, `connect`, `profiles.test` and `helper.status` by the service worker ("Database connections open in the XRAY window, not inside a web page."), and the page hides Connect and saved connections behind an **Open in window** link. On, the exposure grows: the page still cannot read the cross-origin frame, its rows or any password, but it can overlay or reposition it to trick the user into clicking Connect, a saved connection or Run (clickjacking). Turning it on asks for confirmation with that warning. Both options live in a key the service worker owns (`sql_hud_options`, Ruling M3-R28): it changes them only on a runtime message from an extension page outside a web tab (the options page, DevTools, the pop-out, `sql.html` opened directly), so the in-page panel, which runs in the web page's tab, shows only a link to the options page. Values stored in the panel's preferences before the move are migrated once. A content script can still write `chrome.storage.local` itself, so this is defence in depth against a confused or hijacked panel UI, not against a compromised content script. The worker reads both options each time a client connects its port, so turning either off applies from the client's next load. Connections still open read-only by default and passwords stay in the worker | Yes: leave it off (the default) |
+| `nativeMessaging` (`optional_permissions`) | Lets the service worker start `xray-db-helper`, the native host that connects the SQL client to Postgres and MySQL (section 6). It is optional: `sql.html` requests it on the first **Connect** or **Test connection** to a Postgres/MySQL profile, a user gesture, so users who only open SQLite files never grant it. Chrome starts only hosts whose manifest lists this extension in `allowed_origins` | Already optional; drop it together with Postgres/MySQL support |
 
 ---
 
-## 6. Reporting a vulnerability
+## 6. Database connections and the native helper
+
+The SQL client reaches Postgres and MySQL through `xray-db-helper`, a Go native-messaging host
+installed separately ([helper/README.md](../helper/README.md)). Three parts are involved. The page
+(`sql.html`) holds the editor and grid. The service worker's connection manager
+(`background/sql-manager.js`) holds profiles and secrets and owns the native port. The helper holds
+the database connections.
+
+### Assets
+
+- **Database passwords.** They are typed into the connection dialog or the password prompt, or
+  pasted inside a connection string.
+- **Query results**, and the schema the rail lists.
+
+### Where secrets live
+
+- A saved password lives in `chrome.storage.local` under `sql_connections`, with its profile.
+- With **Save password** off, the password lives in `chrome.storage.session` under
+  `sql_session_secrets`, so it is gone when the browser closes. `chrome.storage.session` is
+  available to trusted extension contexts only. The extension never calls `setAccessLevel` on it,
+  so content scripts cannot read it.
+- Stored database passwords are not encrypted at rest; encryption without a user passphrase would only look like protection.
+  Anyone who can read the browser profile on disk can read them. That is the same exposure as
+  the BYOK API key and every saved browser password without an OS keychain.
+- **Only the service worker reads secrets.** The page refers to profiles by id, and
+  `profiles.list` returns `hasSavedPassword` instead of the password. A password typed into the page
+  goes to the worker once and is not kept in page state. The paste box empties as soon as it has
+  filled the fields.
+- **The port sender check.** The worker accepts an `xray-sql` port only when `sender.id` is this
+  extension and `sender.url` is a `chrome-extension:` URL whose path is `/sql.html` (C-9). Content
+  scripts and other extension pages cannot drive it.
+- **A stored secret is bound to its server.** The binding is engine, host (trimmed and lowercased),
+  port and user (M3-R24). Editing a profile to point at another server drops the saved password,
+  and the next connect asks for one. `profiles.test` uses the stored secret only when all four
+  match the saved profile, and it stores nothing: no profile, no secret. A password typed into the
+  prompt is stored only after a successful connect, and only if the profile still points at the
+  server it was used for. So an edit made while a connect is in flight cannot move a password
+  to a new host.
+- The helper receives the password only inside `connect`. It never logs, persists or echoes it, and
+  connect errors carry fixed text or server text. MySQL error text is scrubbed of the password
+  when it is 4 or more characters long, matched as a whole token.
+
+### The helper boundary
+
+- **Who can start it.** Chrome starts the helper only for the origins in its host manifest's
+  `allowed_origins`, which lists only `chrome-extension://kjfoocnkoajdcjabnadfojdfaghpbeep/`. Web
+  pages and other extensions cannot reach it. The helper never listens on a network port.
+- **What it accepts.** It accepts a fixed set of operations: `hello`, `ping`, `connect`,
+  `introspect`, `execute`, `fetchMore`, `cancel`, `closeTab` and `close`. Requests are decoded strictly: an unknown op or an
+  unknown field is refused with `bad-request`, and incoming frames are capped at 64 MiB. A panic
+  in a handler answers `internal` and does not take down the process.
+- **What it logs.** stderr carries only error codes. Secrets, SQL text and results are never logged.
+- **How it is installed.** The installers download the release binary, check it against the
+  release's `SHA256SUMS`, and refuse to install on a mismatch. Downloads use `curl --proto '=https'
+  --tlsv1.2`. Everything is installed per-user, and an upgrade copies then renames, so it never
+  leaves a half-written binary.
+- **Lifetime.** When no `sql.html` page and no session is left, the worker closes the native port
+  after 30 s and Chrome stops the helper. A cursor left unread for 60 s is closed (ending its
+  read-only transaction and the locks it holds), and closing an editor tab closes its connection.
+- **Who can reach saved connections.** Only extension pages: the worker refuses the
+  saved-connection ops from a `sql.html` framed inside a web page unless the user turned on both
+  HUD options (section 5).
+- **Result size.** The worker counts each request's assembled rows; past 32 MiB it cancels the
+  query and answers "Result too large; lower the row limit.", so a result never exceeds what a
+  port message can carry.
+
+### TLS
+
+- `require` is the default for every host that is not loopback. `verify-full` checks the
+  certificate and host name, with an optional CA file.
+- `disable` is accepted only for loopback hosts (`localhost`, `127.0.0.0/8`, `::1`). Both the
+  dialog and the helper enforce this. The refusal reads "This server is not on this computer, so
+  XRAY requires TLS. Choose Require or Verify full."
+- The secret binding above ignores TLS settings. A kept secret can therefore travel unencrypted
+  only to the same loopback server it is bound to.
+
+### Read-only
+
+New connections are read-only. **Read-only is accident protection, not an authorization boundary**
+(M3-R9). It stops a mistyped `UPDATE`, not a user or server set on writing. Use a database role
+without write grants when writes must be impossible.
+
+- **Postgres.** Each statement runs inside `BEGIN TRANSACTION READ ONLY` and is rolled back. The
+  helper's keyword guard refuses statements that could end or change that transaction (BEGIN,
+  START, COMMIT, END, ROLLBACK, ABORT, SAVEPOINT, RELEASE, SET, RESET, DISCARD, PREPARE, LOCK,
+  COPY). It fails closed: a statement that does not start with a word is refused. A read-only
+  transaction does not stop everything:
+  - `dblink`/`dblink_exec` writes over a second connection.
+  - `COPY … TO PROGRAM` as a superuser (through a function or a DO block).
+  - Advisory locks.
+  - `pg_cancel_backend` and `pg_terminate_backend`: they are plain function calls, so they pass
+    the guard and the read-only transaction, and stop other sessions' queries or connections when
+    the role is allowed to (superuser, the same role, or `pg_signal_backend`).
+  - Any side effect a function performs outside the transaction.
+
+  The database itself still blocks ordinary writes inside the transaction, including writes
+  made by functions.
+- **MySQL.** There are several layers (M3-R12, M3-R15):
+  - Read-only connections set `transaction_read_only = ON` for the session. The setting is
+    re-asserted after a redial.
+  - Each statement also runs inside `START TRANSACTION READ ONLY` and is rolled back.
+  - A fail-closed, engine-aware keyword guard runs before the server sees the statement.
+
+  Read-only also refuses:
+  - `CALL`, because procedures can commit (M3-R13).
+  - `KILL`.
+  - Any executable comment (`/*!…*/`, `/*!NNNNN …*/`, and `/*M!…*/` on MariaDB), because these
+    could hide a different statement from the guard (M3-R15).
+  - `INTO OUTFILE` and `INTO DUMPFILE`, matched on a normalised token stream, because they write
+    files on the database server even in a read-only transaction (M3-R16, M3-R17). That write
+    also needs the FILE privilege, so on a hardened account the server refuses it too.
+- **Extension pre-check.** Before anything is sent, the page's classifier refuses writes on a
+  read-only connection and asks for confirmation before dangerous statements (such as DROP, or an
+  UPDATE without WHERE) on a writable one.
+- Turning Read-only off reconnects in read-write mode. Each statement then commits as it runs,
+  unless the user opens a transaction with BEGIN (or, on MySQL, autocommit is off). The helper
+  reports such an open transaction (`inTransaction`, on results and on errors), and the page asks
+  before anything that would end the session or the tab with one open (the Read-only switch, another
+  connection, opening a file, closing the tab or the page). What each engine guarantees about a
+  transaction lost anyway:
+  - **Postgres.** The transaction state is the server's (`TxStatus`). A COMMIT or END of a failed
+    transaction answers the tag ROLLBACK and is reported as the error "The transaction had failed and
+    was rolled back." The first statement after the tab's connection was lost inside a transaction
+    fails with "…the open transaction was rolled back." instead of running. A cursor left open
+    inside the user's transaction is drained, not cancelled, before the next statement. That drain
+    has no bound: a huge result keeps the next statement waiting until the user presses Stop, and
+    the Stop aborts the transaction, which the COMMIT then reports as the failed-transaction error.
+  - **MySQL.** The state is tracked by the helper from the statements: BEGIN/START TRANSACTION,
+    COMMIT/ROLLBACK (with AND CHAIN and ROLLBACK TO), implicit-commit statements, and `@@autocommit`
+    read at connect and after any statement that mentions it. A deadlock's rollback makes the next
+    COMMIT an error, and a connection lost inside a tracked transaction is reported on the next
+    statement. A cursor in a transaction is stopped with KILL QUERY, which ends only that statement.
+    Not covered: a transaction the server rolls back after another kind of error, which is then
+    reported as still open until COMMIT or ROLLBACK (whose COMMIT succeeds on nothing).
+
+### Results
+
+Query results stay in `sql.html`. They are not added to the captured session, so they are never
+sent to the AI features and never appear in XRAY's session exports. The grid's Copy, CSV, JSON
+and INSERT actions copy only what the user chooses, to the clipboard.
+
+### Residual risks
+
+- **Any local process can start the helper** by running the binary. It would hold no credentials,
+  though: the helper stores nothing, and passwords exist only in the browser profile. A local
+  process that can already read the profile can read them directly.
+- **Side-effect functions inside a read-only transaction** are still blocked by the database for
+  ordinary writes. Effects outside it (dblink, `COPY TO PROGRAM`, advisory locks) are not, as
+  listed above.
+- **Passwords are not encrypted at rest** (see above).
+- **A malicious or compromised database server** controls the result text and the schema names it
+  returns. The grid and rail render them as text only (section 2: no injection sinks), and values
+  are capped in size.
+
+---
+
+## 7. Reporting a vulnerability
 
 See [SECURITY.md](../SECURITY.md).

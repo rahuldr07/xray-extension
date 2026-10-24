@@ -249,3 +249,17 @@ export function classifyStatement(text: string, dialect: SqlDialect): Classifica
   }
   return worst ?? COULD_NOT_PARSE;
 }
+
+/** The statement's first keyword, lower-case; '' when it starts with anything else. */
+export function firstKeyword(text: string, dialect: SqlDialect): string {
+  const toks = tokenize(text, dialect);
+  return toks?.[0]?.word ?? '';
+}
+
+// First keywords of statements that can change what the schema rail shows (Postgres and MySQL).
+const SCHEMA_CHANGE = new Set(['create', 'alter', 'drop', 'rename', 'truncate', 'comment', 'grant', 'revoke', 'import']);
+
+/** Whether a remote statement may change the schema, so the rail is re-read after it. */
+export function changesSchema(text: string, dialect: SqlDialect): boolean {
+  return SCHEMA_CHANGE.has(firstKeyword(text, dialect));
+}

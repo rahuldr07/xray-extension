@@ -1,0 +1,106 @@
+name: helper
+
+on:
+  push:
+    branches: [main]
+    tags: ['helper-v*']
+    paths: ['helper/**', '.github/workflows/helper.yml']
+  pull_request:
+    paths: ['helper/**', '.github/workflows/helper.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: helper
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: xray
+          POSTGRES_DB: xray
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: xray
+          MYSQL_DATABASE: xray
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pxray" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+      pgbouncer:
+        image: edoburu/pgbouncer
+        env:
+          DB_HOST: postgres
+          DB_USER: postgres
+          DB_PASSWORD: xray
+          DB_NAME: xray
+          POOL_MODE: transaction
+          AUTH_TYPE: scram-sha-256
+          LISTEN_PORT: '6432'
+        ports: ['6432:6432']
+    env:
+      XRAY_TEST_PG_DSN: postgres://postgres:xray@127.0.0.1:5432/xray?sslmode=disable
+      XRAY_TEST_MYSQL_DSN: root:xray@tcp(127.0.0.1:3306)/xray
+      XRAY_TEST_PGBOUNCER_DSN: postgres://postgres:xray@127.0.0.1:6432/xray?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - run: bash install/install.test.sh
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    env:
+      CGO_ENABLED: '0'
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: Build
+        working-directory: helper
+        run: |
+          ext=""; [ "$GOOS" = windows ] && ext=".exe"
+          mkdir -p ../out
+          go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" \
+            -o "../out/xray-db-helper-${GOOS}-${GOARCH}${ext}" ./cmd/xray-db-helper
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xray-db-helper-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/helper-v')
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum xray-db-helper-* > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
