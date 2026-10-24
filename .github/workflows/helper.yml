@@ -59,6 +59,10 @@ jobs:
       - run: bash install/install.test.sh
       - run: go vet ./...
       - run: go test ./...
+      # Known-vulnerability gate for the helper's dependencies and the Go standard library it is
+      # built with. It reports only vulnerabilities the code can reach, and fails the job on any.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   build:
     runs-on: ubuntu-latest
