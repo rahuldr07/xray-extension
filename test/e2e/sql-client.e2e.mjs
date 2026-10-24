@@ -223,9 +223,9 @@ test('the framed client keeps its open database across tab switches', { timeout:
   await frameEl.waitFor();
   const frame = page.frameLocator('iframe[title="SQL client"]');
   await frame.getByRole('button', { name: 'Open SQLite file' }).waitFor();
-  // Inside a web page the client offers files only: saved connections open in the XRAY window.
-  await frame.getByRole('button', { name: 'Open in window', exact: true }).waitFor();
-  assert.equal(await frame.getByRole('button', { name: 'Connect to a database' }).count(), 0, 'no Connect inside the page');
+  // The pop-out is an extension page: saved connections are offered there.
+  await frame.getByRole('button', { name: 'Connect to a database', exact: true }).waitFor();
+  assert.equal(await frame.getByRole('button', { name: 'Open in window', exact: true }).count(), 0);
   await frame.locator('input[type="file"]').setInputFiles(shopPath);
   await frame.getByRole('treeitem', { name: 'orders', exact: true }).waitFor();
   // Marks this document: a reloaded or re-created frame would lose it.
