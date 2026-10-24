@@ -164,7 +164,7 @@ export function SettingsModal(): React.ReactElement | null {
   const requestConfirmation = usePanelStore((state) => state.requestConfirmation);
   const showToast = usePanelStore((state) => state.showToast);
   // The HUD SQL options are the service worker's (Ruling M3-R28); the toggles write through it.
-  const sqlHud = useSqlHudOptions();
+  const sqlHud = useSqlHudOptions(open);
   const setSqlHud = (patch: Partial<SqlHudOptions>): void => {
     writeSqlHudOptions(patch).catch((err: unknown) => showToast(err instanceof Error ? err.message : String(err)));
   };

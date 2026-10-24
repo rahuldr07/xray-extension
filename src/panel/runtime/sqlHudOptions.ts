@@ -81,10 +81,15 @@ export async function writeSqlHudOptions(patch: Partial<SqlHudOptions>): Promise
   return cleanSqlHudOptions(res.value);
 }
 
-/** The options, kept current as the worker's key changes. Both off until the first answer. */
-export function useSqlHudOptions(): SqlHudOptions {
+/**
+ * The options, kept current as the worker's key changes. Both off until the first answer.
+ * Nothing is asked until `enabled` is true: a mounted-but-closed Settings modal or a non-HUD panel
+ * must not send a runtime message just by rendering (the AI consent suites count every message).
+ */
+export function useSqlHudOptions(enabled = true): SqlHudOptions {
   const [options, setOptions] = useState<SqlHudOptions>(DEFAULT_SQL_HUD_OPTIONS);
   useEffect(() => {
+    if (!enabled) return undefined;
     let live = true;
     void readSqlHudOptions().then((value) => {
       if (live) setOptions(value);
@@ -98,6 +103,6 @@ export function useSqlHudOptions(): SqlHudOptions {
       live = false;
       events?.removeListener(onChanged);
     };
-  }, []);
+  }, [enabled]);
   return options;
 }

@@ -30,8 +30,9 @@ test('React shell navigation and command palette share tab metadata', () => {
   // reopened: unmounting it would drop the open database without a prompt (the R16 hazard).
   assert.match(app, /if \(mode === 'hud' && sqlHud\.sqlInlineInHud && sqlOpened && !sqlInlineLatched\) setSqlInlineLatched\(true\);/);
   assert.match(app, /const hudSqlInline = sqlHud\.sqlInlineInHud \|\| sqlInlineLatched;/);
-  // Ruling M3-R28: the option is the service worker's, read through useSqlHudOptions.
-  assert.match(app, /const sqlHud = useSqlHudOptions\(\);/);
+  // Ruling M3-R28: the option is the service worker's, read through useSqlHudOptions — and only once
+  // the HUD's SQL tab has been opened, so rendering the panel sends no runtime message.
+  assert.match(app, /const sqlHud = useSqlHudOptions\(mode === 'hud' && sqlOpened\);/);
   assert.match(app, /const keepSqlFrame = \(mode !== 'hud' \|\| hudSqlInline\) && sqlOpened;/);
   assert.match(app, /\(activeTab === 'sql' \|\| keepSqlFrame\) && <SqlFrame mode=\{mode\} active=\{activeTab === 'sql'\} inlineInHud=\{hudSqlInline\} \/>/);
   assert.match(read('src/panel/components/sql/SqlFrame.tsx'), /hidden=\{!active\}/);

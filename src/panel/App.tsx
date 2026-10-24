@@ -24,8 +24,6 @@ import { useSqlHudOptions } from './runtime/sqlHudOptions';
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
   const activeTab = usePanelStore((state) => state.activeTab);
   const settings = usePanelStore((state) => state.settings);
-  // The inline option lives in the service worker's key, not the panel's settings (Ruling M3-R28).
-  const sqlHud = useSqlHudOptions();
   // Ruling R16: the framed SQL client mounts on the first visit and then stays mounted (hidden while
   // another tab is active). Removing an iframe never fires beforeunload, so unmounting it would drop
   // the open database and any unsaved writes without a prompt. The HUD's window card has no such
@@ -35,6 +33,9 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   const [sqlOpened, setSqlOpened] = React.useState(false);
   const [sqlInlineLatched, setSqlInlineLatched] = React.useState(false);
   if (activeTab === 'sql' && !sqlOpened) setSqlOpened(true);
+  // The inline option lives in the service worker's key, not the panel's settings (Ruling M3-R28).
+  // Only the HUD's SQL tab needs it, so nothing is asked before that tab is first opened there.
+  const sqlHud = useSqlHudOptions(mode === 'hud' && sqlOpened);
   if (mode === 'hud' && sqlHud.sqlInlineInHud && sqlOpened && !sqlInlineLatched) setSqlInlineLatched(true);
   const hudSqlInline = sqlHud.sqlInlineInHud || sqlInlineLatched;
   const keepSqlFrame = (mode !== 'hud' || hudSqlInline) && sqlOpened;
