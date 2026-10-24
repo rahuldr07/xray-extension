@@ -33,12 +33,23 @@
     outdated: { code: 'helper-outdated', message: 'Update the XRAY database helper.' },
     lost: { code: 'connection-lost', message: 'The connection to the database helper was lost.' },
     timeout: { code: 'timeout', message: 'The database helper did not answer in time.' },
+    tooLarge: { code: 'limit-reached', message: 'Result too large; lower the row limit.' },
+    cancelled: { code: 'cancelled', message: 'Query cancelled.' },
+    framed: { code: 'server', message: 'Database connections open in the XRAY window, not inside a web page.' },
   };
 
   // Ruling M3-R19: nothing the page awaits may hang on a silent helper.
   // execute and fetchMore have no limit: a long query is the user's to cancel.
   const HELLO_TIMEOUT_MS = 5000;
-  const REQUEST_TIMEOUT_MS = { connect: 15000, introspect: 30000, cancel: 5000, close: 5000 };
+  const REQUEST_TIMEOUT_MS = { connect: 15000, introspect: 30000, cancel: 5000, close: 5000, closeTab: 5000 };
+  // A page message must fit Chrome's port limit (64 MiB of JSON); an assembled
+  // result past this is cancelled instead of failing to post (final review I3).
+  const RESULT_BYTE_LIMIT = 32 * 1024 * 1024;
+  // Bounds the per-page sets of early cancels and recently answered ids.
+  const RECENT_IDS_CAP = 32;
+  // Ops a sql.html framed inside a web page may not use: saved connections
+  // and the helper stay in the extension's own pages (final review I6).
+  const WINDOW_ONLY_OPS = new Set(['profiles.list', 'profiles.save', 'profiles.delete', 'profiles.test', 'connect', 'helper.status']);
   // Ruling M3-R23: with no sql.html connected and no open session, the helper
   // process is stopped after this long; the next call starts it again.
   const IDLE_DISCONNECT_MS = 30000;
@@ -65,6 +76,26 @@
     } catch {
       return false;
     }
+  }
+
+  // The opt-in inline HUD frames sql.html inside the inspected web page: then
+  // sender.tab is that page. The client's own tab, the pop-out window's frame
+  // (chrome-extension: tab URLs) and DevTools (no tab) are extension pages.
+  function framedInWebPage(port) {
+    const tab = port && port.sender && port.sender.tab;
+    if (!tab) return false;
+    if (typeof tab.url !== 'string') return true;
+    try {
+      return new URL(tab.url).protocol !== 'chrome-extension:';
+    } catch {
+      return true;
+    }
+  }
+
+  // Adds id to a bounded insertion-ordered set, dropping the oldest.
+  function remember(set, id) {
+    set.add(id);
+    if (set.size > RECENT_IDS_CAP) set.delete(set.values().next().value);
   }
 
   function str(v) {
@@ -347,7 +378,7 @@
         if (!state.helloDone) teardown(state, ERR.missing);
       }, HELLO_TIMEOUT_MS);
       try {
-        state.port.postMessage({ id: helloId, op: 'hello' });
+        state.port.postMessage({ id: helloId, op: 'hello', protocolVersion: PROTOCOL_VERSION });
       } catch {
         teardown(state, ERR.missing, { disconnect: false });
       }
@@ -363,7 +394,18 @@
         return;
       }
       if (msg.stream === 'rows') {
-        if (Array.isArray(msg.rows)) for (const row of msg.rows) call.rows.push(row);
+        if (!Array.isArray(msg.rows)) return;
+        call.bytes += JSON.stringify(msg.rows).length;
+        if (call.bytes > RESULT_BYTE_LIMIT) {
+          // Stop the query and free what was assembled; the helper's late
+          // answer to this id then matches nothing.
+          state.pending.delete(msg.id);
+          call.rows = [];
+          callNative('cancel', { queryId: msg.id }).catch(() => {});
+          call.reject(new OpError(ERR.tooLarge));
+          return;
+        }
+        for (const row of msg.rows) call.rows.push(row);
         return;
       }
       state.pending.delete(msg.id);
@@ -397,7 +439,7 @@
       const id = nextNativeId++;
       return new Promise((resolve, reject) => {
         let timer;
-        const call = { op, columns: [], rows: [] };
+        const call = { op, columns: [], rows: [], bytes: 0 };
         call.resolve = (value) => {
           clearTimer(timer);
           if (op === 'execute' || op === 'fetchMore') {
@@ -455,6 +497,7 @@
         notices: Array.isArray(value.notices) ? value.notices : [],
         hasMore: value.hasMore === true,
         truncatedCells: value.truncatedCells || 0,
+        inTransaction: value.inTransaction === true,
       };
     }
 
@@ -525,7 +568,11 @@
     }
 
     async function runQuery(page, msg, op, payload) {
-      const call = callNative(op, payload, (nativeId) => page.queries.set(msg.id, nativeId));
+      const call = callNative(op, payload, (nativeId) => {
+        page.queries.set(msg.id, nativeId);
+        // Stop came while this query waited for the helper port (final review m7).
+        if (page.earlyCancels.delete(msg.id)) callNative('cancel', { queryId: nativeId }).catch(() => {});
+      });
       try {
         return await call;
       } finally {
@@ -534,6 +581,7 @@
     }
 
     async function dispatch(page, msg) {
+      if (page.framed && WINDOW_ONLY_OPS.has(msg.op)) throw new OpError(ERR.framed);
       switch (msg.op) {
         case 'profiles.list':
           return (await readProfiles()).map(pageProfile);
@@ -563,8 +611,25 @@
         }
         case 'cancel': {
           const nativeId = page.queries.get(msg.queryId);
-          if (nativeId === undefined || !native) return {};
-          await callNative('cancel', { queryId: nativeId });
+          if (nativeId !== undefined) {
+            if (native) await callNative('cancel', { queryId: nativeId });
+            return {};
+          }
+          if (!page.inflight.has(msg.queryId)) return {}; // already answered
+          if (page.refused.has(msg.queryId)) {
+            // Finished here, but its answer never reached the page (the port
+            // refused it): settle the page's request now.
+            settle(page, { id: msg.queryId, ok: false, error: { ...ERR.cancelled } });
+          } else {
+            // Not yet sent to the helper: it is cancelled as soon as it is.
+            remember(page.earlyCancels, msg.queryId);
+          }
+          return {};
+        }
+        case 'closeTab': {
+          const s = typeof msg.sessionId === 'string' ? sessions.get(msg.sessionId) : undefined;
+          if (!s || s.owner !== page.port || !s.alive || !native) return {};
+          await callNative('closeTab', { sessionId: msg.sessionId, tabId: str(msg.tabId) });
           return {};
         }
         case 'close': {
@@ -579,13 +644,26 @@
       }
     }
 
-    function reply(page, message) {
-      if (page.closed) return;
+    function post(page, message) {
       try {
         page.port.postMessage(message);
+        return true;
       } catch {
-        /* the page went away while the request ran */
+        return false;
       }
+    }
+
+    // Answers a page request once. A reply the port refuses (in practice a
+    // message over Chrome's size limit) is replaced by a small error, so the
+    // page is not left waiting; if even that fails, a later Stop settles it.
+    function settle(page, message) {
+      if (page.closed || !page.inflight.has(message.id)) return;
+      if (post(page, message) || (message.ok && post(page, { id: message.id, ok: false, error: { ...ERR.tooLarge } }))) {
+        page.inflight.delete(message.id);
+        page.refused.delete(message.id);
+        return;
+      }
+      page.refused.add(message.id);
     }
 
     function onPageMessage(page, msg) {
@@ -593,13 +671,14 @@
       const id = msg.id;
       if (typeof id !== 'number' && typeof id !== 'string') return;
       if (typeof msg.op !== 'string') return;
+      page.inflight.add(id);
       Promise.resolve()
         .then(() => dispatch(page, msg))
         .then(
-          (value) => reply(page, { id, ok: true, value: value === undefined ? {} : value }),
+          (value) => settle(page, { id, ok: true, value: value === undefined ? {} : value }),
           (err) => {
             const body = err instanceof OpError ? err.body : { code: 'internal', message: 'Internal error.' };
-            reply(page, { id, ok: false, error: { ...body } });
+            settle(page, { id, ok: false, error: { ...body } });
           },
         );
     }
@@ -628,7 +707,17 @@
         }
         return;
       }
-      const page = { port, queries: new Map(), closed: false };
+      // inflight: request ids not yet answered; refused: of those, the ones whose
+      // answer the port refused; earlyCancels: Stop before the helper had them.
+      const page = {
+        port,
+        queries: new Map(),
+        closed: false,
+        framed: framedInWebPage(port),
+        inflight: new Set(),
+        refused: new Set(),
+        earlyCancels: new Set(),
+      };
       pages.add(page);
       cancelIdle();
       port.onMessage.addListener((msg) => onPageMessage(page, msg));

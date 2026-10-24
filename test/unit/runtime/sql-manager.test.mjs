@@ -124,9 +124,17 @@ function setup({ helper = fakeHelper(), local = {}, session = {}, permission = t
   return { manager, helper, storageLocal, storageSession, timers };
 }
 
-function pagePort(manager, { url = SQL_URL, id = RUNTIME_ID } = {}) {
-  const port = { name: 'xray-sql', sender: { id, url }, onMessage: event(), onDisconnect: event(), posted: [], disconnected: false };
-  port.postMessage = (msg) => port.posted.push(hostify(msg));
+function pagePort(manager, { url = SQL_URL, id = RUNTIME_ID, tab } = {}) {
+  const sender = tab === undefined ? { id, url } : { id, url, tab };
+  const port = { name: 'xray-sql', sender, onMessage: event(), onDisconnect: event(), posted: [], disconnected: false, failPosts: 0 };
+  // failPosts > 0 makes that many posts throw, as Chrome does for a message over its size limit.
+  port.postMessage = (msg) => {
+    if (port.failPosts > 0) {
+      port.failPosts--;
+      throw new Error('Message length exceeded maximum allowed length.');
+    }
+    port.posted.push(hostify(msg));
+  };
   port.disconnect = () => { port.disconnected = true; };
   manager.handlePort(port);
   port.request = async (msg) => {
@@ -196,7 +204,7 @@ test('sql-manager: helper.status is ready with the helper version after hello', 
   const page = pagePort(manager);
   const res = await page.request({ id: 1, op: 'helper.status' });
   assert.deepEqual(res, { id: 1, ok: true, value: { state: 'ready', helperVersion: '1.2.3' } });
-  assert.deepEqual(helper.sent[0], { id: helper.sent[0].id, op: 'hello' });
+  assert.deepEqual(helper.sent[0], { id: helper.sent[0].id, op: 'hello', protocolVersion: 1 });
 });
 
 test('sql-manager: helper.status reports missing when the host is not found, and no-permission without the permission', async () => {
@@ -254,7 +262,7 @@ test('sql-manager: three row chunks assemble into one QueryResult in order', asy
   const res = await page.request({ id: 7, op: 'execute', sessionId, tabId: 't1', sql: 'select n', maxRows: 5 });
   assert.deepEqual(res, {
     id: 7, ok: true,
-    value: { columns: [{ name: 'n', type: 'int4' }], rows: [[1], [2], [3], [4], [5]], rowCount: 5, affected: null, durationMs: 1.5, notices: [], hasMore: true, truncatedCells: 0 },
+    value: { columns: [{ name: 'n', type: 'int4' }], rows: [[1], [2], [3], [4], [5]], rowCount: 5, affected: null, durationMs: 1.5, notices: [], hasMore: true, truncatedCells: 0, inTransaction: false },
   });
   const req = helper.sent.find((m) => m.op === 'execute');
   assert.deepEqual(req, { id: req.id, op: 'execute', sessionId, tabId: 't1', sql: 'select n', maxRows: 5 });
@@ -628,3 +636,124 @@ for (const remember of [true, false]) {
     assert.equal(helper.sent.filter((m) => m.op === 'connect' && m.host === 'b.example.com').length, 0);
   });
 }
+
+// ------------------------------------------------ final review (Ruling M3-R26)
+
+test('sql-manager: execute and fetchMore summaries carry inTransaction through', async () => {
+  const { page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') return reply({ id: msg.id, ok: true, value: { rowCount: 0, affected: 0, durationMs: 1, notices: [], hasMore: false, truncatedCells: 0, inTransaction: true } });
+    if (msg.op === 'fetchMore') return reply({ id: msg.id, ok: true, value: { rowCount: 0, affected: null, durationMs: 1, notices: [], hasMore: false, truncatedCells: 0 } });
+    return defaultScript(msg, reply);
+  });
+  const exec = await page.request({ id: 30, op: 'execute', sessionId, tabId: 't1', sql: 'begin' });
+  assert.equal(exec.value.inTransaction, true);
+  const more = await page.request({ id: 31, op: 'fetchMore', sessionId, tabId: 't1' });
+  assert.equal(more.value.inTransaction, false, 'an old helper without the field reads as not in a transaction');
+});
+
+test('sql-manager: a result past 32 MiB cancels the native query and answers limit-reached', async () => {
+  const chunk = Array.from({ length: 8 }, () => ['x'.repeat(65_536)]); // ~512 KiB of JSON
+  let execId;
+  const { helper, page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') {
+      execId = msg.id;
+      reply({ id: msg.id, stream: 'columns', columns: [{ name: 'x', type: 'text' }] });
+      for (let i = 0; i < 70; i++) reply({ id: msg.id, stream: 'rows', rows: chunk });
+      return; // answered only when cancelled
+    }
+    if (msg.op === 'cancel') {
+      reply({ id: msg.id, ok: true, value: {} });
+      return reply({ id: msg.queryId, ok: false, error: { code: 'cancelled', message: 'Query cancelled.' } });
+    }
+    return defaultScript(msg, reply);
+  });
+  const res = await page.request({ id: 32, op: 'execute', sessionId, tabId: 't1', sql: 'select big', maxRows: 50000 });
+  assert.deepEqual(res, { id: 32, ok: false, error: { code: 'limit-reached', message: 'Result too large; lower the row limit.' } });
+  await until(() => helper.sent.find((m) => m.op === 'cancel'), 'the native cancel');
+  assert.equal(helper.sent.find((m) => m.op === 'cancel').queryId, execId);
+  await tick();
+  assert.equal(page.posted.filter((m) => m.id === 32).length, 1, 'answered once, the late cancelled answer is dropped');
+});
+
+test('sql-manager: a reply the port refuses is replaced by a small error', async () => {
+  const { page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') return reply({ id: msg.id, ok: true, value: { rowCount: 0, affected: null, durationMs: 1, notices: [], hasMore: false, truncatedCells: 0 } });
+    return defaultScript(msg, reply);
+  });
+  page.failPosts = 1;
+  const res = await page.request({ id: 33, op: 'execute', sessionId, tabId: 't1', sql: 'select 1' });
+  assert.deepEqual(res, { id: 33, ok: false, error: { code: 'limit-reached', message: 'Result too large; lower the row limit.' } });
+});
+
+test('sql-manager: Stop after the worker finished assembling still settles the page with cancelled', async () => {
+  const { helper, page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') return reply({ id: msg.id, ok: true, value: { rowCount: 0, affected: null, durationMs: 1, notices: [], hasMore: false, truncatedCells: 0 } });
+    return defaultScript(msg, reply);
+  });
+  page.failPosts = 2; // the reply and the small error both fail
+  page.onMessage.fire({ id: 34, op: 'execute', sessionId, tabId: 't1', sql: 'select 1' }, page);
+  await until(() => page.failPosts === 0, 'both replies to fail');
+  assert.equal(page.posted.some((m) => m.id === 34), false);
+  const cancel = await page.request({ id: 35, op: 'cancel', queryId: 34 });
+  assert.equal(cancel.ok, true);
+  assert.deepEqual(page.posted.find((m) => m.id === 34), { id: 34, ok: false, error: { code: 'cancelled', message: 'Query cancelled.' } });
+  assert.equal(helper.sent.filter((m) => m.op === 'cancel').length, 0, 'nothing is running on the helper');
+});
+
+test('sql-manager: a cancel that arrives before the query reaches the helper cancels it once it does', async () => {
+  let execId;
+  const { helper, page, sessionId } = await connected((msg, reply) => {
+    if (msg.op === 'execute') { execId = msg.id; return; } // runs until cancelled
+    if (msg.op === 'cancel') {
+      reply({ id: msg.id, ok: true, value: {} });
+      return reply({ id: msg.queryId, ok: false, error: { code: 'cancelled', message: 'Query cancelled.' } });
+    }
+    return defaultScript(msg, reply);
+  });
+  // Both in one task: the cancel is handled while the execute still awaits the helper port.
+  page.onMessage.fire({ id: 36, op: 'execute', sessionId, tabId: 't1', sql: 'select pg_sleep(30)' }, page);
+  page.onMessage.fire({ id: 37, op: 'cancel', queryId: 36 }, page);
+  const exec = await until(() => page.posted.find((m) => m.id === 36), 'the execute to be cancelled');
+  assert.deepEqual(exec.error, { code: 'cancelled', message: 'Query cancelled.' });
+  assert.equal(helper.sent.find((m) => m.op === 'cancel').queryId, execId);
+});
+
+test('sql-manager: closeTab goes to the helper for an owned session, and is a no-op otherwise', async () => {
+  const { helper, page, sessionId } = await connected(defaultScript);
+  helper.script = (msg, reply) => (msg.op === 'closeTab' ? reply({ id: msg.id, ok: true, value: {} }) : defaultScript(msg, reply));
+  const res = await page.request({ id: 38, op: 'closeTab', sessionId, tabId: 't1' });
+  assert.equal(res.ok, true);
+  const sent = helper.sent.find((m) => m.op === 'closeTab');
+  assert.deepEqual(sent, { id: sent.id, op: 'closeTab', sessionId, tabId: 't1' });
+  const other = await page.request({ id: 39, op: 'closeTab', sessionId: 'not-mine', tabId: 't1' });
+  assert.equal(other.ok, true);
+  assert.equal(helper.sent.filter((m) => m.op === 'closeTab').length, 1);
+});
+
+test('sql-manager: sql.html framed in a web page cannot reach saved connections or the helper', async () => {
+  const { manager, helper, storageLocal } = setup({ local: { sql_connections: [{ ...PROFILE, id: 'p1', password: 'pw' }] } });
+  const framed = pagePort(manager, { tab: { id: 4, url: 'https://shop.example/checkout' } });
+  assert.equal(framed.disconnected, false, 'the port stays: SQLite files still work there');
+  const refusal = { code: 'server', message: 'Database connections open in the XRAY window, not inside a web page.' };
+  const ops = [
+    { op: 'profiles.list' },
+    { op: 'profiles.save', profile: PROFILE },
+    { op: 'profiles.delete', profileId: 'p1' },
+    { op: 'profiles.test', profile: PROFILE, password: 'x' },
+    { op: 'connect', profileId: 'p1', readOnly: true },
+    { op: 'helper.status' },
+  ];
+  let id = 40;
+  for (const msg of ops) {
+    const res = await framed.request({ id: id++, ...msg });
+    assert.deepEqual(res, { id: id - 1, ok: false, error: refusal }, msg.op);
+  }
+  assert.equal(helper.opened, 0, 'the helper is never started');
+  assert.equal(storageLocal.data.sql_connections.length, 1, 'nothing is saved or deleted');
+  // Extension pages are fine: its own tab, the pop-out window's frame, and DevTools (no tab).
+  for (const tab of [{ id: 5, url: SQL_URL }, { id: 6, url: `chrome-extension://${RUNTIME_ID}/window.html` }, undefined]) {
+    const ok = pagePort(manager, { tab });
+    const res = await ok.request({ id: 99, op: 'profiles.list' });
+    assert.equal(res.ok, true, JSON.stringify(tab));
+  }
+});
