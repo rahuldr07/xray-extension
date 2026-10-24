@@ -121,7 +121,7 @@ export function parseConnectionString(s: string): { profile: ParsedConnection; p
 const INSTALL_BASE = 'https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install';
 
 export function helperInstallCommand(os: 'linux' | 'mac' | 'windows'): string {
-  return os === 'windows' ? `irm ${INSTALL_BASE}/install.ps1 | iex` : `curl -fsSL ${INSTALL_BASE}/install.sh | sh`;
+  return os === 'windows' ? `irm ${INSTALL_BASE}/install.ps1 | iex` : `curl -fsSL ${INSTALL_BASE}/install.sh | bash`;
 }
 
 export type HelperOs = 'linux' | 'mac' | 'windows';

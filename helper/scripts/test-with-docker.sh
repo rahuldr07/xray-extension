@@ -82,6 +82,11 @@ if $e2e; then
   export XRAY_E2E_PG_DSN="postgres://postgres:$pw@127.0.0.1:$pg_port/xray?sslmode=disable"
   export XRAY_E2E_MYSQL_DSN="mysql://root:$pw@127.0.0.1:$my_port/xray?ssl-mode=disabled"
   cd ..
+  # Rebuild with the committed bundles' build stamp, so the rebuilt dist/ matches what is
+  # committed and the run leaves git status clean. Falls back to the last commit's time.
+  stamp="$(git show HEAD:dist/panel-ui.js 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC' | head -n1 || true)"
+  SOURCE_DATE_EPOCH="$( { [ -n "$stamp" ] && date -u -d "$stamp" +%s 2>/dev/null; } || git log -1 --format=%ct)"
+  export SOURCE_DATE_EPOCH
   npm run build
   node --test test/e2e/sql-remote.e2e.mjs
   exit

@@ -97,7 +97,7 @@ test('isLoopbackHost follows the helper rule', () => {
 test('install commands and the pinned extension id', () => {
   assert.equal(
     helperInstallCommand('linux'),
-    'curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | sh',
+    'curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | bash',
   );
   assert.equal(helperInstallCommand('mac'), helperInstallCommand('linux'));
   assert.equal(

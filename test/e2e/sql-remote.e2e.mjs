@@ -84,6 +84,7 @@ function helperClient(bin) {
       if (msg.stream) continue;
       const p = pending.get(msg.id);
       pending.delete(msg.id);
+      if (p) clearTimeout(p.timer);
       if (msg.ok) p?.resolve(msg.value);
       else p?.reject(new Error(`${msg.error.code}: ${msg.error.message}`));
     }
@@ -91,7 +92,12 @@ function helperClient(bin) {
   const call = (op, fields = {}) =>
     new Promise((resolve, reject) => {
       const id = nextId++;
-      pending.set(id, { resolve, reject });
+      // A wedged helper or server fails the seed instead of hanging the run.
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`${op}: no answer from the helper within 30 s`));
+      }, 30_000);
+      pending.set(id, { resolve, reject, timer });
       const body = Buffer.from(JSON.stringify({ id, op, ...fields }), 'utf8');
       const head = Buffer.alloc(4);
       if (LE) head.writeUInt32LE(body.length);

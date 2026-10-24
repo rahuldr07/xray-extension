@@ -310,7 +310,7 @@
 - `isLoopbackHost(host): boolean` follows the same rule as the helper.
 - `HELPER_EXTENSION_ID`.
 - `helperInstallCommand(os: 'linux'|'mac'|'windows'): string`:
-  - Linux and macOS: `curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | sh`
+  - Linux and macOS: `curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | bash`
   - Windows: `irm https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.ps1 | iex`
 - `createRemoteClient(connectPort: () => PortLike): RemoteApi`. `RemoteApi` provides:
   - `profiles.list()`, `profiles.save(input)`, `profiles.delete(id)` and `helperStatus()`

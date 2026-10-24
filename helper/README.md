@@ -23,9 +23,9 @@ lists only the XRAY extension (`chrome-extension://kjfoocnkoajdcjabnadfojdfaghpb
 starts the helper for XRAY and for no other extension or web page.
 
     # Linux and macOS
-    curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | sh
-    # Windows (PowerShell)
-    powershell -ExecutionPolicy Bypass -File install.ps1
+    curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh | bash
+    # Windows (PowerShell): downloads install.ps1 from the raw GitHub URL and runs it
+    irm https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.ps1 | iex
 
 ## Uninstall
 
@@ -40,7 +40,7 @@ extension until you delete them there, or remove the extension.
   limit, so result rows are sent in `rows` chunks of at most 524,288 bytes.
 - **Requests** are `{ "id": <n>, "op": <name>, ... }`. Decoding is strict: an unknown op or an
   unknown field is refused with `bad-request`. The fixed ops are:
-  - `hello` returns `protocolVersion` (1) and `helperVersion`.
+  - `hello` returns `protocolVersion` (1) and `helperVersion`. `ping` answers with an empty value.
   - `connect` takes engine, host, port, database, user, password, tls, caFile,
     statementTimeoutMs and readOnly. It returns `sessionId`, `serverVersion` and `capabilities`.
   - `introspect` returns schemas, tables, views, columns and indexes.

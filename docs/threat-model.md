@@ -190,15 +190,16 @@ the database connections.
   server it was used for. So an edit made while a connect is in flight cannot move a password
   to a new host.
 - The helper receives the password only inside `connect`. It never logs, persists or echoes it, and
-  connect errors carry fixed text or server text with the password scrubbed out.
+  connect errors carry fixed text or server text. MySQL error text is scrubbed of the password
+  when it is 4 or more characters long, matched as a whole token.
 
 ### The helper boundary
 
 - **Who can start it.** Chrome starts the helper only for the origins in its host manifest's
   `allowed_origins`, which lists only `chrome-extension://kjfoocnkoajdcjabnadfojdfaghpbeep/`. Web
   pages and other extensions cannot reach it. The helper never listens on a network port.
-- **What it accepts.** It accepts a fixed set of operations: `hello`, `connect`, `introspect`,
-  `execute`, `fetchMore`, `cancel` and `close`. Requests are decoded strictly: an unknown op or an
+- **What it accepts.** It accepts a fixed set of operations: `hello`, `ping`, `connect`,
+  `introspect`, `execute`, `fetchMore`, `cancel` and `close`. Requests are decoded strictly: an unknown op or an
   unknown field is refused with `bad-request`, and incoming frames are capped at 64 MiB. A panic
   in a handler answers `internal` and does not take down the process.
 - **What it logs.** stderr carries only error codes. Secrets, SQL text and results are never logged.
@@ -228,10 +229,10 @@ without write grants when writes must be impossible.
 - **Postgres.** Each statement runs inside `BEGIN TRANSACTION READ ONLY` and is rolled back. The
   helper's keyword guard refuses statements that could end or change that transaction (BEGIN,
   START, COMMIT, END, ROLLBACK, ABORT, SAVEPOINT, RELEASE, SET, RESET, DISCARD, PREPARE, LOCK,
-  COPY). It fails closed: a statement without a recognisable first keyword is refused. A read-only
+  COPY). It fails closed: a statement that does not start with a word is refused. A read-only
   transaction does not stop everything:
   - `dblink`/`dblink_exec` writes over a second connection.
-  - `COPY … TO PROGRAM` as a superuser.
+  - `COPY … TO PROGRAM` as a superuser (through a function or a DO block).
   - Advisory locks.
   - Any side effect a function performs outside the transaction.
 

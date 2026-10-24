@@ -770,7 +770,7 @@ const storedSql = (worker) =>
   }));
 
 const SUPABASE = 'postgresql://postgres.abcdefgh:s3cret%21@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require';
-const LINUX_INSTALL = ['curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh', 'sh'].join(' | ');
+const LINUX_INSTALL = ['curl -fsSL https://raw.githubusercontent.com/rahuldr07/xray-extension/main/helper/install/install.sh', 'bash'].join(' | ');
 
 async function openConnectionDialog(page) {
   await page.getByRole('button', { name: 'Connect to a database', exact: true }).click();
