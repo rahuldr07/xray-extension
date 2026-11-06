@@ -288,6 +288,15 @@ without write grants when writes must be impossible.
     Not covered: a transaction the server rolls back after another kind of error, which is then
     reported as still open until COMMIT or ROLLBACK (whose COMMIT succeeds on nothing).
 
+### Stored SQL text
+
+Editor tabs and history are kept per connection in `chrome.storage.local` (SQL text only, never
+rows), bounded to 4 MB across 50 connections. A page being closed leaves its unsaved changes in the
+extension origin's `localStorage` until the next SQL page folds them in. Writes merge per connection
+under a Web Lock. The HUD's inline frame sits under a web page, where that lock may be partitioned
+from the extension pages' (accepted, M1): two writes in the same moment can still lose one page's
+latest change. The page itself cannot read the frame's storage.
+
 ### Results
 
 Query results stay in `sql.html`. They are not added to the captured session, so they are never

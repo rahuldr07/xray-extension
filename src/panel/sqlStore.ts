@@ -38,6 +38,13 @@ import {
   restoreEditorTabs,
   restoreHistory,
   restoreUsage,
+  journalFor,
+  parseJournal,
+  pruneConnectionKeys,
+  EDITOR_TAB_LIMIT,
+  SQL_JOURNAL_PREFIX,
+  SQL_STORAGE_FULL_NOTICE,
+  SQL_STORAGE_QUOTA_BUDGET,
   type EditorTab,
   type HistoryItem,
   type SqlStorage,
@@ -196,6 +203,7 @@ const ROLLED_BACK = 'An open transaction was rolled back.';
 const ENDS_TRANSACTION = new Set(['commit', 'end', 'rollback', 'abort']);
 const MESSAGE_LIMIT = 500;
 const PERSIST_DELAY_MS = 300;
+const TAB_LIMIT_MESSAGE = `A connection keeps at most ${EDITOR_TAB_LIMIT} editor tabs. Close one to open another.`;
 
 interface RunItem {
   text: string;
@@ -240,7 +248,9 @@ let storageLoaded: Promise<void> | null = null;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const persistWriters = new Map<string, () => unknown>();
 // Serializes the read-merge-write of the SQL records: across every SQL page of the extension origin
-// through the Web Locks API where there is one, else within this page.
+// through the Web Locks API where there is one, else within this page. Accepted (M1): the HUD's
+// inline frame, under a web page, may get a partitioned lock that does not wait for the top-level
+// pages; its writes still re-read and merge per key, so only a write racing in the same moment loses.
 const SQL_STORAGE_LOCK = 'xray-sql-storage';
 let localLock: Promise<unknown> = Promise.resolve();
 
@@ -310,10 +320,89 @@ function withStorageLock<T>(run: () => Promise<T>): Promise<T> {
   return next;
 }
 
+// This page's pagehide journal key: a page being torn down cannot finish an async write, so it
+// leaves its changes in extension-origin localStorage, and the next sync of any page folds them in.
+const pageId = newTabId();
+// The serialized records as this page last wrote or read them: an unchanged record is not written.
+const lastWritten = new Map<string, string>();
+let storageFullNoticed = false;
+
+function journalKeys(): string[] {
+  const keys: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(SQL_JOURNAL_PREFIX)) keys.push(key);
+    }
+  } catch {
+    // No localStorage (a sandboxed frame, tests): there are no journals.
+  }
+  return keys;
+}
+
+function readJournal(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** On pagehide: this page's unsaved changes, written synchronously as its journal. */
+export function writeSqlJournal(): void {
+  const journal = journalFor({ history: storedHistory, tabs: storedTabs, usage: storedUsage }, changed);
+  if (!journal) return;
+  try {
+    localStorage.setItem(SQL_JOURNAL_PREFIX + pageId, JSON.stringify(journal));
+  } catch {
+    // A full or missing localStorage: the async flush is the only chance left.
+  }
+}
+
+/** pagehide: journal synchronously, then try the normal write too. */
+export function persistOnPageHide(): void {
+  writeSqlJournal();
+  void flushSqlPersistence();
+}
+
+function sqlStorageFull(): void {
+  if (storageFullNoticed) return;
+  storageFullNoticed = true;
+  const s = usePanelSqlStore.getState();
+  usePanelSqlStore.setState({ messages: withMessage(s.messages, SQL_STORAGE_FULL_NOTICE) });
+}
+
+function isQuotaError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { reason?: unknown }).reason === 'quota';
+}
+
+// Writes the records that changed since this page last wrote or read them.
+async function writeRecords(storage: SqlStorage): Promise<void> {
+  const records: [string, unknown][] = [
+    [HISTORY_KEY, storage.history],
+    [EDITOR_TABS_KEY, storage.tabs],
+    [CONNECTION_KEYS_KEY, storage.usage],
+  ];
+  const writes: Promise<void>[] = [];
+  for (const [key, value] of records) {
+    const text = JSON.stringify(value);
+    if (lastWritten.get(key) === text) continue;
+    writes.push(
+      setStoredValue(key, value).then(() => {
+        lastWritten.set(key, text);
+      }),
+    );
+  }
+  await Promise.all(writes);
+}
+
 /**
- * Re-reads the stored history, tabs and key usage under the lock, folds in this page's changes per
- * connection key (and `adjust`, applied to the fresh records), prunes, and writes all three. A read
- * failure writes nothing and keeps the changes for the next try; so does a write failure.
+ * Re-reads the stored history, tabs and key usage under the lock, folds in every pagehide journal
+ * and this page's changes per connection key (and `adjust`, applied to the fresh records), prunes to
+ * the byte budget (never the open connection's key), and writes what changed. A read failure writes
+ * nothing and keeps the changes for the next try. A full quota prunes to the smaller budget and
+ * retries once, then says once that older history was not saved; other write failures keep the
+ * changes for the next write.
  */
 async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlStorage; removed?: string[] }): Promise<void> {
   await withStorageLock(async () => {
@@ -328,6 +417,16 @@ async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlSt
     } catch {
       return;
     }
+    // What storage holds now: a record the merge leaves as it is needs no write.
+    lastWritten.set(HISTORY_KEY, JSON.stringify(fresh.history));
+    lastWritten.set(EDITOR_TABS_KEY, JSON.stringify(fresh.tabs));
+    lastWritten.set(CONNECTION_KEYS_KEY, JSON.stringify(fresh.usage));
+    const keep = usePanelSqlStore.getState().connection?.key ?? null;
+    const journals = journalKeys();
+    for (const key of journals) {
+      const journal = parseJournal(readJournal(key));
+      if (journal) fresh = mergeSqlStorage(fresh, journal.storage, journal.changes, { keep });
+    }
     if (adjust) {
       const out = adjust(fresh);
       fresh = out.storage;
@@ -335,27 +434,45 @@ async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlSt
     }
     const local = { history: storedHistory, tabs: storedTabs, usage: storedUsage };
     const changes = { history: new Set(changed.history), tabs: new Set(changed.tabs), removed: new Set(changed.removed) };
-    const merged = mergeSqlStorage(fresh, local, changes);
+    let merged = mergeSqlStorage(fresh, local, changes, { keep });
     for (const key of changes.history) changed.history.delete(key);
     for (const key of changes.tabs) changed.tabs.delete(key);
     for (const key of changes.removed) changed.removed.delete(key);
+    let written = false;
+    try {
+      await writeRecords(merged);
+      written = true;
+    } catch (err) {
+      if (isQuotaError(err)) {
+        merged = pruneConnectionKeys(merged, { budget: SQL_STORAGE_QUOTA_BUDGET, keep });
+        try {
+          await writeRecords(merged);
+          written = true;
+        } catch {
+          // Still full: the changes are dropped rather than retried forever.
+        }
+        sqlStorageFull();
+      } else {
+        // A storage failure: these keys are written again with the next change.
+        for (const key of changes.history) changed.history.add(key);
+        for (const key of changes.tabs) changed.tabs.add(key);
+        for (const key of changes.removed) changed.removed.add(key);
+      }
+    }
     storedHistory = merged.history;
     storedTabs = merged.tabs;
     storedUsage = merged.usage;
     // History another page added for the open connection shows here too.
     const open = usePanelSqlStore.getState().connection;
     if (open && merged.history[open.key]) usePanelSqlStore.setState({ history: merged.history[open.key] });
-    try {
-      await Promise.all([
-        setStoredValue(HISTORY_KEY, merged.history),
-        setStoredValue(EDITOR_TABS_KEY, merged.tabs),
-        setStoredValue(CONNECTION_KEYS_KEY, merged.usage),
-      ]);
-    } catch {
-      // A full quota or a storage failure: these keys are written again with the next change.
-      for (const key of changes.history) changed.history.add(key);
-      for (const key of changes.tabs) changed.tabs.add(key);
-      for (const key of changes.removed) changed.removed.add(key);
+    if (written) {
+      for (const key of journals) {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // Folded in already; a later sync folds it in again, which merges to the same records.
+        }
+      }
     }
   });
 }
@@ -389,13 +506,15 @@ export function loadSqlStorage(): Promise<void> {
     getStoredValue<unknown>(EDITOR_TABS_KEY, {}).catch(() => ({})),
     getStoredValue<unknown>(CONNECTION_KEYS_KEY, {}).catch(() => ({})),
     getStoredValue<unknown>(SQL_LAYOUT_KEY, null).catch(() => null),
-  ]).then(([history, tabs, usage, layout]) => {
+  ]).then(async ([history, tabs, usage, layout]) => {
     storedHistory = restoreHistory(history);
     storedTabs = asRecord<EditorTab>(tabs);
     storedUsage = restoreUsage(usage);
     storedLayout = restoreLayout(layout);
     // Loaded before the first render (sql-main.tsx awaits this), so the layout never flashes.
     usePanelSqlStore.setState({ layout: storedLayout });
+    // Changes a closed or reloaded page journaled: folded into storage before anything reads it.
+    if (journalKeys().length) await syncSqlStorage().catch(() => undefined);
   });
   return storageLoaded;
 }
@@ -1096,6 +1215,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       if (!canRun()) return;
       const sql = selectTableSql(schemaName, table, connectionDialect(get().connection));
       const existing = get().tabs.find((t) => t.title === table && t.sql === sql);
+      if (!existing && get().tabs.length >= EDITOR_TAB_LIMIT) {
+        say(TAB_LIMIT_MESSAGE);
+        return;
+      }
       const tab = existing ?? { id: newTabId(), title: table, sql, maxRows: DEFAULT_MAX_ROWS };
       set({ tabs: existing ? get().tabs : [...get().tabs, tab], activeTabId: tab.id });
       persistTabs();
@@ -1200,6 +1323,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     },
 
     addTab() {
+      if (get().tabs.length >= EDITOR_TAB_LIMIT) {
+        say(TAB_LIMIT_MESSAGE);
+        return;
+      }
       const tab = blankTab(get().tabs.length + 1);
       set({ tabs: [...get().tabs, tab], activeTabId: tab.id });
       persistTabs();

@@ -682,6 +682,20 @@ test('the grid copies a cell or row range selection, with the blob and cut-text 
   assert.equal(await copied(), 'v\r\ntwo');
 });
 
+// Fix round 1: the save is debounced and async, so a reload right after typing used to lose the
+// text. pagehide now journals it to localStorage synchronously, and the next load folds it in.
+test('text typed just before a reload survives it', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  await openShop(page);
+  await setSql(page, 'select 777 as typed_before_reload');
+  const started = Date.now();
+  await page.reload();
+  assert.ok(Date.now() - started < 5_000);
+  await page.getByRole('button', { name: 'Open SQLite file' }).waitFor();
+  await openShop(page);
+  assert.equal(await page.getByLabel('SQL editor').textContent(), 'select 777 as typed_before_reload');
+});
+
 test('a fresh tab offers quick starts that insert SQL without running it, and the editor marks what runs', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);

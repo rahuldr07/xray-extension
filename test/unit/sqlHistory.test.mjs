@@ -237,3 +237,64 @@ test('migrateLegacyFileKeys moves every old size key of the file to the new key'
 test('connectionKeyForProfile keys remote history by profile id', () => {
   assert.equal(connectionKeyForProfile('p1'), 'remote:p1');
 });
+
+// Fix round 1: a byte budget across the three records, so SQL storage cannot starve session saves.
+test('pruneConnectionKeys evicts whole keys, least recently used first, to fit the byte budget', async () => {
+  const { SQL_STORAGE_BUDGET, SQL_STORAGE_QUOTA_BUDGET, sqlStorageBytes, utf8Bytes } = await import('../../src/panel/models/sqlHistory.ts');
+  assert.equal(SQL_STORAGE_BUDGET, 4_000_000);
+  assert.equal(SQL_STORAGE_QUOTA_BUDGET, 2_000_000);
+  assert.equal(utf8Bytes('aé😀'), 1 + 2 + 4);
+  const storage = { history: {}, tabs: {}, usage: {} };
+  // Ten keys of ~100 KB each; k0 is the oldest.
+  for (let i = 0; i < 10; i++) {
+    storage.tabs[`k${i}`] = [{ id: `t${i}`, title: 'Q', sql: 'x'.repeat(100_000), maxRows: 1 }];
+    storage.usage[`k${i}`] = 1000 + i;
+  }
+  const total = sqlStorageBytes(storage);
+  assert.ok(total > 1_000_000 && total < 1_010_000);
+  const out = pruneConnectionKeys(storage, { budget: 450_000 });
+  assert.deepEqual(Object.keys(out.tabs).sort(), ['k6', 'k7', 'k8', 'k9']);
+  assert.ok(sqlStorageBytes(out) <= 450_000);
+  assert.deepEqual(Object.keys(out.usage).sort(), ['k6', 'k7', 'k8', 'k9'], 'a key goes from every record');
+  // The open connection's key is never evicted, even when it is the oldest.
+  const kept = pruneConnectionKeys(storage, { budget: 450_000, keep: 'k0' });
+  assert.deepEqual(Object.keys(kept.tabs).sort(), ['k0', 'k7', 'k8', 'k9']);
+  assert.ok(sqlStorageBytes(kept) <= 450_000);
+  // Under budget: the same object back.
+  assert.equal(pruneConnectionKeys(storage), storage);
+});
+
+test('pruneConnectionKeys trims the open key\'s oldest history when it alone is over the budget', () => {
+  const big = Array.from({ length: 50 }, (_, i) => item(`select ${i} ${'y'.repeat(9_000)}`, 100 - i));
+  const out = pruneConnectionKeys({ history: { open: big, old: [item('x', 1)] }, tabs: {}, usage: {} }, { budget: 100_000, keep: 'open' });
+  assert.deepEqual(Object.keys(out.history), ['open']);
+  assert.ok(out.history.open.length < 50 && out.history.open.length > 0);
+  assert.equal(out.history.open[0].at, 100, 'the newest items stay');
+});
+
+test('editor tabs: at most 20 per connection, stored and restored', async () => {
+  const { EDITOR_TAB_LIMIT } = await import('../../src/panel/models/sqlHistory.ts');
+  assert.equal(EDITOR_TAB_LIMIT, 20);
+  const tabs = Array.from({ length: 25 }, (_, i) => ({ id: `t${i}`, title: 'Q', sql: '', maxRows: 1 }));
+  assert.equal(tabsForStorage(tabs).length, 20);
+  assert.equal(restoreEditorTabs({ k: tabs }, 'k').length, 20);
+});
+
+test('a pagehide journal round-trips through JSON and folds in like a page\'s changes', async () => {
+  const { journalFor, parseJournal } = await import('../../src/panel/models/sqlHistory.ts');
+  const local = {
+    history: { a: [item('mine', 5)], b: [item('other', 1)] },
+    tabs: { a: [{ id: 't', title: 'Q', sql: 'typed just before close', maxRows: 1 }] },
+    usage: { a: 9, b: 1 },
+  };
+  assert.equal(journalFor(local, { history: new Set(), tabs: new Set(), removed: new Set() }), null);
+  const journal = journalFor(local, { history: new Set(['a']), tabs: new Set(['a']), removed: new Set(['sqlite:a.db:1']) });
+  assert.deepEqual(Object.keys(journal.storage.history), ['a'], 'only changed keys');
+  const parsed = parseJournal(JSON.stringify(journal));
+  const stored = { history: { a: [item('stored', 3)] }, tabs: {}, usage: {} };
+  const out = mergeSqlStorage(stored, parsed.storage, parsed.changes);
+  assert.deepEqual(out.history.a.map((i) => i.sql), ['mine', 'stored']);
+  assert.equal(out.tabs.a[0].sql, 'typed just before close');
+  assert.equal(parseJournal('not json'), null);
+  assert.equal(parseJournal(null), null);
+});

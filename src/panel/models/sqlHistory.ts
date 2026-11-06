@@ -3,6 +3,7 @@
 // bounded: SQL text per item and per tab, items per connection, and connections (least recently
 // used go first). Several SQL pages may write at once; mergeSqlStorage folds one page's changes
 // into what another page stored, per connection key.
+import { parseJson, toValue } from './jsonText';
 import { clampMaxRows } from './sqlValues';
 import { DEFAULT_MAX_ROWS } from './sqlTypes';
 
@@ -17,6 +18,16 @@ export const HISTORY_SQL_LIMIT = 10_000;
 export const TAB_SQL_LIMIT = 200_000;
 /** The most connection keys kept across history, tabs and usage. */
 export const CONNECTION_KEY_LIMIT = 50;
+/** The most editor tabs one connection keeps open (and stored). */
+export const EDITOR_TAB_LIMIT = 20;
+/**
+ * The most UTF-8 bytes of serialized JSON the three SQL records may take together. chrome.storage.local
+ * holds 10 MB (no unlimitedStorage) and session persistence needs the rest.
+ */
+export const SQL_STORAGE_BUDGET = 4_000_000;
+/** The budget a write is pruned to after the storage reported a full quota. */
+export const SQL_STORAGE_QUOTA_BUDGET = 2_000_000;
+export const SQL_STORAGE_FULL_NOTICE = 'SQL history storage is full; older history was not saved.';
 
 // Cuts before a lone high surrogate would be left at the end.
 function cutAt(text: string, n: number): string {
@@ -151,18 +162,20 @@ export function restoreEditorTabs(raw: unknown, connectionKey: string): EditorTa
     }
   }
   if (!tabs.length) return [{ id: newTabId(), title: 'Query 1', sql: '', maxRows: DEFAULT_MAX_ROWS }];
-  return tabs;
+  return tabs.slice(0, EDITOR_TAB_LIMIT);
 }
 
-/** Tabs as a stored record keeps them: SQL capped at TAB_SQL_LIMIT. */
+/** Tabs as a stored record keeps them: at most EDITOR_TAB_LIMIT, SQL capped at TAB_SQL_LIMIT. */
 export function tabsForStorage(tabs: readonly EditorTab[]): EditorTab[] {
-  return tabs.map((tab) => (tab.sql.length > TAB_SQL_LIMIT ? { ...tab, sql: capTabSql(tab.sql) } : tab));
+  return tabs.slice(0, EDITOR_TAB_LIMIT).map((tab) => (tab.sql.length > TAB_SQL_LIMIT ? { ...tab, sql: capTabSql(tab.sql) } : tab));
 }
 
 /**
  * A SQLite file's key, the same across saves: the file name plus the stable id kept with its file
  * handle (runtime/recentFiles.ts), or the name alone for a file opened without a handle. The
  * prefixes differ from the old `sqlite:<name>:<size>` keys, so no file name can collide with one.
+ * Accepted (M6): files opened without a handle that share a name share history and tabs, and so do
+ * same-name files migrated from old keys.
  */
 export function connectionKeyForFile(name: string, id?: string | null): string {
   return id ? `sqlite-id:${id}:${name}` : `sqlite-name:${name}`;
@@ -215,16 +228,78 @@ function without<T>(record: Record<string, T>, keys: Iterable<string>): Record<s
   return out;
 }
 
+/** UTF-8 bytes of a string, without encoding it. */
+export function utf8Bytes(text: string): number {
+  let n = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) {
+      n += 4;
+      i++;
+    } else n += 3;
+  }
+  return n;
+}
+
+/** The serialized size of one key's share of the three records (its entries, key and separators). */
+function keyBytes(storage: SqlStorage, key: string): number {
+  let n = 0;
+  const entry = (value: unknown) => utf8Bytes(JSON.stringify(key)) + 2 + utf8Bytes(JSON.stringify(value));
+  if (storage.history[key]) n += entry(storage.history[key]);
+  if (storage.tabs[key]) n += entry(storage.tabs[key]);
+  if (key in storage.usage) n += entry(storage.usage[key]);
+  return n;
+}
+
+/** The UTF-8 bytes of the three records serialized as JSON. */
+export function sqlStorageBytes(storage: SqlStorage): number {
+  return utf8Bytes(JSON.stringify(storage.history)) + utf8Bytes(JSON.stringify(storage.tabs)) + utf8Bytes(JSON.stringify(storage.usage));
+}
+
+export interface PruneOptions {
+  /** The most connection keys kept. */
+  limit?: number;
+  /** The most bytes of serialized JSON kept across the three records. */
+  budget?: number;
+  /** The open connection's key: never evicted. */
+  keep?: string | null;
+}
+
 /**
- * Keeps the `limit` most recently used connection keys across all three records. A key's last use
- * is its usage time, else its newest history item, else never (it goes first).
+ * Keeps the `limit` most recently used connection keys across all three records, then evicts whole
+ * keys, least recently used first, until the records fit `budget`. A key's last use is its usage
+ * time, else its newest history item, else never (it goes first). The `keep` key is never evicted;
+ * if it alone is over the budget, its oldest history items go instead (its tabs stay).
  */
-export function pruneConnectionKeys(storage: SqlStorage, limit = CONNECTION_KEY_LIMIT): SqlStorage {
+export function pruneConnectionKeys(storage: SqlStorage, options: PruneOptions = {}): SqlStorage {
+  const { limit = CONNECTION_KEY_LIMIT, budget = SQL_STORAGE_BUDGET, keep = null } = options;
   const keys = new Set([...Object.keys(storage.history), ...Object.keys(storage.tabs), ...Object.keys(storage.usage)]);
-  if (keys.size <= limit) return storage;
   const lastUse = (key: string) => storage.usage[key] ?? storage.history[key]?.[0]?.at ?? 0;
-  const dropped = [...keys].sort((a, b) => lastUse(b) - lastUse(a) || (a < b ? -1 : 1)).slice(limit);
-  return { history: without(storage.history, dropped), tabs: without(storage.tabs, dropped), usage: without(storage.usage, dropped) };
+  // Least recently used first; the kept key last, so it is never reached.
+  const oldestFirst = [...keys].sort((a, b) => (a === keep ? 1 : b === keep ? -1 : lastUse(a) - lastUse(b) || (a < b ? 1 : -1)));
+  const dropped = new Set(oldestFirst.slice(0, Math.max(0, keys.size - limit)).filter((k) => k !== keep));
+  // 6 bytes: the three records' braces.
+  let total = 6;
+  for (const key of keys) if (!dropped.has(key)) total += keyBytes(storage, key) + 1;
+  for (const key of oldestFirst) {
+    if (total <= budget) break;
+    if (key === keep || dropped.has(key)) continue;
+    dropped.add(key);
+    total -= keyBytes(storage, key) + 1;
+  }
+  if (!dropped.size && total <= budget) return storage;
+  const out = { history: without(storage.history, dropped), tabs: without(storage.tabs, dropped), usage: without(storage.usage, dropped) };
+  if (total > budget && keep && out.history[keep]) {
+    const items = [...out.history[keep]];
+    while (items.length && total > budget) {
+      total -= utf8Bytes(JSON.stringify(items.pop())) + 1;
+    }
+    if (items.length) out.history[keep] = items;
+    else delete out.history[keep];
+  }
+  return out;
 }
 
 /**
@@ -233,7 +308,12 @@ export function pruneConnectionKeys(storage: SqlStorage, limit = CONNECTION_KEY_
  * last-use times keep the later one, removed keys go, and the result is pruned. Keys the page did
  * not touch keep whatever another page stored.
  */
-export function mergeSqlStorage(stored: SqlStorage, local: SqlStorage, changes: SqlStorageChanges): SqlStorage {
+export function mergeSqlStorage(
+  stored: SqlStorage,
+  local: SqlStorage,
+  changes: SqlStorageChanges,
+  prune: PruneOptions = {},
+): SqlStorage {
   const history = { ...stored.history };
   for (const key of changes.history) {
     const merged = mergeHistory(stored.history[key] ?? [], local.history[key] ?? []);
@@ -245,11 +325,58 @@ export function mergeSqlStorage(stored: SqlStorage, local: SqlStorage, changes: 
   }
   const usage = { ...stored.usage };
   for (const [key, at] of Object.entries(local.usage)) usage[key] = Math.max(at, usage[key] ?? 0);
-  return pruneConnectionKeys({
-    history: without(history, changes.removed),
-    tabs: without(tabs, changes.removed),
-    usage: without(usage, changes.removed),
-  });
+  return pruneConnectionKeys(
+    {
+      history: without(history, changes.removed),
+      tabs: without(tabs, changes.removed),
+      usage: without(usage, changes.removed),
+    },
+    prune,
+  );
+}
+
+/** localStorage keys of the journals pages write on pagehide (see sqlStore.ts writeSqlJournal). */
+export const SQL_JOURNAL_PREFIX = 'xray_sql_journal:';
+
+/** What a page journals on pagehide: its changed keys and their local values. */
+export interface SqlJournal {
+  storage: SqlStorage;
+  changes: { history: string[]; tabs: string[]; removed: string[] };
+}
+
+/** The journal for one page's unsaved changes, or null when nothing changed. */
+export function journalFor(local: SqlStorage, changes: SqlStorageChanges): SqlJournal | null {
+  const history: Record<string, HistoryItem[]> = {};
+  const tabs: Record<string, EditorTab[]> = {};
+  const usage: Record<string, number> = {};
+  for (const key of changes.history) if (local.history[key]) history[key] = local.history[key];
+  for (const key of changes.tabs) if (local.tabs[key]) tabs[key] = tabsForStorage(local.tabs[key]);
+  for (const key of [...changes.history, ...changes.tabs]) if (key in local.usage) usage[key] = local.usage[key];
+  if (!changes.history.size && !changes.tabs.size && !changes.removed.size) return null;
+  return {
+    storage: { history, tabs, usage },
+    changes: { history: [...changes.history], tabs: [...changes.tabs], removed: [...changes.removed] },
+  };
+}
+
+/** A stored journal (JSON text) as a journal to fold in, or null when it is not one. */
+export function parseJournal(text: string | null): { storage: SqlStorage; changes: SqlStorageChanges } | null {
+  if (!text) return null;
+  const doc = parseJson(text);
+  if (!doc.ok) return null;
+  const raw = toValue(doc.root);
+  if (!raw || typeof raw !== 'object') return null;
+  const j = raw as { storage?: { history?: unknown; tabs?: unknown; usage?: unknown }; changes?: Record<string, unknown> };
+  const list = (v: unknown) => new Set(Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string') : []);
+  const tabs: Record<string, EditorTab[]> = {};
+  const rawTabs = j.storage?.tabs;
+  if (rawTabs && typeof rawTabs === 'object' && !Array.isArray(rawTabs)) {
+    for (const key of Object.keys(rawTabs)) tabs[key] = restoreEditorTabs(rawTabs, key);
+  }
+  return {
+    storage: { history: restoreHistory(j.storage?.history), tabs, usage: restoreUsage(j.storage?.usage) },
+    changes: { history: list(j.changes?.history), tabs: list(j.changes?.tabs), removed: list(j.changes?.removed) },
+  };
 }
 
 /**

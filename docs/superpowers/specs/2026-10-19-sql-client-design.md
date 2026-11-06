@@ -58,10 +58,13 @@ receives the client's code, credentials or result rows.
       stored in `chrome.storage.local`. Rows are never stored.
     - Storage is bounded, since it shares the quota with session persistence: a history item keeps
       at most 10,000 characters of SQL (ending in a comment that says it was cut), a stored editor
-      tab at most 200,000, and only the 50 most recently used connections are kept. A SQLite file is
+      tab at most 200,000 (20 tabs per connection), and only the 50 most recently used connections are
+      kept, within 4 MB of serialized JSON (2 MB after a full-quota error, with a notice). A SQLite file is
       keyed by its name plus a stable id kept with its file handle in IndexedDB (the name alone
       without a handle), so a save does not orphan its history. Writes re-read the stored records
-      under a Web Lock and merge per connection, so two SQL pages do not overwrite each other.
+      under a Web Lock and merge per connection, so two SQL pages do not overwrite each other. On
+      pagehide a page journals its unsaved changes to localStorage synchronously; the next sync folds
+      them in.
   - **Connection dialog:** fields depend on the driver.
     - Postgres/MySQL: host, port, database, user, password, TLS mode, optional CA file.
     - HTTP providers: endpoint URL and token.

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { SqlApp } from './components/sql/SqlApp';
-import { flushSqlPersistence, loadSqlStorage } from './sqlStore';
+import { loadSqlStorage, persistOnPageHide } from './sqlStore';
 import { getStoredValue } from './runtime/storageBridge';
 import { applyPanelPreferences, REACT_PANEL_PREFERENCES_KEY, type SerializedPanelPreferences } from './models/panelPersistence';
 import { DEFAULT_PANEL_SETTINGS } from './models/panelSettings';
@@ -44,7 +44,7 @@ if (root) {
       return;
     }
     await loadSqlStorage();
-    window.addEventListener('pagehide', () => void flushSqlPersistence());
+    window.addEventListener('pagehide', persistOnPageHide);
     createRoot(root).render(<SqlApp settings={settings} hud={hud} />);
     // The HUD's inline frame waits for this before giving up on a blocked frame (sqlFrameReady.ts).
     // It goes through the service worker, which relays it to the tab: never to the page's window.

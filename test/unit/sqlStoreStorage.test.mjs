@@ -11,7 +11,20 @@ window.XRAY_Store = {
   async set(key, value) { disk.set(key, structuredClone(value)); },
 };
 
-const { usePanelSqlStore, __setRemoteApiForTests, loadSqlStorage, flushSqlPersistence } = await import('../../src/panel/sqlStore.ts');
+// Extension-origin localStorage, where a page being torn down leaves its pagehide journal.
+const local = new Map();
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    get length() { return local.size; },
+    key: (i) => [...local.keys()][i] ?? null,
+    getItem: (k) => (local.has(k) ? local.get(k) : null),
+    setItem: (k, v) => { local.set(k, String(v)); },
+    removeItem: (k) => { local.delete(k); },
+  },
+});
+
+const { usePanelSqlStore, __setRemoteApiForTests, loadSqlStorage, flushSqlPersistence, persistOnPageHide } = await import('../../src/panel/sqlStore.ts');
 
 const item = (sql, at) => ({ sql, at, durationMs: 1, rowCount: 1, ok: true });
 const session = {
@@ -55,4 +68,60 @@ test('history and tabs merge with another page\'s writes, per connection key', a
   assert.equal(disk.get('sql_editor_tabs')['remote:p1'][0].sql, 'select 42');
   assert.equal(typeof disk.get('sql_connection_keys')['remote:p1'], 'number', 'the key\'s last use is recorded');
   assert.deepEqual(usePanelSqlStore.getState().history.map((i) => i.sql)[0], 'other again', 'the page shows the merged history');
+});
+
+// Fix round 1: edits made just before close or reload were lost, because the async write never ran.
+test('pagehide journals unsaved edits synchronously, and the next page load folds them in', async () => {
+  const s = usePanelSqlStore.getState();
+  assert.equal(s.connection.key, 'remote:p1');
+  s.updateTabSql(s.activeTabId, 'typed just before reload');
+  // The debounced write has not run; the page goes away now. Nothing async may be needed.
+  const before = structuredClone(disk.get('sql_editor_tabs'));
+  persistOnPageHide();
+  const journals = [...local.keys()].filter((k) => k.startsWith('xray_sql_journal:'));
+  assert.equal(journals.length, 1, 'the journal is written synchronously');
+  assert.deepEqual(disk.get('sql_editor_tabs'), before, 'storage itself is not written yet');
+  // Its async flush never completes (the page is gone): drop it by restoring storage.
+  await flushSqlPersistence();
+  disk.set('sql_editor_tabs', before);
+
+  // The reloaded page: a fresh module instance.
+  const next = await import('../../src/panel/sqlStore.ts?page=reloaded');
+  await next.loadSqlStorage();
+  assert.equal(disk.get('sql_editor_tabs')['remote:p1'][0].sql, 'typed just before reload');
+  assert.equal([...local.keys()].filter((k) => k.startsWith('xray_sql_journal:')).length, 0, 'the journal is gone once folded in');
+});
+
+test('a full quota prunes to 2 MB, retries once, and says so once', async () => {
+  const set = window.XRAY_Store.set;
+  let refusals = 0;
+  window.XRAY_Store.set = async (key, value) => {
+    if (refusals < 1) {
+      refusals++;
+      throw Object.assign(new Error('quota'), { code: 'storage-write-failed', reason: 'quota' });
+    }
+    return set(key, value);
+  };
+  try {
+    // Another connection with ~3 MB of tabs, used long ago.
+    const tabs = disk.get('sql_editor_tabs');
+    tabs['remote:old'] = Array.from({ length: 15 }, (_, i) => ({ id: `o${i}`, title: 'Q', sql: 'z'.repeat(200_000), maxRows: 1 }));
+    disk.set('sql_editor_tabs', tabs);
+    disk.set('sql_connection_keys', { ...disk.get('sql_connection_keys'), 'remote:old': 1 });
+    const s = usePanelSqlStore.getState();
+    s.updateTabSql(s.activeTabId, 'after the quota');
+    await flushSqlPersistence();
+    assert.equal(refusals, 1);
+    assert.equal(disk.get('sql_editor_tabs')['remote:old'], undefined, 'the old key was pruned');
+    assert.equal(disk.get('sql_editor_tabs')['remote:p1'][0].sql, 'after the quota', 'the open key is kept');
+    const notice = 'SQL history storage is full; older history was not saved.';
+    assert.equal(usePanelSqlStore.getState().messages.filter((m) => m === notice).length, 1);
+    // Once per page.
+    refusals = 0;
+    s.updateTabSql(s.activeTabId, 'again');
+    await flushSqlPersistence();
+    assert.equal(usePanelSqlStore.getState().messages.filter((m) => m === notice).length, 1);
+  } finally {
+    window.XRAY_Store.set = set;
+  }
 });
