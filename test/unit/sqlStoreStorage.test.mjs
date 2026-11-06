@@ -125,3 +125,67 @@ test('a full quota prunes to 2 MB, retries once, and says so once', async () => 
     window.XRAY_Store.set = set;
   }
 });
+
+// Fix round 2: a write still refused after the quota retry drops the folded journals too.
+test('a quota retry that still fails removes the journals folded in, and the notice says so', async () => {
+  const set = window.XRAY_Store.set;
+  window.XRAY_Store.set = async () => {
+    throw Object.assign(new Error('quota'), { code: 'storage-write-failed', reason: 'quota' });
+  };
+  try {
+    local.set('xray_sql_journal:gone-page', JSON.stringify({
+      storage: { history: {}, tabs: { 'remote:p7': [{ id: 'j', title: 'Q', sql: 'journaled', maxRows: 1 }] }, usage: { 'remote:p7': 5 } },
+      changes: { history: [], tabs: ['remote:p7'], removed: [] },
+    }));
+    const s = usePanelSqlStore.getState();
+    s.updateTabSql(s.activeTabId, 'refused twice');
+    await flushSqlPersistence();
+    assert.equal(local.has('xray_sql_journal:gone-page'), false, 'dropped, not retried forever');
+    assert.ok(usePanelSqlStore.getState().messages.includes('SQL history storage is full; older history was not saved.'));
+  } finally {
+    window.XRAY_Store.set = set;
+  }
+});
+
+test('a non-quota failure keeps the journals and the changes for the next write', async () => {
+  const set = window.XRAY_Store.set;
+  window.XRAY_Store.set = async () => { throw new Error('disk'); };
+  try {
+    local.set('xray_sql_journal:kept-page', JSON.stringify({ storage: { history: {}, tabs: {}, usage: {} }, changes: { history: [], tabs: [], removed: [] } }));
+    const s = usePanelSqlStore.getState();
+    s.updateTabSql(s.activeTabId, 'retry me');
+    await flushSqlPersistence();
+    assert.equal(local.has('xray_sql_journal:kept-page'), true);
+  } finally {
+    window.XRAY_Store.set = set;
+  }
+  const s = usePanelSqlStore.getState();
+  s.updateTabSql(s.activeTabId, 'retry me!');
+  await flushSqlPersistence();
+  assert.equal(disk.get('sql_editor_tabs')['remote:p1'][0].sql, 'retry me!');
+  assert.equal(local.has('xray_sql_journal:kept-page'), false);
+});
+
+// Fix round 2: the changed keys were cleared before the write finished, so a pagehide during an
+// in-flight write journaled nothing.
+test('a pagehide during an in-flight write still journals the changes', async () => {
+  const set = window.XRAY_Store.set;
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  window.XRAY_Store.set = async (key, value) => { await gate; return set(key, value); };
+  try {
+    for (const k of [...local.keys()]) if (k.startsWith('xray_sql_journal:')) local.delete(k);
+    const s = usePanelSqlStore.getState();
+    s.updateTabSql(s.activeTabId, 'in flight');
+    const writing = flushSqlPersistence();
+    await new Promise((r) => setTimeout(r, 20));
+    persistOnPageHide();
+    const journals = [...local.entries()].filter(([k]) => k.startsWith('xray_sql_journal:'));
+    assert.equal(journals.length, 1);
+    assert.match(journals[0][1], /in flight/);
+    release();
+    await writing;
+  } finally {
+    window.XRAY_Store.set = set;
+  }
+});

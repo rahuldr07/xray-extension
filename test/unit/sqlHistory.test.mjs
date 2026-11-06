@@ -6,7 +6,7 @@ const {
   HISTORY_KEY, EDITOR_TABS_KEY, CONNECTION_KEYS_KEY, HISTORY_LIMIT, HISTORY_SQL_LIMIT, TAB_SQL_LIMIT, CONNECTION_KEY_LIMIT,
   appendHistory, restoreEditorTabs, connectionKeyForFile, connectionKeyForProfile, legacyConnectionKeyForFile, parseLegacyFileKey,
   capHistorySql, capTabSql, tabsForStorage, restoreHistory, mergeHistory, restoreUsage, pruneConnectionKeys, mergeSqlStorage,
-  migrateLegacyFileKeys,
+  migrateLegacyFileKeys, sqlStorageBytes: sqlStorageBytesOf,
 } = await import('../../src/panel/models/sqlHistory.ts');
 
 const item = (sql, at = 1) => ({ sql, at, durationMs: 2, rowCount: 3, ok: true });
@@ -297,4 +297,31 @@ test('a pagehide journal round-trips through JSON and folds in like a page\'s ch
   assert.equal(out.tabs.a[0].sql, 'typed just before close');
   assert.equal(parseJournal('not json'), null);
   assert.equal(parseJournal(null), null);
+});
+
+// Fix round 2: a journal folded in late must not overwrite tabs another page stored since.
+test('a stale journal does not overwrite newer stored tabs; a fresh one does', async () => {
+  const { parseJournal, journalFor } = await import('../../src/panel/models/sqlHistory.ts');
+  const tab = (sql) => [{ id: 't', title: 'Q', sql, maxRows: 1 }];
+  const journal = parseJournal(JSON.stringify(journalFor(
+    { history: {}, tabs: { a: tab('journaled') }, usage: { a: 100 } },
+    { history: new Set(), tabs: new Set(['a']), removed: new Set() },
+  )));
+  const newer = { history: {}, tabs: { a: tab('newer from another page') }, usage: { a: 200 } };
+  assert.equal(mergeSqlStorage(newer, journal.storage, journal.changes, { journal: true }).tabs.a[0].sql, 'newer from another page');
+  const older = { history: {}, tabs: { a: tab('older') }, usage: { a: 50 } };
+  assert.equal(mergeSqlStorage(older, journal.storage, journal.changes, { journal: true }).tabs.a[0].sql, 'journaled');
+  // The live page's own overlay always wins for the keys it changed.
+  assert.equal(mergeSqlStorage(newer, journal.storage, journal.changes).tabs.a[0].sql, 'journaled');
+});
+
+// Fix round 2: the open key's tabs are bounded too, when they alone are over the budget.
+test('pruneConnectionKeys trims the open key\'s stored tab text, last tabs first, once its history is gone', () => {
+  const tabs = Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, title: 'Q', sql: `${i}`.repeat(40_000), maxRows: 1 }));
+  const out = pruneConnectionKeys({ history: { open: [item('x', 1)] }, tabs: { open: tabs }, usage: { open: 1 } }, { budget: 100_000, keep: 'open' });
+  assert.equal(out.history.open, undefined, 'history goes first');
+  assert.equal(out.tabs.open.length, 5, 'every tab is kept');
+  assert.ok(sqlStorageBytesOf(out) <= 100_000);
+  assert.equal(out.tabs.open[0].sql.length, 40_000, 'the first tabs keep their text');
+  assert.ok(out.tabs.open[4].sql.length < 40_000, 'the last tab is cut');
 });

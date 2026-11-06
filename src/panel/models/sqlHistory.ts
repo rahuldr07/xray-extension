@@ -267,11 +267,21 @@ export interface PruneOptions {
   keep?: string | null;
 }
 
+export interface MergeOptions extends PruneOptions {
+  /**
+   * `local` is a pagehide journal, not the live page: its tabs replace a key's stored tabs only when
+   * its last use is at least the stored one, so a journal folded in late never overwrites newer tabs.
+   */
+  journal?: boolean;
+}
+
 /**
  * Keeps the `limit` most recently used connection keys across all three records, then evicts whole
  * keys, least recently used first, until the records fit `budget`. A key's last use is its usage
- * time, else its newest history item, else never (it goes first). The `keep` key is never evicted;
- * if it alone is over the budget, its oldest history items go instead (its tabs stay).
+ * time, else its newest history item, else never (it goes first). The `keep` key is never evicted:
+ * if it alone is over the budget, its oldest history items go, then the stored text of its tabs is
+ * cut, last tab first (the simpler of the two options: the open editor is not touched, so only a
+ * reload would show the shortened text; the 20-tab and 200,000-character caps make this rare).
  */
 export function pruneConnectionKeys(storage: SqlStorage, options: PruneOptions = {}): SqlStorage {
   const { limit = CONNECTION_KEY_LIMIT, budget = SQL_STORAGE_BUDGET, keep = null } = options;
@@ -299,6 +309,18 @@ export function pruneConnectionKeys(storage: SqlStorage, options: PruneOptions =
     if (items.length) out.history[keep] = items;
     else delete out.history[keep];
   }
+  if (total > budget && keep && out.tabs[keep]) {
+    const tabs = out.tabs[keep].map((tab) => ({ ...tab }));
+    for (let i = tabs.length - 1; i >= 0 && total > budget; i--) {
+      const bytes = utf8Bytes(JSON.stringify(tabs[i].sql));
+      const over = total - budget;
+      // Cut by characters; a character is at most 3 bytes in JSON text here, at least 1.
+      const keepChars = bytes > over ? Math.max(0, tabs[i].sql.length - over) : 0;
+      tabs[i].sql = capTabSql(tabs[i].sql.slice(0, keepChars));
+      total -= bytes - utf8Bytes(JSON.stringify(tabs[i].sql));
+    }
+    out.tabs[keep] = tabs;
+  }
   return out;
 }
 
@@ -312,8 +334,9 @@ export function mergeSqlStorage(
   stored: SqlStorage,
   local: SqlStorage,
   changes: SqlStorageChanges,
-  prune: PruneOptions = {},
+  options: MergeOptions = {},
 ): SqlStorage {
+  const { journal = false, ...prune } = options;
   const history = { ...stored.history };
   for (const key of changes.history) {
     const merged = mergeHistory(stored.history[key] ?? [], local.history[key] ?? []);
@@ -321,7 +344,9 @@ export function mergeSqlStorage(
   }
   const tabs = { ...stored.tabs };
   for (const key of changes.tabs) {
-    if (local.tabs[key]) tabs[key] = tabsForStorage(local.tabs[key]);
+    if (!local.tabs[key]) continue;
+    if (journal && (local.usage[key] ?? 0) < (stored.usage[key] ?? 0)) continue;
+    tabs[key] = tabsForStorage(local.tabs[key]);
   }
   const usage = { ...stored.usage };
   for (const [key, at] of Object.entries(local.usage)) usage[key] = Math.max(at, usage[key] ?? 0);

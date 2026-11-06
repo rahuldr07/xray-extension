@@ -243,6 +243,11 @@ let storedHistory: Record<string, HistoryItem[]> = {};
 let storedTabs: Record<string, EditorTab[]> = {};
 let storedUsage: Record<string, number> = {};
 const changed = { history: new Set<string>(), tabs: new Set<string>(), removed: new Set<string>() };
+// How many times each key changed in this page: tells a change made during an in-flight write.
+const touches = new Map<string, number>();
+function touch(key: string): void {
+  touches.set(key, (touches.get(key) ?? 0) + 1);
+}
 let storedLayout: SqlLayout = restoreLayout(undefined);
 let storageLoaded: Promise<void> | null = null;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -425,7 +430,7 @@ async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlSt
     const journals = journalKeys();
     for (const key of journals) {
       const journal = parseJournal(readJournal(key));
-      if (journal) fresh = mergeSqlStorage(fresh, journal.storage, journal.changes, { keep });
+      if (journal) fresh = mergeSqlStorage(fresh, journal.storage, journal.changes, { keep, journal: true });
     }
     if (adjust) {
       const out = adjust(fresh);
@@ -434,30 +439,39 @@ async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlSt
     }
     const local = { history: storedHistory, tabs: storedTabs, usage: storedUsage };
     const changes = { history: new Set(changed.history), tabs: new Set(changed.tabs), removed: new Set(changed.removed) };
+    // Which change of each key this write carries: a key changed again while it is in flight stays
+    // changed (and journaled on pagehide), and keeps its newer local value.
+    const generation = new Map(touches);
     let merged = mergeSqlStorage(fresh, local, changes, { keep });
-    for (const key of changes.history) changed.history.delete(key);
-    for (const key of changes.tabs) changed.tabs.delete(key);
-    for (const key of changes.removed) changed.removed.delete(key);
-    let written = false;
+    // Settled: written, or dropped on a full quota (the notice says so). The changes and the folded
+    // journals are cleared only then; another failure keeps both for the next try.
+    let settled = false;
     try {
       await writeRecords(merged);
-      written = true;
+      settled = true;
     } catch (err) {
       if (isQuotaError(err)) {
         merged = pruneConnectionKeys(merged, { budget: SQL_STORAGE_QUOTA_BUDGET, keep });
         try {
           await writeRecords(merged);
-          written = true;
         } catch {
-          // Still full: the changes are dropped rather than retried forever.
+          // Still full: the changes and the journals are dropped rather than retried forever.
         }
+        settled = true;
         sqlStorageFull();
-      } else {
-        // A storage failure: these keys are written again with the next change.
-        for (const key of changes.history) changed.history.add(key);
-        for (const key of changes.tabs) changed.tabs.add(key);
-        for (const key of changes.removed) changed.removed.add(key);
       }
+    }
+    const fresher = (key: string) => (touches.get(key) ?? 0) !== (generation.get(key) ?? 0);
+    if (settled) {
+      for (const key of changes.history) if (!fresher(key)) changed.history.delete(key);
+      for (const key of changes.tabs) if (!fresher(key)) changed.tabs.delete(key);
+      for (const key of changes.removed) changed.removed.delete(key);
+    }
+    // This page's newer edits made during the write stay as they are.
+    for (const key of touches.keys()) {
+      if (!fresher(key)) continue;
+      if (storedHistory[key]) merged.history[key] = storedHistory[key];
+      if (storedTabs[key]) merged.tabs[key] = storedTabs[key];
     }
     storedHistory = merged.history;
     storedTabs = merged.tabs;
@@ -465,7 +479,7 @@ async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlSt
     // History another page added for the open connection shows here too.
     const open = usePanelSqlStore.getState().connection;
     if (open && merged.history[open.key]) usePanelSqlStore.setState({ history: merged.history[open.key] });
-    if (written) {
+    if (settled) {
       for (const key of journals) {
         try {
           localStorage.removeItem(key);
@@ -598,6 +612,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     storedTabs = { ...storedTabs, [conn.key]: get().tabs };
     storedUsage = { ...storedUsage, [conn.key]: Date.now() };
     changed.tabs.add(conn.key);
+    touch(conn.key);
     syncLater();
   }
 
@@ -607,6 +622,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     storedHistory = appendHistory(storedHistory, conn.key, item);
     storedUsage = { ...storedUsage, [conn.key]: Date.now() };
     changed.history.add(conn.key);
+    touch(conn.key);
     set({ history: storedHistory[conn.key] ?? [] });
     syncLater();
   }
