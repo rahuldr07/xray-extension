@@ -391,7 +391,7 @@ test('options page changes the HUD SQL options through the worker, and asks befo
   const context = {
     document: { getElementById: element, createElement: () => ({}), documentElement: { style: { setProperty() {}, removeProperty() {} } } },
     chrome: { runtime, storage: { local: { get: async () => ({}), set: async () => {} } } },
-    setTimeout: () => 0, structuredClone,
+    setTimeout: () => 0, clearTimeout() {}, structuredClone,
   };
   await vm.runInNewContext(readFileSync(new URL('../../settings/settings.js', import.meta.url), 'utf8'), context);
   await new Promise((r) => setImmediate(r));
@@ -409,4 +409,60 @@ test('options page changes the HUD SQL options through the worker, and asks befo
   await element('hudAllow').listeners.click();
   assert.equal(options.sqlDatabasesInHud, true);
   assert.equal(element('sqlDatabasesInHud').checked, true);
+});
+
+// #21: a refused or unanswered write puts the toggles back to the worker's last answer and says why.
+async function hudOptionsPage(answerSet) {
+  const vm = await import('node:vm');
+  const options = { sqlInlineInHud: true, sqlDatabasesInHud: false };
+  const runtime = { lastError: undefined, sendMessage(msg, cb) {
+    if (msg.type === 'xray:sql-hud-options:get') return cb({ ok: true, value: options });
+    answerSet(runtime, cb);
+  } };
+  const elements = {};
+  const element = (id) => (elements[id] ??= {
+    id, value: '', checked: false, disabled: false, textContent: '', hidden: false, options: [], listeners: {},
+    classList: { add() {}, remove() {} },
+    appendChild(option) { this.options.push(option); },
+    addEventListener(type, fn) { this.listeners[type] = fn; },
+    showModal() {}, close() {},
+  });
+  const context = {
+    document: { getElementById: element, createElement: () => ({}), documentElement: { style: { setProperty() {}, removeProperty() {} } } },
+    chrome: { runtime, storage: { local: { get: async () => ({}), set: async () => {} } } },
+    setTimeout: () => 0, clearTimeout() {}, structuredClone,
+  };
+  await vm.runInNewContext(readFileSync(new URL('../../settings/settings.js', import.meta.url), 'utf8'), context);
+  await new Promise((r) => setImmediate(r));
+  return element;
+}
+
+test('options page reverts a HUD SQL toggle the worker refuses, and shows the refusal', async () => {
+  const element = await hudOptionsPage((_rt, cb) => cb({ ok: false, error: 'Change this in XRAY’s settings page.' }));
+  assert.equal(element('sqlInlineInHud').checked, true);
+  assert.equal(element('sqlHudError').textContent, '');
+  element('sqlInlineInHud').checked = false;
+  await element('sqlInlineInHud').listeners.change();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(element('sqlInlineInHud').checked, true, 'back to what the worker holds');
+  assert.equal(element('sqlDatabasesInHud').disabled, false);
+  assert.equal(element('sqlHudError').textContent, 'Change this in XRAY’s settings page.');
+  // Allow in the dialog, refused too: the databases toggle stays off.
+  element('sqlDatabasesInHud').checked = true;
+  element('sqlDatabasesInHud').listeners.change();
+  await element('hudAllow').listeners.click();
+  assert.equal(element('sqlDatabasesInHud').checked, false);
+});
+
+test('options page reverts a HUD SQL toggle when the worker does not answer', async () => {
+  const element = await hudOptionsPage((rt, cb) => {
+    rt.lastError = { message: 'Could not establish connection.' };
+    cb(undefined);
+    rt.lastError = undefined;
+  });
+  element('sqlInlineInHud').checked = false;
+  await element('sqlInlineInHud').listeners.change();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(element('sqlInlineInHud').checked, true);
+  assert.match(element('sqlHudError').textContent, /did not answer/);
 });

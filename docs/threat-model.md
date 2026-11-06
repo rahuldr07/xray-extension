@@ -281,9 +281,10 @@ without write grants when writes must be impossible.
     the Stop aborts the transaction, which the COMMIT then reports as the failed-transaction error.
   - **MySQL.** The state is tracked by the helper from the statements: BEGIN/START TRANSACTION,
     COMMIT/ROLLBACK (with AND CHAIN and ROLLBACK TO), implicit-commit statements, and `@@autocommit`
-    read at connect and after any statement that mentions it. A deadlock's rollback makes the next
-    COMMIT an error, and a connection lost inside a tracked transaction is reported on the next
-    statement. A cursor in a transaction is stopped with KILL QUERY, which ends only that statement.
+    read at connect and after any statement that mentions it. Turning autocommit on counts as a
+    commit only when it was off. A deadlock's rollback makes the next COMMIT an error, and a
+    connection lost inside a tracked transaction is reported on the next statement. So is one
+    dropped because `@@autocommit` could not be read again. A cursor in a transaction is stopped with KILL QUERY, which ends only that statement.
     Not covered: a transaction the server rolls back after another kind of error, which is then
     reported as still open until COMMIT or ROLLBACK (whose COMMIT succeeds on nothing).
 

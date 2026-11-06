@@ -206,6 +206,8 @@
       font-size: 11px;
       line-height: 1.45;
     }
+    .hud-error { color: var(--xray-text); }
+    .hud-error:empty { display: none; }
     .switch-row {
       display: flex;
       align-items: center;
@@ -396,6 +398,7 @@
         </div>
         <div class="hint" id="sqlDatabasesHint">Turn on the option above first.</div>
         <div class="hint">These apply at once. Only this page, DevTools and the pop-out window can change them, never the panel inside a web page.</div>
+        <div class="hint hud-error" id="sqlHudError" role="status"></div>
       </div>
 
       <dialog id="hudDialog" aria-labelledby="hudDialogTitle">

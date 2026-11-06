@@ -1392,6 +1392,12 @@ func TestTxAfter(t *testing.T) {
 		{true, "rollback", false},
 		{true, "commit and chain", true},
 		{true, "rollback and no chain", false},
+		// NO counts only directly before CHAIN: NO RELEASE keeps the chain.
+		{true, "commit and chain no release", true},
+		{true, "rollback work and chain no release", true},
+		{true, "commit and no chain no release", false},
+		{true, "commit work and no chain no release", false},
+		{true, "commit no release", false},
 		{true, "rollback to savepoint a", true},
 		{true, "rollback work to a", true},
 		{true, "savepoint a", true},
@@ -1402,7 +1408,10 @@ func TestTxAfter(t *testing.T) {
 		{true, "alter table t add b int", false},
 		{true, "truncate t", false},
 		{true, "lock tables t write", false},
-		{true, "set autocommit = 1", false},
+		// SET autocommit leaves the transaction as it was here: noteTx counts it
+		// as a commit only when @@autocommit moved from 0 to 1.
+		{true, "set autocommit = 1", true},
+		{false, "set autocommit = 1", false},
 		{true, "set @x = 1", true},
 		{true, "start replica", false},
 		{false, "start replica", false},
@@ -1567,6 +1576,100 @@ func TestMySQLServerDefaultAutocommitOff(t *testing.T) {
 		t.Fatalf("rollback: %v", v)
 	}
 	if n := count(t, c, sid, "select count(*) from orders where total = 785"); n != "0" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+func TestEndsChain(t *testing.T) {
+	cases := []struct {
+		sql  string
+		want bool
+	}{
+		{"commit", true},
+		{"rollback work", true},
+		{"commit and chain", false},
+		{"commit and no chain", true},
+		{"commit and chain no release", false},
+		{"rollback and chain no release", false},
+		{"commit work and no chain no release", true},
+		{"commit release", true},
+		{"rollback to savepoint a", false},
+		{"select 1", false},
+	}
+	for _, c := range cases {
+		if got := endsChain(c.sql, false); got != c.want {
+			t.Errorf("endsChain(%q) = %v, want %v", c.sql, got, c.want)
+		}
+	}
+}
+
+// COMMIT AND CHAIN NO RELEASE starts the next transaction at once (#21).
+func TestMySQLCommitAndChainNoRelease(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (790)", 10)
+	if _, v := mustOK(t, c, sid, "t1", "commit and chain no release", 10); v["inTransaction"] != true {
+		t.Fatalf("commit and chain no release: %v", v)
+	}
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (791)", 10)
+	if _, v := mustOK(t, c, sid, "t1", "rollback", 10); v["inTransaction"] != false {
+		t.Fatalf("rollback: %v", v)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total in (790, 791)"); n != "1" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+// SET autocommit = 1 while it is already 1 does not commit an open BEGIN (#21).
+func TestMySQLSetAutocommitOnInsideBegin(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (792)", 10)
+	if _, v := mustOK(t, c, sid, "t1", "set autocommit = 1", 10); v["inTransaction"] != true {
+		t.Fatalf("set autocommit=1 while already 1: %v", v)
+	}
+	if _, v := mustOK(t, c, sid, "t1", "rollback", 10); v["inTransaction"] != false {
+		t.Fatalf("rollback: %v", v)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 792"); n != "0" {
+		t.Fatalf("the transaction was still open, so rollback removes the row: %v", n)
+	}
+	// From 0 to 1 it commits.
+	mustOK(t, c, sid, "t1", "set autocommit = 0", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (793)", 10)
+	if _, v := mustOK(t, c, sid, "t1", "set autocommit = 1", 10); v["inTransaction"] != false {
+		t.Fatalf("set autocommit=1 from 0: %v", v)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 793"); n != "1" {
+		t.Fatalf("rows %v", n)
+	}
+}
+
+// A failed @@autocommit re-read drops the connection; an open transaction on it
+// is reported as lost, not dropped silently (#21).
+func TestMySQLFailedAutocommitRereadReportsLostTransaction(t *testing.T) {
+	cfg := dsnOrSkip(t)
+	db := fixture(t, cfg)
+	failAutocommitReread = true
+	t.Cleanup(func() { failAutocommitReread = false })
+	c := newClient(t)
+	sid := open(t, c, connectReq(t, cfg, db, false))
+	mustOK(t, c, sid, "t1", "begin", 10)
+	mustOK(t, c, sid, "t1", "insert into orders(total) values (794)", 10)
+	if _, v := mustOK(t, c, sid, "t1", "set autocommit = 1", 10); v["inTransaction"] != true {
+		t.Fatalf("the state is unknown, so the transaction counts as open: %v", v)
+	}
+	_, f := exec(c, sid, "t1", "commit", 10)
+	if errField(f, "message") != "The connection to the database was lost, so the open transaction was rolled back." {
+		t.Fatalf("commit after the failed re-read: %v", f)
+	}
+	if n := count(t, c, sid, "select count(*) from orders where total = 794"); n != "0" {
 		t.Fatalf("rows %v", n)
 	}
 }

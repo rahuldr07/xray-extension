@@ -164,12 +164,26 @@
   const databasesInput = document.getElementById('sqlDatabasesInHud');
   const databasesHint = document.getElementById('sqlDatabasesHint');
   const hudDialog = document.getElementById('hudDialog');
+  const hudError = document.getElementById('sqlHudError');
+  const HUD_NO_ANSWER = 'XRAY did not answer, so the option was not changed. Reload this page and try again.';
+  const HUD_ANSWER_MS = 5000;
   const runtime = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime : null;
+  // Resolves null when the worker is not there, errs, or does not answer in time.
   const hudMessage = (msg) => new Promise((resolve) => {
     if (!runtime) return resolve(null);
-    runtime.sendMessage(msg, (response) => resolve(runtime.lastError ? null : response));
+    let done = false;
+    const finish = (value) => { if (!done) { done = true; clearTimeout(timer); resolve(value); } };
+    const timer = setTimeout(() => finish(null), HUD_ANSWER_MS);
+    try {
+      runtime.sendMessage(msg, (response) => finish(runtime.lastError ? null : response));
+    } catch {
+      finish(null);
+    }
   });
+  // What the worker last said the options are: a refused or unanswered write goes back to it.
+  let hudShown = {};
   function showHud(options) {
+    hudShown = options;
     inlineInput.checked = options.sqlInlineInHud === true;
     databasesInput.checked = options.sqlDatabasesInHud === true;
     databasesInput.disabled = !inlineInput.checked;
@@ -177,7 +191,13 @@
   }
   async function setHud(patch) {
     const res = await hudMessage({ type: 'xray:sql-hud-options:set', options: patch });
-    if (res && res.ok) showHud(res.value);
+    if (res && res.ok) {
+      showHud(res.value);
+      hudError.textContent = '';
+    } else {
+      showHud(hudShown);
+      hudError.textContent = res && typeof res.error === 'string' && res.error ? res.error : HUD_NO_ANSWER;
+    }
     return res;
   }
   showHud({});

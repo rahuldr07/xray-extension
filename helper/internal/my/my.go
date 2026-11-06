@@ -377,6 +377,12 @@ var testSessionParams map[string]string
 // Tests replace it to check the socket fallback.
 var killSQL = "KILL QUERY "
 
+// failAutocommitReread makes the @@autocommit re-read after a statement fail.
+// Tests set it before the session starts.
+var failAutocommitReread bool
+
+var errAutocommitReread = errors.New("autocommit re-read failed")
+
 // kill sends KILL QUERY for connection id from a side connection.
 func (s *mySession) kill(id int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), killTimeout)
@@ -684,11 +690,24 @@ func (s *mySession) noteTx(t *tab, sql string) bool {
 		was := t.txOpen
 		next := txAfter(was, sql, s.mariaDB)
 		if t.c != nil && strings.Contains(strings.ToUpper(sql), "AUTOCOMMIT") {
+			wasOff := t.c.autocommitOff
 			ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
-			if readAutocommit(ctx, t.c) != nil {
-				s.drop(t) // the state is unknown: start afresh, and report a lost transaction
+			err := errAutocommitReread
+			if !failAutocommitReread {
+				err = readAutocommit(ctx, t.c)
 			}
 			cancel()
+			if err != nil {
+				// The state is unknown: start afresh. A transaction that may have
+				// been open counts as open, so the next statement reports it lost.
+				t.txOpen = was || next
+				s.drop(t)
+				return t.txOpen
+			}
+			// Turning autocommit on commits only when it was off.
+			if wasOff && !t.c.autocommitOff {
+				next = false
+			}
 		}
 		if t.c != nil && t.c.autocommitOff && !endsChain(sql, s.mariaDB) {
 			next = true
@@ -710,18 +729,23 @@ func endsChain(sql string, mariaDB bool) bool {
 	if len(w) == 0 || (w[0] != "COMMIT" && w[0] != "ROLLBACK") {
 		return false
 	}
-	chain, no := false, false
 	for _, x := range w[1:] {
-		switch x {
-		case "TO":
+		if x == "TO" {
 			return false
-		case "CHAIN":
-			chain = true
-		case "NO":
-			no = true
 		}
 	}
-	return !chain || no
+	return !chains(w)
+}
+
+// chains reports AND CHAIN in COMMIT or ROLLBACK words w: CHAIN not directly
+// after NO (NO RELEASE leaves the chain in place).
+func chains(w []string) bool {
+	for i := 1; i < len(w); i++ {
+		if w[i] == "CHAIN" && w[i-1] != "NO" {
+			return true
+		}
+	}
+	return false
 }
 
 // implicitCommit are first keywords of statements that commit the open
@@ -765,8 +789,10 @@ func words(sql string, mariaDB bool, n int) []string {
 // SERVER_STATUS_IN_TRANS flag private, so this follows the statements:
 // BEGIN and START TRANSACTION open one; COMMIT and ROLLBACK end it (unless AND
 // CHAIN, or ROLLBACK TO a savepoint); statements that commit implicitly end
-// it. With autocommit off (read at dial and after a statement that mentions
-// it) noteTx keeps the transaction open until COMMIT or ROLLBACK. Known gap: a
+// it. SET leaves it as it was: noteTx counts SET autocommit as a commit only
+// when @@autocommit moved from 0 to 1. With autocommit off (read at dial and
+// after a statement that mentions it) noteTx keeps the transaction open until
+// COMMIT or ROLLBACK. Known gap: a
 // transaction the server rolls back on an error other than a deadlock.
 func txAfter(open bool, sql string, mariaDB bool) bool {
 	w := words(sql, mariaDB, 6)
@@ -790,17 +816,12 @@ func txAfter(open bool, sql string, mariaDB bool) bool {
 		if w[0] == "ROLLBACK" && has("TO") {
 			return open
 		}
-		return has("CHAIN") && !has("NO")
+		return chains(w)
 	case "CREATE", "DROP":
 		if len(w) > 1 && w[1] == "TEMPORARY" {
 			return open
 		}
 		return false
-	case "SET":
-		if strings.Contains(strings.ToUpper(sql), "AUTOCOMMIT") {
-			return false
-		}
-		return open
 	}
 	if implicitCommit[w[0]] {
 		return false
