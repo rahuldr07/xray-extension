@@ -1343,6 +1343,8 @@ for (const shadow of [false, true]) {
         marker: own.display === 'list-item' && own.listStyleType !== 'none',
         chevron: !['none', 'normal'].includes(before.content) && parseFloat(before.width) > 0 && parseFloat(before.height) > 0
           && painted('Right') && painted('Bottom'),
+        // The pseudo is drawn at all: displayed, visible and not fully transparent (.issues/006).
+        beforeShown: { display: before.display, visibility: before.visibility, opacity: parseFloat(before.opacity) },
         transform: before.transform,
         transition: before.transitionDuration,
         x: rect.left + 12, y: rect.top + rect.height / 2,
@@ -1358,6 +1360,11 @@ for (const shadow of [false, true]) {
     assert.equal(opened.open, true, 'a click on the summary opens it');
     assert.equal(opened.rowVisible, true, 'rows shown when open');
     if (!closed.marker) {
+      for (const state of [closed, opened]) {
+        assert.notEqual(state.beforeShown.display, 'none', `the chevron is displayed: ${JSON.stringify(state.beforeShown)}`);
+        assert.equal(state.beforeShown.visibility, 'visible', `the chevron is visible: ${JSON.stringify(state.beforeShown)}`);
+        assert.ok(state.beforeShown.opacity > 0, `the chevron is not transparent: ${JSON.stringify(state.beforeShown)}`);
+      }
       assert.notEqual(opened.transform, closed.transform, 'the chevron turns when open');
       assert.equal(closed.transition, '0s', 'reduced motion (this fixture): the chevron turns without a transition');
     }

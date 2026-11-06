@@ -66,7 +66,7 @@ test('share-safe keeps body keys but still drops top-level diagnostics', () => {
   assert.equal('__internal' in e, false);
 });
 
-test('share-safe drops Error message/stack and diagnostics from log args and logData', () => {
+test('share-safe reduces a legacy Error in log args and logData to its name', () => {
   // The shape content/console-capture.js emits for console.error(new Error(...)).
   const err = () => ({
     __type__: 'Error', name: 'Error', message: 'User bob@example.com not found',
@@ -80,13 +80,10 @@ test('share-safe drops Error message/stack and diagnostics from log args and log
     assert.equal(text.includes(leak), false, `share-safe export leaks ${leak}`);
   }
   const e = JSON.parse(text).entries[0];
-  for (const value of [e.args[0], e.logData]) {
-    assert.equal('message' in value, false);
-    assert.equal('stack' in value, false);
-    assert.equal('config' in value, false);
-    assert.equal(value.name, 'Error');
-    assert.equal(value.detail, 'kept');
-  }
+  // A legacy Error is its name alone, like a typed one (review of #6): its own properties are the
+  // page's (an HTTP client's response data), so `detail` goes with message, stack and config.
+  for (const value of [e.args[0], e.logData]) assert.deepEqual(value, { name: 'Error' });
+  assert.equal(e.args[1], '[OMITTED]', 'a string argument is free text');
 });
 
 test('Final fix I1: share-safe reduces a typed Error (spec J7) to its name: no own properties, cause, message or stack', () => {
@@ -180,6 +177,50 @@ test('Issue #6: share-safe treats every log shape the export can meet like a sin
   // The HTTP HAR never carries logs.
   const har = E.buildShareSafeExport(entries, 'session-har-safe').text;
   for (const leak of ['bob@example.com', 'carol@', 'frank-']) assert.equal(har.includes(leak), false, `share-safe HAR leaks ${leak}`);
+});
+
+// Review of #6: every shape in the review's table, captured by the real console-capture.js, and its
+// exact share-safe export. Free text (strings, unless the JSON text of an object; Symbols, functions,
+// DOM text; Error messages and stacks) is omitted; structured values keep their keys.
+test('Issue #6 review: share-safe exports each log shape exactly', () => {
+  const rows = [
+    ['string', "console.log('alice@example.com')", '[OMITTED]'],
+    ['two strings', "console.log('lookup', 'alice@example.com')", ['[OMITTED]', '[OMITTED]']],
+    ['object', "console.log({ email: 'alice@example.com', id: 1, token: 't0k' })", { email: 'alice@example.com', id: 1, token: '[REDACTED]' }],
+    ['string + object', "console.log('user', { id: 1 })", ['[OMITTED]', { id: 1 }]],
+    ['Error', "console.log(new Error('boom bob@example.com'))", { name: 'Error' }],
+    ['%s', "console.log('%s logged in from %s', 'alice@example.com', 3)", ['[OMITTED]', '[OMITTED]', 3]],
+    ['JSON string', `console.log('{"id":1}')`, { id: 1 }],
+    ['JSON string with email', `console.log('x', '{"email":"carol@example.com","id":2}')`, ['[OMITTED]', { email: 'carol@example.com', id: 2 }]],
+    ['nested arrays', "console.log([[1, 'x'], [2, [3]]])", [[1, 'x'], [2, [3]]]],
+    ['nested arrays + string', "console.log('rows', [[1, 'x']])", ['[OMITTED]', [[1, 'x']]]],
+    ['array-JSON string', `console.log('["dave@example.com"]')`, '[OMITTED]'],
+    ['Symbol', "console.log(Symbol('sym-secret'))", '[OMITTED]'],
+    ['Symbol extra', "console.log('x', Symbol('sym-secret'))", ['[OMITTED]', '[OMITTED]']],
+    ['function', 'console.log(function secretFnName() {})', '[OMITTED]'],
+    ['function extra', "console.log('x', function secretFnName() {})", ['[OMITTED]', '[OMITTED]']],
+    ['numeric string', "console.log('4111111111111111')", '[OMITTED]'],
+    ['numeric string extra', "console.log('otp', '123456')", ['[OMITTED]', '[OMITTED]']],
+    ['Map', "console.log(new Map([['token', 'abc'], ['name', 'ada']]))", { token: '[REDACTED]', name: 'ada' }],
+    ['typed scalars', "console.log('x', 10n, NaN, undefined, true, null)", ['[OMITTED]', '10n', 'NaN', 'undefined', true, null]],
+  ];
+  const entries = captureLogs(rows.map(([, code]) => code).join(';\n'));
+  assert.equal(entries.length, rows.length);
+  // The DOM envelope as the encoder writes it (the fake page has no real elements).
+  const dom = { $xray: 'dom', text: 'input#alice-email.secret' };
+  entries.push({ id: 'dom', type: 'log', timestamp: 1, logLevel: 'log', logArgCount: 1, logData: dom },
+    { id: 'dom-extra', type: 'log', timestamp: 1, logLevel: 'log', logArgCount: 2, logData: ['x', dom] });
+  rows.push(['dom', '', '[OMITTED]'], ['dom extra', '', ['[OMITTED]', '[OMITTED]']]);
+  const text = E.buildShareSafeExport(entries, 'session-json-safe').text;
+  const printed = JSON.parse(text).entries;
+  const projected = JSON.parse(JSON.stringify(E.buildShareSafeSession(entries).entries));
+  rows.forEach(([name, , expected], i) => {
+    assert.deepEqual(printed[i].logData, expected, `${name}: printed export`);
+    assert.deepEqual(projected[i].logData, expected, `${name}: projection`);
+  });
+  for (const leak of ['boom', 'bob@', 'sym-secret', 'secretFnName', 'dave@', '4111', '123456', 'alice-email', 't0k', 'abc']) {
+    assert.equal(text.includes(leak), false, `share-safe export leaks ${leak}`);
+  }
 });
 
 test('share-safe query allow-list keeps page=1, redacts token=x', () => {
