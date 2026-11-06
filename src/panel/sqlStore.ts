@@ -1323,6 +1323,10 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           rowCount: prev.rowCount + more.rowCount,
           hasMore: more.hasMore,
           truncatedCells: prev.truncatedCells + more.truncatedCells,
+          // The new rows' cut marks are indexed from their own first row.
+          ...(prev.cutCells || more.cutCells
+            ? { cutCells: [...(prev.cutCells ?? []), ...(more.cutCells ?? []).map(([r, c]): [number, number] => [prev.rows.length + r, c])] }
+            : {}),
         };
         const extra = [...more.notices];
         if (more.truncatedCells > 0) extra.push(`${more.truncatedCells} long text values were cut for display.`);

@@ -9,6 +9,7 @@ import {
   indexColumnWidth,
   type SortState,
 } from '../../models/sqlGrid';
+import { extendSelection, isCellSelected, selectAll, selectRows, type GridSelection } from '../../models/sqlSelection';
 import type { QueryResult, SqlCell } from '../../models/sqlTypes';
 
 const ROW_HEIGHT = 26;
@@ -26,6 +27,9 @@ export interface SelectedCell {
 // is visible. Cells are plain text nodes; nothing a database returns is ever parsed as markup.
 // `rows` is the view (filtered and sorted); widths come from the result's own first rows, so a sort
 // or filter never makes the columns jump. Mount it with a key per column set: widths reset with it.
+// The range selection (models/sqlSelection.ts) is in view coordinates: Shift+click or Shift+arrows
+// extend it, a row number selects its row (Shift+click extends), Ctrl/⌘+A selects all and
+// Ctrl/⌘+C asks the pane to copy it (or the active cell).
 export function ResultGrid({
   result,
   rows: viewRows,
@@ -34,6 +38,9 @@ export function ResultGrid({
   pkColumns,
   inspected,
   onInspect,
+  selection,
+  onSelect,
+  onCopy,
 }: {
   result: QueryResult;
   rows: SqlCell[][];
@@ -42,6 +49,9 @@ export function ResultGrid({
   pkColumns: ReadonlySet<string>;
   inspected: SelectedCell | null;
   onInspect(cell: SelectedCell): void;
+  selection: GridSelection | null;
+  onSelect(selection: GridSelection | null): void;
+  onCopy(active: SelectedCell): void;
 }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const autoWidths = useMemo(() => columnWidths(result.columns, result.rows, measure), [result.columns, result.rows]);
@@ -97,6 +107,7 @@ export function ResultGrid({
 
   function moveTo(row: number, col: number): void {
     setMoves((n) => n + 1);
+    onSelect(null);
     const c = Math.max(0, Math.min(result.columns.length - 1, col));
     columns.scrollToIndex(c);
     if (row < 0 || !viewRows.length) {
@@ -130,6 +141,18 @@ export function ResultGrid({
     }
   }
 
+  // Shift+arrow: the selection's far corner moves, within the cells (never into the header).
+  function extendTo(row: number, col: number): void {
+    setMoves((n) => n + 1);
+    const r = Math.max(0, Math.min(viewRows.length - 1, row));
+    const c = Math.max(0, Math.min(result.columns.length - 1, col));
+    onSelect(extendSelection(selection, { row: activeRow, col: activeCol }, { row: r, col: c }));
+    setActive({ row: r, col: c });
+    columns.scrollToIndex(c);
+    rows.scrollToIndex(r);
+    focusPending.current = 'cell';
+  }
+
   function onGridKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
     const target = e.target as HTMLElement;
     if (target.getAttribute('role') === 'columnheader') {
@@ -137,6 +160,24 @@ export function ResultGrid({
       return;
     }
     if (target.getAttribute('role') !== 'gridcell') return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.altKey && !e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      onSelect(selectAll(viewRows.length, result.columns.length));
+      return;
+    }
+    if (mod && !e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      onCopy({ row: activeRow, col: activeCol });
+      return;
+    }
+    if (e.key === 'Escape' && selection) {
+      // The first Escape clears the selection; the next closes the inspector.
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect(null);
+      return;
+    }
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 400) / ROW_HEIGHT) - 2);
     const moves: Record<string, [number, number]> = {
       // From the first row, up enters the header row.
@@ -150,7 +191,10 @@ export function ResultGrid({
       End: [activeRow, result.columns.length - 1],
     };
     const to = moves[e.key];
-    if (to) {
+    if (to && e.shiftKey) {
+      e.preventDefault();
+      extendTo(to[0], to[1]);
+    } else if (to) {
       e.preventDefault();
       moveTo(to[0], to[1]);
     } else if (e.key === 'Enter') {
@@ -165,6 +209,7 @@ export function ResultGrid({
       className="xray-sql-grid"
       role="grid"
       aria-label="Query results"
+      aria-multiselectable="true"
       aria-rowcount={viewRows.length + 1}
       aria-colcount={result.columns.length + 1}
       onKeyDown={onGridKeyDown}
@@ -250,29 +295,55 @@ export function ResultGrid({
               aria-rowindex={row.index + 2}
               style={{ top: HEADER_HEIGHT + row.start, height: row.size, width }}
             >
-              <div className="xray-sql-grid-index" role="rowheader" style={{ width: indexWidth, height: row.size }}>
+              <div
+                className="xray-sql-grid-index"
+                role="rowheader"
+                title="Click to select the row, Shift+click to select rows"
+                style={{ width: indexWidth, height: row.size }}
+                onMouseDown={(e) => {
+                  if (e.shiftKey) e.preventDefault();
+                }}
+                onClick={(e) => {
+                  const from = e.shiftKey && selection ? selection.anchor.row : e.shiftKey ? activeRow : row.index;
+                  onSelect(selectRows(from, row.index, result.columns.length));
+                  setActive({ row: row.index, col: activeCol });
+                }}
+              >
                 {row.index + 1}
               </div>
               {virtualColumns.map((col) => {
                 const shown = displayCell(cells[col.index] ?? null, result.columns[col.index].type);
                 const isInspected = inspected?.row === row.index && inspected.col === col.index;
                 const isActive = activeRow === row.index && activeCol === col.index;
+                const inSelection = isCellSelected(selection, row.index, col.index);
                 return (
                   <div
                     key={col.key}
                     role="gridcell"
                     aria-colindex={col.index + 2}
-                    aria-selected={isInspected}
+                    // With a range, selected means in the range; else the inspected cell.
+                    aria-selected={selection ? inSelection : isInspected}
                     tabIndex={isActive ? 0 : -1}
                     data-cell={`${row.index}:${col.index}`}
                     onFocus={() => {
                       if (!isActive) setActive({ row: row.index, col: col.index });
                     }}
-                    className={`xray-sql-grid-cell kind-${shown.kind}${isInspected ? ' selected' : ''}`}
+                    className={`xray-sql-grid-cell kind-${shown.kind}${isInspected ? ' selected' : ''}${inSelection ? ' in-selection' : ''}`}
                     style={{ left: indexWidth + col.start, width: col.size, height: row.size }}
-                    onClick={() => {
-                      setActive({ row: row.index, col: col.index });
-                      onInspect({ row: row.index, col: col.index });
+                    onMouseDown={(e) => {
+                      // Shift+click extends the range; keep the browser from selecting text.
+                      if (e.shiftKey) e.preventDefault();
+                    }}
+                    onClick={(e) => {
+                      const at = { row: row.index, col: col.index };
+                      if (e.shiftKey) {
+                        onSelect(extendSelection(selection, { row: activeRow, col: activeCol }, at));
+                        setActive(at);
+                        return;
+                      }
+                      onSelect(null);
+                      setActive(at);
+                      onInspect(at);
                     }}
                   >
                     {shown.text.length > 400 ? shown.text.slice(0, 400) : shown.text}

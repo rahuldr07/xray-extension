@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -207,6 +208,10 @@ func TestExecuteStreamsColumnsRowsSummary(t *testing.T) {
 	}
 	if rows := stream[1].M["rows"].([]any); len(rows) != 2 {
 		t.Fatalf("rows %v", rows)
+	}
+	// The rows message marks the cut text cell by its place in the chunk.
+	if cut, _ := json.Marshal(stream[1].M["cut"]); string(cut) != "[[0,0]]" {
+		t.Fatalf("cut %s", cut)
 	}
 	v := testclient.Value(f)
 	if v["rowCount"] != float64(2) || v["hasMore"] != true || v["truncatedCells"] != float64(1) {

@@ -1059,6 +1059,16 @@ button.xray-sql-mode-badge.editable:hover:not(:disabled) {
   outline-offset: -2px;
 }
 
+/* The copy range (Shift+click, Shift+arrows, a row number, Ctrl/Cmd+A). */
+.xray-sql-grid-cell.in-selection,
+.xray-sql-grid-cell.in-selection:hover {
+  background: var(--xray-selection);
+}
+
+.xray-sql-grid-index[role="rowheader"] {
+  cursor: pointer;
+}
+
 .xray-sql-grid-cell.kind-null {
   color: var(--xray-hint);
   font-style: italic;

@@ -370,7 +370,7 @@ func (e *Emitter) flush() error {
 }
 
 func (e *Emitter) sendRows(rows [][]values.Cell) error {
-	return e.send(protocol.RowsMessage{ID: e.id, Stream: "rows", Rows: rows})
+	return e.send(protocol.RowsMessage{ID: e.id, Stream: "rows", Rows: rows, Cut: e.chunk.TakenCuts()})
 }
 
 // Truncated is the number of cells cut so far, by mapping or by chunking.

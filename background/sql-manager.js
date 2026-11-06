@@ -419,6 +419,16 @@
           call.reject(new OpError(ERR.tooLarge));
           return;
         }
+        // Cut text cells, [row, column] within this message, become indexes into the whole result.
+        if (Array.isArray(msg.cut)) {
+          for (const at of msg.cut) {
+            if (!Array.isArray(at) || at.length !== 2) continue;
+            const [r, c] = at;
+            if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= msg.rows.length || c < 0) continue;
+            if (!Array.isArray(msg.rows[r]) || c >= msg.rows[r].length) continue;
+            call.cut.push([call.rows.length + r, c]);
+          }
+        }
         for (const row of msg.rows) call.rows.push(row);
         return;
       }
@@ -453,11 +463,11 @@
       const id = nextNativeId++;
       return new Promise((resolve, reject) => {
         let timer;
-        const call = { op, columns: [], rows: [], bytes: 0 };
+        const call = { op, columns: [], rows: [], cut: [], bytes: 0 };
         call.resolve = (value) => {
           clearTimer(timer);
           if (op === 'execute' || op === 'fetchMore') {
-            resolve({ columns: call.columns, rows: call.rows, ...queryFields(value) });
+            resolve({ columns: call.columns, rows: call.rows, ...queryFields(value), ...(call.cut.length ? { cutCells: call.cut } : {}) });
           } else {
             resolve(value);
           }

@@ -49,6 +49,9 @@ type RowsMessage struct {
 	ID     int64   `json:"id"`
 	Stream string  `json:"stream"` // "rows"
 	Rows   [][]any `json:"rows"`
+	// Cut lists the text cells cut to fit (over 1 MB, or halved to fit a
+	// chunk) as [row, column] within Rows. Absent when none was.
+	Cut [][2]int `json:"cut,omitempty"`
 }
 
 type ExecuteResult struct {

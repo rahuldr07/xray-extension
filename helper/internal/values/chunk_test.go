@@ -170,3 +170,30 @@ func TestChunkerNoDoubleCount(t *testing.T) {
 		t.Fatalf("cut=%d err=%v", cut, err)
 	}
 }
+
+// TakenCuts marks the text cells a flushed chunk carries cut, by mapping or by
+// halving, as [row, column] within that chunk. Blob previews are not marked:
+// their own hex length already shows a cut.
+func TestChunkerMarksCutTextCells(t *testing.T) {
+	ch := &Chunker{MaxBytes: 200}
+	blob := map[string]any{"hex": strings.Repeat("ab", 40), "length": 80}
+	if f, _, _ := ch.Add([]Cell{"short", 1}, []bool{false, false}); f != nil {
+		t.Fatal("no flush yet")
+	}
+	if f, _, _ := ch.Add([]Cell{"mapped", 2}, []bool{true, false}); f != nil {
+		t.Fatal("no flush yet")
+	}
+	f, _, err := ch.Add([]Cell{strings.Repeat("h", 300), blob}, nil)
+	if err != nil || len(f) != 2 {
+		t.Fatalf("flush %d err %v", len(f), err)
+	}
+	if got := ch.TakenCuts(); len(got) != 1 || got[0] != [2]int{1, 0} {
+		t.Fatalf("first chunk cuts %v", got)
+	}
+	if rows := ch.Flush(); len(rows) != 1 {
+		t.Fatalf("rows %d", len(rows))
+	}
+	if got := ch.TakenCuts(); len(got) != 1 || got[0] != [2]int{0, 0} {
+		t.Fatalf("second chunk cuts %v", got)
+	}
+}

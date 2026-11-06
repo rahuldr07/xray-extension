@@ -57,6 +57,7 @@ test('select is capped at maxRows with hasMore, lossless big integers, blobs and
   assert.equal(r.hasMore, true);
   assert.equal(r.affected, null);
   assert.equal(r.truncatedCells, 0);
+  assert.equal(r.cutCells, undefined);
   assert.deepEqual(r.notices, []);
   assert.equal(typeof r.durationMs, 'number');
   assert.deepEqual(r.columns[0], { name: 'id', type: 'INTEGER' });
@@ -121,6 +122,7 @@ test('text over 1,048,576 characters is cut and counted', () => {
   const r = engine.execute('select hex(zeroblob(1000000))', { maxRows: 10 });
   assert.equal(r.rows[0][0].length, 1048576);
   assert.equal(r.truncatedCells, 1);
+  assert.deepEqual(r.cutCells, [[0, 0]], 'the cut cell is marked');
   engine.close();
 });
 

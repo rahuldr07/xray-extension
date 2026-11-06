@@ -176,8 +176,8 @@ test('execute sends the active editor tab id and the tab maxRows', async () => {
 
 test('fetchMore appends rows, keeps the sort and filter, and updates rowCount and hasMore', async () => {
   const session = stubSession('postgres', {
-    execute: result([1, 2], { hasMore: true }),
-    fetchMore: result([3, 4], { hasMore: false, notices: ['Showing the first 4 of 9 returned rows.'] }),
+    execute: result([1, 2], { hasMore: true, truncatedCells: 1, cutCells: [[1, 0]] }),
+    fetchMore: result([3, 4], { hasMore: false, notices: ['Showing the first 4 of 9 returned rows.'], truncatedCells: 1, cutCells: [[0, 0]] }),
   });
   await connectWith(session);
   typeSql('SELECT id FROM orders');
@@ -190,6 +190,7 @@ test('fetchMore appends rows, keeps the sort and filter, and updates rowCount an
   const s = usePanelSqlStore.getState();
   assert.deepEqual(session.fetches, [{ tabId: s.activeTabId, n: 1000 }]);
   assert.deepEqual(s.result.rows, [[1], [2], [3], [4]]);
+  assert.deepEqual(s.result.cutCells, [[1, 0], [2, 0]], 'the fetched rows\' cut marks follow them');
   assert.equal(s.result.rowCount, 4);
   assert.equal(s.result.hasMore, false);
   assert.equal(s.canFetchMore, false);

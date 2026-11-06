@@ -269,6 +269,19 @@ test('sql-manager: three row chunks assemble into one QueryResult in order', asy
   assert.equal(page.posted.filter((m) => m.id === 7).length, 1, 'the page is answered once');
 });
 
+// #19: the helper marks cut text cells per rows message; the worker turns them into result row indexes.
+test('sql-manager: cut text cells from each chunk become cutCells over the whole result', async () => {
+  const { page, sessionId } = await connected((msg, reply) => {
+    if (msg.op !== 'execute') return defaultScript(msg, reply);
+    reply({ id: msg.id, stream: 'columns', columns: [{ name: 'a', type: 'text' }, { name: 'b', type: 'text' }] });
+    reply({ id: msg.id, stream: 'rows', rows: [['x', 'y'], ['cut', 'y']], cut: [[1, 0]] });
+    reply({ id: msg.id, stream: 'rows', rows: [['x', 'cut']], cut: [[0, 1], 'junk', [9, 0], [0, 7]] });
+    reply({ id: msg.id, ok: true, value: { rowCount: 3, affected: null, durationMs: 1, notices: [], hasMore: false, truncatedCells: 2 } });
+  });
+  const res = await page.request({ id: 8, op: 'execute', sessionId, tabId: 't1', sql: 'select', maxRows: 5 });
+  assert.deepEqual(res.value.cutCells, [[1, 0], [2, 1]], 'out-of-range marks are dropped');
+});
+
 test('sql-manager: fetchMore assembles rows without a columns message, and cancel maps the page query id to the native id', async () => {
   let execId;
   const { helper, page, sessionId } = await connected((msg, reply) => {

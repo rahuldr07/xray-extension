@@ -600,6 +600,88 @@ test('the grid sizes columns to their content, sorts and filters loaded rows, an
   await page.getByRole('status').getByText('1 blob values were truncated to 256 bytes', { exact: true }).waitFor();
 });
 
+// #19 (spec §1): copy a selection, not only everything. Shift+click and Shift+arrows extend a range,
+// a row number selects its row, Ctrl+A selects all and Ctrl+C copies; the blob and cut-text notices
+// still apply to what is copied.
+test('the grid copies a cell or row range selection, with the blob and cut-text notices', { timeout: 120_000 }, async (t) => {
+  const { page } = await openSqlPage(t);
+  await page.evaluate(() => {
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text) => {
+      window.__copied = text;
+      return write(text);
+    };
+  });
+  await openShop(page);
+  await runSql(page, "select 1 as a, 'x' as b, zeroblob(300) as c union all select 2, 'y', x'01' union all select 3, 'z', x'00ff' order by a");
+  await assertEventually(async () => /^3 rows/.test((await summary(page).textContent()) ?? ''), 'three rows');
+  const grid = page.getByRole('grid', { name: 'Query results' });
+  assert.equal(await grid.getAttribute('aria-multiselectable'), 'true');
+  const copied = () => page.evaluate(() => window.__copied);
+  const selected = () => grid.locator('[role="gridcell"][aria-selected="true"]').count();
+  const toast = page.locator('.xray-sql-toast');
+  await page.getByRole('group', { name: 'Copy results', exact: true }).waitFor();
+
+  // Shift+click extends from the clicked cell.
+  await page.getByRole('gridcell', { name: 'x', exact: true }).click();
+  await page.getByRole('gridcell', { name: 'y', exact: true }).click({ modifiers: ['Shift'] });
+  assert.equal(await selected(), 2);
+  await page.getByRole('group', { name: 'Copy selection', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
+  assert.equal(await copied(), 'b\r\nx\r\ny');
+  await toast.getByText('Copied 2 rows × 1 columns as CSV.', { exact: true }).waitFor();
+
+  // Shift+ArrowRight (from the grid again: the Copy button took focus) takes in the blob column:
+  // INSERT copies the cut blob with the R9 notice.
+  await page.getByRole('gridcell', { name: 'y', exact: true }).focus();
+  await page.keyboard.press('Shift+ArrowRight');
+  assert.equal(await selected(), 4);
+  await page.getByRole('button', { name: 'Copy selection as INSERT', exact: true }).click();
+  const insert = await copied();
+  assert.match(insert, /^-- blob truncated: 300 bytes\nINSERT INTO "query_result" \("b", "c"\) VALUES \('x', X'(00)+'\);\nINSERT INTO "query_result" \("b", "c"\) VALUES \('y', X'01'\);$/);
+  await toast.getByText('1 blob values were truncated to 256 bytes', { exact: true }).waitFor();
+
+  // A row number selects the whole row.
+  await grid.getByRole('rowheader', { name: '3', exact: true }).click();
+  assert.equal(await selected(), 3);
+  await page.getByRole('button', { name: 'Copy selection as JSON', exact: true }).click();
+  assert.deepEqual(JSON.parse(await copied()), [{ a: 3, b: 'z', c: { hex: '00ff', length: 2 } }]);
+
+  // Ctrl+A selects every cell, and Ctrl+C copies the selection as CSV.
+  await page.getByRole('gridcell', { name: 'z', exact: true }).focus();
+  await page.keyboard.press('Control+A');
+  assert.equal(await selected(), 9);
+  await page.keyboard.press('Control+C');
+  assert.equal((await copied()).split('\r\n').length, 4);
+  // Escape clears the selection; the menu copies everything again.
+  await page.keyboard.press('Escape');
+  assert.equal(await grid.locator('.in-selection').count(), 0);
+  await page.getByRole('button', { name: 'Copy as CSV', exact: true }).waitFor();
+
+  // A text value over 1 MB is cut, and a copy that holds it says so, like a cut blob.
+  await runSql(page, "select hex(zeroblob(600000)) as big, 'small' as s");
+  await assertEventually(async () => /^1 rows/.test((await summary(page).textContent()) ?? ''), 'one row');
+  await page.getByRole('gridcell', { name: 'small', exact: true }).click();
+  await page.keyboard.press('Control+C');
+  assert.equal(await copied(), 'small');
+  assert.equal(await toast.getByText('1 long text values were cut', { exact: true }).count(), 0, 'the small cell was not cut');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
+  assert.equal((await copied()).length, 'big,s\r\n'.length + 1_048_576 + ',small'.length);
+  await toast.getByText('1 long text values were cut', { exact: true }).waitFor();
+  await page.getByRole('gridcell', { name: 'small', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Copy as JSON', exact: true }).click();
+  await toast.getByText('1 long text values were cut', { exact: true }).waitFor();
+
+  // In a one-column result, a row number still selects that row alone.
+  await runSql(page, "select 'one' as v union all select 'two'");
+  await assertEventually(async () => /^2 rows/.test((await summary(page).textContent()) ?? ''), 'two rows');
+  await grid.getByRole('rowheader', { name: '2', exact: true }).click();
+  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
+  assert.equal(await copied(), 'v\r\ntwo');
+});
+
 test('a fresh tab offers quick starts that insert SQL without running it, and the editor marks what runs', { timeout: 120_000 }, async (t) => {
   const { page } = await openSqlPage(t);
   await openShop(page);
@@ -718,7 +800,13 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
 
   await page.getByRole('button', { name: 'Open SQLite file' }).click();
   await railItem(page, 'orders').waitFor();
-  await sleep(300);
+  // #18: a picker-opened file keeps its history under its name plus a stable id, not its size.
+  await runSql(page, 'select 41');
+  await assertEventually(async () => /^1 rows/.test((await summary(page).textContent()) ?? ''), 'the query ran');
+  await sleep(700);
+  const keys = await page.evaluate(async () => Object.keys((await chrome.storage.local.get('xray_sql_history')).xray_sql_history ?? {}));
+  assert.equal(keys.length, 1);
+  assert.match(keys[0], /^sqlite-id:[^:]+:shop\.sqlite$/);
   await page.reload();
   const recent = page.getByRole('region', { name: 'Recent' });
   const item = recent.getByRole('button', { name: /^shop\.sqlite/ });
@@ -726,6 +814,9 @@ test('the welcome screen lists picker-opened files and reopens them, or explains
   assert.match(await item.textContent(), /^shop\.sqlite\d+ KB · Today \d\d:\d\d$/);
   await item.click();
   await railItem(page, 'orders').waitFor();
+  await page.getByRole('tab', { name: 'History', exact: true }).click();
+  await page.getByRole('list', { name: 'Query history' }).getByText('select 41', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Results', exact: true }).click();
 
   // The file is gone: a short inline error, and Remove takes it off the list.
   await page.reload();

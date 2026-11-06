@@ -18,6 +18,8 @@ type Chunker struct {
 	rows  [][]Cell
 	bytes int // marshalled size of rows, excluding the enclosing brackets
 	cut   int
+	cuts  [][2]int // cut text cells of the buffered rows, [row, column]
+	taken [][2]int // cut text cells of the rows the last take returned
 }
 
 func (c *Chunker) limit() int {
@@ -36,7 +38,7 @@ func (c *Chunker) limit() int {
 // ErrRowTooLarge and does not buffer the row.
 func (c *Chunker) Add(row []Cell, alreadyCut []bool) (flush [][]Cell, cut int, err error) {
 	max := c.limit()
-	rb, cut, err := fit(row, alreadyCut, max-2)
+	rb, touched, cut, err := fit(row, alreadyCut, max-2)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -49,10 +51,22 @@ func (c *Chunker) Add(row []Cell, alreadyCut []bool) (flush [][]Cell, cut int, e
 		flush = c.take()
 		sep = 0
 	}
+	at := len(c.rows)
+	for i, cell := range row {
+		if _, text := cell.(string); text && (touched[i] || (i < len(alreadyCut) && alreadyCut[i])) {
+			c.cuts = append(c.cuts, [2]int{at, i})
+		}
+	}
 	c.rows = append(c.rows, row)
 	c.bytes += sep + rb
 	return flush, cut, nil
 }
+
+// TakenCuts returns the text cells cut (by the value mapping or by halving) in
+// the rows the last flush returned, as [row, column] within those rows, or nil.
+// Blob previews are not listed: their hex, shorter than their length, already
+// says so.
+func (c *Chunker) TakenCuts() [][2]int { return c.taken }
 
 // Flush returns any buffered rows, or nil when there are none.
 func (c *Chunker) Flush() [][]Cell {
@@ -67,6 +81,7 @@ func (c *Chunker) Cut() int { return c.cut }
 
 func (c *Chunker) take() [][]Cell {
 	r := c.rows
+	c.taken, c.cuts = c.cuts, nil
 	c.rows, c.bytes = nil, 0
 	return r
 }
@@ -80,8 +95,8 @@ func cellSize(cell Cell) int {
 }
 
 // fit shrinks row until its marshalled size is at most limit and returns that
-// size and the number of newly cut cells.
-func fit(row []Cell, alreadyCut []bool, limit int) (size, cut int, err error) {
+// size, which cells it cut, and the number of newly cut cells.
+func fit(row []Cell, alreadyCut []bool, limit int) (size int, touched []bool, cut int, err error) {
 	sizes := make([]int, len(row))
 	size = 2
 	for i, cell := range row {
@@ -91,7 +106,7 @@ func fit(row []Cell, alreadyCut []bool, limit int) (size, cut int, err error) {
 	if len(row) > 1 {
 		size += len(row) - 1
 	}
-	touched := make([]bool, len(row))
+	touched = make([]bool, len(row))
 	for size > limit {
 		idx := -1
 		for i, cell := range row {
@@ -100,7 +115,7 @@ func fit(row []Cell, alreadyCut []bool, limit int) (size, cut int, err error) {
 			}
 		}
 		if idx < 0 {
-			return 0, 0, ErrRowTooLarge
+			return 0, nil, 0, ErrRowTooLarge
 		}
 		row[idx] = halve(row[idx])
 		touched[idx] = true
@@ -113,7 +128,7 @@ func fit(row []Cell, alreadyCut []bool, limit int) (size, cut int, err error) {
 			cut++
 		}
 	}
-	return size, cut, nil
+	return size, touched, cut, nil
 }
 
 func shrinkable(cell Cell) bool {

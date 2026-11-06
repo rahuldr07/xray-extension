@@ -389,6 +389,9 @@ func TestMySQLHugeCellIsCut(t *testing.T) {
 	if len(rows) != 1 || v["truncatedCells"] != float64(1) {
 		t.Fatalf("summary %v rows %d", v, len(rows))
 	}
+	if cut := stream[1].M["cut"]; fmt.Sprint(cut) != "[[0 0]]" {
+		t.Fatalf("the rows message marks the cut cell: %v", cut)
+	}
 	if s := rows[0][0].(string); len(s) == 0 || len(s) > protocol.MaxOutgoingPayload {
 		t.Fatalf("cell length %d", len(s))
 	}

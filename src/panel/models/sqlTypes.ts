@@ -51,6 +51,9 @@ export interface QueryResult {
   notices: string[];
   hasMore: boolean;
   truncatedCells: number;
+  // The text cells cut to fit, as [source row, column]: over the 1 MB cell limit, or halved by the
+  // helper to fit a message. Absent when a helper sends no per-cell marks (only truncatedCells).
+  cutCells?: [number, number][];
   // Remote only: the tab's connection is inside a transaction the user opened. Closing the session
   // (or the tab) rolls it back.
   inTransaction?: boolean;
