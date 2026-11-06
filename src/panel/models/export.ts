@@ -5,7 +5,7 @@ import { bodyDoc, requestBody as capturedRequest, responseBody as capturedRespon
 import { isSensitiveName, MAX_PLAN_BODY, snapshotExperimentNode, snapshotExperimentValue } from './experiments';
 import { boundedItems, ownValue } from './investigations';
 import { parseJson, printJson, toValue, type JsonEntry, type JsonNode, type JsonObjectNode } from './jsonText';
-import { isTypedLog, logPlain } from './logValue';
+import { isTypedLog, logKind, logPlain } from './logValue';
 import { replayBody } from './replayBody';
 
 export type ExportFormat =
@@ -379,13 +379,34 @@ function projectShareSafe(entries: PanelEntry[]): { projection: ShareSafeSession
       // redaction below still sees each key (an envelope lists them inside arrays). An Error,
       // at any depth, is its name alone (logPlain 'share'); what it drops is counted as omitted.
       const logData = ownValue(input, 'logData');
-      const typedLog = isTypedLog({ logArgCount: ownValue(input, 'logArgCount') as number | undefined });
+      const argCount = ownValue(input, 'logArgCount');
+      const typedLog = isTypedLog({ logArgCount: argCount as number | undefined });
       if (field('logData') != null) {
         const dropped = { omitted: 0 };
-        const safeLog = body(typedLog ? logPlain(logData, 'share', dropped) : logData, true);
+        // Several arguments (issue #6): logData is their list, read as logArgs reads it (a pre-model
+        // array is the list too). Each argument is projected like a single-argument log, so a string
+        // argument is opaque text and omitted (JSON text is its structure); a typed scalar keeps its
+        // text (10n, NaN, a Date); objects keep their keys. The first 20 are projected and the rest
+        // are counted markers, so the list keeps its length (content.js carries at most 500).
+        const list = Array.isArray(logData) && (!typedLog || argCount !== 1);
+        const arg = (item: unknown): SafeBody => {
+          // logPlain writes null as its text; JSON says it exactly (as one null argument exports).
+          if (!typedLog || item === null) return body(item, true);
+          const flat = logPlain(item, 'share', dropped);
+          if (typeof item === 'string' || logKind(item) === 'string') return body(flat, true);
+          return plain(clean(snapshotExperimentValue(flat).value, true));
+        };
+        if (list) {
+          omittedCount += Math.max(0, number(ownValue(logData, 'length')) - 500);
+          const safeArgs = boundedItems(logData, 500).map((item, index) => index < 20 ? arg(item) : omitted());
+          entry.logData = safeArgs.map((item) => item.value);
+          bodies.logData = { t: 'arr', items: safeArgs.map((item) => item.node) };
+        } else {
+          const safeLog = body(typedLog ? logPlain(logData, 'share', dropped) : logData, true);
+          entry.logData = safeLog.value;
+          bodies.logData = safeLog.node;
+        }
         omittedCount += dropped.omitted;
-        entry.logData = safeLog.value;
-        bodies.logData = safeLog.node;
       }
     }
     let keys = 0;

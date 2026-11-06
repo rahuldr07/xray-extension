@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { exportModel as E, apiEntry } from './harness.mjs';
 
@@ -69,7 +70,8 @@ test('share-safe drops Error message/stack and diagnostics from log args and log
   // The shape content/console-capture.js emits for console.error(new Error(...)).
   const err = () => ({
     __type__: 'Error', name: 'Error', message: 'User bob@example.com not found',
-    stack: 'Error: User bob@example.com not found\n    at https://app.test/main.js?token=abc:10:5)',
+    // An allow-listed query (v=), so url() would keep the frame and the %3A10%3A5 marker can trip.
+    stack: 'Error: User bob@example.com not found\n    at https://app.test/main.js?v=2:10:5)',
     __xray_ref__: 'xrl_1', config: { apiKey: 'private-api-key' }, detail: 'kept',
   });
   const log = { id: 'l1', type: 'log', timestamp: 1, logLevel: 'error', args: [err(), 'plain'], logData: err() };
@@ -102,11 +104,82 @@ test('Final fix I1: share-safe reduces a typed Error (spec J7) to its name: no o
   }
   const [one, many, chain] = JSON.parse(text).entries;
   assert.deepEqual(one.logData, { name: 'AxiosError' });
-  assert.deepEqual(many.logData, ['request failed', { name: 'AxiosError' }, { wrapped: { name: 'AxiosError' }, list: [{ name: 'AxiosError' }] }]);
+  // Issue #6: the string argument is opaque text, omitted as a single-argument log's is.
+  assert.deepEqual(many.logData, ['[OMITTED]', { name: 'AxiosError' }, { wrapped: { name: 'AxiosError' }, list: [{ name: 'AxiosError' }] }]);
   assert.deepEqual(chain.logData, { name: 'Error' }, 'the cause goes too, with its own fields');
   // Every dropped field is counted (message, stack, two own properties, cause), as the card states.
   const omitted = (entry) => E.buildShareSafeSession([entry]).omittedCount;
   assert.equal(omitted(single) - omitted(log({ ok: true }, 1)), 5);
+});
+
+// Issue #6: content/console-capture.js run in a fake MAIN world, so the entry is the shape it emits.
+function captureLogs(code) {
+  const posted = [];
+  const window = { addEventListener() {}, postMessage(message) { posted.push(structuredClone(message)); } };
+  const pageConsole = {};
+  for (const level of ['log', 'warn', 'error', 'info', 'debug', 'table', 'dir']) pageConsole[level] = () => {};
+  const timers = [];
+  const context = { window, console: pageConsole, WeakRef, structuredClone, setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval: () => 0 };
+  vm.createContext(context);
+  context.Element = vm.runInContext('(class Element {})', context);
+  vm.runInContext(fs.readFileSync(new URL('../../content/console-capture.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(code, context);
+  for (const fn of timers.splice(0)) fn();
+  return posted.filter((message) => message.__xray_capture__ && message.batch).flatMap((message) => message.entries)
+    .map((entry, index) => ({ id: `cap-${index}`, timestamp: 1, ...entry }));
+}
+
+test('Issue #6: share-safe omits the strings of a multi-argument console log, keeping count, types and keys', () => {
+  const [entry] = captureLogs("console.log('lookup-xq7 failed', 'alice@example.com', { id: 1 }, new Error('boom-zq9'))");
+  assert.equal(entry.logArgCount, 4, 'the captured shape is the typed multi-argument model');
+  const text = E.buildShareSafeExport([entry], 'session-json-safe').text;
+  for (const leak of ['lookup-xq7', 'alice@example.com', 'boom-zq9', 'at ']) {
+    assert.equal(text.includes(leak), false, `share-safe export leaks ${leak}`);
+  }
+  const expected = ['[OMITTED]', '[OMITTED]', { id: 1 }, { name: 'Error' }];
+  assert.deepEqual(JSON.parse(text).entries[0].logData, expected, 'the printed export');
+  assert.deepEqual(JSON.parse(JSON.stringify(E.buildShareSafeSession([entry]).entries[0].logData)), expected, 'the projection');
+  // Each omitted string is counted, as the Error's message and stack are.
+  const bare = captureLogs("console.log(1, 2, { id: 1 }, 3)")[0];
+  assert.equal(E.buildShareSafeSession([entry]).omittedCount - E.buildShareSafeSession([bare]).omittedCount, 4);
+});
+
+test('Issue #6: share-safe treats every log shape the export can meet like a single-argument log', () => {
+  const T = (kind, fields = {}) => ({ $xray: kind, ...fields });
+  const log = (id, logData, extra = {}) => ({ id, type: 'log', timestamp: 1, logLevel: 'log', logData, ...extra });
+  const stack = 'Error: Lookup failed for bob@example.com\n    at https://app.test/main.js?v=2:10:5)';
+  const legacyErr = { __type__: 'Error', name: 'Error', message: 'Lookup failed for bob@example.com', stack };
+  const entries = [
+    // Pre-model session (no logArgCount): an array logData is the argument list (logArgs).
+    log('legacy', ['Lookup failed for', 'bob@example.com', legacyErr, stack]),
+    // Typed: JSON text is structure as for one argument; typed scalars keep their text; a cut string is opaque.
+    log('typed', ['{"id":2}', 'carol@example.com', T('bigint', { value: '10' }), T('number', { value: 'NaN' }), true, null, 5,
+      T('string', { value: 'dave@example', length: 90 })], { logArgCount: 8 }),
+    // One argument that is an array: a single value, unchanged (as a single object argument).
+    log('single-array', ['kept-nested', 1], { logArgCount: 1 }),
+    // A count with a non-list payload is one argument: opaque text.
+    log('mismatch', 'erin@example.com', { logArgCount: 3 }),
+    log('many', Array.from({ length: 25 }, (_, i) => `frank-${i}@example.com`), { logArgCount: 25 }),
+  ];
+  const text = E.buildShareSafeExport(entries, 'session-json-safe').text;
+  for (const leak of ['Lookup failed', 'bob@example.com', 'main.js', 'v=2:10:5', '%3A10%3A5', 'carol@', 'dave@', 'erin@', 'frank-']) {
+    assert.equal(text.includes(leak), false, `share-safe export leaks ${leak}`);
+  }
+  const byId = Object.fromEntries(JSON.parse(text).entries.map((entry, i) => [entries[i].id, entry.logData]));
+  assert.deepEqual(byId.legacy, ['[OMITTED]', '[OMITTED]', { name: 'Error' }, '[OMITTED]']);
+  assert.deepEqual(byId.typed, [{ id: 2 }, '[OMITTED]', '10n', 'NaN', true, null, 5, '[OMITTED]']);
+  assert.deepEqual(byId['single-array'], ['kept-nested', 1]);
+  assert.equal(byId.mismatch, '[OMITTED]');
+  // The first 20 arguments are projected, the rest are counted markers: the count survives.
+  assert.deepEqual(byId.many, Array(25).fill('[OMITTED]'));
+  const many = (length) => E.buildShareSafeSession([log('n', Array.from({ length }, (_, i) => i), { logArgCount: length })]);
+  assert.deepEqual(JSON.parse(JSON.stringify(many(25).entries[0].logData)), [...Array.from({ length: 20 }, (_, i) => i), ...Array(5).fill('[OMITTED]')]);
+  assert.equal(many(25).omittedCount - many(20).omittedCount, 5);
+  const projected = JSON.parse(JSON.stringify(E.buildShareSafeSession(entries).entries.map((entry) => entry.logData)));
+  assert.deepEqual(projected, Object.values(byId), 'the projection matches the printed export');
+  // The HTTP HAR never carries logs.
+  const har = E.buildShareSafeExport(entries, 'session-har-safe').text;
+  for (const leak of ['bob@example.com', 'carol@', 'frank-']) assert.equal(har.includes(leak), false, `share-safe HAR leaks ${leak}`);
 });
 
 test('share-safe query allow-list keeps page=1, redacts token=x', () => {
