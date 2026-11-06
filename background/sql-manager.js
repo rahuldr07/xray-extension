@@ -421,6 +421,8 @@
         }
         // Cut text cells, [row, column] within this message, become indexes into the whole result.
         if (Array.isArray(msg.cut)) {
+          // A helper that marks cuts sends the list on every rows message, [] when none was cut.
+          call.marked = true;
           for (const at of msg.cut) {
             if (!Array.isArray(at) || at.length !== 2) continue;
             const [r, c] = at;
@@ -463,11 +465,11 @@
       const id = nextNativeId++;
       return new Promise((resolve, reject) => {
         let timer;
-        const call = { op, columns: [], rows: [], cut: [], bytes: 0 };
+        const call = { op, columns: [], rows: [], cut: [], marked: false, bytes: 0 };
         call.resolve = (value) => {
           clearTimer(timer);
           if (op === 'execute' || op === 'fetchMore') {
-            resolve({ columns: call.columns, rows: call.rows, ...queryFields(value), ...(call.cut.length ? { cutCells: call.cut } : {}) });
+            resolve({ columns: call.columns, rows: call.rows, ...queryFields(value), ...(call.marked ? { cutCells: call.cut } : {}) });
           } else {
             resolve(value);
           }

@@ -63,8 +63,8 @@ extension until you delete them there, or remove the extension.
 - **Responses.** Each request ends with exactly one final message: `{ "id", "ok": true, "value" }`
   or `{ "id", "ok": false, "error": { "code", "message", ... } }`. Before the final message, an
   `execute` or `fetchMore` streams one `columns` message and then any number of `rows` messages,
-  all with the request's id. A `rows` message whose text cells were cut (over 1 MB, or halved to
-  fit the message) lists them in `cut` as `[row, column]` within that message.
+  all with the request's id. Every `rows` message lists the text cells it cut (over 1 MB, or halved
+  to fit the message) in `cut` as `[row, column]` within that message, `[]` when none was.
 - **Error codes:** `bad-request`, `internal`, `auth-failed`, `tls-failed`, `network`, `timeout`,
   `cancelled`, `read-only`, `syntax`, `server`, `connection-lost`, `limit-reached`.
 - **TLS** is `require` (default), `verify-full` (optional CA file) or `disable`. `disable` is

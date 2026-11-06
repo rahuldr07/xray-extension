@@ -622,33 +622,57 @@ test('the grid copies a cell or row range selection, with the blob and cut-text 
   const toast = page.locator('.xray-sql-toast');
   await page.getByRole('group', { name: 'Copy results', exact: true }).waitFor();
 
-  // Shift+click extends from the clicked cell.
+  // Shift+click extends from the clicked cell, and focus follows, so Shift+ArrowRight extends on:
+  // INSERT copies the cut blob with the R9 notice.
   await page.getByRole('gridcell', { name: 'x', exact: true }).click();
   await page.getByRole('gridcell', { name: 'y', exact: true }).click({ modifiers: ['Shift'] });
   assert.equal(await selected(), 2);
   await page.getByRole('group', { name: 'Copy selection', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
-  assert.equal(await copied(), 'b\r\nx\r\ny');
-  await toast.getByText('Copied 2 rows × 1 columns as CSV.', { exact: true }).waitFor();
-
-  // Shift+ArrowRight (from the grid again: the Copy button took focus) takes in the blob column:
-  // INSERT copies the cut blob with the R9 notice.
-  await page.getByRole('gridcell', { name: 'y', exact: true }).focus();
   await page.keyboard.press('Shift+ArrowRight');
   assert.equal(await selected(), 4);
   await page.getByRole('button', { name: 'Copy selection as INSERT', exact: true }).click();
   const insert = await copied();
   assert.match(insert, /^-- blob truncated: 300 bytes\nINSERT INTO "query_result" \("b", "c"\) VALUES \('x', X'(00)+'\);\nINSERT INTO "query_result" \("b", "c"\) VALUES \('y', X'01'\);$/);
   await toast.getByText('1 blob values were truncated to 256 bytes', { exact: true }).waitFor();
+  // Shift+click again: from the same anchor.
+  await page.getByRole('gridcell', { name: 'y', exact: true }).click({ modifiers: ['Shift'] });
+  assert.equal(await selected(), 2);
+  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
+  assert.equal(await copied(), 'b\r\nx\r\ny');
+  await toast.getByText('Copied 2 rows × 1 columns as CSV.', { exact: true }).waitFor();
 
-  // A row number selects the whole row.
+  // A row number selects the whole row, and focus follows it: Ctrl+C copies it at once.
   await grid.getByRole('rowheader', { name: '3', exact: true }).click();
   assert.equal(await selected(), 3);
+  await page.keyboard.press('Control+C');
+  assert.equal(await copied(), 'a,b,c\r\n3,z,00ff');
   await page.getByRole('button', { name: 'Copy selection as JSON', exact: true }).click();
   assert.deepEqual(JSON.parse(await copied()), [{ a: 3, b: 'z', c: { hex: '00ff', length: 2 } }]);
 
-  // Ctrl+A selects every cell, and Ctrl+C copies the selection as CSV.
-  await page.getByRole('gridcell', { name: 'z', exact: true }).focus();
+  // The selection is source rows: it survives a sort, and rows a filter hides leave it.
+  await grid.getByRole('rowheader', { name: '2', exact: true }).click();
+  await grid.getByRole('rowheader', { name: '3', exact: true }).click({ modifiers: ['Shift'] });
+  assert.equal(await selected(), 6);
+  const headerB = page.getByRole('columnheader', { name: /^b\b/ });
+  await headerB.click();
+  await headerB.click();
+  assert.equal(await headerB.getAttribute('aria-sort'), 'descending');
+  assert.equal(await selected(), 6);
+  await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
+  assert.equal(await copied(), 'a,b,c\r\n3,z,00ff\r\n2,y,01');
+  const filter = page.getByRole('searchbox', { name: 'Filter rows', exact: true });
+  await filter.fill('z');
+  assert.equal(await selected(), 3);
+  await filter.fill('');
+  assert.equal(await selected(), 3, 'the hidden row left the selection');
+  await filter.fill('(1 bytes)');
+  await page.getByRole('group', { name: 'Copy results', exact: true }).waitFor();
+  await filter.fill('');
+  await headerB.click();
+  assert.equal(await grid.locator('.in-selection').count(), 0, 'none left: cleared');
+
+  // Ctrl+A selects every cell, and Ctrl+C copies the selection as CSV (focus from the row number).
+  await grid.getByRole('rowheader', { name: '1', exact: true }).click();
   await page.keyboard.press('Control+A');
   assert.equal(await selected(), 9);
   await page.keyboard.press('Control+C');
@@ -669,8 +693,8 @@ test('the grid copies a cell or row range selection, with the blob and cut-text 
   await page.getByRole('button', { name: 'Copy selection as CSV', exact: true }).click();
   assert.equal((await copied()).length, 'big,s\r\n'.length + 1_048_576 + ',small'.length);
   await toast.getByText('1 long text values were cut', { exact: true }).waitFor();
-  await page.getByRole('gridcell', { name: 'small', exact: true }).focus();
-  await page.keyboard.press('Escape');
+  // A plain click clears the selection.
+  await page.getByRole('gridcell', { name: 'small', exact: true }).click();
   await page.getByRole('button', { name: 'Copy as JSON', exact: true }).click();
   await toast.getByText('1 long text values were cut', { exact: true }).waitFor();
 

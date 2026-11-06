@@ -57,7 +57,7 @@ test('select is capped at maxRows with hasMore, lossless big integers, blobs and
   assert.equal(r.hasMore, true);
   assert.equal(r.affected, null);
   assert.equal(r.truncatedCells, 0);
-  assert.equal(r.cutCells, undefined);
+  assert.deepEqual(r.cutCells, [], 'nothing cut, and the engine says so');
   assert.deepEqual(r.notices, []);
   assert.equal(typeof r.durationMs, 'number');
   assert.deepEqual(r.columns[0], { name: 'id', type: 'INTEGER' });

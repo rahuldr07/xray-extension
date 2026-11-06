@@ -9,7 +9,7 @@ import {
   indexColumnWidth,
   type SortState,
 } from '../../models/sqlGrid';
-import { extendSelection, isCellSelected, selectAll, selectRows, type GridSelection } from '../../models/sqlSelection';
+import { extendSelection, selectAll, selectionLookup, selectRows, type GridSelection } from '../../models/sqlSelection';
 import type { QueryResult, SqlCell } from '../../models/sqlTypes';
 
 const ROW_HEIGHT = 26;
@@ -27,12 +27,14 @@ export interface SelectedCell {
 // is visible. Cells are plain text nodes; nothing a database returns is ever parsed as markup.
 // `rows` is the view (filtered and sorted); widths come from the result's own first rows, so a sort
 // or filter never makes the columns jump. Mount it with a key per column set: widths reset with it.
-// The range selection (models/sqlSelection.ts) is in view coordinates: Shift+click or Shift+arrows
+// The range selection (models/sqlSelection.ts) is kept as source rows (`order` maps a view row to
+// its source row), so a sort or filter keeps it: Shift+click or Shift+arrows
 // extend it, a row number selects its row (Shift+click extends), Ctrl/⌘+A selects all and
 // Ctrl/⌘+C asks the pane to copy it (or the active cell).
 export function ResultGrid({
   result,
   rows: viewRows,
+  order,
   sort,
   onSort,
   pkColumns,
@@ -44,6 +46,7 @@ export function ResultGrid({
 }: {
   result: QueryResult;
   rows: SqlCell[][];
+  order: readonly number[];
   sort: SortState | null;
   onSort(col: number): void;
   pkColumns: ReadonlySet<string>;
@@ -103,6 +106,7 @@ export function ResultGrid({
   });
 
   const width = indexWidth + columns.getTotalSize();
+  const selected = useMemo(() => selectionLookup(selection), [selection]);
   const virtualColumns = columns.getVirtualItems();
 
   function moveTo(row: number, col: number): void {
@@ -146,7 +150,7 @@ export function ResultGrid({
     setMoves((n) => n + 1);
     const r = Math.max(0, Math.min(viewRows.length - 1, row));
     const c = Math.max(0, Math.min(result.columns.length - 1, col));
-    onSelect(extendSelection(selection, { row: activeRow, col: activeCol }, { row: r, col: c }));
+    onSelect(extendSelection(selection, order, { row: activeRow, col: activeCol }, { row: r, col: c }));
     setActive({ row: r, col: c });
     columns.scrollToIndex(c);
     rows.scrollToIndex(r);
@@ -163,7 +167,7 @@ export function ResultGrid({
     const mod = e.ctrlKey || e.metaKey;
     if (mod && !e.altKey && !e.shiftKey && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
-      onSelect(selectAll(viewRows.length, result.columns.length));
+      onSelect(selectAll(order, result.columns.length));
       return;
     }
     if (mod && !e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
@@ -304,9 +308,11 @@ export function ResultGrid({
                   if (e.shiftKey) e.preventDefault();
                 }}
                 onClick={(e) => {
-                  const from = e.shiftKey && selection ? selection.anchor.row : e.shiftKey ? activeRow : row.index;
-                  onSelect(selectRows(from, row.index, result.columns.length));
+                  onSelect(selectRows(selection, order, activeRow, row.index, result.columns.length, e.shiftKey));
+                  // Focus follows the active cell, so Ctrl/⌘+C and Ctrl/⌘+A work next.
+                  setMoves((n) => n + 1);
                   setActive({ row: row.index, col: activeCol });
+                  focusPending.current = 'cell';
                 }}
               >
                 {row.index + 1}
@@ -315,7 +321,7 @@ export function ResultGrid({
                 const shown = displayCell(cells[col.index] ?? null, result.columns[col.index].type);
                 const isInspected = inspected?.row === row.index && inspected.col === col.index;
                 const isActive = activeRow === row.index && activeCol === col.index;
-                const inSelection = isCellSelected(selection, row.index, col.index);
+                const inSelection = selected(order[row.index], col.index);
                 return (
                   <div
                     key={col.key}
@@ -337,8 +343,10 @@ export function ResultGrid({
                     onClick={(e) => {
                       const at = { row: row.index, col: col.index };
                       if (e.shiftKey) {
-                        onSelect(extendSelection(selection, { row: activeRow, col: activeCol }, at));
+                        onSelect(extendSelection(selection, order, { row: activeRow, col: activeCol }, at));
+                        setMoves((n) => n + 1);
                         setActive(at);
+                        focusPending.current = 'cell';
                         return;
                       }
                       onSelect(null);

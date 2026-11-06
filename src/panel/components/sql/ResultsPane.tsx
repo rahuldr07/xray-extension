@@ -5,7 +5,9 @@ import { clampMaxRows, displayCell, truncatedBlobNotice } from '../../models/sql
 import { parseJson, toValue } from '../../models/jsonText';
 import { cellCopyText, columnsKey, filteredSummary, nextSort, primaryKeyColumns, viewOrder } from '../../models/sqlGrid';
 import {
-  clampSelection,
+  COPY_CAPPED_NOTICE,
+  isAppended,
+  reconcileSelection,
   copySlice,
   countCutText,
   cutTextNotice,
@@ -145,12 +147,18 @@ function ResultsView(): React.ReactElement {
   );
   const viewRows = useMemo(() => (result ? order.map((i) => result.rows[i]) : []), [result, order]);
   const pkColumns = useMemo(() => primaryKeyColumns(schema, resultTable), [schema, resultTable]);
-  // The range selection is in view positions: a new view (re-run, sort, filter, more rows) clears it.
+  // The range selection, as source rows: a new result clears it; Fetch more (rows appended) keeps
+  // it; a sort keeps it; rows a filter hides leave it, and it is cleared once none are left.
   const [selection, setSelection] = useState<GridSelection | null>(null);
+  const [selectionResult, setSelectionResult] = useState(result);
   const [selectionView, setSelectionView] = useState(order);
+  if (selectionResult !== result) {
+    setSelectionResult(result);
+    if (!isAppended(selectionResult, result)) setSelection(null);
+  }
   if (selectionView !== order) {
     setSelectionView(order);
-    setSelection(null);
+    setSelection((sel) => reconcileSelection(sel, order, result?.columns.length ?? 0));
   }
 
   if (!result) {
@@ -176,12 +184,12 @@ function ResultsView(): React.ReactElement {
 
   // A selection exists only after Shift, a row number or Ctrl/⌘+A (a plain click or arrow clears
   // it), so any one counts, even a single row of a one-column result.
-  const ranged = clampSelection(selection, viewRows.length, result.columns.length) !== null;
+  const ranged = selection !== null;
 
   // Copies the selection, or else what is shown: the filtered, sorted rows.
   async function copy(format: CopyFormat): Promise<void> {
     if (!result) return;
-    const sel = ranged ? clampSelection(selection, viewRows.length, result.columns.length) : null;
+    const sel = selection;
     const slice = selectionSlice(sel, result.columns, result.rows, order);
     const dialect = connectionDialect(usePanelSqlStore.getState().connection);
     const { text, notices } = copySlice(format, result, slice, resultTable ?? 'query_result', dialect);
@@ -194,8 +202,9 @@ function ResultsView(): React.ReactElement {
     const copied = sel
       ? `Copied ${slice.rows.length} rows × ${slice.columns.length} columns as ${format}.`
       : `Copied ${viewRows.length} rows as ${format}.`;
-    // R9/R14: each truncation notice is its own message, word for word.
-    showToast(copied, ...notices);
+    // R9/R14: each truncation notice is its own message, word for word. A copy past 200,000 cells
+    // holds the first whole rows that fit, and says so instead.
+    showToast(slice.capped ? COPY_CAPPED_NOTICE : copied, ...notices);
   }
 
   // Ctrl/⌘+C in the grid: the selection as CSV, or the active cell's value as Copy value writes it.
@@ -313,6 +322,7 @@ function ResultsView(): React.ReactElement {
             key={key}
             result={result}
             rows={viewRows}
+            order={order}
             sort={view.sort}
             onSort={(col) => setGridView({ ...view, sort: nextSort(view.sort, col) })}
             pkColumns={pkColumns}

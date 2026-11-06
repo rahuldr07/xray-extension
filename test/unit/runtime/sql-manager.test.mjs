@@ -282,6 +282,17 @@ test('sql-manager: cut text cells from each chunk become cutCells over the whole
   assert.deepEqual(res.value.cutCells, [[1, 0], [2, 1]], 'out-of-range marks are dropped');
 });
 
+test('sql-manager: a helper that marks cuts gives cutCells [] when nothing was cut', async () => {
+  const { page, sessionId } = await connected((msg, reply) => {
+    if (msg.op !== 'execute') return defaultScript(msg, reply);
+    reply({ id: msg.id, stream: 'columns', columns: [{ name: 'a', type: 'text' }] });
+    reply({ id: msg.id, stream: 'rows', rows: [['x']], cut: [] });
+    reply({ id: msg.id, ok: true, value: { rowCount: 1, affected: null, durationMs: 1, notices: [], hasMore: false, truncatedCells: 1 } });
+  });
+  const res = await page.request({ id: 9, op: 'execute', sessionId, tabId: 't1', sql: 'select', maxRows: 5 });
+  assert.deepEqual(res.value.cutCells, [], 'the one cut cell was a blob, not text');
+});
+
 test('sql-manager: fetchMore assembles rows without a columns message, and cancel maps the page query id to the native id', async () => {
   let execId;
   const { helper, page, sessionId } = await connected((msg, reply) => {

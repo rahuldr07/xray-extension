@@ -63,7 +63,8 @@ func (c *Chunker) Add(row []Cell, alreadyCut []bool) (flush [][]Cell, cut int, e
 }
 
 // TakenCuts returns the text cells cut (by the value mapping or by halving) in
-// the rows the last flush returned, as [row, column] within those rows, or nil.
+// the rows the last flush returned, as [row, column] within those rows (empty,
+// not nil, once a flush has happened).
 // Blob previews are not listed: their hex, shorter than their length, already
 // says so.
 func (c *Chunker) TakenCuts() [][2]int { return c.taken }
@@ -82,6 +83,9 @@ func (c *Chunker) Cut() int { return c.cut }
 func (c *Chunker) take() [][]Cell {
 	r := c.rows
 	c.taken, c.cuts = c.cuts, nil
+	if c.taken == nil {
+		c.taken = [][2]int{}
+	}
 	c.rows, c.bytes = nil, 0
 	return r
 }

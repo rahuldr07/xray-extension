@@ -50,8 +50,9 @@ type RowsMessage struct {
 	Stream string  `json:"stream"` // "rows"
 	Rows   [][]any `json:"rows"`
 	// Cut lists the text cells cut to fit (over 1 MB, or halved to fit a
-	// chunk) as [row, column] within Rows. Absent when none was.
-	Cut [][2]int `json:"cut,omitempty"`
+	// chunk) as [row, column] within Rows; always sent, [] when none was, so
+	// the extension can tell "nothing cut" from a helper without marks.
+	Cut [][2]int `json:"cut"`
 }
 
 type ExecuteResult struct {

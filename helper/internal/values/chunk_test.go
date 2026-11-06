@@ -196,4 +196,10 @@ func TestChunkerMarksCutTextCells(t *testing.T) {
 	if got := ch.TakenCuts(); len(got) != 1 || got[0] != [2]int{0, 0} {
 		t.Fatalf("second chunk cuts %v", got)
 	}
+	// Nothing cut: an empty list, which marshals as [], never null.
+	ch.Add([]Cell{"ok", blob}, nil)
+	ch.Flush()
+	if b, _ := json.Marshal(ch.TakenCuts()); string(b) != "[]" {
+		t.Fatalf("no cuts: %s", b)
+	}
 }

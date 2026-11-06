@@ -47,7 +47,7 @@ func (f *fakeSession) Execute(ctx context.Context, tab, sql string, maxRows int,
 	if err := out.Columns([]protocol.Column{{Name: "a", Type: "text"}}); err != nil {
 		return Summary{}, err
 	}
-	if err := out.Row([]values.Cell{"x"}, []bool{true}); err != nil {
+	if err := out.Row([]values.Cell{"x"}, []bool{sql != "uncut"}); err != nil {
 		return Summary{}, err
 	}
 	if err := out.Row([]values.Cell{"y"}, nil); err != nil {
@@ -234,6 +234,11 @@ func TestExecuteStreamsColumnsRowsSummary(t *testing.T) {
 	v = testclient.Value(f)
 	if (*made)[0].fetchN[0] != 1000 || v["affected"] != float64(1) || v["rowCount"] != float64(0) {
 		t.Fatalf("fetchMore %v n=%v", v, (*made)[0].fetchN)
+	}
+	// A rows message with nothing cut still says so: "cut": [].
+	stream, _ = c.Call(map[string]any{"op": "execute", "sessionId": sid, "tabId": "t2", "sql": "uncut", "maxRows": 0})
+	if cut, _ := json.Marshal(stream[1].M["cut"]); string(cut) != "[]" {
+		t.Fatalf("uncut %s", cut)
 	}
 }
 

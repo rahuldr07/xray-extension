@@ -276,7 +276,7 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
           notices: [],
           hasMore,
           truncatedCells,
-          ...(cutCells.length ? { cutCells } : {}),
+          cutCells,
         };
       } catch (err) {
         const e = normalizeSqlError(err, statement.text);
