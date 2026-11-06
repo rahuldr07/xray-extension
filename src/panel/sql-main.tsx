@@ -44,7 +44,7 @@ if (root) {
       return;
     }
     await loadSqlStorage();
-    window.addEventListener('pagehide', flushSqlPersistence);
+    window.addEventListener('pagehide', () => void flushSqlPersistence());
     createRoot(root).render(<SqlApp settings={settings} hud={hud} />);
     // The HUD's inline frame waits for this before giving up on a blocked frame (sqlFrameReady.ts).
     // It goes through the service worker, which relays it to the tab: never to the page's window.

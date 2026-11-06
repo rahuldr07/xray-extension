@@ -27,14 +27,20 @@ import type { SortState } from './models/sqlGrid';
 import { ignoredFilesMessage, pickDroppedFile } from './models/sqlUi';
 import {
   appendHistory,
+  CONNECTION_KEYS_KEY,
   connectionKeyForFile,
   connectionKeyForProfile,
   EDITOR_TABS_KEY,
   HISTORY_KEY,
+  mergeSqlStorage,
+  migrateLegacyFileKeys,
   newTabId,
   restoreEditorTabs,
+  restoreHistory,
+  restoreUsage,
   type EditorTab,
   type HistoryItem,
+  type SqlStorage,
 } from './models/sqlHistory';
 import type { PageProfile, SqlEngine } from './models/sqlProfiles';
 import {
@@ -223,12 +229,20 @@ let queue: RunQueue | null = null;
 // A remote write ran since the schema was last read: the rail is re-read once the run ends.
 let schemaStale = false;
 let promptAction: (() => Promise<void> | void) | null = null;
+// This page's view of the stored history, tabs and key usage: what it last read or wrote, plus its
+// own changes since (the keys in `changed`), which syncSqlStorage merges into the stored records.
 let storedHistory: Record<string, HistoryItem[]> = {};
 let storedTabs: Record<string, EditorTab[]> = {};
+let storedUsage: Record<string, number> = {};
+const changed = { history: new Set<string>(), tabs: new Set<string>(), removed: new Set<string>() };
 let storedLayout: SqlLayout = restoreLayout(undefined);
 let storageLoaded: Promise<void> | null = null;
 const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const persistWriters = new Map<string, () => void>();
+const persistWriters = new Map<string, () => unknown>();
+// Serializes the read-merge-write of the SQL records: across every SQL page of the extension origin
+// through the Web Locks API where there is one, else within this page.
+const SQL_STORAGE_LOCK = 'xray-sql-storage';
+let localLock: Promise<unknown> = Promise.resolve();
 
 function sqlClient(): SqliteClient {
   client ??= createSqliteClient(spawnSqliteWorker);
@@ -288,6 +302,77 @@ export function setSelectionReader(reader: (() => EditorSelection) | null): void
   selectionReader = reader;
 }
 
+function withStorageLock<T>(run: () => Promise<T>): Promise<T> {
+  const locks = (typeof navigator === 'undefined' ? undefined : navigator.locks) as LockManager | undefined;
+  if (locks?.request) return locks.request(SQL_STORAGE_LOCK, run);
+  const next = localLock.then(run, run);
+  localLock = next.catch(() => undefined);
+  return next;
+}
+
+/**
+ * Re-reads the stored history, tabs and key usage under the lock, folds in this page's changes per
+ * connection key (and `adjust`, applied to the fresh records), prunes, and writes all three. A read
+ * failure writes nothing and keeps the changes for the next try; so does a write failure.
+ */
+async function syncSqlStorage(adjust?: (storage: SqlStorage) => { storage: SqlStorage; removed?: string[] }): Promise<void> {
+  await withStorageLock(async () => {
+    let fresh: SqlStorage;
+    try {
+      const [history, tabs, usage] = await Promise.all([
+        getStoredValue<unknown>(HISTORY_KEY, {}),
+        getStoredValue<unknown>(EDITOR_TABS_KEY, {}),
+        getStoredValue<unknown>(CONNECTION_KEYS_KEY, {}),
+      ]);
+      fresh = { history: restoreHistory(history), tabs: asRecord<EditorTab>(tabs), usage: restoreUsage(usage) };
+    } catch {
+      return;
+    }
+    if (adjust) {
+      const out = adjust(fresh);
+      fresh = out.storage;
+      for (const key of out.removed ?? []) changed.removed.add(key);
+    }
+    const local = { history: storedHistory, tabs: storedTabs, usage: storedUsage };
+    const changes = { history: new Set(changed.history), tabs: new Set(changed.tabs), removed: new Set(changed.removed) };
+    const merged = mergeSqlStorage(fresh, local, changes);
+    for (const key of changes.history) changed.history.delete(key);
+    for (const key of changes.tabs) changed.tabs.delete(key);
+    for (const key of changes.removed) changed.removed.delete(key);
+    storedHistory = merged.history;
+    storedTabs = merged.tabs;
+    storedUsage = merged.usage;
+    // History another page added for the open connection shows here too.
+    const open = usePanelSqlStore.getState().connection;
+    if (open && merged.history[open.key]) usePanelSqlStore.setState({ history: merged.history[open.key] });
+    try {
+      await Promise.all([
+        setStoredValue(HISTORY_KEY, merged.history),
+        setStoredValue(EDITOR_TABS_KEY, merged.tabs),
+        setStoredValue(CONNECTION_KEYS_KEY, merged.usage),
+      ]);
+    } catch {
+      // A full quota or a storage failure: these keys are written again with the next change.
+      for (const key of changes.history) changed.history.add(key);
+      for (const key of changes.tabs) changed.tabs.add(key);
+      for (const key of changes.removed) changed.removed.add(key);
+    }
+  });
+}
+
+/**
+ * Makes `key` the open connection's key in storage before its tabs and history are read: re-reads
+ * the records (so another page's latest writes count), moves an old SQLite key to it, and marks it
+ * used now. Storage failures leave the page's current view.
+ */
+async function adoptConnectionKey(key: string, file?: { name: string; size: number }): Promise<void> {
+  storedUsage = { ...storedUsage, [key]: Date.now() };
+  await syncSqlStorage(file ? (storage) => {
+    const out = migrateLegacyFileKeys(storage, file.name, file.size, key);
+    return { storage: out.storage, removed: out.moved };
+  } : undefined).catch(() => undefined);
+}
+
 function asRecord<T>(raw: unknown): Record<string, T[]> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out: Record<string, T[]> = {};
@@ -302,10 +387,12 @@ export function loadSqlStorage(): Promise<void> {
   storageLoaded ??= Promise.all([
     getStoredValue<unknown>(HISTORY_KEY, {}).catch(() => ({})),
     getStoredValue<unknown>(EDITOR_TABS_KEY, {}).catch(() => ({})),
+    getStoredValue<unknown>(CONNECTION_KEYS_KEY, {}).catch(() => ({})),
     getStoredValue<unknown>(SQL_LAYOUT_KEY, null).catch(() => null),
-  ]).then(([history, tabs, layout]) => {
-    storedHistory = asRecord<HistoryItem>(history);
+  ]).then(([history, tabs, usage, layout]) => {
+    storedHistory = restoreHistory(history);
     storedTabs = asRecord<EditorTab>(tabs);
+    storedUsage = restoreUsage(usage);
     storedLayout = restoreLayout(layout);
     // Loaded before the first render (sql-main.tsx awaits this), so the layout never flashes.
     usePanelSqlStore.setState({ layout: storedLayout });
@@ -313,7 +400,7 @@ export function loadSqlStorage(): Promise<void> {
   return storageLoaded;
 }
 
-function schedulePersist(key: string, write: () => void): void {
+function schedulePersist(key: string, write: () => unknown): void {
   const timer = persistTimers.get(key);
   if (timer) clearTimeout(timer);
   persistWriters.set(key, write);
@@ -328,19 +415,26 @@ function schedulePersist(key: string, write: () => void): void {
 }
 
 /** Writes any debounced history or tab change now (before switching files, on pagehide). */
-export function flushSqlPersistence(): void {
+export function flushSqlPersistence(): Promise<void> {
+  const writes: unknown[] = [];
   for (const [key, timer] of persistTimers) {
     clearTimeout(timer);
-    persistWriters.get(key)?.();
+    writes.push(persistWriters.get(key)?.());
   }
   persistTimers.clear();
   persistWriters.clear();
+  return Promise.all(writes).then(() => undefined);
 }
 
 function writeLater(key: string, read: () => unknown): void {
   schedulePersist(key, () => {
     setStoredValue(key, read()).catch(() => undefined);
   });
+}
+
+// History and tabs go through one debounced, merge-safe write.
+function syncLater(): void {
+  schedulePersist('sql-records', () => syncSqlStorage().catch(() => undefined));
 }
 
 function friendly(err: SqlError): SqlError {
@@ -383,15 +477,19 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     const conn = get().connection;
     if (!conn) return;
     storedTabs = { ...storedTabs, [conn.key]: get().tabs };
-    writeLater(EDITOR_TABS_KEY, () => storedTabs);
+    storedUsage = { ...storedUsage, [conn.key]: Date.now() };
+    changed.tabs.add(conn.key);
+    syncLater();
   }
 
   function recordHistory(item: HistoryItem): void {
     const conn = get().connection;
     if (!conn) return;
     storedHistory = appendHistory(storedHistory, conn.key, item);
+    storedUsage = { ...storedUsage, [conn.key]: Date.now() };
+    changed.history.add(conn.key);
     set({ history: storedHistory[conn.key] ?? [] });
-    writeLater(HISTORY_KEY, () => storedHistory);
+    syncLater();
   }
 
   function say(...lines: string[]): void {
@@ -439,7 +537,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
 
   async function openBytes(file: File, handle: FileSystemFileHandle | undefined): Promise<void> {
     await loadSqlStorage();
-    flushSqlPersistence();
+    void flushSqlPersistence();
     const hadConnection = !!get().connection;
     // Read-only is on for every opened file; the checkbox can turn it off only for the first one.
     const readOnly = hadConnection ? true : get().readOnlyChoice;
@@ -495,9 +593,11 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
     diskBehind = false;
     closeRemote();
     dropTransactions();
-    // Picker-opened files come back on the welcome screen's recent list.
-    if (handle) void rememberRecentFile(handle, file);
-    const key = connectionKeyForFile(file.name, file.size);
+    // Picker-opened files come back on the welcome screen's recent list, and carry the stable id
+    // their history and tabs are kept under (#18): the key survives a save, which changes the size.
+    const fileId = handle ? await rememberRecentFile(handle, file) : null;
+    const key = connectionKeyForFile(file.name, fileId);
+    await adoptConnectionKey(key, { name: file.name, size: file.size });
     // A scratch query typed before the first open carries over when the file has no saved tabs.
     const tabs = storedTabs[key] || hadConnection ? restoreEditorTabs(storedTabs, key) : get().tabs;
     let schema: SchemaTree | null = null;
@@ -791,7 +891,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
       const readOnly = mode ?? profile.readOnly;
       const session = await openSession(profile.id, profile.name, readOnly, opts?.password, opts?.remember);
       if (!session) return;
-      flushSqlPersistence();
+      void flushSqlPersistence();
       const prev = get().connection;
       closeRemote();
       dropTransactions();
@@ -806,6 +906,7 @@ export const usePanelSqlStore = create<SqlState>((set, get) => {
           .catch(() => undefined);
       }
       const key = connectionKeyForProfile(profile.id);
+      await adoptConnectionKey(key);
       // Same rule as a file: a scratch query typed before the first connection carries over.
       const sameKey = prev?.key === key;
       const tabs = sameKey ? get().tabs : storedTabs[key] || prev ? restoreEditorTabs(storedTabs, key) : get().tabs;
