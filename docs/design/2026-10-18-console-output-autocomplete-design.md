@@ -1,7 +1,7 @@
 # Console — output and autocomplete, round 2 — design
 
 Requested 2026-10-18 ("more better console like showing the output, auto completion suggestions").
-Evidence: `docs/superpowers/specs/assets/2026-10-18-console-audit.md` (gaps G1–G19, bugs 1–6, real
+Evidence: `docs/design/assets/2026-10-18-console-audit.md` (gaps G1–G19, bugs 1–6, real
 extension, screenshots in `output/console-audit/`). Decided under the user's standing delegation; every
 decision below is a ruling recorded in the plan ledger. This spec is the authority for the plan and
 amends `2026-10-13-console-autocomplete-design.md` where they conflict.

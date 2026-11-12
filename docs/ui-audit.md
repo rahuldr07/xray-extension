@@ -50,7 +50,7 @@ Same rules as the Phase 0 table: **for the IDs below, these dated statuses super
 original row's status** (and any Phase 0 status for the same ID). This is not a re-audit
 of all 128 findings. Each status was checked against the current UI (after-shots in
 `output/ui-refresh/after/`, 1600/1100/760/420) and the named tests. Spec:
-[2026-10-12-ui-layout-refresh-design.md](superpowers/specs/2026-10-12-ui-layout-refresh-design.md).
+[2026-10-12-ui-layout-refresh-design.md](design/2026-10-12-ui-layout-refresh-design.md).
 
 | Finding IDs | Current status | Revalidated behavior / remaining scope |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ document and closed-shadow roots), and `npx eslint .` 0 errors.
 
 Same rules as the tables above: **for the IDs below, these dated statuses supersede the original
 row's status** (and any earlier dated status). Not a re-audit. Spec:
-[2026-10-12-console-redesign-design.md](superpowers/specs/2026-10-12-console-redesign-design.md).
+[2026-10-12-console-redesign-design.md](design/2026-10-12-console-redesign-design.md).
 
 | Finding IDs | Current status | Revalidated behavior / remaining scope |
 | --- | --- | --- |
@@ -85,9 +85,9 @@ row's status** (and any earlier dated status). Not a re-audit. Spec:
 
 Evidence: `npm test` (including `test/unit/runtime/console-helpers-pure.test.mjs`).
 
-Console autocomplete batch 1–4 (spec [2026-10-13-console-autocomplete-design.md](superpowers/specs/2026-10-13-console-autocomplete-design.md)): array/string members, argument values from captured traffic, Ctrl+Space browse, active-argument hint + live count.
+Console autocomplete batch 1–4 (spec [2026-10-13-console-autocomplete-design.md](design/2026-10-13-console-autocomplete-design.md)): array/string members, argument values from captured traffic, Ctrl+Space browse, active-argument hint + live count.
 
-Console round 2 (spec [2026-10-18-console-output-autocomplete-design.md](superpowers/specs/2026-10-18-console-output-autocomplete-design.md), audit [assets/2026-10-18-console-audit.md](superpowers/specs/assets/2026-10-18-console-audit.md) G1–G19): web-object/promise/function/DOM output, persistent declarations, catalogue + live page completion, ghost text, eager preview (Settings → "Preview results while typing").
+Console round 2 (spec [2026-10-18-console-output-autocomplete-design.md](design/2026-10-18-console-output-autocomplete-design.md), audit [assets/2026-10-18-console-audit.md](design/assets/2026-10-18-console-audit.md) G1–G19): web-object/promise/function/DOM output, persistent declarations, catalogue + live page completion, ghost text, eager preview (Settings → "Preview results while typing").
 
 ---
 
@@ -112,7 +112,7 @@ rows cross-reference each other.
 
 Same rules as the tables above: **for the IDs below, these dated statuses supersede the original
 row's status.** Not a re-audit. Spec:
-[2026-10-13-settings-export-themes-design.md](superpowers/specs/2026-10-13-settings-export-themes-design.md).
+[2026-10-13-settings-export-themes-design.md](design/2026-10-13-settings-export-themes-design.md).
 
 | Finding IDs | Current status | Revalidated behavior / remaining scope |
 | --- | --- | --- |
@@ -120,9 +120,9 @@ row's status.** Not a re-audit. Spec:
 | X-19 | **FIXED** | The options page uses the panel's theme names (spec S8). |
 | M-9 | **FIXED** | Reset no longer restores onboarding for a long-time user (spec S4). |
 
-**JSON fidelity — 16/10/2026.** Bodies, logs and Console values now show, search, replay and export what went over the wire, tracked as their own findings #1–#29 ([audit](superpowers/specs/assets/2026-10-14-json-audit.md)) under spec [2026-10-14-json-fidelity-design.md](superpowers/specs/2026-10-14-json-fidelity-design.md).
+**JSON fidelity — 16/10/2026.** Bodies, logs and Console values now show, search, replay and export what went over the wire, tracked as their own findings #1–#29 ([audit](design/assets/2026-10-14-json-audit.md)) under spec [2026-10-14-json-fidelity-design.md](design/2026-10-14-json-fidelity-design.md).
 
-**Visual refresh — 16/10/2026.** Nine presets (XRAY Dark default, XRAY Light, GitHub Dark/Light, Tokyo Night, Catppuccin Mocha, Dracula, Gruvbox Dark, High Contrast) with retired-theme migration, a calm accent, unboxed tokens, two type roles, themeable lines, state tokens and layering, under spec [2026-10-14-visual-refresh-themes-design.md](superpowers/specs/2026-10-14-visual-refresh-themes-design.md); real-extension screenshots per preset in `output/visual-refresh/<preset>/`.
+**Visual refresh — 16/10/2026.** Nine presets (XRAY Dark default, XRAY Light, GitHub Dark/Light, Tokyo Night, Catppuccin Mocha, Dracula, Gruvbox Dark, High Contrast) with retired-theme migration, a calm accent, unboxed tokens, two type roles, themeable lines, state tokens and layering, under spec [2026-10-14-visual-refresh-themes-design.md](design/2026-10-14-visual-refresh-themes-design.md); real-extension screenshots per preset in `output/visual-refresh/<preset>/`.
 
 ---
 
