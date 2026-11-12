@@ -6,7 +6,7 @@
   "main": "background.js",
   "type": "commonjs",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "vite --mode development",

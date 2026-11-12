@@ -217,3 +217,10 @@ test('a fully hostile settings blob normalizes into something the panel can rend
     logsSplit: 2000,
   });
 });
+
+test('previewWhileTyping: on by default, a stored false is kept (Task 7)', () => {
+  assert.equal(DEFAULT_PANEL_SETTINGS.previewWhileTyping, true);
+  assert.equal(normalizePanelSettings({}).previewWhileTyping, true);
+  assert.equal(normalizePanelSettings({ previewWhileTyping: false }).previewWhileTyping, false);
+  assert.equal(normalizePanelSettings({ previewWhileTyping: undefined }).previewWhileTyping, true);
+});

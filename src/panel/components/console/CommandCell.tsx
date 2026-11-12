@@ -14,11 +14,14 @@ import {
 import { usePanelStore } from '../../store';
 import type { ConsoleEvent } from '../../types';
 import { errorHint } from '../../models/consoleAssist';
+import { knownPageNames } from '../../runtime/liveCompletion';
 import { saveConsoleVariable } from '../../runtime/consoleBridge';
 import { copyText } from '../../utils';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { focusFirstItem, handleMenuKeyDown, useMenuDismiss } from '../common/menuBehavior';
-import { describeCommandResult, resultCopyText, resultCopyToast } from '../../models/consoleResults';
+import {
+  describeCommandResult, errorHeadline, formatRunTime, promiseHeader, promiseNote, resultCopyText, resultCopyToast, scopeResetNote,
+} from '../../models/consoleResults';
 import { commandStackFrames, ErrorBlock, extractConsoleError, type ConsoleError } from './consoleErrors';
 import { ResultView, type ResultViewMode } from './ResultView';
 
@@ -33,9 +36,7 @@ export interface InspectRequest {
 }
 
 function formatDuration(ms: number | undefined): string {
-  if (ms === undefined) return '';
-  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`;
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
+  return ms === undefined ? '' : formatRunTime(ms);
 }
 
 // REPL errors carry no `name`; recover it from the stack header or a
@@ -55,21 +56,28 @@ function CellError({ result, code }: { result: ConsoleEvent; code: string }): Re
   const error = useMemo(() => commandError(result), [result]);
   // Only the user's own frames count; the evaluation wrapper's are noise.
   const frames = useMemo(() => commandStackFrames(error), [error]);
+  // `Uncaught Error: x`, `Uncaught 5` for the page's own exception (spec §1); a debugger or XRAY
+  // failure is its message alone.
+  const headline = useMemo(() => errorHeadline(error, result.resultMeta), [error, result.resultMeta]);
+  // The throw site is on the error line; the Stack toggle holds the frames beyond it.
+  const more = error.location ? frames.slice(1) : frames;
   // The selection captured when the command ran (unknown → assume one, so the
   // "No request selected" hint is never shown wrongly).
-  const hint = errorHint(`${error.name}: ${error.message}`, code, result.hasRequest !== false);
+  // Did-you-mean also offers declared names and the page globals live completion has seen.
+  const hint = errorHint(`${error.name}: ${error.message}`, code, result.hasRequest !== false, knownPageNames());
   const [showStack, setShowStack] = useState(false);
   return (
     <div className="xray-cell-error">
       <p className="xray-cell-error-line">
         <IconCircleX {...iconProps} aria-hidden="true" />
-        <span className="xray-error-name">{error.name}</span>
-        <span className="xray-cell-error-message">{error.message}</span>
+        {headline.lead && <><span className="xray-error-name">{headline.lead}</span>{' '}</>}
+        <span className="xray-cell-error-message">{headline.text}</span>
+        {error.location && <code className="xray-cell-error-loc" title="Where it was thrown in the command">at {error.location}</code>}
       </p>
       {hint && (
         <p className="xray-cell-hint"><IconBulb {...iconProps} aria-hidden="true" /><span>{hint}</span></p>
       )}
-      {frames.length > 0 && (
+      {more.length > 0 && (
         <>
           <button type="button" className="xray-cell-stack" aria-expanded={showStack} onClick={() => setShowStack((open) => !open)}>
             {showStack ? <IconChevronDown {...iconProps} /> : <IconChevronRight {...iconProps} />}Stack
@@ -227,6 +235,11 @@ export const CommandCell = React.memo(function CommandCell({
     }
   }, [succeeded, result]);
   const scalar = described?.description.kind === 'scalar';
+  // A top-level promise the run awaited (console round 2): `Promise · fulfilled in 120 ms`.
+  const promise = result ? promiseHeader(result.resultMeta) : null;
+  const pendingNote = succeeded ? promiseNote(result.resultMeta) : null;
+  // The first command after the page lost the declared variables (spec §2), result or error.
+  const resetNote = result && !cancelled ? scopeResetNote(result.resultMeta) : null;
 
   function remove(): void {
     // The cell unmounts under focus: hand it to the prompt rather than <body>.
@@ -259,6 +272,7 @@ export const CommandCell = React.memo(function CommandCell({
         <span className="xray-cell-glyph" aria-hidden="true"><IconChevronRight {...iconProps} /></span>
         <code className="xray-cell-command" title={code}>{firstLine}</code>
         {lines.length > 1 && <span className="xray-cell-lines" title={code}>{lines.length} lines</span>}
+        {promise && <span className="xray-cell-promise" title="The command returned a promise; the Console awaited it">{promise}</span>}
         {scalar && resultView}
         {result?.truncated && <span className="xray-truncated-badge" title="The console's caps left part of this result out; each cut says how much">truncated</span>}
         <span className="xray-cell-tail">
@@ -281,6 +295,8 @@ export const CommandCell = React.memo(function CommandCell({
       ) : failed && result ? (
         <CellError result={result} code={code} />
       ) : !scalar && resultView}
+      {pendingNote && <p className="xray-cell-note">{pendingNote}</p>}
+      {resetNote && <p className="xray-cell-note xray-cell-reset-note">{resetNote}</p>}
     </article>
   );
 });

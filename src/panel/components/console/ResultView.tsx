@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { IconLayoutSidebarRightExpand, IconWindowMaximize } from '@tabler/icons-react';
+import { IconChevronDown, IconLayoutSidebarRightExpand, IconWindowMaximize } from '@tabler/icons-react';
 import { JsonView } from '../detail/JsonView';
 import {
   cellText,
   describeCommandResult,
+  resultDisplay,
   resultJsonText,
   resultRows,
   tableCell,
@@ -26,6 +27,7 @@ const LEAF_CLASS: Record<TreeLeaf['tone'], string> = {
   null: 'xray-json-null',
   typed: 'xray-json-typed',
   muted: 'xray-json-muted',
+  source: 'xray-json-source',
 };
 
 /** An inline scalar's text: a string quoted, a typed value as the Logs write it (`10n`, `ƒ f()`). */
@@ -108,6 +110,8 @@ export function ResultView({ value: rawValue, type, described, table, onOpenInsp
   );
   const { value, description } = own;
   const [localView, setLocalView] = useState<ResultViewMode | null>(null);
+  // C6 / G16: a big result's one-line preview opens inline on demand (buckets for a big array).
+  const [bigOpen, setBigOpen] = useState(false);
   const tableAllowed = description.kind === 'table';
   const requested = view ?? localView;
   const current: ResultViewMode = requested && (requested !== 'table' || tableAllowed)
@@ -117,10 +121,15 @@ export function ResultView({ value: rawValue, type, described, table, onOpenInsp
     () => (current === 'json' && description.kind !== 'scalar' && description.kind !== 'text' ? resultJsonText(value) : ''),
     [current, description.kind, value],
   );
+  const isBig = !!onOpenInspector && description.big && (description.kind === 'tree' || description.kind === 'table');
+  const treeShown = isBig ? bigOpen : current === 'tree';
+  // The console Tree (spec §1): bare keys, > 5 keys/items collapsed to a preview, buckets.
   const display = useMemo(
-    () => (current === 'tree' && (description.kind === 'tree' || description.kind === 'table') ? logDisplay(value) : null),
-    [current, description.kind, value],
+    () => (treeShown && (description.kind === 'tree' || description.kind === 'table') ? resultDisplay(value) : null),
+    [treeShown, description.kind, value],
   );
+  // The one-line summary is the console preview (describeResult); the open Tree shows the value itself.
+  const bigPreview = description.summary;
   const choose = (next: ResultViewMode): void => {
     setLocalView(next);
     onViewChange?.(next);
@@ -138,8 +147,9 @@ export function ResultView({ value: rawValue, type, described, table, onOpenInsp
     );
   }
 
-  // C6: a big object/array is a badge, a one-line shape summary and Open in inspector.
-  if (onOpenInspector && description.big && (description.kind === 'tree' || description.kind === 'table')) {
+  // C6: a big object/array is a badge, its one-line preview and Open in inspector; the preview's
+  // arrow opens it inline (G16: a big array in [0 … 99] buckets).
+  if (isBig && onOpenInspector) {
     return (
       <div className="xray-result is-big">
         <div className="xray-result-bar">
@@ -148,11 +158,28 @@ export function ResultView({ value: rawValue, type, described, table, onOpenInsp
           <span className="xray-result-actions">{actions}</span>
         </div>
         <div className="xray-result-big">
-          <code className="xray-result-summary" title={description.summary}>{description.summary}</code>
+          <button
+            type="button"
+            className="xray-icon-btn xray-result-expand"
+            aria-expanded={bigOpen}
+            aria-label={bigOpen ? 'Collapse result' : 'Expand result'}
+            title={bigOpen ? 'Collapse' : 'Expand inline'}
+            onClick={() => setBigOpen((open) => !open)}
+          >
+            <IconChevronDown size={14} stroke={2.2} className={`xray-json-chevron ${bigOpen ? '' : 'closed'}`} />
+          </button>
+          {bigOpen
+            ? <span className="xray-result-summary" aria-hidden="true" />
+            : <code className="xray-result-summary" title={bigPreview}>{bigPreview}</code>}
           <button type="button" className="xray-btn xray-result-inspect" aria-label="Open in inspector" data-inspect-id={inspectId} onClick={() => onOpenInspector(value)}>
             <IconLayoutSidebarRightExpand size={15} stroke={1.8} /><span>Open in inspector</span>
           </button>
         </div>
+        {bigOpen && display !== null && (
+          <div className="xray-result-body">
+            <JsonView value={display} variant="console" rootOpen />
+          </div>
+        )}
       </div>
     );
   }
@@ -199,7 +226,7 @@ export function ResultView({ value: rawValue, type, described, table, onOpenInsp
         ) : current === 'json' ? (
           <pre className="xray-json xray-result-json">{jsonText}</pre>
         ) : (
-          <JsonView value={display} />
+          <JsonView value={display} variant="console" />
         )}
       </div>
     </div>

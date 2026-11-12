@@ -336,6 +336,8 @@ export interface ConsoleEvent {
   resultType?: string;
   /** Command results: table()/toTable() returned the value (an out-of-band flag, spec J8). */
   resultRender?: 'table';
+  /** Command results and errors: the top-level promise the run awaited — its state and time (console round 2). */
+  resultMeta?: { promise?: { state: 'fulfilled' | 'rejected' | 'pending'; ms: number }; scopeReset?: true };
   /** Command errors: whether a request was selected when the command ran (C5 hint). */
   hasRequest?: boolean;
 }
@@ -398,6 +400,11 @@ export interface PanelSettings {
    * Settings stored before the refresh lack the key, which is how they are told apart.
    */
   themeRefreshPending: boolean;
+  /**
+   * Live completion and eager preview may ask the page while the user types (spec §3, §4):
+   * side-effect-free evaluations through the debugger. Off: no such request and no attach while typing.
+   */
+  previewWhileTyping: boolean;
 }
 
 export type DockSide = 'left' | 'right';
@@ -446,12 +453,19 @@ declare global {
       setContext(entry: XrayEntry | null): void;
       execute(code: string, options?: { readBody?(entry: XrayEntry, side: 'response' | 'request'): unknown }): Promise<{ type: string; result?: unknown; error?: { message?: string; stack?: string }; truncated?: boolean; render?: 'table' }>;
       navigateHistory(direction: 'up' | 'down'): string | null;
-      getRuntimePreview?(): Record<string, unknown>;
+      /** Every remembered command, newest first (a copy). */
+      getHistory?(): string[];
       setVar?(name: string, value: unknown): void;
       getVar?(name: string): unknown;
       getScope?(): Record<string, unknown>;
       clearVariables?(): void;
       setPins?(pins: Record<string, XrayEntry>): void;
+      /** The Console prompt gained or lost focus (the background's idle detach: 30 s / 5 min). */
+      setPromptFocused?(focused: boolean, source?: string): void;
+      /** Live completion (Task 7): the page's names for a plain path, or its globals (`expr` null). */
+      complete?(expr: string | null, requestId: number, attach: boolean): Promise<unknown>;
+      /** Eager preview (Task 8): the draft evaluated side-effect-free in the page, as typed-model text. */
+      preview?(code: string, requestId: number, attach: boolean, options?: { readBody?(entry: XrayEntry, side: 'response' | 'request'): unknown }): Promise<unknown>;
     };
     XRAY_ConsoleHelpers?: {
       parseBody?(body: unknown): unknown;

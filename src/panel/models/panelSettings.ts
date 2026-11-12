@@ -196,6 +196,7 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   logsSplit: 0,
   firstRunDismissed: false,
   themeRefreshPending: false,
+  previewWhileTyping: true,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -279,5 +280,6 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2000),
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
+    previewWhileTyping: Boolean(base.previewWhileTyping),
   };
 }

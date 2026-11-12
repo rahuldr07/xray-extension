@@ -239,7 +239,14 @@ test('pinned bodies feed suggestions and the live preview without evaluating', a
   await ev(page, () => window.cx.field().focus());
   await page.keyboard.type('a.users[0].name');
   await page.waitForFunction(() => window.cx.hint());
-  assert.equal(await ev(page, () => window.cx.hint()), '→ "Ada" (from captured data)');
+  // Final review M-2: the local preview is the Run's one line (previewLine), not a second formatter.
+  assert.equal(await ev(page, () => window.cx.hint()), "→ 'Ada' (from captured data)");
+  for (const [draft, want] of [['a.users[0]', "→ {id: 1, name: 'Ada'} (from captured data)"], ['a.users', '→ Array(2) [{…}, {…}] (from captured data)']]) {
+    await ev(page, () => { window.cx.field().select(); });
+    await page.keyboard.type(draft);
+    await page.waitForFunction((text) => window.cx.hint() === text, want, { timeout: 3000 }).catch(() => {});
+    assert.equal(await ev(page, () => window.cx.hint()), want);
+  }
   // `a` is offered as a chip and as a variable.
   assert.equal(await ev(page, () => [...window.cx.queryAll('[aria-label="Insert into command"] button')].some(b => b.textContent.trim() === 'a')), true);
   assert.equal(await calls(page), 0);

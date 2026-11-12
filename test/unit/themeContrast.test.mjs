@@ -346,6 +346,37 @@ function matrix(name, { vars, need }) {
   assert.equal(ruleValue(head, 'color'), 'var(--xray-hint)', 'API column headers are --xray-hint');
   add('hint on API column header', color('var(--xray-hint)'), over(color(ruleValue(head, 'background')), bg), need);
 
+  // Console prompt (spec §3, Task 5). Ghost text is a decorative hint (the textarea holds the
+  // real text, the suggestion is also in the list): 3:1 on the editor field, not 4.5. Matched
+  // characters are text: `need` on a plain and on the active row of the popup (surface). Kind
+  // icons are UI graphics: 3:1 on both rows.
+  const ghostValue = ruleValue('.xray-panel .xray-prompt .xray-editor-ghost', 'color');
+  assert.ok(ghostValue, 'ghost text colour rule `.xray-panel .xray-prompt .xray-editor-ghost` not found');
+  const editorField = over(color(ruleValue('.xray-editor-field', 'background')), bg);
+  add('ghost text on the editor field', color(ghostValue), editorField, 3);
+  const activeOption = over(color(ruleValue('.xray-editor-option.active', 'background')), surface);
+  const matchValue = ruleValue('.xray-editor-option-match', 'color');
+  // Fix round 1: emphasis is weight + the normal text colour (no data hue, spec A1); the rest of a
+  // matched label dims to --xray-subtext. The ghost carries a non-colour cue (a dotted underline),
+  // so it reads as a suggestion even where hint and text are close (High Contrast).
+  assert.equal(matchValue, 'var(--xray-text)', 'matched characters are --xray-text');
+  assert.equal(ruleValue('.xray-editor-option-match', 'font-weight'), '600', 'matched characters are weight 600');
+  const unmatchedValue = ruleValue('.xray-editor-option-label.has-match', 'color');
+  assert.equal(unmatchedValue, 'var(--xray-subtext)', 'the unmatched part of a matched label is --xray-subtext');
+  assert.match(ruleValue('.xray-panel .xray-prompt .xray-editor-ghost', 'text-decoration') ?? '', /underline dotted/, 'the ghost has a dotted underline');
+  for (const [host, hostName] of [[surface, 'row'], [activeOption, 'active row']]) {
+    add(`matched characters (${hostName})`, color(matchValue), host, need);
+    add(`unmatched label part (${hostName})`, color(unmatchedValue), host, need);
+    add(`option params (${hostName})`, color(ruleValue('.xray-editor-option-params', 'color')), host, need);
+    for (const kind of ['helper', 'variable', 'property', 'method', 'index', 'value', 'function', 'class', 'keyword', 'namespace']) {
+      const iconValue = ruleValue(`.xray-editor-option-icon.kind-${kind}`, 'color');
+      assert.ok(iconValue, `kind icon colour rule \`.xray-editor-option-icon.kind-${kind}\` not found`);
+      add(`${kind} kind icon (${hostName})`, color(iconValue), host, 3);
+    }
+  }
+  const docLine = over(color(ruleValue('.xray-editor-doc', 'background')), surface);
+  add('doc line text', color(ruleValue('.xray-editor-doc', 'color')), docLine, need);
+
   const fails = rows.filter((r) => r.ratio < r.min);
   return { name, rows, fails };
 }
