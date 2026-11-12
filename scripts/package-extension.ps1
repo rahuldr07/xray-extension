@@ -15,6 +15,7 @@ $allowList = @(
   "manifest.json",
   "background.js",
   "window.html",
+  "sql.html",
   "content",
   "devtools",
   "dist",

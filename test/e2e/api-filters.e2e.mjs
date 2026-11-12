@@ -216,7 +216,12 @@ test('closed-shadow disclosure and removable chips work from the keyboard', asyn
   assert.equal((await state(page)).detail, false);
   assert.ok(await page.evaluate(() => window.apiFiltersTest.root.querySelector('.xray-api-collection-pane').getClientRects().length > 0));
   assert.equal(await page.evaluate(() => window.apiFiltersTest.root.querySelector('.xray-api-table-scroll').getAttribute('aria-activedescendant')), 'xray-api-option-a1');
-  assert.ok(await page.evaluate(() => !!window.apiFiltersTest.root.querySelector('#xray-api-option-a1')), 'the selected option is rendered again');
+  // The list is virtualized: rows render after the remounted scroll pane is measured, a frame
+  // or more after aria-activedescendant is set, so wait for the row rather than reading once.
+  await assert.doesNotReject(
+    page.waitForFunction(() => !!window.apiFiltersTest.root.querySelector('#xray-api-option-a1'), null, { timeout: 5000 }),
+    'the selected option is rendered again',
+  );
 });
 
 test('compact filters and collapsed secondary chips stay reachable across supported panel widths', async t => {

@@ -62,7 +62,8 @@ regress.
   found exactly one hit: `content/console-executor.js:130`, which is the console feature
   itself operating on user-typed code. Captured response bodies — attacker-controlled by
   definition — are rendered exclusively through React children and `textContent`.
-- **The extension CSP has no `unsafe-eval` and no `wasm-unsafe-eval`.**
+- **The extension CSP has no `unsafe-eval`.** Its only `'wasm-unsafe-eval'` is scoped to
+  extension pages, for SQLite-WASM on `sql.html` (see §5).
 - **No `externally_connectable`**, so web pages cannot message the service worker directly.
 - **Theme values reaching `style.setProperty` are strictly hex-validated**
   (`src/panel/models/customTheme.ts:34-50`). Checked specifically for `url()`-based CSS
@@ -144,6 +145,8 @@ submission-ready wording lives in [store-listing.md](store-listing.md).
 | `debugger` | CDP `Runtime.evaluate` for console execution on CSP-strict sites | Required (Chrome cannot make `debugger` optional — see C-8) |
 | `windows` | The pop-out window | No |
 | `<all_urls>` | Capture is the product; it cannot know in advance which origins matter | No, but see C-14 on scoping *retention* |
+| CSP `'wasm-unsafe-eval'` (`extension_pages` only) | Lets SQLite-WASM compile in the SQL client's worker on `sql.html`. It does not apply to content scripts or to any web page, and allows no JS `eval`. `dist/sql-ui.js`, `dist/sql-worker.js` and `dist/sqlite3.wasm` are deliberately not web-accessible, so no page can load them; `sql.html` is, through its dynamic URL only, for the opt-in inline HUD (next row) | No, while the SQL client runs SQLite in the browser |
+| `web_accessible_resources`: `sql.html`, `use_dynamic_url: true`, `<all_urls>` | Lets the HUD frame the SQL client inline when the user turns on **Show SQL client inside the page HUD** (`sqlInlineInHud`, **off by default**). The page cannot read the cross-origin frame or the rows it shows. The resource is exposed whether or not the option is on, so treat it as: any site can embed the client. Chrome denies the static `chrome-extension://<id>/sql.html` URL to pages and serves only the per-session dynamic one, which the HUD keeps in its closed shadow root (it did not show in the page's `window.frames` or Resource Timing, observed on Chromium 151), but that is defence in depth, not a boundary. With the option off, sql.html refuses to run under a web origin (`location.ancestorOrigins`): it shows a notice and loads no stored SQL state, so the exposure is live only while the user has opted in. Clickjacking the client still requires the user to pick a file, and connections open read-only by default. Readiness is relayed through the extension runtime (sql.html → service worker, which checks the sender is a `chrome-extension:` `/sql.html` frame in a tab → the tab's top frame); nothing is posted to the page's window, so the page gets no `WindowProxy` to the frame and cannot swallow the signal. Once framed, the HUD keeps the frame until it is reopened, even if the option is turned off. Only `sql.html` is listed: its bundles, worker and wasm are loaded by the extension-origin document. A page's `frame-src` CSP does not block the frame (observed on Chromium 151); if it ever fails to load, the HUD falls back to the window after 4 s | Yes: drop the entry and the option, leaving the window |
 
 ---
 

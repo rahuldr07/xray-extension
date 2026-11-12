@@ -15,11 +15,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bundles = ['dist/panel-ui.js', 'dist/hud-ui.js', 'dist/window-ui.js'];
+const bundles = [
+  'dist/panel-ui.js',
+  'dist/hud-ui.js',
+  'dist/window-ui.js',
+  'dist/sql-ui.js',
+  'dist/sql-worker.js',
+  'dist/sqlite3.wasm',
+];
 
 // e.g. "2026-08-14 02:52 UTC" — injected as __XRAY_BUILD__ by vite.config.ts.
 const STAMP = /\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/g;
 const normalise = (text) => text.replace(STAMP, '<build-stamp>');
+// The wasm is binary and carries no stamp: compare its bytes, not a lossy utf8 decoding.
+const readBundle = (abs) =>
+  abs.endsWith('.wasm') ? fs.readFileSync(abs).toString('base64') : normalise(fs.readFileSync(abs, 'utf8'));
 
 const committed = new Map();
 for (const bundle of bundles) {
@@ -28,13 +38,13 @@ for (const bundle of bundles) {
     console.error(`dist-sync: ${bundle} is missing from the working tree.`);
     process.exit(1);
   }
-  committed.set(bundle, normalise(fs.readFileSync(abs, 'utf8')));
+  committed.set(bundle, readBundle(abs));
 }
 
 execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
 
 const stale = bundles.filter((bundle) => {
-  const rebuilt = normalise(fs.readFileSync(path.join(root, bundle), 'utf8'));
+  const rebuilt = readBundle(path.join(root, bundle));
   return rebuilt !== committed.get(bundle);
 });
 

@@ -245,7 +245,20 @@ test('legacy vanilla panel UI stays deleted', () => {
     assert.ok(!exists(retired), `${retired} should stay deleted`);
   }
   const pkg = readPkg();
-  assert.ok(!Object.keys(pkg.dependencies || {}).some((name) => name.startsWith('@codemirror/')));
+  // The retired vanilla editor bundle must not return. The SQL client (dist/sql-ui.js) is the only
+  // consumer of CodeMirror, so only its packages may be dependencies.
+  const sqlEditorPackages = new Set([
+    '@codemirror/state',
+    '@codemirror/view',
+    '@codemirror/language',
+    '@codemirror/commands',
+    '@codemirror/autocomplete',
+    '@codemirror/lang-sql',
+  ]);
+  const strayCodemirror = Object.keys(pkg.dependencies || {}).filter(
+    (name) => name.startsWith('@codemirror/') && !sqlEditorPackages.has(name),
+  );
+  assert.deepEqual(strayCodemirror, []);
 });
 
 test('options page reads and writes the shared React preference record', () => {

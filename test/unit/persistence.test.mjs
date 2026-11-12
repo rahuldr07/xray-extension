@@ -95,7 +95,7 @@ test('applyPanelPreferences returns an empty patch for an empty blob', () => {
 });
 
 test('applyPanelPreferences rejects an unknown activeTab but keeps the known ones', () => {
-  for (const tab of ['console', 'api', 'logs', 'rules', 'insights']) {
+  for (const tab of ['console', 'api', 'logs', 'rules', 'insights', 'sql']) {
     assert.equal(applyPanelPreferences({ activeTab: tab }).activeTab, tab);
   }
   for (const tab of ['settings', '', 'API', 42, null]) {
@@ -643,4 +643,11 @@ test('buildSessionSummary splits API and log counts', () => {
 test('buildSessionSummary ignores non-numeric sizes', () => {
   const all = [apiEntry({ size: 'big' }), apiEntry({ size: null }), apiEntry({ size: 50 })];
   assert.equal(buildSessionSummary(all).totalBytes, 50);
+});
+
+test('sqlInlineInHud survives the stored round-trip and reads as off from preferences stored before it', () => {
+  const on = applyPanelPreferences(JSON.parse(JSON.stringify({ settings: { sqlInlineInHud: true, themeRefreshPending: false } })));
+  assert.equal(on.settings.sqlInlineInHud, true);
+  const before = applyPanelPreferences({ settings: { theme: 'dracula', glow: true, themeRefreshPending: false } });
+  assert.equal(before.settings.sqlInlineInHud, false);
 });
