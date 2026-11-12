@@ -1,34 +1,37 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconCopy, IconFilter, IconX } from '@tabler/icons-react';
-import { resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
-import { clampMaxRows, countTruncatedBlobs, displayCell, toCsv, toInsertCopy, toJsonRows, truncatedBlobNotice } from '../../models/sqlValues';
+import { IconArrowBarToDown, IconCopy, IconFilter, IconPlugConnectedX, IconRefresh, IconX } from '@tabler/icons-react';
+import { connectionDialect, resultSummary, usePanelSqlStore, type SqlBottomTab } from '../../sqlStore';
+import { clampMaxRows, displayCell, truncatedBlobNotice } from '../../models/sqlValues';
 import { parseJson, toValue } from '../../models/jsonText';
 import { cellCopyText, columnsKey, filteredSummary, nextSort, primaryKeyColumns, viewOrder } from '../../models/sqlGrid';
+import {
+  COPY_CAPPED_NOTICE,
+  isAppended,
+  reconcileSelection,
+  copySlice,
+  countCutText,
+  cutTextNotice,
+  selectionSlice,
+  type CopyFormat,
+  type GridSelection,
+} from '../../models/sqlSelection';
 import type { QueryResult, SqlCell } from '../../models/sqlTypes';
 import { JsonView } from '../detail/JsonView';
 import { ResultGrid, type SelectedCell } from './ResultGrid';
-
-type CopyFormat = 'CSV' | 'JSON' | 'INSERT';
-
-function copyText(format: CopyFormat, result: QueryResult, table: string): { text: string; truncated: number } {
-  if (format === 'INSERT') {
-    const { text, truncatedBlobs } = toInsertCopy(table, result.columns, result.rows, 'sqlite');
-    return { text, truncated: truncatedBlobs };
-  }
-  const text = format === 'CSV' ? toCsv(result.columns, result.rows) : toJsonRows(result.columns, result.rows);
-  return { text, truncated: countTruncatedBlobs(result.rows) };
-}
 
 function Inspector({
   result,
   rows,
   cell,
+  cut,
   onClose,
   onToast,
 }: {
   result: QueryResult;
   rows: SqlCell[][];
   cell: SelectedCell;
+  /** The value was cut to fit (over 1 MB, or by the helper to fit a message). */
+  cut: boolean;
   onClose(): void;
   onToast(...lines: string[]): void;
 }): React.ReactElement {
@@ -49,9 +52,9 @@ function Inspector({
       onToast('Could not copy to the clipboard.');
       return;
     }
-    // R9: a cut blob copies only its preview bytes, and says so in the notice's own words.
-    if (truncatedBlob) onToast('Copied the value.', truncatedBlobNotice(1));
-    else onToast('Copied the value.');
+    // R9: a cut blob copies only its preview bytes, and says so in the notice's own words; a cut
+    // text value says so the same way.
+    onToast('Copied the value.', ...(truncatedBlob ? [truncatedBlobNotice(1)] : []), ...(cut ? [cutTextNotice(1)] : []));
   }
 
   return (
@@ -121,7 +124,11 @@ function ResultsView(): React.ReactElement {
   const schema = usePanelSqlStore((s) => s.schema);
   const filter = usePanelSqlStore((s) => s.rowFilter);
   const gridView = usePanelSqlStore((s) => s.gridView);
-  const { setRowFilter, setGridView } = usePanelSqlStore.getState();
+  const canFetchMore = usePanelSqlStore((s) => s.canFetchMore);
+  // The cursor belongs to the tab that ran the statement; Fetch more shows only there.
+  const onCursorTab = usePanelSqlStore((s) => s.activeTabId === s.cursorTabId);
+  const running = usePanelSqlStore((s) => !!s.running);
+  const { setRowFilter, setGridView, fetchMore } = usePanelSqlStore.getState();
   const [hint, setHint] = useState(!inspectedOnce);
   const [toast, setToast] = useState<string[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,6 +147,19 @@ function ResultsView(): React.ReactElement {
   );
   const viewRows = useMemo(() => (result ? order.map((i) => result.rows[i]) : []), [result, order]);
   const pkColumns = useMemo(() => primaryKeyColumns(schema, resultTable), [schema, resultTable]);
+  // The range selection, as source rows: a new result clears it; Fetch more (rows appended) keeps
+  // it; a sort keeps it; rows a filter hides leave it, and it is cleared once none are left.
+  const [selection, setSelection] = useState<GridSelection | null>(null);
+  const [selectionResult, setSelectionResult] = useState(result);
+  const [selectionView, setSelectionView] = useState(order);
+  if (selectionResult !== result) {
+    setSelectionResult(result);
+    if (!isAppended(selectionResult, result)) setSelection(null);
+  }
+  if (selectionView !== order) {
+    setSelectionView(order);
+    setSelection((sel) => reconcileSelection(sel, order, result?.columns.length ?? 0));
+  }
 
   if (!result) {
     return (
@@ -162,20 +182,49 @@ function ResultsView(): React.ReactElement {
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }
 
+  // A selection exists only after Shift, a row number or Ctrl/⌘+A (a plain click or arrow clears
+  // it), so any one counts, even a single row of a one-column result.
+  const ranged = selection !== null;
+
+  // Copies the selection, or else what is shown: the filtered, sorted rows.
   async function copy(format: CopyFormat): Promise<void> {
     if (!result) return;
-    // Copies what is shown: the filtered, sorted rows.
-    const { text, truncated } = copyText(format, { ...result, rows: viewRows }, resultTable ?? 'query_result');
+    const sel = selection;
+    const slice = selectionSlice(sel, result.columns, result.rows, order);
+    const dialect = connectionDialect(usePanelSqlStore.getState().connection);
+    const { text, notices } = copySlice(format, result, slice, resultTable ?? 'query_result', dialect);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
       showToast('Could not copy to the clipboard.');
       return;
     }
-    const copied = `Copied ${viewRows.length} rows as ${format}.`;
-    // R9/R14: the truncation notice is its own message, word for word.
-    if (truncated) showToast(copied, truncatedBlobNotice(truncated));
-    else showToast(copied);
+    const copied = sel
+      ? `Copied ${slice.rows.length} rows × ${slice.columns.length} columns as ${format}.`
+      : `Copied ${viewRows.length} rows as ${format}.`;
+    // R9/R14: each truncation notice is its own message, word for word. A copy past 200,000 cells
+    // holds the first whole rows that fit, and says so instead.
+    showToast(slice.capped ? COPY_CAPPED_NOTICE : copied, ...notices);
+  }
+
+  // Ctrl/⌘+C in the grid: the selection as CSV, or the active cell's value as Copy value writes it.
+  async function copyFromGrid(active: SelectedCell): Promise<void> {
+    if (!result) return;
+    if (ranged) {
+      await copy('CSV');
+      return;
+    }
+    const source = order[active.row];
+    if (source === undefined) return;
+    const { text, truncatedBlob } = cellCopyText(result.rows[source][active.col] ?? null, result.columns[active.col]?.type);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      showToast('Could not copy to the clipboard.');
+      return;
+    }
+    const cut = countCutText(result, [source], [active.col]);
+    showToast('Copied the value.', ...(truncatedBlob ? [truncatedBlobNotice(1)] : []), ...(cut ? [cutTextNotice(cut)] : []));
   }
 
   function inspect(next: SelectedCell): void {
@@ -195,8 +244,20 @@ function ResultsView(): React.ReactElement {
       <div className="xray-sql-results-head">
         <span className="xray-sql-results-summary">
           {filtering && hasColumns ? filteredSummary(viewRows.length, result.rows.length, result.durationMs) : resultSummary(result)}
-          {result.hasMore ? ' · more rows available, Run with higher limit' : ''}
+          {result.hasMore ? (canFetchMore ? ' · more rows available' : ' · more rows available, Run with higher limit') : ''}
         </span>
+        {canFetchMore && onCursorTab && (
+          <button
+            type="button"
+            className="xray-btn xray-btn-sm xray-sql-fetch-more"
+            disabled={running}
+            title="Fetch the next 1,000 rows from the open cursor"
+            onClick={() => void fetchMore()}
+          >
+            <IconArrowBarToDown size={13} stroke={1.8} aria-hidden="true" />
+            Fetch more
+          </button>
+        )}
         <MaxRowsInput />
         {hasColumns && (
           <label className="xray-sql-filter">
@@ -231,10 +292,15 @@ function ResultsView(): React.ReactElement {
           </span>
         )}
         {hasColumns && (
-          <div className="xray-sql-copy" role="group" aria-label="Copy results">
-            <span className="xray-sql-muted">Copy</span>
+          <div className="xray-sql-copy" role="group" aria-label={ranged ? 'Copy selection' : 'Copy results'}>
+            <span className="xray-sql-muted">{ranged ? 'Copy selection' : 'Copy'}</span>
             {(['CSV', 'JSON', 'INSERT'] as const).map((format) => (
-              <button key={format} className="xray-btn xray-btn-sm" onClick={() => void copy(format)} aria-label={`Copy as ${format}`}>
+              <button
+                key={format}
+                className="xray-btn xray-btn-sm"
+                onClick={() => void copy(format)}
+                aria-label={ranged ? `Copy selection as ${format}` : `Copy as ${format}`}
+              >
                 {format}
               </button>
             ))}
@@ -256,13 +322,26 @@ function ResultsView(): React.ReactElement {
             key={key}
             result={result}
             rows={viewRows}
+            order={order}
             sort={view.sort}
             onSort={(col) => setGridView({ ...view, sort: nextSort(view.sort, col) })}
             pkColumns={pkColumns}
             inspected={cell}
             onInspect={inspect}
+            selection={selection}
+            onSelect={setSelection}
+            onCopy={(active) => void copyFromGrid(active)}
           />
-          {cell && <Inspector result={result} rows={viewRows} cell={cell} onClose={closeInspector} onToast={showToast} />}
+          {cell && (
+            <Inspector
+              result={result}
+              rows={viewRows}
+              cell={cell}
+              cut={countCutText(result, [order[cell.row]], [cell.col]) > 0}
+              onClose={closeInspector}
+              onToast={showToast}
+            />
+          )}
         </div>
       ) : (
         <p className="xray-sql-empty">The statement returned no rows.</p>
@@ -333,6 +412,25 @@ const TABS: { id: SqlBottomTab; label: string }[] = [
   { id: 'history', label: 'History' },
 ];
 
+// The remote session died (helper, worker or server gone). Tabs and results stay; Reconnect opens
+// a new session for the same connection.
+function ConnectionLostBanner(): React.ReactElement | null {
+  const lost = usePanelSqlStore((s) => s.connectionLost && s.connection?.kind === 'remote');
+  const busy = usePanelSqlStore((s) => !!s.running || s.opening);
+  const reconnect = usePanelSqlStore((s) => s.reconnect);
+  if (!lost) return null;
+  return (
+    <div className="xray-sql-lost" role="alert">
+      <IconPlugConnectedX size={15} stroke={1.8} aria-hidden="true" />
+      <span>Connection lost.</span>
+      <button type="button" className="xray-btn xray-btn-sm" disabled={busy} onClick={() => void reconnect()}>
+        <IconRefresh size={13} stroke={1.8} aria-hidden="true" />
+        Reconnect
+      </button>
+    </div>
+  );
+}
+
 export function ResultsPane(): React.ReactElement {
   const bottomTab = usePanelSqlStore((s) => s.bottomTab);
   const running = usePanelSqlStore((s) => !!s.running);
@@ -361,6 +459,7 @@ export function ResultsPane(): React.ReactElement {
           </span>
         )}
       </div>
+      <ConnectionLostBanner />
       <div className="xray-sql-bottom-panel" id="xray-sql-bottom-panel" role="tabpanel" aria-labelledby={`xray-sql-tab-${bottomTab}`}>
         {bottomTab === 'results' && <ResultsView />}
         {bottomTab === 'messages' && <MessagesView />}

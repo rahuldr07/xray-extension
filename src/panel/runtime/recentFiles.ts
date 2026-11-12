@@ -3,11 +3,14 @@
 // Access picker have a handle, so the list exists only where that picker works. The list's ordering
 // and capping live in models/sqlRecent.ts.
 
-import { addRecent, removeRecent, restoreRecent, type RecentFile } from '../models/sqlRecent';
+import { addFileId, addRecent, removeRecent, restoreFileIds, restoreRecent, type RecentFile } from '../models/sqlRecent';
 
 const DB_NAME = 'xray-sql';
 const STORE = 'recent-files';
 const KEY = 'list';
+// The stable ids of picker-opened files (their SQL history keys), up to FILE_IDS_LIMIT: a file
+// pushed off the five-file list keeps its id.
+const IDS_KEY = 'ids';
 
 type PermissionMode = { mode: 'read' | 'readwrite' };
 interface PermissionedHandle extends FileSystemFileHandle {
@@ -61,16 +64,31 @@ async function saveRecentFiles(list: RecentSqlFile[]): Promise<void> {
   await withStore('readwrite', (store) => store.put(list, KEY));
 }
 
-/** Records a file opened through the picker. Failures are ignored: the list is a convenience. */
-export async function rememberRecentFile(handle: FileSystemFileHandle, file: File): Promise<void> {
+function newFileId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Records a file opened through the picker and returns its stable id: the one already kept for the
+ * same file, else a new one. Null when IndexedDB fails: the caller keys the file by name alone.
+ */
+export async function rememberRecentFile(handle: FileSystemFileHandle, file: File): Promise<string | null> {
   try {
+    const now = Date.now();
     const list = await loadRecentFiles();
+    const ids = restoreFileIds<FileSystemFileHandle>(await withStore('readonly', (store) => store.get(IDS_KEY)));
     // The same file under a new size is still the same file.
     const same = await Promise.all(list.map((item) => item.handle.isSameEntry(handle).catch(() => false)));
+    const sameId = await Promise.all(ids.map((item) => item.handle.isSameEntry(handle).catch(() => false)));
+    const id = ids.find((_, i) => sameId[i])?.id ?? list.find((item, i) => same[i] && item.id)?.id ?? newFileId();
+    await withStore('readwrite', (store) => store.put(addFileId(ids, { id, lastOpened: now, handle }), IDS_KEY));
     const others = list.filter((_, i) => !same[i]);
-    await saveRecentFiles(addRecent(others, { name: file.name, size: file.size, lastOpened: Date.now(), handle }));
+    await saveRecentFiles(addRecent(others, { name: file.name, size: file.size, lastOpened: now, handle, id }));
+    return id;
   } catch {
     // IndexedDB unavailable or a handle that no longer compares: keep the old list.
+    return null;
   }
 }
 

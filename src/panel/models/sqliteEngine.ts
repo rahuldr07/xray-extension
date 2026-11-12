@@ -248,6 +248,7 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
         }
         const out: SqlCell[][] = [];
         let truncatedCells = 0;
+        const cutCells: [number, number][] = [];
         let hasMore = false;
         while (step(handle, stmt)) {
           if (out.length >= opts.maxRows) {
@@ -260,6 +261,7 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
             if (typeof raw === 'string' && raw.length > MAX_TEXT_CELL) {
               raw = raw.slice(0, MAX_TEXT_CELL);
               truncatedCells++;
+              cutCells.push([out.length, i]);
             }
             row.push(toCell(raw));
           }
@@ -274,6 +276,7 @@ export function createSqliteEngine(module: unknown): SqliteEngine {
           notices: [],
           hasMore,
           truncatedCells,
+          cutCells,
         };
       } catch (err) {
         const e = normalizeSqlError(err, statement.text);

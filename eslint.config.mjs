@@ -62,7 +62,7 @@ export default tseslint.config(
   // Injected into every page. Must stay dependency-free and must not assume
   // bundler or Node semantics.
   {
-    files: ['content/**/*.js', 'shared/**/*.js', 'panel/**/*.js', 'devtools/**/*.js', 'settings/**/*.js', 'background.js'],
+    files: ['content/**/*.js', 'shared/**/*.js', 'panel/**/*.js', 'devtools/**/*.js', 'settings/**/*.js', 'background.js', 'background/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
@@ -76,6 +76,9 @@ export default tseslint.config(
         XRAY_Decrypt: 'readonly',
         XRAY_ConsoleHelpers: 'readonly',
         XRAY_WorkerClient: 'readonly',
+        // background.js loads background/sql-manager.js with importScripts.
+        XRAY_SqlManager: 'readonly',
+        importScripts: 'readonly',
       },
     },
     rules: {

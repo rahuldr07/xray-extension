@@ -48,3 +48,21 @@ test('lastOpenedLabel reads today, yesterday or a date', () => {
   assert.equal(lastOpenedLabel(new Date(2026, 9, 22, 23, 0).getTime(), now), 'Yesterday');
   assert.equal(lastOpenedLabel(new Date(2026, 9, 1).getTime(), now), new Date(2026, 9, 1).toLocaleDateString());
 });
+
+// #18: a file's stable id (its SQL history key) outlives its place on the five-file recent list.
+test('file ids: newest first, one per id, capped at 50, and kept on recent entries', async () => {
+  const { FILE_IDS_LIMIT, addFileId, restoreFileIds } = await import('../../src/panel/models/sqlRecent.ts');
+  assert.equal(FILE_IDS_LIMIT, 50);
+  const id = (n, lastOpened) => ({ id: `id${n}`, lastOpened, handle: { kind: 'file', name: `f${n}` } });
+  let list = [];
+  for (let i = 1; i <= 55; i++) list = addFileId(list, id(i, i));
+  assert.equal(list.length, 50);
+  assert.equal(list[0].id, 'id55');
+  list = addFileId(list, id(20, 100));
+  assert.equal(list[0].id, 'id20');
+  assert.equal(list.filter((e) => e.id === 'id20').length, 1);
+  assert.deepEqual(restoreFileIds([id(1, 1), { id: 5, lastOpened: 1, handle: {} }, { id: 'x', lastOpened: 2 }, id(2, 3), id(1, 4)]).map((e) => e.id), ['id1', 'id2']);
+  assert.deepEqual(restoreFileIds('nope'), []);
+  // A recent entry keeps its id through a restore.
+  assert.equal(restoreRecent([{ ...entry('a.db', 1), id: 'idA' }])[0].id, 'idA');
+});
