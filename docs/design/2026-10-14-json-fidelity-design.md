@@ -2,7 +2,7 @@
 
 Requested 2026-10-14 ("are you parsing the JSON perfectly? see in the API tabs, also across the
 app"). Evidence: end-to-end audit with a fixture battery in the real extension —
-`docs/superpowers/specs/assets/2026-10-14-json-audit.md` (findings #1–#29 with file:line, RAN/TRACED;
+`docs/design/assets/2026-10-14-json-audit.md` (findings #1–#29 with file:line, RAN/TRACED;
 artifacts in `output/json-audit/`). Decided under the user's standing delegation. This spec is the
 authority for the implementation plan.
 

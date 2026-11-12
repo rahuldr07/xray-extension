@@ -411,7 +411,7 @@ ${I}  const response = await ${u};
 
 /* Preset lineup (Settings \u2192 Appearance, in picker order; High Contrast is .xray-theme-midnight
    above). Each block owns its accent; a picked accent swatch is set inline over it. Values:
-   docs/superpowers/specs/assets/2026-10-14-theme-lineup.css, moved in OKLCH lightness only where
+   docs/design/assets/2026-10-14-theme-lineup.css, moved in OKLCH lightness only where
    test/unit/themeContrast.test.mjs (every preset \xD7 every accent swatch) or the distinct-meanings
    test (test/unit/themePresets.test.mjs) required it.
    --xray-focus is var(--xray-accent): the inline accent sits on the same elements as the theme

@@ -1,6 +1,6 @@
 /* Source scan: no JSON.parse on captured bodies in src/panel outside models/jsonText.ts.
  *
- * Spec docs/superpowers/specs/2026-10-14-json-fidelity-design.md §1 "One parser": every view, search,
+ * Spec docs/design/2026-10-14-json-fidelity-design.md §1 "One parser": every view, search,
  * diff and export reads captured text through the lossless parser. This test finds every reference to
  * JSON.parse in src/panel (calls, `JSON['parse']`, `const { parse } = JSON`, `globalThis.JSON.parse`)
  * with the TypeScript parser, so comments and strings never count, and fails on any site that is not

@@ -46,7 +46,7 @@ The same IDs must be present after Phase 0.
 | `test/e2e/modal-stack.e2e.mjs` | `e4743e9932acbbd7f6b2c08f8f813d50b53946cd` |
 
 Also pre-existing: rebuilt `dist/panel-ui.js`, `dist/hud-ui.js`, and
-`dist/window-ui.js`; the untracked runtime/UI plan under `docs/superpowers/plans/`;
+`dist/window-ui.js`;
 and untracked `graphify-out/` exploration output. They must not be removed or
 mistaken for Phase 0 changes. A tracked-diff backup is retained in the approved
 temporary area outside the repository; it does not include untracked files.

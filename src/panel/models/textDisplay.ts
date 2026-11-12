@@ -1,5 +1,5 @@
 /**
- * How captured text is displayed (docs/superpowers/specs/2026-10-14-json-fidelity-design.md §2).
+ * How captured text is displayed (docs/design/2026-10-14-json-fidelity-design.md §2).
  *
  * - Bidi controls (J13): an embedding, override, isolate or mark inside a captured string reorders
  *   the text around it on screen — `"abc ‮RTL"` reads backwards. Views show each one as a visible
