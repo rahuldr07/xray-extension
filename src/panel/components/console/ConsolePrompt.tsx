@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react';
 import { evaluateConsoleCommand, usePanelStore } from '../../store';
 import { rememberConsoleResult } from '../../runtime/consoleBridge';
+import { markLiveStale } from '../../runtime/liveCompletion';
 import { entryRequest, entryResponse, preview } from '../../utils';
 import { resultText } from '../../models/consoleResults';
 import { logPlain } from '../../models/logValue';
@@ -129,6 +130,8 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
   const preparationId = usePanelStore((state) => state.consolePreparationId);
   const blocked = usePanelStore((state) => Boolean(state.pendingConfirmation || state.settingsOpen || state.exportOpen || state.commandOpen || state.globalSearchOpen || state.explainEntry || state.replayEditorEntry || state.compareOpen || state.findingSynthesisIds));
   const consoleRun = usePanelStore((state) => state.consoleRun);
+  // Settings → "Preview results while typing" (spec §4): off, the editor never asks the page.
+  const previewWhileTyping = usePanelStore((state) => state.settings.previewWhileTyping);
   const setConsoleRun = usePanelStore((state) => state.setConsoleRun);
   const [cancelVisible, setCancelVisible] = useState(false);
   const running = consoleRun !== null;
@@ -218,6 +221,7 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
           commandId,
           durationMs,
           hasRequest,
+          ...(result.meta?.promise || result.scopeReset ? { resultMeta: { ...(result.meta?.promise ? { promise: result.meta.promise } : {}), ...(result.scopeReset ? { scopeReset: true as const } : {}) } } : {}),
         });
         // Give the failed command back so it can be fixed instead of retyped.
         if (!codeOverride) setConsoleDraft(code);
@@ -246,6 +250,7 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
           durationMs,
           resultType: result.type,
           ...(result.render === 'table' ? { resultRender: 'table' as const } : {}),
+          ...(result.meta?.promise || result.scopeReset ? { resultMeta: { ...(result.meta?.promise ? { promise: result.meta.promise } : {}), ...(result.scopeReset ? { scopeReset: true as const } : {}) } } : {}),
         });
         // `$_` holds the typed value; the next run revives it in the page.
         rememberConsoleResult(value);
@@ -262,6 +267,8 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
       if (!codeOverride) setConsoleDraft(code);
       setAnnouncement(`Error: ${message}`);
     } finally {
+      // The run may have declared names or changed the page's globals (live completion asks again).
+      markLiveStale();
       if (activeRun === token) activeRun = null;
       if (usePanelStore.getState().consoleRun?.id === token.id) usePanelStore.getState().setConsoleRun(null);
     }
@@ -316,6 +323,7 @@ export const ConsolePrompt = React.forwardRef<ConsolePromptHandle, {
         roots={roots}
         variables={variables}
         captured={capturedSummary}
+        live={previewWhileTyping}
         actions={(
           <>
             <button className="xray-btn xray-prompt-help" aria-label="Console help" title="Show the console helpers cheatsheet ($help)" disabled={running} onClick={() => void run('$help')}>

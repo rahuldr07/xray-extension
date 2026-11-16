@@ -128,6 +128,15 @@ table(res.items || res)
 diff(prev()?.responseDecrypted, res)
 ```
 
+It behaves like a real JS console pointed at the page:
+
+- **Declarations persist** per tab while the debugger session lives: `const users = res.users`, then `users.length`. Commands run in strict mode (`this` is `undefined` at the top level; `x = 1` declares `x` unless the page already has that global). A closure created in a later command keeps its own copy of an earlier `let`, so its changes do not write back. After a reload or detach the next cell says "Declared variables were reset".
+- **Output** reads web objects (`Response {status: 200, ok: true, …}`, `Headers(2) {…}`, `URL`, `FormData`, `Blob`, `RegExp`), promise states (`Promise · fulfilled in 120 ms`, `Promise {<pending>}` after 10 s), function signatures and source, expandable DOM snapshots, and `Uncaught Error: x at <anonymous>:1:7`. Getters are listed as `(…)` and never run.
+- **Completion** merges captured data, declared names, a catalogue of JS and Web built-ins and keywords, and live page members (`appState.`, `formatP` → `formatPrice(cents, currency = 'EUR')`), with lambda parameters inferred from captured arrays. Rows show a kind icon, parameters and a doc line. A callable inserts `name(`. Grey ghost text completes the top suggestion or a history match: Tab or → accepts it, Esc dismisses it. Enter always runs a complete command.
+- **Eager preview** shows the value under the prompt as you type (`→ 6`) without side effects. Drafts that name captured data (`res`, pins, helpers) preview after a Run has used the same data. Settings → General → "Preview results while typing" turns off preview, live completion and the debugger attach they need. A slow side-effect-free function in a draft blocks the page until it returns. A preview over values your last Run revived or you declared (`res.users.map(…)`, `users.map(…)`) runs the page's own built-ins and prototypes on them: they cannot write or keep a copy, but a hostile page can time them and so learn that data, about a byte per preview (threat model C-1). Turning the setting off removes this.
+
+Security limits, accepted: a page that patches built-ins before XRAY's scope exists can alter how computed results display; helpers you name and your own code run on the page's built-ins; a Proxy on a completed path runs its inspection traps. The scope, the context you did not name and declared values never reach page code. See [docs/threat-model.md](docs/threat-model.md) C-1.
+
 ### 3. Export Everything Useful
 
 The export modal is built for turning debugging state into real artifacts.

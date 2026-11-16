@@ -164,3 +164,61 @@ test('the result text is revived into the typed model; the table flag stays besi
   const failed = hostify(await loadConsole({ type: 'error', error: { message: 'boom', stack: '' } }).api.execute('x'));
   assert.deepEqual(failed, { type: 'error', error: { message: 'boom', stack: '' } }, 'errors pass through');
 });
+
+// Console round 2, Task 6 (spec §2): the background flags a run whose declared variables were
+// lost (reload, detach); the engine keeps the flag on results and errors alike, and tells the
+// background when the Console prompt gains or loses focus (idle detach 30 s → 5 min).
+test('scopeReset survives the result revival, on values and on errors', async () => {
+  const value = loadConsole({ type: 'number', result: '1', truncated: false, scopeReset: true });
+  assert.equal((await value.api.execute('u')).scopeReset, true);
+  const error = loadConsole({ type: 'error', error: { message: 'u is not defined', thrown: true, value: '"x"' }, scopeReset: true });
+  assert.equal((await error.api.execute('u')).scopeReset, true);
+  const plain = loadConsole();
+  assert.equal((await plain.api.execute('1')).scopeReset, undefined);
+});
+
+test('setPromptFocused tells the background once per change', () => {
+  const { api, sent } = loadConsole();
+  api.setPromptFocused(true);
+  api.setPromptFocused(true);
+  api.setPromptFocused(false);
+  assert.deepEqual(sent.map((message) => hostify(message)), [
+    { type: 'xray:console-focus', focused: true },
+    { type: 'xray:console-focus', focused: false },
+  ]);
+});
+
+test('setPromptFocused counts prompts: one prompt\'s blur never cancels another\'s focus', () => {
+  const { api, sent } = loadConsole();
+  api.setPromptFocused(true, 'hud');
+  api.setPromptFocused(true, 'docked');
+  api.setPromptFocused(false, 'hud');
+  api.setPromptFocused(false, 'hud');
+  assert.deepEqual(sent.map((message) => message.focused), [true], 'still focused while the docked prompt is');
+  api.setPromptFocused(false, 'docked');
+  assert.deepEqual(sent.map((message) => message.focused), [true, false]);
+});
+
+// Task 8: eager preview asks the background with the draft; the context travels only when the draft
+// names something of it (a helper, `$…`, a saved variable or a pin) — and only to the worker, which
+// compares it with what the last Run revived (fix round 1). The helper names are the helpers' own
+// list (RUNTIME_NAMES, final review M-7), loaded before panel/console.js as in the manifest.
+test('preview sends xray:console-preview with its requestId; a draft that names no context sends none', async () => {
+  const { api, sent } = loadConsole((message) => ({ requestId: message.requestId, attached: true, value: '2' }), { helpers: true });
+  const out = await api.preview('1+1', 3, true);
+  assert.equal(out.value, '2');
+  assert.equal(sent[0].type, 'xray:console-preview');
+  assert.equal(sent[0].code, '1+1');
+  assert.equal(sent[0].requestId, 3);
+  assert.equal(sent[0].attach, true);
+  assert.equal(sent[0].context, null, 'nothing of the context for 1+1');
+  api.setVar('temp1', { k: 1 });
+  for (const draft of ['res.users.length * 2', '$all().length', 'temp1.k', 'pick(x, ["a"])']) {
+    await api.preview(draft, 4, false);
+    assert.equal(typeof sent.at(-1).context, 'string', draft);
+  }
+  assert.deepEqual(Object.keys(sentContext(sent.at(-2)).scope), ['temp1']);
+  await api.preview('document.title.length', 5, false);
+  assert.equal(sent.at(-1).context, null);
+  assert.equal(api.getHistory().length, 0, 'a preview is not a command: no history');
+});

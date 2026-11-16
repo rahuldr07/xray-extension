@@ -219,7 +219,8 @@ for (const fixture of [
       };
     });
     assert.match(cell.text, /object · 4 keys · \d+ kb/, 'type badge with size');
-    assert.match(cell.summary, /^\{ users: Array\(500\), meta: \{…\}/, `shape summary: ${cell.summary}`);
+    // The one-line preview the console writes everywhere (consolePreview.previewLine, spec §1).
+    assert.match(cell.summary, /^\{users: Array\(500\), meta: \{…\}/, `shape summary: ${cell.summary}`);
     assert.equal(cell.tree, false, 'no inline tree for a big result');
     assert.equal(cell.views, false, 'no Table/Tree/JSON switch for a big result');
     assert.equal(cell.open, 1, 'one Open in inspector control');

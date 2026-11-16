@@ -245,6 +245,16 @@ window.XRAY_Console = (() => {
   // panel holds the typed model (src/panel/models/logValue.ts renders it). `render` is the
   // out-of-band table() flag. Errors and empty answers pass through.
   function _reviveResult(response) {
+    if (response && typeof response === 'object' && response.type === 'error' && typeof response.error?.value === 'string') {
+      // A thrown value (background.js): typed JSON text too, revived the same way; unreadable → dropped.
+      const error = { ...response.error };
+      try {
+        error.value = JSON.parse(error.value);
+      } catch {
+        delete error.value;
+      }
+      return { ...response, error };
+    }
     if (!response || typeof response !== 'object' || typeof response.result !== 'string') return response;
     let result;
     try {
@@ -254,6 +264,13 @@ window.XRAY_Console = (() => {
     }
     const out = { type: String(response.type || typeof result), result, truncated: response.truncated === true };
     if (response.render === 'table') out.render = 'table';
+    // A top-level promise the run awaited (background.js): its state and time, for the cell header.
+    const promise = response.meta?.promise;
+    if (promise && ['fulfilled', 'pending'].includes(promise.state) && Number.isFinite(promise.ms)) {
+      out.meta = { promise: { state: promise.state, ms: promise.ms } };
+    }
+    // The page lost the variables earlier commands declared (background.js, spec §2).
+    if (response.scopeReset === true) out.scopeReset = true;
     return out;
   }
 
@@ -298,14 +315,78 @@ window.XRAY_Console = (() => {
   }
 
 
-  function getRuntimePreview() {
-    const helpers = window.XRAY_ConsoleHelpers;
-    if (!helpers?.createRuntime || !helpers.reviveContext) return {};
+  // The Console prompt has focus: the background keeps the debugger (and the declared
+  // variables its scope holds) for 5 min instead of 30 s (spec §2). Several prompts (docked
+  // panel, HUD) share this engine: each reports under its own `source`, and the background
+  // hears only when the first gains focus and when the last loses it.
+  const _focusedPrompts = new Set();
+  function setPromptFocused(focused, source = 'prompt') {
+    const before = _focusedPrompts.size > 0;
+    if (focused === true) _focusedPrompts.add(String(source));
+    else _focusedPrompts.delete(String(source));
+    const after = _focusedPrompts.size > 0;
+    if (before === after) return;
     try {
-      return helpers.createRuntime(helpers.reviveContext(_contextPayload()), (text) => navigator.clipboard?.writeText?.(text));
+      chrome.runtime.sendMessage({ type: 'xray:console-focus', focused: after }, () => void chrome.runtime.lastError);
     } catch {
-      return {};
+      // The extension was reloaded under this page: nothing to keep alive.
     }
+  }
+
+  // Live completion (Task 7, spec §3 source 4): the page's names for a plain path, or its globals
+  // (`expr` null), through the background's side-effect-free path. No context travels — the
+  // panel answers captured data itself. Resolves the background's answer, or null.
+  function complete(expr, requestId, attach) {
+    if (!window.chrome?.runtime?.sendMessage) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'xray:console-complete', expr: expr === null ? null : String(expr), requestId, attach: attach === true }, (response) => {
+          resolve(chrome.runtime.lastError ? null : response || null);
+        });
+      } catch {
+        // The extension was reloaded under this page.
+        resolve(null);
+      }
+    });
+  }
+
+  // Eager preview (Task 8, spec §4): the draft, evaluated side-effect-free in the page through the
+  // background, answered as typed-model text. The context goes to the background only when the
+  // draft names something of it — a runtime helper (`$…` or a name in shared/console-helpers.js
+  // RUNTIME_NAMES, the one list the worker reads too), a saved variable or a pin — and then as for
+  // a Run (_contextPayload). It never reaches the page from here (Task 8 fix round 1): the background
+  // only compares it with what the last explicit Run revived in the scope. Not a command: nothing is
+  // saved to history. Resolves the background's answer, or null.
+  function _namesContext(code) {
+    const own = (holder, name) => Object.prototype.hasOwnProperty.call(holder, name);
+    const helpers = window.XRAY_ConsoleHelpers?.RUNTIME_NAMES;
+    const words = Array.isArray(helpers) ? helpers : [];
+    for (const name of _referencedNames(code)) {
+      if (name[0] === '$' || words.includes(name) || own(_scope, name) || own(_pins, name)) return true;
+    }
+    return false;
+  }
+
+  function preview(code, requestId, attach, options) {
+    if (!window.chrome?.runtime?.sendMessage) return Promise.resolve(null);
+    const draft = String(code || '');
+    const readBody = typeof options?.readBody === 'function' ? options.readBody : null;
+    let context = null;
+    try {
+      if (_namesContext(draft)) context = _contextPayload(draft, readBody);
+    } catch {
+      context = null;
+    }
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'xray:console-preview', code: draft, context, requestId, attach: attach === true }, (response) => {
+          resolve(chrome.runtime.lastError ? null : response || null);
+        });
+      } catch {
+        // The extension was reloaded under this page.
+        resolve(null);
+      }
+    });
   }
 
   function navigateHistory(dir) {
@@ -355,7 +436,6 @@ window.XRAY_Console = (() => {
     setContext,
     getContext,
     getContextSummary,
-    getRuntimePreview,
     execute,
     navigateHistory,
     getHistory,
@@ -365,5 +445,8 @@ window.XRAY_Console = (() => {
     clearScope,
     clearVariables,
     getScope,
+    setPromptFocused,
+    complete,
+    preview,
   };
 })();

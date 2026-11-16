@@ -196,6 +196,7 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   logsSplit: 0,
   firstRunDismissed: false,
   themeRefreshPending: false,
+  previewWhileTyping: true,
   // Opt-in: off for new installs, Reset and settings stored before the option existed.
   sqlInlineInHud: false,
   // Legacy (Ruling M3-R28): the two HUD SQL options now live in the service worker's
@@ -284,6 +285,7 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2000),
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
+    previewWhileTyping: Boolean(base.previewWhileTyping),
     sqlInlineInHud: Boolean(base.sqlInlineInHud),
     sqlDatabasesInHud: Boolean(base.sqlDatabasesInHud),
   };

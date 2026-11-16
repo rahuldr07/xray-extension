@@ -44,12 +44,31 @@ test('C-1 the privileged expression inlines the helper source instead of reading
   // `window.XRAY_ConsoleHelpers`, a plain writable page global: replacing
   // createRuntime handed the attacker the entire inlined context. The helper source
   // is now inlined and evaluated against a shadowed `window`.
+  // Console round 2 (spec §2): the helpers are built once per CDP-held scope object
+  // (shared/console-scope.js buildScopeExpression, loaded into the worker), not per command —
+  // still from the bundled source, still against a shadowed `window`.
   const background = read('background.js');
+  const scope = read('shared/console-scope.js');
   assert.match(background, /_loadConsoleHelperSource/);
   assert.match(background, /chrome\.runtime\.getURL\('shared\/console-helpers\.js'\)/);
-  assert.match(background, /const window = \{\};/, 'the helper IIFE writes into a shadowed window');
-  assert.doesNotMatch(background, /const __helpers = window\.XRAY_ConsoleHelpers/,
-    'the page global is never read by the evaluated expression');
+  // Final review M-7: the worker loads the helpers too, for their one name list (RUNTIME_NAMES).
+  assert.match(background, /importScripts\('shared\/console-helpers\.js', 'shared\/console-scope\.js'\)/);
+  assert.match(background, /buildScopeExpression\(helperSource, key\)/);
+  assert.match(scope, /const window = \{ __proto__: null \};/, 'the helper IIFE writes into a shadowed, prototype-less window');
+  // Task 6 review (Critical 1): every XRAY frame is strict and nothing uses `with`, so a page's
+  // Error.prepareStackTrace / `.caller` never reaches the scope or the context.
+  assert.doesNotMatch(scope, /\bwith \(__/);
+  // The run is a strict, non-async function; its answer is read by a synchronous call (N2).
+  // Task 7 round 3: it also takes its deadline, and one the page starts too late runs nothing.
+  assert.match(scope, /const text = `function \(\$\{K\.key\}, \$\{K\.context\}, \$\{K\.deadline\}\) \{\n {2}'use strict';\n {2}const \$\{K\.api\} = this\.open\(\$\{K\.key\}\);\n {2}if \(\$\{K\.api\}\.late\(\$\{K\.deadline\}\)\) return \$\{JSON\.stringify\(SKIPPED\)\};/);
+  assert.match(scope, /const TAKE_FUNCTION = "function \(key\) \{ 'use strict'; return this\.open\(key\)\.take\(\); \}"/);
+  // Whether a value is a promise is CDP's answer (RemoteObject subtype), never a `then` read.
+  assert.match(scope, /const INSPECT_FUNCTION = "function \(key\) \{ 'use strict'; return this\.open\(key\)\.value\(\); \}"/);
+  assert.doesNotMatch(scope.replace(/\/\/[^\n]*/g, ''), /\.then\b/, 'XRAY never reads `then` on a command\'s value');
+  for (const source of [background, scope]) {
+    assert.doesNotMatch(source, /const __helpers = window\.XRAY_ConsoleHelpers/,
+      'the page global is never read by the evaluated expression');
+  }
 });
 
 test('content bridge requires a MAIN-world bridge token for capture and lazy object messages', () => {

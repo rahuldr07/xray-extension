@@ -21,8 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22 is the floor declared in package.json engines (@sqlite.org/sqlite-wasm needs it);
-        # 24 is the current release. Both are tested so the floor stays honest.
+        # 22.18 is the floor declared in package.json engines: @sqlite.org/sqlite-wasm needs Node 22,
+        # and unit tests import .ts directly (built-in type stripping, on by default from 22.18).
+        # '22' resolves to the latest 22.x; 24 is the current release.
         node: ['22', '24']
     steps:
       - uses: actions/checkout@v4

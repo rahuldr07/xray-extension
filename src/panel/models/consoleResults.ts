@@ -1,7 +1,11 @@
 import type { XrayEntry } from '../types';
 import { entryRequest, entryResponse, safeStringify } from '../utils';
 import { LosslessNumber } from './jsonText';
-import { LOG_TYPE_KEY, logKind, logPlain, logValueText } from './logValue';
+import { PREVIEW_ITEMS, previewLine } from './consolePreview';
+import { GETTER_HINT, LOG_TYPE_KEY, logDisplay, logHasDetail, logKind, logPlain, logValueText } from './logValue';
+import { TreeBranch } from './treeDisplay';
+
+export { GETTER_HINT };
 
 /*
  * Console command results (spec J8). A result is the typed log model (models/logValue.ts): plain
@@ -213,10 +217,33 @@ function withBytes(label: string, bytes: number): string {
 /** The badge of a typed scalar: its JavaScript type as the Console names it. */
 const SCALAR_BADGES: Record<string, string> = {
   undefined: 'undefined', number: 'number', bigint: 'bigint', function: 'function', symbol: 'symbol',
-  date: 'date', dom: 'element', unreadable: 'unreadable', circular: 'circular', depth: 'value',
+  date: 'date', dom: 'element', unreadable: 'unreadable', circular: 'circular', depth: 'value', web: 'RegExp', accessor: 'accessor',
+  promise: 'Promise',
 };
 
+/** A function with its source, or a DOM snapshot (console round 2): one line that opens to its parts. */
+function opensToParts(kind: string | null, value: Bag): boolean {
+  if (kind === 'function') return typeof own(value, 'source') === 'string' && own(value, 'source') !== '';
+  return kind === 'dom' && typeof own(value, 'tag') === 'string';
+}
+
+/**
+ * A result's description. Its `summary` is the console's one line (consolePreview.previewLine,
+ * ≤ SUMMARY_LIMIT chars) for every shape — the same text the collapsed Tree and the big-result
+ * row show.
+ */
 export function describeResult(value: unknown, type: string): ResultDescription {
+  const shape = describeShape(value, type);
+  let summary = shape.summary;
+  try {
+    summary = previewLine(value, { max: SUMMARY_LIMIT });
+  } catch {
+    // A value the preview cannot read keeps the shape's own text.
+  }
+  return { ...shape, summary };
+}
+
+function describeShape(value: unknown, type: string): ResultDescription {
   const bytes = serializedLength(value);
   const array = arrayView(value);
   if (array) {
@@ -263,6 +290,22 @@ export function describeResult(value: unknown, type: string): ResultDescription 
       summary: clip(logValueText(value, { limit: SUMMARY_LIMIT })),
       columns: [],
       notice: expandable && items.length < total ? `Showing ${thousands(items.length)} of ${thousands(total)} ${many}` : null,
+    };
+  }
+  if ((kind === 'web' || kind === 'instance' || kind === 'promise') && logHasDetail(value)) {
+    // Console round 2 projections (Response, Headers, a class instance's getters, a nested
+    // promise): expandable, badged with their class, summarised as DevTools writes them.
+    const cls = kind === 'promise' ? 'Promise' : str(own(bag, 'cls')) || 'object';
+    const size = kind === 'web' && Array.isArray(own(bag, 'entries')) ? pairs(own(bag, 'entries')).length : null;
+    return {
+      kind: 'tree', badge: withBytes(size === null ? cls : `${cls} · ${plural(size, 'entry', 'entries')}`, bytes),
+      big: bytes > BIG_BYTES_LIMIT, bytes, count: size, summary: previewLine(value, { max: SUMMARY_LIMIT }), columns: [], notice: null,
+    };
+  }
+  if (opensToParts(kind, bag)) {
+    return {
+      kind: 'tree', badge: SCALAR_BADGES[kind as string], big: false, bytes, count: null,
+      summary: clip(logValueText(value, { limit: SUMMARY_LIMIT })), columns: [], notice: null,
     };
   }
   if (kind === 'error') {
@@ -337,6 +380,128 @@ export function describeCommandResult(value: unknown, type: string, table = fals
     if (columns) description = { ...description, kind: 'table', columns };
   }
   return { value, description };
+}
+
+// ── The console Tree (spec §1, console round 2) ─────────────────────────────────────
+
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/** The display tree the console's Tree view renders (logValue's console mode). */
+export function resultDisplay(value: unknown): unknown {
+  return logDisplay(value, { console: true });
+}
+
+/**
+ * Whether a console Tree branch starts open: one with more than PREVIEW_ITEMS (5) keys or items
+ * starts collapsed to its one-line preview, as does a DOM node, a function's source and a bucket.
+ */
+export function consoleBranchOpen(node: unknown): boolean {
+  if (!(node instanceof TreeBranch)) return true;
+  return !node.closed && !node.bucket && node.count <= PREVIEW_ITEMS;
+}
+
+/** A collapsed branch's one line (`{id: 1, name: 'Ada', …}`), or null when it has no typed value. */
+export function consoleBranchPreview(node: unknown): string | null {
+  if (!(node instanceof TreeBranch) || node.source === undefined) return null;
+  try {
+    return previewLine(node.source);
+  } catch {
+    return null;
+  }
+}
+
+/** A key as the console writes it: bare when it is an identifier, else a JSON string. */
+export function consoleKey(name: string): string {
+  return IDENTIFIER.test(name) ? name : JSON.stringify(name);
+}
+
+/** What the background reports about a command beside its value (the top-level promise it awaited). */
+export interface ResultMeta {
+  promise?: { state: 'fulfilled' | 'rejected' | 'pending'; ms: number };
+}
+
+const PROMISE_STATES = new Set(['fulfilled', 'rejected', 'pending']);
+
+function promiseMeta(meta: unknown): { state: string; ms: number } | null {
+  const promise = meta && typeof meta === 'object' ? (meta as Bag).promise : null;
+  if (!promise || typeof promise !== 'object') return null;
+  const { state, ms } = promise as Bag;
+  if (typeof state !== 'string' || !PROMISE_STATES.has(state) || typeof ms !== 'number' || !Number.isFinite(ms)) return null;
+  return { state, ms };
+}
+
+/** A run time as the cell writes it: `120 ms`, `1.20 s`, `12.0 s`. */
+export function formatRunTime(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`;
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
+}
+
+/** The cell header's promise label: `Promise · fulfilled in 120 ms`, `Promise · pending`; null for none. */
+export function promiseHeader(meta: unknown): string | null {
+  const promise = promiseMeta(meta);
+  if (!promise) return null;
+  return promise.state === 'pending' ? 'Promise · pending' : `Promise · ${promise.state} in ${formatRunTime(promise.ms)}`;
+}
+
+/** The note under a promise that had not settled when the run's cap came: `Still pending after 10 s`. */
+export function promiseNote(meta: unknown): string | null {
+  const promise = promiseMeta(meta);
+  if (promise?.state !== 'pending') return null;
+  return `Still pending after ${Math.round(promise.ms / 1000)} s`;
+}
+
+/** The note under the first command after the Console scope was lost (spec §2). */
+export const SCOPE_RESET_NOTE = 'Declared variables were reset (page reloaded or debugger detached)';
+
+/** The reset note when the run had to replace a scope that held declared variables; null otherwise. */
+export function scopeResetNote(meta: unknown): string | null {
+  return meta && typeof meta === 'object' && (meta as { scopeReset?: unknown }).scopeReset === true ? SCOPE_RESET_NOTE : null;
+}
+
+/**
+ * The prefix of a command error: `Uncaught` for an exception the page threw, `Uncaught (in
+ * promise)` for a rejected top-level promise, nothing for a failure of the debugger itself
+ * (an error with a `kind`: attach, detached, tab-closed, timeout, evaluation).
+ */
+export function uncaughtPrefix(error: unknown, meta: unknown): string {
+  const record = error && typeof error === 'object' ? (error as Bag) : {};
+  if (typeof record.kind === 'string') return '';
+  if (promiseMeta(meta)?.state === 'rejected') return 'Uncaught (in promise)';
+  return record.thrown === true ? 'Uncaught' : '';
+}
+
+/** A command error's line: `Uncaught Error:` + `x`, `Uncaught` + `5`; a debugger or XRAY failure is its message alone. */
+export interface ErrorHeadline {
+  lead: string;
+  text: string;
+}
+
+/**
+ * How a command error reads (spec §1): the page's exception as `Uncaught Error: x` — a thrown
+ * value that is not an Error as itself, `Uncaught 5`, `Uncaught {a: 1}` (its one-line preview) —
+ * and `Uncaught (in promise)` for a rejected top-level promise. A failure of the debugger (`kind`)
+ * or of XRAY itself (`internal`) is only its message.
+ */
+export function errorHeadline(
+  error: { name: string; message: string; thrown?: boolean; kind?: string; internal?: boolean; value?: unknown; unreadable?: boolean },
+  meta?: unknown,
+): ErrorHeadline {
+  if (error.kind || error.internal) return { lead: '', text: error.message };
+  const prefix = uncaughtPrefix(error, meta);
+  // A thrown value with no readable message and no encoding: say so, never invent an Error name.
+  if (error.unreadable) return { lead: prefix || 'Uncaught', text: '(value could not be read)' };
+  const thrownKind = error.value === undefined ? null : logKind(error.value);
+  if (error.value !== undefined && thrownKind !== 'error') {
+    let text = error.message;
+    try {
+      text = previewLine(error.value);
+    } catch {
+      // keep the page's own message
+    }
+    return { lead: prefix || 'Uncaught', text };
+  }
+  const name = thrownKind === 'error' ? str(own(error.value as Bag, 'name'), error.name) || error.name : error.name;
+  return { lead: `${prefix ? prefix + ' ' : ''}${name}:`, text: error.message };
 }
 
 /** One line of text for a result (the stream's message, the announcement): strings as they are. */

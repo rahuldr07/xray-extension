@@ -4,17 +4,51 @@ import {
   IconAlignLeft,
   IconArrowsMaximize,
   IconArrowsMinimize,
+  IconBolt,
   IconBookmarkPlus,
+  IconBox,
+  IconBraces,
   IconChevronRight,
+  IconCode,
   IconCursorText,
+  IconHash,
+  IconKey,
+  IconMathFunction,
+  IconQuote,
+  IconVariable,
+  type Icon,
 } from '@tabler/icons-react';
-import { navigateConsoleHistory } from '../../runtime/consoleBridge';
-import { parsePlainPath, resolvePath, signatureAt, suggest, tokenize, type CapturedSummary, type Suggestion } from '../../models/consoleAssist';
+import { getConsoleHistory, navigateConsoleHistory, setPromptFocused } from '../../runtime/consoleBridge';
+import { completionRecency, hydrateCompletionRecency } from '../../runtime/completionRecency';
+import { HELPERS, catalogGuess, liveRequestFor, parsePlainPath, rankMatch, resolvePath, shouldEnterAccept, signatureAt, suggest, tokenize, type CapturedSummary, type LiveKnowledge, type LiveMembers, type Suggestion, type Token } from '../../models/consoleAssist';
+import { createLiveChannel, liveDelay } from '../../models/consoleLive';
+import { eagerDelay, previewEligible } from '../../models/consoleEager';
+import { previewLine } from '../../models/consolePreview';
+import { previewConsoleDraft } from '../../store';
+import { liveAttached, liveGlobals, liveGlobalsFresh, liveGlobalsKnown, requestLive } from '../../runtime/liveCompletion';
+import { ghostFor } from '../../models/consoleGhost';
 import { hasOpenDialog } from '../common/ModalShell';
 
 const iconProps = { size: 16, stroke: 1.8 } as const;
-const PREVIEW_TEXT_MAX = 80;
-const PREVIEW_KEYS_MAX = 4;
+
+// Popup rows (spec §3): one Tabler icon per suggestion kind, coloured by kind in CSS.
+const KIND_ICONS: Record<Suggestion['kind'], Icon> = {
+  helper: IconBolt,
+  variable: IconVariable,
+  property: IconKey,
+  index: IconHash,
+  value: IconQuote,
+  method: IconMathFunction,
+  function: IconMathFunction,
+  class: IconBox,
+  namespace: IconBraces,
+  keyword: IconCode,
+};
+// How to take or drop the ghost text: the field's tooltip and description, and `$help`.
+const GHOST_KEYS = 'Tab or → accepts the grey suggestion; Esc dismisses it';
+const HELPER_SIGNATURES = new Map(HELPERS.filter((h) => h.params?.length).map((h) => [h.name, h.signature]));
+/** Suggestion rows rendered on the keystroke; the rest follow a frame later (#16). */
+const ROW_BATCH = 16;
 // Expanded editor: the suggestion list's gap to the caret line and its height cap (CSS 232px).
 const SUGGESTION_GAP = 4;
 const SUGGESTIONS_MAX_HEIGHT = 232;
@@ -52,6 +86,11 @@ export interface ConsoleEditorProps {
   captured?: CapturedSummary;
   /** Controls rendered on the command row after the field (Run, Snippets, …). */
   actions?: React.ReactNode;
+  /**
+   * Ask the page for live names while typing (Settings → "Preview results while typing", spec
+   * §3 source 4, §4). Off: no request is sent and typing never attaches the debugger.
+   */
+  live?: boolean;
 }
 
 function lineStart(text: string, at: number): boolean {
@@ -118,34 +157,29 @@ export function reindent(code: string): string {
  * collapsed, so the inline height is cleared instead and the width observer re-fits
  * once the field is shown.
  */
-function fitHeight(el: HTMLTextAreaElement, expanded: boolean): void {
+function fitHeight(el: HTMLTextAreaElement, expanded: boolean, grewOnly = false): boolean {
   if (expanded || !el.isConnected || el.getClientRects().length === 0) {
-    el.style.height = '';
-    return;
+    if (el.style.height) el.style.height = '';
+    return false;
+  }
+  // Text only appended (typing at the end): the content cannot have shrunk, so the current
+  // layout answers without the `auto` reset — one layout per keystroke instead of three (#16).
+  if (grewOnly && el.style.height) {
+    const height = el.scrollHeight;
+    if (height <= parseFloat(el.style.height)) return false;
+    el.style.height = height + 'px';
+    return true;
   }
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
-}
-
-/** Short, one-line rendering of a locally resolved value for the live preview (P7). */
-function previewValue(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (typeof value === 'string') {
-    return JSON.stringify(value.length > PREVIEW_TEXT_MAX ? value.slice(0, PREVIEW_TEXT_MAX) + '…' : value);
-  }
-  if (Array.isArray(value)) return `Array(${value.length})`;
-  if (typeof value === 'object') {
-    const keys = Object.keys(value as Record<string, unknown>);
-    const shown = keys.slice(0, PREVIEW_KEYS_MAX).join(', ');
-    return `{${shown}${keys.length > PREVIEW_KEYS_MAX ? ', …' : ''}}`;
-  }
-  return String(value);
+  return true;
 }
 
 // Bare identifiers need two characters before the list opens, so a one-letter
-// word (`a`, `x`) never captures ↑/↓/Enter. Member access (`res.`, `res[`) opens
-// at once. An exact match of what is already typed is not offered: Enter runs.
+// word (`a`, `x`) never captures ↑/↓/Enter; `$` alone opens the `$`-helper family
+// (G18). Member access (`res.`, `res[`) opens at once. An exact match of what is
+// already typed is not offered; `exact` reports that the token under the caret is
+// already a suggestion's name, so Enter runs a complete command (issue #5).
 function visibleSuggestions(
   draft: string,
   caret: number,
@@ -153,17 +187,79 @@ function visibleSuggestions(
   variables: string[],
   captured: CapturedSummary | undefined,
   manual: boolean,
-): { from: number; items: Suggestion[] } {
-  const result = suggest(draft, caret, { roots, variables, captured, manual });
+  live: LiveKnowledge | undefined,
+): { from: number; items: Suggestion[]; exact: boolean; context?: string; note?: string } {
+  const result = suggest(draft, caret, { roots, variables, captured, manual, recency: completionRecency.score, live });
   const partial = draft.slice(result.from, caret);
   const before = draft.slice(0, result.from);
   const member = /(?:\.|\[["']?)$/.test(before);
   const open = manual || member || result.context === 'member' || result.context === 'argument';
-  if (!open && partial.length < 2) return { from: result.from, items: [] };
+  if (!open && partial.length < 2 && partial !== '$') return { from: result.from, items: [], exact: false };
+  const typed = (item: Suggestion): string => draft.slice(item.from ?? result.from, caret);
   return {
     from: result.from,
-    items: result.items.filter((item) => item.insert !== draft.slice(item.from ?? result.from, caret)),
+    context: result.context,
+    ...(result.note ? { note: result.note } : {}),
+    items: result.items.filter((item) => item.insert !== typed(item)),
+    exact: !!partial && result.items.some((item) => item.label === partial || item.insert === typed(item)),
   };
+}
+
+/** `(params)` shown after a callable's name: from its signature, or an XRAY helper's. */
+function paramsOf(item: Suggestion): string {
+  const signature = item.signature ?? (item.kind === 'helper' ? HELPER_SIGNATURES.get(item.label) : undefined);
+  const open = signature ? signature.indexOf('(') : -1;
+  return signature && open >= 0 ? signature.slice(open) : '';
+}
+
+/**
+ * The label with the characters `typed` matched emphasised (a class, not `<mark>`); `matched`
+ * says whether any were, so the rest of the label can be dimmed.
+ */
+function matchedLabel(label: string, typed: string): { node: React.ReactNode; matched: boolean } {
+  const indices = typed ? rankMatch(typed, label)?.indices : undefined;
+  if (!indices?.length) return { node: label, matched: false };
+  const hit = new Set(indices);
+  const out: React.ReactNode[] = [];
+  let run = '';
+  let matched = false;
+  const flush = (): void => {
+    if (!run) return;
+    out.push(matched ? <span key={out.length} className="xray-editor-option-match">{run}</span> : run);
+    run = '';
+  };
+  for (let i = 0; i < label.length; i += 1) {
+    if (hit.has(i) !== matched) { flush(); matched = hit.has(i); }
+    run += label[i];
+  }
+  flush();
+  return { node: out, matched: true };
+}
+
+/**
+ * The overlay's coloured tokens, with the ghost text (spec §3) painted at the caret: the
+ * token the caret ends (or sits inside) is split there. The overlay is `aria-hidden`, so
+ * the ghost is never read as content, and it is never part of the textarea's value.
+ */
+function paintTokens(tokens: Token[], at: number, ghost: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let pos = 0;
+  let placed = !ghost;
+  const ghostSpan = <span key="ghost" className="xray-editor-ghost" data-ghost="">{ghost}</span>;
+  tokens.forEach((token, index) => {
+    const end = pos + token.text.length;
+    const cls = `xray-tok-${token.kind}`;
+    if (!placed && at > pos && at < end) {
+      out.push(<span key={index} className={cls}>{token.text.slice(0, at - pos)}</span>, ghostSpan, <span key={`${index}-rest`} className={cls}>{token.text.slice(at - pos)}</span>);
+      placed = true;
+    } else {
+      if (!placed && at === pos) { out.push(ghostSpan); placed = true; }
+      out.push(<span key={index} className={cls}>{token.text}</span>);
+    }
+    pos = end;
+  });
+  if (!placed) out.push(ghostSpan);
+  return out;
 }
 
 /** Consecutive items sharing a `group` render under one header; flat indices stay global. */
@@ -182,10 +278,12 @@ function groupItems(items: Suggestion[]): Array<{ group?: string; entries: Array
  * textarea with transparent text; an `aria-hidden`, pointer-transparent overlay behind
  * it paints the syntax colours, so caret, selection, IME, undo and accessibility stay
  * native. Suggestions, the signature hint, the live path preview and the chips work on
- * captured data only — nothing here evaluates code.
+ * captured data and the static catalogue; with `live`, the page's own names for a plain path
+ * (or its globals) are merged in — asked of the background, which reads them without side
+ * effects (spec §3 source 4). Nothing here evaluates code itself.
  */
 export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, ConsoleEditorProps>(function ConsoleEditor(
-  { value, onChange, onRun, onExpandToggle, expanded = false, onRunCode, onSaveSnippet, running = false, showChips = true, roots, variables, captured, actions },
+  { value, onChange, onRun, onExpandToggle, expanded = false, onRunCode, onSaveSnippet, running = false, showChips = true, roots, variables, captured, actions, live = true },
   ref,
 ): React.ReactElement {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -202,33 +300,101 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
   // characters are typed, until any other edit, Escape, blur or accept.
   const [manualOpen, setManualOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  // ↑/↓ moved the selection since the last edit: Enter then accepts (issue #5).
+  const navigatedRef = useRef(false);
+  // Ghost text shows only while the field has focus, and not for a draft whose ghost Escape
+  // dismissed (until the next edit changes the draft).
+  const [focused, setFocused] = useState(false);
+  // Spec §2: while the prompt has focus the background keeps the debugger — and the variables
+  // commands declared — for 5 min instead of 30 s; blur (or unmount) brings back 30 s.
+  const focusSource = useId();
+  useEffect(() => {
+    setPromptFocused(focused, focusSource);
+  }, [focused, focusSource]);
+  useEffect(() => () => setPromptFocused(false, focusSource), [focusSource]);
+  const [ghostDismissedFor, setGhostDismissedFor] = useState<string | null>(null);
   const listId = useId();
   const listRef = useRef<HTMLUListElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
   const emptyRef = useRef<HTMLDivElement | null>(null);
   useImperativeHandle(ref, () => inputRef.current as HTMLTextAreaElement, []);
+  useEffect(hydrateCompletionRecency, []);
 
   const at = Math.min(caret, value.length);
+
+  // Live page names (spec §3 source 4): the members of the plain path being completed and the
+  // page globals, asked of the background after a pause (models/consoleLive.ts liveDelay) and
+  // merged into the list. An answer counts only for its own request and its own path.
+  const [liveMembers, setLiveMembers] = useState<LiveMembers | null>(null);
+  const [globalsSeen, setGlobalsSeen] = useState(0);
+  // The session this editor knew of is gone (idle detach): ask again, now allowed to attach.
+  const [liveRetry, setLiveRetry] = useState(0);
+  const liveTarget = useMemo(() => (live && listOpen && focused ? liveRequestFor(value, at, roots) : null), [live, listOpen, focused, value, at, roots]);
+  const liveTargetKey = liveTarget ? liveTarget.expr ?? '\u0000globals' : '';
+  useEffect(() => {
+    if (!liveTarget) return undefined;
+    const expr = liveTarget.expr;
+    const needed = expr === null ? !liveGlobalsFresh() : liveMembers?.expr !== expr;
+    if (!needed) return undefined;
+    const delay = liveDelay(value, liveAttached());
+    if (!delay) return undefined;
+    const timer = window.setTimeout(() => {
+      void requestLive(expr, delay.attach).then((answer) => {
+        if (answer && !answer.names && !answer.attached && !delay.attach) setLiveRetry((n) => n + 1);
+        if (!answer?.names) return;
+        if (expr === null) setGlobalsSeen((n) => n + 1);
+        else setLiveMembers({ expr, names: answer.names, ...(answer.type ? { type: answer.type } : {}), ...(answer.getter ? { getter: true } : {}) });
+      });
+    }, delay.ms);
+    return () => window.clearTimeout(timer);
+    // The debounce restarts on every edit (value); the target is compared by its key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveTargetKey, value, liveRetry]);
+  const liveKnowledge = useMemo((): LiveKnowledge | undefined => {
+    if (!live) return undefined;
+    const known = liveGlobals();
+    return { members: liveMembers, globals: known?.names ?? null, declared: known?.declared ?? null };
+    // globalsSeen: a new globals answer arrived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, liveMembers, globalsSeen]);
+
   const suggestions = useMemo(
-    () => (listOpen ? visibleSuggestions(value, at, roots, variables, captured, manualOpen) : { from: at, items: [] as Suggestion[] }),
-    [listOpen, value, at, roots, variables, captured, manualOpen],
+    () => (listOpen ? visibleSuggestions(value, at, roots, variables, captured, manualOpen, liveKnowledge) : { from: at, items: [] as Suggestion[], exact: false }),
+    [listOpen, value, at, roots, variables, captured, manualOpen, liveKnowledge],
   );
   const open = suggestions.items.length > 0;
   // A manual open with nothing to offer shows a "No suggestions" row in the list's place.
   const showEmpty = !open && listOpen && manualOpen;
   const active = open ? Math.min(activeIndex, suggestions.items.length - 1) : -1;
   const optionId = (index: number): string => `${listId}-option-${index}`;
+  const docId = `${listId}-doc`;
+  const keysId = `${listId}-keys`;
+  const activeItem = open ? suggestions.items[active] : undefined;
+
+  // Ghost text (spec §3): the active suggestion's rest while the list is open, else a longer
+  // history entry. None during a history recall (↑/↓ walk), with a selection, or unfocused.
+  const ghost = useMemo(() => {
+    if (!focused || hasSelection || historyRef.current.active || ghostDismissedFor === value) return '';
+    const top = activeItem ? { ...activeItem, from: activeItem.from ?? suggestions.from } : undefined;
+    const listShown = open || showEmpty;
+    return ghostFor({ draft: value, caret: at, top, history: listShown ? [] : getConsoleHistory(), listOpen: listShown });
+  }, [focused, hasSelection, ghostDismissedFor, activeItem, suggestions.from, open, showEmpty, value, at]);
 
   // Expanded (P10): the list sits inside the field beside the caret's line — below it,
   // or above it when there is more room there — so it never covers what is being typed
   // and never leaves the field (at full height the field starts at the Console's top).
   useLayoutEffect(() => {
-    const list = listRef.current ?? emptyRef.current;
+    const list = popupRef.current ?? emptyRef.current;
     const input = inputRef.current;
     const field = list?.parentElement;
     if (!list || !input || !field) return;
+    if (!expanded) {
+      if (list.style.top) list.style.top = '';
+      if (list.style.maxHeight) list.style.maxHeight = '';
+      return;
+    }
     list.style.top = '';
     list.style.maxHeight = '';
-    if (!expanded) return;
     const style = getComputedStyle(input);
     const lineHeight = parseFloat(style.lineHeight) || 18;
     const inputTop = input.getBoundingClientRect().top - field.getBoundingClientRect().top - field.clientTop;
@@ -247,18 +413,71 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
 
   // Keep the active option inside the list's scroll box (↑ wraps to the last one).
   // Only the list scrolls — never the Console around it.
+  // A long list paints its first rows on the keystroke and the rest a frame later: styling and
+  // laying out 45+ rows (icons, params, details) cost ~25 ms on the key that opens the list,
+  // over one frame (#16). Navigating past the first rows renders them all at once.
+  const [allRowsFor, setAllRowsFor] = useState<Suggestion[] | null>(null);
+  const shownItems = suggestions.items.length <= ROW_BATCH || allRowsFor === suggestions.items || active >= ROW_BATCH - 1
+    ? suggestions.items
+    : suggestions.items.slice(0, ROW_BATCH);
+  useEffect(() => {
+    if (!open || shownItems.length === suggestions.items.length) return undefined;
+    const items = suggestions.items;
+    let timer = 0;
+    const frame = window.requestAnimationFrame(() => { timer = window.setTimeout(() => setAllRowsFor(items), 0); });
+    return () => { window.cancelAnimationFrame(frame); window.clearTimeout(timer); };
+  }, [open, suggestions.items, shownItems.length]);
+  const listScrolledRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!open) listScrolledRef.current = false;
+  }, [open]);
   useLayoutEffect(() => {
     const list = listRef.current;
     const option = list?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]') ?? undefined;
     if (!list || !option) return;
+    // The first option of a list this effect never scrolled is in view already: no layout
+    // read on the keystroke that opens the list (#16).
+    if (active === 0 && !listScrolledRef.current) return;
+    listScrolledRef.current = true;
     if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
     else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) {
       list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
     }
   }, [active, open]);
 
-  const hint = useMemo((): { kind: 'signature' | 'preview'; text: string; note: string; parts?: [string, string, string] } | null => {
-    const signature = signatureAt(value, at);
+  // Eager preview (spec §4, Task 8): a complete expression is evaluated side-effect-free in the page
+  // after a 150 ms pause (≥ 2 characters may attach the debugger), unless a plain path into
+  // captured data answers it locally first. Only the latest request's answer counts, and it shows
+  // only while the draft is the one it was asked for.
+  const localHit = useMemo(() => {
+    const path = parsePlainPath(value);
+    return path ? resolvePath(path, roots) : null;
+  }, [value, roots]);
+  const previewChannel = useRef<ReturnType<typeof createLiveChannel> | null>(null);
+  if (!previewChannel.current) previewChannel.current = createLiveChannel();
+  const [pagePreview, setPagePreview] = useState<{ draft: string; text: string | null; error?: string } | null>(null);
+  const wantsPreview = live && focused && !localHit?.found && previewEligible(value);
+  // Any edit drops the last answer (review Minor 4): editing back to that draft asks again.
+  useEffect(() => {
+    setPagePreview(null);
+  }, [value]);
+  useEffect(() => {
+    const channel = previewChannel.current;
+    channel?.cancel();
+    if (!wantsPreview || !channel) return undefined;
+    const delay = eagerDelay(value);
+    if (!delay) return undefined;
+    const draft = value;
+    const timer = window.setTimeout(() => {
+      void channel.request((id) => previewConsoleDraft(draft, id, delay.attach)).then((answer) => {
+        if (answer) setPagePreview({ draft, text: answer.text, ...(answer.error ? { error: answer.error } : {}) });
+      });
+    }, delay.ms);
+    return () => window.clearTimeout(timer);
+  }, [wantsPreview, value]);
+
+  const hint = useMemo((): { kind: 'signature' | 'preview' | 'thrown'; text: string; note: string; parts?: [string, string, string] } | null => {
+    const signature = signatureAt(value, at, roots, liveKnowledge);
     if (signature) {
       const param = signature.index < signature.params.length ? signature.params[signature.index] : undefined;
       // Split the signature around the active parameter's name (scanning the params in order).
@@ -275,21 +494,34 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
       }
       return { kind: 'signature', text: signature.signature, note: param?.description || signature.description, parts };
     }
-    const path = parsePlainPath(value);
-    if (!path) return null;
-    const hit = resolvePath(path, roots);
-    return hit.found ? { kind: 'preview', text: `→ ${previewValue(hit.value)}`, note: '(from captured data)' } : null;
-  }, [value, at, roots]);
+    if (localHit?.found) return { kind: 'preview', text: `→ ${previewLine(localHit.value)}`, note: '(from captured data)' };
+    // While the suggestion list is open the draft is a name being typed (`formatP`): a page answer
+    // would only say `Uncaught ReferenceError` or `→ undefined` under the list, so none shows.
+    if (!live || open || showEmpty || !pagePreview || pagePreview.draft !== value) return null;
+    if (pagePreview.text !== null) return { kind: 'preview', text: `→ ${pagePreview.text}`, note: '' };
+    return pagePreview.error ? { kind: 'thrown', text: pagePreview.error, note: '' } : null;
+  }, [value, at, roots, liveKnowledge, localHit, live, pagePreview, open, showEmpty]);
 
   const tokens = useMemo(() => tokenize(value), [value]);
 
   // P3: grow with the content; CSS caps the height at 8 lines, after which it scrolls.
   // Expanded (P10), the pane's height comes from the layout instead.
+  // Layout reads come before writes, and a height change re-syncs the overlay a frame later
+  // (the textarea's own scroll event covers its scrolling), so a keystroke forces one layout.
+  const fittedRef = useRef({ value: '', expanded });
   useLayoutEffect(() => {
     const el = inputRef.current;
-    if (!el) return;
-    fitHeight(el, expanded);
-    syncScroll(el);
+    if (!el) return undefined;
+    const last = fittedRef.current;
+    const grewOnly = last.expanded === expanded && value.length > last.value.length && value.startsWith(last.value);
+    fittedRef.current = { value, expanded };
+    if (!fitHeight(el, expanded, grewOnly)) {
+      syncScroll(el);
+      return undefined;
+    }
+    const win = el.ownerDocument.defaultView;
+    const frame = win?.requestAnimationFrame(() => syncScroll(el)) ?? 0;
+    return () => { if (frame) win?.cancelAnimationFrame(frame); };
   }, [value, expanded]);
 
   // The wrap — and so the height — also changes with the field's width: the in-page
@@ -338,10 +570,13 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
   // onChange through refs.
   const openRef = useRef(open);
   const onChangeRef = useRef(onChange);
+  const ghostRef = useRef({ ghost, value });
   useLayoutEffect(() => {
     // A manual open with nothing to show still counts: Escape dismisses "No suggestions" first.
-    openRef.current = open || (listOpen && manualOpen);
+    // So does the "getter — not evaluated" note (round 4).
+    openRef.current = open || (listOpen && manualOpen) || (listOpen && !!suggestions.note);
     onChangeRef.current = onChange;
+    ghostRef.current = { ghost, value };
   });
 
   // The editor's own Escape — close the suggestion list, else leave a history recall
@@ -360,8 +595,17 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
       if (openRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        navigatedRef.current = false;
         setListOpen(false);
         setManualOpen(false);
+        return;
+      }
+      // Then a visible ghost (a history match): dismissed until the next edit, so Tab moves
+      // focus again (fix round 1).
+      if (ghostRef.current.ghost) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setGhostDismissedFor(ghostRef.current.value);
         return;
       }
       if (historyRef.current.active) {
@@ -406,6 +650,7 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
     }
     // The command's input event opened the suggestion list as if typed; a
     // programmatic edit (a pair, Format) must not.
+    navigatedRef.current = false;
     setListOpen(false);
     setManualOpen(false);
     el.setSelectionRange(caretFrom, caretTo);
@@ -472,6 +717,13 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
     const closers = m ? (item.insert.startsWith(m[1]) ? m[2] : m[0]) : '';
     const after = value.slice(at);
     const over = [closers, ...closers].find((c) => c && after.startsWith(c)) ?? '';
+    completionRecency.record(item.label);
+    // A call accepted in front of an existing `(` reuses it: just the name, caret inside.
+    const call = /^([\w$]+)\(\)?$/.exec(item.insert);
+    if (call && after.startsWith('(')) {
+      edit(start, at, call[1], start + call[1].length + 1);
+      return;
+    }
     edit(start, at + over.length, item.insert, start + (item.caret ?? item.insert.length));
   }
 
@@ -512,19 +764,38 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
     if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.code === 'Space') {
       event.preventDefault();
       setActiveIndex(0);
+      navigatedRef.current = false;
       setCaret(el.selectionStart);
       setManualOpen(true);
       setListOpen(true);
+      return;
+    }
+    // Ghost text: → at the end of the line or Tab accepts it; any other key just types on.
+    // With the list open the ghost is the active suggestion, so this is the list's accept.
+    if (ghost && !mod && !event.altKey && !event.shiftKey && el.selectionStart === at && el.selectionEnd === at
+      && (event.key === 'Tab' || (event.key === 'ArrowRight' && (value[at] === undefined || value[at] === '\n')))) {
+      event.preventDefault();
+      if (activeItem) accept(activeItem);
+      else edit(at, at, ghost, at + ghost.length);
       return;
     }
     if (open && !mod && !event.altKey) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         const count = suggestions.items.length;
+        navigatedRef.current = true;
         setActiveIndex((active + (event.key === 'ArrowDown' ? 1 : count - 1)) % count);
         return;
       }
-      if ((event.key === 'Tab' || event.key === 'Enter') && !event.shiftKey) {
+      // Tab always accepts. Enter accepts only while the token is unfinished or the
+      // selection was moved; a complete command runs (collapsed) or breaks the line
+      // (expanded) even with the list open — the list never steals Enter (issue #5).
+      // Once the page globals are known, a catalogue guess takes Enter unless the typed name is
+      // one of them or a declared name (Task 7 ruling: `fet` + Enter → `fetch(`).
+      const token = /[\w$]*$/.exec(value.slice(0, at))?.[0] ?? '';
+      const guess = catalogGuess(suggestions.items[active], suggestions.context, token, liveKnowledge && { ...liveKnowledge, complete: liveGlobalsKnown() });
+      const enterAccepts = event.key === 'Enter' && shouldEnterAccept({ listOpen: open, navigated: navigatedRef.current, draft: value, caret: at, exact: suggestions.exact, guess });
+      if ((event.key === 'Tab' || enterAccepts) && !event.shiftKey) {
         event.preventDefault();
         accept(suggestions.items[active]);
         return;
@@ -610,9 +881,7 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
           )}
           <div className="xray-editor-code">
             <pre className="xray-editor-highlight" aria-hidden="true" ref={overlayRef}>
-              {tokens.map((token, index) => (
-                <span key={index} className={`xray-tok-${token.kind}`}>{token.text}</span>
-              ))}
+              {paintTokens(tokens, at, ghost)}
               {/* Keeps a trailing empty line as tall as the textarea's. */}
               {' '}
             </pre>
@@ -629,6 +898,7 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
                 historyRef.current.active = false;
                 setCaret(event.currentTarget.selectionStart);
                 setActiveIndex(0);
+                navigatedRef.current = false;
                 // Ctrl+Space lasts while identifier characters are typed; anything else ends it.
                 const input = event.nativeEvent as InputEvent;
                 if (!(input.inputType === 'insertText' && /^[\w$]+$/.test(input.data ?? ''))) setManualOpen(false);
@@ -636,53 +906,72 @@ export const ConsoleEditor = React.forwardRef<HTMLTextAreaElement | null, Consol
                 onChange(event.currentTarget.value);
               }}
               onSelect={(event) => { setCaret(event.currentTarget.selectionStart); setHasSelection(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd); }}
-              onKeyUp={(event) => setHasSelection(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd)}
-              onMouseUp={(event) => setHasSelection(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd)}
+              // React's onSelect misses caret moves inside a closed shadow root; keys and clicks
+              // re-read the caret so the ghost text follows it there too.
+              onKeyUp={(event) => { setCaret(event.currentTarget.selectionStart); setHasSelection(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd); }}
+              onMouseUp={(event) => { setCaret(event.currentTarget.selectionStart); setHasSelection(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd); }}
               onScroll={(event) => syncScroll(event.currentTarget)}
-              onBlur={() => { setListOpen(false); setManualOpen(false); }}
+              onFocus={() => setFocused(true)}
+              onBlur={() => { navigatedRef.current = false; setFocused(false); setListOpen(false); setManualOpen(false); }}
               onKeyDown={handleKeyDown}
               placeholder={expanded ? `Write JavaScript · ${modKey}+Enter runs all` : 'Type JavaScript · Shift+Enter for a new line'}
-              title={expanded ? `Enter for a new line · ${modKey}+Enter to run all` : 'Enter to run · Shift+Enter for a new line'}
+              title={`${expanded ? `Enter for a new line · ${modKey}+Enter to run all` : 'Enter to run · Shift+Enter for a new line'} · ${GHOST_KEYS}`}
               aria-label="Console command"
+              aria-describedby={keysId}
               aria-autocomplete="list"
               aria-controls={open ? listId : undefined}
               aria-activedescendant={open ? optionId(active) : undefined}
             />
           </div>
           {open && (
-            <ul ref={listRef} className="xray-editor-suggestions" role="listbox" id={listId} aria-label="Suggestions">
-              {groupItems(suggestions.items).map((segment, segmentIndex) => {
-                const options = segment.entries.map(({ item, index }) => (
-                  <li
-                    key={`${index}-${item.label}`}
-                    id={optionId(index)}
-                    role="option"
-                    aria-selected={index === active}
-                    className={`xray-editor-option ${index === active ? 'active' : ''}`}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => accept(item)}
-                  >
-                    <span className="xray-editor-option-label">{item.label}</span>
-                    <span className="xray-editor-option-detail">{item.detail}</span>
-                  </li>
-                ));
-                if (segment.group === undefined) return options;
-                const headerId = `${listId}-group-${segmentIndex}`;
-                return (
-                  <li key={`group-${segmentIndex}`} role="group" aria-labelledby={headerId} className="xray-editor-group">
-                    <div id={headerId} className="xray-editor-group-label" role="presentation">{segment.group}</div>
-                    <ul role="none" className="xray-editor-group-options">{options}</ul>
-                  </li>
-                );
-              })}
-            </ul>
+            <div ref={popupRef} className="xray-editor-suggestions xray-editor-popup">
+              <ul ref={listRef} className="xray-editor-list" role="listbox" id={listId} aria-label="Suggestions">
+                {groupItems(shownItems).map((segment, segmentIndex) => {
+                  const options = segment.entries.map(({ item, index }) => {
+                    const KindIcon = KIND_ICONS[item.kind] ?? IconCode;
+                    const params = paramsOf(item);
+                  const label = matchedLabel(item.label, value.slice(item.from ?? suggestions.from, at));
+                    return (
+                      <li
+                        key={`${index}-${item.label}`}
+                        id={optionId(index)}
+                        role="option"
+                        aria-selected={index === active}
+                        aria-describedby={index === active && item.doc ? docId : undefined}
+                        className={`xray-editor-option ${index === active ? 'active' : ''}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => accept(item)}
+                      >
+                        <KindIcon size={14} stroke={1.8} aria-hidden="true" className={`xray-editor-option-icon kind-${item.kind}`} />
+                        <span className={`xray-editor-option-label${label.matched ? ' has-match' : ''}`}>{label.node}</span>
+                        {params && <span className="xray-editor-option-params">{params}</span>}
+                        <span className="xray-editor-option-detail">{item.detail}</span>
+                      </li>
+                    );
+                  });
+                  if (segment.group === undefined) return options;
+                  const headerId = `${listId}-group-${segmentIndex}`;
+                  return (
+                    <li key={`group-${segmentIndex}`} role="group" aria-labelledby={headerId} className="xray-editor-group">
+                      <div id={headerId} className="xray-editor-group-label" role="presentation">{segment.group}</div>
+                      <ul role="none" className="xray-editor-group-options">{options}</ul>
+                    </li>
+                  );
+                })}
+              </ul>
+              {activeItem?.doc && <div id={docId} className="xray-editor-doc">{activeItem.doc}</div>}
+            </div>
           )}
           {showEmpty && (
             <div ref={emptyRef} className="xray-editor-suggestions xray-editor-suggestions-empty" role="presentation">No suggestions</div>
           )}
+          {!open && !showEmpty && listOpen && suggestions.note && (
+            <div className="xray-editor-suggestions xray-editor-suggestions-empty" role="presentation">{suggestions.note}</div>
+          )}
         </div>
+        <span id={keysId} className="xray-visually-hidden">{GHOST_KEYS}.</span>
         <span className="xray-editor-live xray-visually-hidden" aria-live="polite">
-          {listOpen && open ? `${suggestions.items.length} ${suggestions.items.length === 1 ? 'suggestion' : 'suggestions'}` : listOpen && manualOpen ? 'No suggestions' : ''}
+          {listOpen && open ? `${suggestions.items.length} ${suggestions.items.length === 1 ? 'suggestion' : 'suggestions'}` : listOpen && manualOpen ? 'No suggestions' : listOpen && suggestions.note ? suggestions.note : ''}
         </span>
         <div className="xray-editor-actions">
           {onExpandToggle && (

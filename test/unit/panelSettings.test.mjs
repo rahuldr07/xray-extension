@@ -231,6 +231,13 @@ test('a fully hostile settings blob normalizes into something the panel can rend
   });
 });
 
+test('previewWhileTyping: on by default, a stored false is kept (Task 7)', () => {
+  assert.equal(DEFAULT_PANEL_SETTINGS.previewWhileTyping, true);
+  assert.equal(normalizePanelSettings({}).previewWhileTyping, true);
+  assert.equal(normalizePanelSettings({ previewWhileTyping: false }).previewWhileTyping, false);
+  assert.equal(normalizePanelSettings({ previewWhileTyping: undefined }).previewWhileTyping, true);
+});
+
 test('the legacy HUD databases setting still parses, so its stored value can be migrated (Rulings M3-R27, M3-R28)', () => {
   assert.equal(DEFAULT_PANEL_SETTINGS.sqlDatabasesInHud, false, 'off by default');
   assert.equal(normalizePanelSettings(undefined).sqlDatabasesInHud, false);
