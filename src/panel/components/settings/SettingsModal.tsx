@@ -252,6 +252,7 @@ export function SettingsModal(): React.ReactElement | null {
               <SettingsSectionTitle label="General" />
               <NumberRow label="Slow threshold" desc="Requests at or above this are marked slow in the list, Insights and Findings." value={settings.slowThresholdMs} min={100} max={5000} step={50} suffix="ms" onChange={(value) => updateSettings({ slowThresholdMs: value })} />
               <ToggleRow label="Confirm destructive actions" desc="Ask before clearing captured data, console output, pins, rules, or settings." checked={settings.confirmDestructiveActions} onChange={(value) => updateSettings({ confirmDestructiveActions: value })} />
+              <ToggleRow label="Show SQL client inside the page HUD" desc="Shows the client in a frame inside the page instead of a separate window. The page cannot read the frame, but any site could embed the client." checked={settings.sqlInlineInHud} onChange={(value) => updateSettings({ sqlInlineInHud: value })} />
             </>
           )}
           {section === 'capture' && (

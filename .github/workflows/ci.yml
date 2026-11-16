@@ -21,9 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20.11 is the floor declared in package.json engines; 22 is what the repo
-        # is developed against. Both are tested so the floor stays honest.
-        node: ['20.11', '22']
+        # 22 is the floor declared in package.json engines (@sqlite.org/sqlite-wasm needs it);
+        # 24 is the current release. Both are tested so the floor stays honest.
+        node: ['22', '24']
     steps:
       - uses: actions/checkout@v4
 

@@ -196,6 +196,8 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   logsSplit: 0,
   firstRunDismissed: false,
   themeRefreshPending: false,
+  // Opt-in: off for new installs, Reset and settings stored before the option existed.
+  sqlInlineInHud: false,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -279,5 +281,6 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     logsSplit: clampNumber(base.logsSplit, DEFAULT_PANEL_SETTINGS.logsSplit, 0, 2000),
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
+    sqlInlineInHud: Boolean(base.sqlInlineInHud),
   };
 }

@@ -96,7 +96,7 @@ test('captureWs is the one boolean that treats undefined as true', () => {
 });
 
 test('the other booleans are plain Boolean() coercions', () => {
-  const keys = ['captureFetch', 'captureXhr', 'compactRows', 'showHostInPath', 'glow', 'hacker', 'confirmDestructiveActions'];
+  const keys = ['captureFetch', 'captureXhr', 'compactRows', 'showHostInPath', 'glow', 'hacker', 'confirmDestructiveActions', 'sqlInlineInHud'];
   for (const key of keys) {
     assert.equal(at(key, false), false, `${key} false`);
     assert.equal(at(key, true), true, `${key} true`);
@@ -136,6 +136,19 @@ test('Glow is opt-in (spec A3): off for a fresh install, a stored value is kept'
   assert.equal(normalizePanelSettings({ theme: 'operator', glow: true }).glow, true, 'a stored true survives the theme migration');
   assert.equal(normalizePanelSettings({ glow: true }).glow, true);
   assert.equal(normalizePanelSettings({ glow: false }).glow, false);
+});
+
+test('the inline SQL client in the HUD is opt-in: off by default and for settings stored before it', () => {
+  assert.equal(DEFAULT_PANEL_SETTINGS.sqlInlineInHud, false, 'the default is off');
+  assert.equal(normalizePanelSettings(undefined).sqlInlineInHud, false, 'nothing stored: a fresh install keeps the window');
+  // A record written before the key existed carries every other setting but not this one.
+  const stored = { ...DEFAULT_PANEL_SETTINGS, theme: 'tokyo-night', glow: true };
+  delete stored.sqlInlineInHud;
+  assert.equal(normalizePanelSettings(stored).sqlInlineInHud, false, 'older settings read as off');
+  assert.equal(normalizePanelSettings({ sqlInlineInHud: true }).sqlInlineInHud, true, 'a stored true is kept');
+  assert.equal(normalizePanelSettings({ sqlInlineInHud: false }).sqlInlineInHud, false);
+  assert.equal(at('sqlInlineInHud', undefined), false, 'an explicit undefined keeps the default');
+  assert.equal(at('sqlInlineInHud', null), false);
 });
 
 // --------------------------------------------------------------- enum fields
