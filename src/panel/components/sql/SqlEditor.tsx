@@ -5,12 +5,12 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { bracketMatching, defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { sql } from '@codemirror/lang-sql';
-import { setSelectionReader, usePanelSqlStore } from '../../sqlStore';
+import { connectionDialect, setSelectionReader, usePanelSqlStore } from '../../sqlStore';
 import { sqlLanguage, statementAt } from '../../models/sqlStatements';
 import { toCompletionSchema } from '../../models/sqlSchema';
 import { quickStarts } from '../../models/sqlStarters';
 import { editorPlaceholder, isMacPlatform } from '../../models/sqlUi';
-import type { SchemaTree } from '../../models/sqlTypes';
+import type { SchemaTree, SqlDialect } from '../../models/sqlTypes';
 
 const MAC = isMacPlatform(typeof navigator === 'undefined' ? '' : navigator.platform);
 
@@ -20,7 +20,7 @@ const statementLine = Decoration.line({ class: 'xray-sql-active-statement' });
 function statementBand(state: EditorState): DecorationSet {
   const sel = state.selection.main;
   if (!sel.empty || state.doc.length === 0) return Decoration.none;
-  const st = statementAt(state.doc.toString(), sel.head, 'sqlite');
+  const st = statementAt(state.doc.toString(), sel.head, connectionDialect(usePanelSqlStore.getState().connection));
   if (!st || !st.text.trim()) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
   const first = state.doc.lineAt(st.from).number;
@@ -115,10 +115,10 @@ const xrayTheme = EditorView.theme({
   },
 });
 
-function sqlExtension(schema: SchemaTree | null) {
+function sqlExtension(schema: SchemaTree | null, dialect: SqlDialect) {
   return sql({
-    dialect: sqlLanguage('sqlite'),
-    schema: schema ? toCompletionSchema(schema, 'sqlite') : {},
+    dialect: sqlLanguage(dialect),
+    schema: schema ? toCompletionSchema(schema, dialect) : {},
     upperCaseKeywords: false,
   });
 }
@@ -139,8 +139,9 @@ export function SqlEditor(): React.ReactElement {
   const tabSql = usePanelSqlStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.sql ?? '');
   const schema = usePanelSqlStore((s) => s.schema);
   const errorAt = usePanelSqlStore((s) => s.errorAt);
+  const dialect = usePanelSqlStore((s) => connectionDialect(s.connection));
   // Read by the editor's callbacks, which outlive any one render.
-  const live = useRef({ tabId: activeTabId, schema });
+  const live = useRef({ tabId: activeTabId, schema, dialect });
   const shownTabRef = useRef<string | null>(null);
 
   function createState(doc: string): EditorState {
@@ -160,7 +161,7 @@ export function SqlEditor(): React.ReactElement {
         bracketMatching(),
         autocompletion(),
         keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
-        languageRef.current.of(sqlExtension(live.current.schema)),
+        languageRef.current.of(sqlExtension(live.current.schema, live.current.dialect)),
         syntaxHighlighting(xrayHighlight),
         xrayTheme,
         errorField,
@@ -213,8 +214,9 @@ export function SqlEditor(): React.ReactElement {
 
   useEffect(() => {
     live.current.schema = schema;
-    viewRef.current?.dispatch({ effects: languageRef.current.reconfigure(sqlExtension(schema)) });
-  }, [schema]);
+    live.current.dialect = dialect;
+    viewRef.current?.dispatch({ effects: languageRef.current.reconfigure(sqlExtension(schema, dialect)) });
+  }, [schema, dialect]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -231,8 +233,10 @@ export function SqlEditor(): React.ReactElement {
 export function QuickStarts(): React.ReactElement | null {
   const empty = usePanelSqlStore((s) => !s.tabs.find((t) => t.id === s.activeTabId)?.sql.trim());
   const schema = usePanelSqlStore((s) => s.schema);
+  // The starters are SQLite queries (sqlite_schema, pragma_table_info).
+  const sqlite = usePanelSqlStore((s) => connectionDialect(s.connection) === 'sqlite');
   const starters = React.useMemo(() => quickStarts(schema), [schema]);
-  if (!empty) return null;
+  if (!empty || !sqlite) return null;
   return (
     <div className="xray-sql-quickstarts" role="group" aria-label="Quick starts">
       <span className="xray-sql-quickstarts-label">Start with</span>

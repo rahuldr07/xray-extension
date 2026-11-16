@@ -11,8 +11,10 @@ const { read } = require('./helpers/source');
 // The worker loads shared/console-scope.js with importScripts (a classic service worker); the
 // vm context gets the same, running the file in the worker's realm.
 function loadWorker(context) {
+  // The console's own scripts only: the SQL manager needs chrome.storage, which these contexts
+  // lack, and its tests load it themselves.
   context.importScripts = (...files) => {
-    for (const file of files) vm.runInContext(read(file), context, { filename: file });
+    for (const file of files) if (file.startsWith('shared/')) vm.runInContext(read(file), context, { filename: file });
   };
   vm.createContext(context);
   vm.runInContext(read('background.js'), context);
@@ -1602,4 +1604,68 @@ test('eager preview: a completion queued behind a preview that is then abandoned
     assert.equal(plain(c).names, null);
     assert.equal(walks, 0, 'no walk was sent while the preview was pending');
   } finally { harness.dispose(); }
+});
+
+test('M3 SQL manager: the xray-sql onConnect branch hands the port to handlePort', () => {
+  const background = read('background.js');
+  assert.match(background, /port\.name === 'xray-sql'[\s\S]{0,200}manager\.handlePort\(port\)/);
+  // The worker stays dependency-free: no ES imports, no require, and importScripts only loads
+  // the repo's own files (the SQL manager; the console helpers and scope builders).
+  assert.doesNotMatch(background, /^\s*import\s/m);
+  assert.doesNotMatch(background, /\brequire\(/);
+  assert.deepEqual([...background.matchAll(/importScripts\(([^)]*)\)/g)].map(m => m[1]), ["'background/sql-manager.js'", "'shared/console-helpers.js', 'shared/console-scope.js'"]);
+  assert.doesNotMatch(read('background/sql-manager.js'), /^\s*import\s|\brequire\(|importScripts\(/m);
+
+  // Executed: the real manager, loaded the way the worker loads it, refuses a
+  // web page's xray-sql port and keeps the extension's own sql.html.
+  let connectListener;
+  const noopEvent = { addListener() {} };
+  const chrome = {
+    runtime: { id: 'xray-test', getURL: name => name, onConnect: { addListener: fn => { connectListener = fn; } }, onMessage: noopEvent },
+    storage: { local: {}, session: {} }, permissions: { contains: async () => false },
+    tabs: {}, action: { onClicked: noopEvent }, commands: { onCommand: noopEvent },
+    windows: { onRemoved: noopEvent }, debugger: { onDetach: noopEvent },
+  };
+  const imported = [];
+  const context = { chrome, console, URL, fetch: async () => ({ text: async () => '' }) };
+  context.importScripts = (...files) => {
+    for (const file of files) {
+      imported.push(file);
+      vm.runInContext(fs.readFileSync(require.resolve(`../${file}`), 'utf8'), context);
+    }
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(require.resolve('../background.js'), 'utf8'), context);
+  assert.deepEqual(imported, ['background/sql-manager.js', 'shared/console-helpers.js', 'shared/console-scope.js']);
+  const port = (url) => ({ name: 'xray-sql', sender: { id: 'xray-test', url }, onMessage: noopEvent, onDisconnect: noopEvent, disconnected: false, disconnect() { this.disconnected = true; } });
+  const evil = port('https://evil.example/sql.html');
+  connectListener(evil);
+  assert.equal(evil.disconnected, true);
+  const own = port('chrome-extension://xray-test/sql.html');
+  connectListener(own);
+  assert.equal(own.disconnected, false);
+});
+
+test('M3 SQL manager: if the manager fails to load, xray-sql requests are answered with an internal error', () => {
+  let connectListener;
+  const noopEvent = { addListener() {} };
+  const chrome = {
+    runtime: { id: 'xray-test', getURL: name => name, onConnect: { addListener: fn => { connectListener = fn; } }, onMessage: noopEvent },
+    tabs: {}, action: { onClicked: noopEvent }, commands: { onCommand: noopEvent },
+    windows: { onRemoved: noopEvent }, debugger: { onDetach: noopEvent },
+  };
+  const errors = [];
+  const context = { chrome, console: { ...console, error: (...a) => errors.push(a) }, URL, fetch: async () => ({ text: async () => '' }) };
+  context.importScripts = () => { throw new Error('NetworkError: failed to load'); };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(require.resolve('../background.js'), 'utf8'), context);
+  assert.equal(errors.length, 1, 'the load failure is logged');
+  let onMessage;
+  const port = { name: 'xray-sql', sender: { id: 'xray-test', url: 'chrome-extension://xray-test/sql.html' }, posted: [], disconnected: false,
+    onMessage: { addListener(fn) { onMessage = fn; } }, onDisconnect: noopEvent,
+    postMessage(m) { this.posted.push(JSON.parse(JSON.stringify(m))); }, disconnect() { this.disconnected = true; } };
+  connectListener(port);
+  assert.equal(port.disconnected, false, 'the port stays open');
+  onMessage({ id: 7, op: 'profiles.list' });
+  assert.deepEqual(port.posted, [{ id: 7, ok: false, error: { code: 'internal', message: 'The SQL connection manager failed to load.' } }]);
 });
