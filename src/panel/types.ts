@@ -1,5 +1,5 @@
 export type EntryType = 'api' | 'log';
-export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights';
+export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights' | 'sql';
 export type XrayAppMode = 'devtools' | 'hud' | 'window';
 export type DetailView = 'tree' | 'grid' | 'raw' | 'schema' | 'diff' | 'viz' | 'waterfall' | 'headers';
 export type PanelAccent = 'blue' | 'mauve' | 'teal' | 'green' | 'peach' | 'coral';
@@ -398,6 +398,16 @@ export interface PanelSettings {
    * Settings stored before the refresh lack the key, which is how they are told apart.
    */
   themeRefreshPending: boolean;
+  /**
+   * Legacy: frame the SQL client inline in the in-page HUD. Since Ruling M3-R28 the effective value
+   * is the service worker's `sql_hud_options` key; this stored value only seeds it once.
+   */
+  sqlInlineInHud: boolean;
+  /**
+   * Legacy: allow saved database connections in the HUD's inline client (Ruling M3-R27). Since
+   * Ruling M3-R28 the effective value is the service worker's `sql_hud_options` key.
+   */
+  sqlDatabasesInHud: boolean;
 }
 
 export type DockSide = 'left' | 'right';

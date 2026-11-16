@@ -3,7 +3,7 @@ import type { ActiveTab, ApiDrawerPlacement, ApiGroupingMode, ApiQuickFilter, Co
 
 export const REACT_PANEL_PREFERENCES_KEY = 'react_panel_preferences';
 
-const VALID_TABS: ActiveTab[] = ['console', 'api', 'logs', 'rules', 'insights'];
+const VALID_TABS: ActiveTab[] = ['console', 'api', 'logs', 'rules', 'insights', 'sql'];
 
 export interface PanelPreferencesState {
   activeTab: ActiveTab;

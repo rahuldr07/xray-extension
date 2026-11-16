@@ -1090,7 +1090,7 @@ for (const shadow of [false, true]) {
       await page.waitForFunction(() => window.themeTest.root.querySelector('.xray-detail-tab'), undefined, { timeout: 5000 });
       const problems = [];
       // The API request detail, then the request list, then each tab.
-      for (const tab of ['api', 'api list', 'console', 'logs', 'rules', 'insights']) {
+      for (const tab of ['api', 'api list', 'console', 'logs', 'rules', 'insights', 'sql']) {
         await page.evaluate(tab => (tab === 'api list' ? window.themeTest.listOnly() : window.themeTest.tab(tab)), tab);
         await page.waitForTimeout(50);
         await page.evaluate(() => window.themeTest.monoChrome(true));
@@ -1099,8 +1099,9 @@ for (const shadow of [false, true]) {
         const now = await page.evaluate(() => window.themeTest.fit());
         const at = `${tab} @${width}`;
         assert.equal(now.width, width, `${at}: the panel is ${width} px wide`);
-        assert.equal(now.tabs, 5, `${at}: five top tabs`);
-        assert.equal(now.labels, width > 680 ? 5 : 0, `${at}: tab labels shown above 680 px only`);
+        // Six top tabs since the SQL tab (SQL client M1 Task 8).
+        assert.equal(now.tabs, 6, `${at}: six top tabs`);
+        assert.equal(now.labels, width > 680 ? 6 : 0, `${at}: tab labels shown above 680 px only`);
         if (mono.tabsOverflow === 0) {
           if (now.tabsOverflow > 0) problems.push(`${at}: the tablist scrolls ${now.tabsOverflow} px (fit on mono)`);
           if (now.tabsOutside.length) problems.push(`${at}: tabs outside the tablist: ${now.tabsOutside.join(', ')}`);

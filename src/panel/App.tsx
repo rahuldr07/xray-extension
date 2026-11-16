@@ -9,6 +9,7 @@ import { ConfirmationModal } from './components/common/ConfirmationModal';
 import { RootErrorBoundary } from './components/common/RootErrorBoundary';
 import { Insights } from './components/insights/Insights';
 import { Rules } from './components/rules/Rules';
+import { SqlFrame } from './components/sql/SqlFrame';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ReplayModal } from './components/replay/ReplayModal';
 import { ExplainModal } from './components/ai/ExplainModal';
@@ -18,10 +19,26 @@ import { GlobalSearch } from './components/search/GlobalSearch';
 import { PanelShell } from './components/shell/PanelShell';
 import { ToastRegion } from './components/shell/PanelShell';
 import type { XrayAppMode } from './types';
+import { useSqlHudOptions } from './runtime/sqlHudOptions';
 
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
   const activeTab = usePanelStore((state) => state.activeTab);
   const settings = usePanelStore((state) => state.settings);
+  // Ruling R16: the framed SQL client mounts on the first visit and then stays mounted (hidden while
+  // another tab is active). Removing an iframe never fires beforeunload, so unmounting it would drop
+  // the open database and any unsaved writes without a prompt. The HUD's window card has no such
+  // state, but with the inline option on the HUD frames the client too, so it is kept the same way.
+  // Once framed it stays framed, even if the option is turned off, until the HUD is reopened: turning
+  // it off would otherwise unmount the frame and drop its open database without a prompt.
+  const [sqlOpened, setSqlOpened] = React.useState(false);
+  const [sqlInlineLatched, setSqlInlineLatched] = React.useState(false);
+  if (activeTab === 'sql' && !sqlOpened) setSqlOpened(true);
+  // The inline option lives in the service worker's key, not the panel's settings (Ruling M3-R28).
+  // Only the HUD's SQL tab needs it, so nothing is asked before that tab is first opened there.
+  const sqlHud = useSqlHudOptions(mode === 'hud' && sqlOpened);
+  if (mode === 'hud' && sqlHud.sqlInlineInHud && sqlOpened && !sqlInlineLatched) setSqlInlineLatched(true);
+  const hudSqlInline = sqlHud.sqlInlineInHud || sqlInlineLatched;
+  const keepSqlFrame = (mode !== 'hud' || hudSqlInline) && sqlOpened;
 
   // The theme's color tokens (and accent/font/radius) live on this wrapper, not on
   // .xray-panel — because the modals below render as siblings of the panel. A
@@ -48,6 +65,7 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
           {activeTab === 'logs' && <EntriesWorkspace mode="logs" />}
           {activeTab === 'rules' && <Rules />}
           {activeTab === 'insights' && <Insights />}
+          {(activeTab === 'sql' || keepSqlFrame) && <SqlFrame mode={mode} active={activeTab === 'sql'} inlineInHud={hudSqlInline} />}
         </PanelShell>
         <ExportModal />
         <SettingsModal />

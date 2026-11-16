@@ -1,5 +1,5 @@
 /**
- * What Replay sends for a captured request (docs/superpowers/specs/2026-10-14-json-fidelity-design.md
+ * What Replay sends for a captured request (docs/design/2026-10-14-json-fidelity-design.md
  * §7, J10): the request text exactly as captured (requestBodyText) — never a re-serialization of its
  * parsed copy, which JSON.parse rounded and a saved session key-sorted — or, for FormData whose fields
  * are all text, those fields to rebuild the form from in the page (names, values and order; the

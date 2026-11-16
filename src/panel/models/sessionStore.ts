@@ -9,7 +9,7 @@ export const SESSION_ENVELOPE_KEY = 'session_envelope';
 export const AI_SETTINGS_KEY = 'ai_settings';
 
 /*
- * The saved session (spec J9, docs/superpowers/specs/2026-10-14-json-fidelity-design.md §6).
+ * The saved session (spec J9, docs/design/2026-10-14-json-fidelity-design.md §6).
  *
  * Bodies are saved as the captured text — the views re-parse it after a reload, so Tree, Table and
  * Schema work as they did — and a cut is metadata (`responseTruncated`, `requestTruncated`,

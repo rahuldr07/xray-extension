@@ -20,7 +20,10 @@ const outDir = path.resolve(root, process.argv[2] ?? 'release');
 const allowList = [
   'manifest.json',
   'background.js',
+  // importScripts'd by background.js; only this file, not the whole folder.
+  'background/sql-manager.js',
   'window.html',
+  'sql.html',
   'content',
   'devtools',
   'dist',

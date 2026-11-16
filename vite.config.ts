@@ -32,19 +32,28 @@ function inlineCssPlugin(): EsbuildPlugin {
   };
 }
 
-// The panel bundle is emitted by Vite's lib mode; the HUD and pop-out window bundles are
-// separate IIFE entrypoints that Vite's single-entry lib build cannot express, so esbuild
-// emits them here. Both share one config shape — only entry, outfile, and global differ.
+// The panel bundle is emitted by Vite's lib mode; the HUD, pop-out window and SQL page bundles
+// are separate IIFE entrypoints that Vite's single-entry lib build cannot express, so esbuild
+// emits them here. They share one config shape — only entry, outfile, and global differ.
+// The SQL page (sql.html) and its worker have their own bundles so SQLite-WASM never enters
+// the bundles injected into pages.
 const IIFE_ENTRYPOINTS = [
   { entry: 'src/panel/hud-main.tsx', outfile: 'dist/hud-ui.js', globalName: 'XRAYHudUI' },
   { entry: 'src/panel/window-main.tsx', outfile: 'dist/window-ui.js', globalName: 'XRAYWindowUI' },
+  { entry: 'src/panel/sql-main.tsx', outfile: 'dist/sql-ui.js', globalName: 'XRAYSqlUI' },
+  { entry: 'src/panel/sql/sqlite.worker.ts', outfile: 'dist/sql-worker.js', globalName: 'XRAYSqlWorker' },
 ] as const;
+
+// The worker loads sqlite3.wasm from beside itself (locateFile in sqlite.worker.ts). A fixed
+// path inside the package keeps the copy, and so dist-sync, deterministic.
+const SQLITE_WASM = 'node_modules/@sqlite.org/sqlite-wasm/dist/sqlite3.wasm';
 
 function extraIifeEntrypoints() {
   return {
     name: 'xray-extra-iife-entrypoints',
     async closeBundle() {
       const rootDir = process.cwd();
+      await fs.copyFile(path.join(rootDir, SQLITE_WASM), path.join(rootDir, 'dist/sqlite3.wasm'));
       await Promise.all(
         IIFE_ENTRYPOINTS.map(({ entry, outfile, globalName }) =>
           buildWithEsbuild({
