@@ -1,5 +1,5 @@
 /**
- * A facet's body as captured (docs/superpowers/specs/2026-10-14-json-fidelity-design.md §2–3, J2–J6).
+ * A facet's body as captured (docs/design/2026-10-14-json-fidelity-design.md §2–3, J2–J6).
  *
  * The captured text is the source of truth: the Raw view shows it verbatim, the Tree renders its
  * lossless parse, and entryResponse/entryRequest (utils.ts) derive their plain values from the same

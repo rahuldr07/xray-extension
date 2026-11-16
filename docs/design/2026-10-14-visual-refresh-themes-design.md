@@ -3,7 +3,7 @@
 Requested 2026-10-14 ("keep good themes — these are not good"); decided by the controller under the
 user's standing delegation ("free hand"). Evidence: real-extension exploration of 14 palettes and a
 calm-accent variant (`output/theme-explore/`, contact sheets `contact-*.png`), whose rendered token
-blocks are copied verbatim to `docs/superpowers/specs/assets/2026-10-14-theme-lineup.css` and
+blocks are copied verbatim to `docs/design/assets/2026-10-14-theme-lineup.css` and
 `…/2026-10-14-calm-accent.css`. This spec is the authority for the implementation plan.
 
 ## Purpose

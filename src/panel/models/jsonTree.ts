@@ -1,5 +1,5 @@
 /**
- * The API detail Tree's rows (docs/superpowers/specs/2026-10-14-json-fidelity-design.md §2, J3):
+ * The API detail Tree's rows (docs/design/2026-10-14-json-fidelity-design.md §2, J3):
  * the lossless parser's JsonNode tree flattened into the rows the view windows, in source order, a
  * duplicate key marked on each repeat, numbers left as nodes so they render by lexeme.
  *

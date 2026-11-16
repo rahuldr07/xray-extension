@@ -1,6 +1,6 @@
 /**
  * Lossless JSON — the one parser for captured text in the panel
- * (docs/superpowers/specs/2026-10-14-json-fidelity-design.md §1, J1).
+ * (docs/design/2026-10-14-json-fidelity-design.md §1, J1).
  *
  * JSON.parse rounds 9007199254740993, reorders integer-like keys, collapses duplicate keys, forgets
  * how a number or a string was written and reports errors as an offset. This module keeps what went
@@ -9,8 +9,7 @@
  * its line and column, a stripped XSSI guard or BOM, and NDJSON as an array of documents.
  *
  * Hand-written and iterative — an explicit stack, no recursion in parse, print, toValue or isExact —
- * so any nesting depth works (ruling in .superpowers/sdd/2026-10-14-json-fidelity-implementation/
- * progress.md). Pure: no DOM, no store.
+ * so any nesting depth works. Pure: no DOM, no store.
  */
 
 // ---------------------------------------------------------------------- types
@@ -57,8 +56,7 @@ export interface JsonNumberNode {
   value: number;
   /**
    * Whether JavaScript holds the number that was written — the hint exists for integers (IDs,
-   * counters) a JS number cannot carry (ruling in .superpowers/sdd/2026-10-14-json-fidelity-
-   * implementation/progress.md). False when:
+   * counters) a JS number cannot carry. False when:
    * - an integer-valued lexeme written without an exponent (digits, optionally a fraction of zeros)
    *   is not exactly the integer Number(raw) holds, compared as BigInt: `9007199254740993`,
    *   `12345678901234567890`, `9007199254740993.0`. `9007199254740992`, `10000000000000000` and
