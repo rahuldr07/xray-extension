@@ -96,7 +96,7 @@ test('captureWs is the one boolean that treats undefined as true', () => {
 });
 
 test('the other booleans are plain Boolean() coercions', () => {
-  const keys = ['captureFetch', 'captureXhr', 'compactRows', 'showHostInPath', 'glow', 'hacker', 'confirmDestructiveActions', 'sqlInlineInHud'];
+  const keys = ['captureFetch', 'captureXhr', 'compactRows', 'showHostInPath', 'glow', 'hacker', 'confirmDestructiveActions', 'sqlInlineInHud', 'sqlDatabasesInHud'];
   for (const key of keys) {
     assert.equal(at(key, false), false, `${key} false`);
     assert.equal(at(key, true), true, `${key} true`);
@@ -229,4 +229,10 @@ test('a fully hostile settings blob normalizes into something the panel can rend
     apiSplit: 0,
     logsSplit: 2000,
   });
+});
+
+test('the legacy HUD databases setting still parses, so its stored value can be migrated (Rulings M3-R27, M3-R28)', () => {
+  assert.equal(DEFAULT_PANEL_SETTINGS.sqlDatabasesInHud, false, 'off by default');
+  assert.equal(normalizePanelSettings(undefined).sqlDatabasesInHud, false);
+  assert.equal(normalizePanelSettings({ sqlDatabasesInHud: true }).sqlDatabasesInHud, true, 'a stored true is kept');
 });

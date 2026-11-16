@@ -198,6 +198,9 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   themeRefreshPending: false,
   // Opt-in: off for new installs, Reset and settings stored before the option existed.
   sqlInlineInHud: false,
+  // Legacy (Ruling M3-R28): the two HUD SQL options now live in the service worker's
+  // sql_hud_options key; these stored values are read once to migrate them.
+  sqlDatabasesInHud: false,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -282,5 +285,6 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
     sqlInlineInHud: Boolean(base.sqlInlineInHud),
+    sqlDatabasesInHud: Boolean(base.sqlDatabasesInHud),
   };
 }

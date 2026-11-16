@@ -357,7 +357,8 @@ interface PanelState {
   resetSettings(): void;
   /** Dismisses the theme-refresh notice: the only thing that clears it (stored with the settings). */
   dismissThemeRefresh(): void;
-  requestConfirmation(request: Omit<ConfirmationRequest, 'id'> & { id?: string }): void;
+  // `always` asks even with Confirm destructive actions off (security opt-ins).
+  requestConfirmation(request: Omit<ConfirmationRequest, 'id'> & { id?: string; always?: boolean }): void;
   closeConfirmation(): void;
   confirmPending(): void;
   showToast(message: string): void;
@@ -1351,7 +1352,7 @@ export const usePanelStore = create<PanelState>((set, get) => ({
   },
   requestConfirmation: (request) => {
     // The setting is honoured here, once, for every caller.
-    if (get().settings.confirmDestructiveActions === false) {
+    if (get().settings.confirmDestructiveActions === false && !request.always) {
       request.onConfirm();
       return;
     }

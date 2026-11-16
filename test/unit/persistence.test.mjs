@@ -651,3 +651,10 @@ test('sqlInlineInHud survives the stored round-trip and reads as off from prefer
   const before = applyPanelPreferences({ settings: { theme: 'dracula', glow: true, themeRefreshPending: false } });
   assert.equal(before.settings.sqlInlineInHud, false);
 });
+
+test('sqlDatabasesInHud survives the stored round-trip and reads as off from preferences stored before it', () => {
+  const on = applyPanelPreferences(JSON.parse(JSON.stringify({ settings: { sqlInlineInHud: true, sqlDatabasesInHud: true, themeRefreshPending: false } })));
+  assert.equal(on.settings.sqlDatabasesInHud, true);
+  const before = applyPanelPreferences({ settings: { sqlInlineInHud: true, themeRefreshPending: false } });
+  assert.equal(before.settings.sqlDatabasesInHud, false);
+});

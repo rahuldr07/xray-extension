@@ -1,6 +1,15 @@
 // background.js — Service Worker
 // Bridges the extension action / keyboard command to the content script panel toggle.
 
+// The SQL client's connection manager (profiles, secrets, the native helper port).
+// importScripts only exists in the real worker; a failure here must not stop the
+// listeners below from registering.
+try {
+  if (typeof importScripts === 'function') importScripts('background/sql-manager.js');
+} catch (err) {
+  console.error('[XRAY] could not load the SQL connection manager', err);
+}
+
 const _devtoolsPortsByTab = new Map();
 let popoutWindowId = null;
 let sqlWindowId = null;
@@ -666,7 +675,49 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   console.debug('[XRAY] command toggle failed: no reachable target tab');
 });
 
+let _sqlManager = null;
+function _getSqlManager() {
+  if (!_sqlManager && globalThis.XRAY_SqlManager) {
+    _sqlManager = globalThis.XRAY_SqlManager.createSqlManager({
+      storageLocal: chrome.storage.local,
+      storageSession: chrome.storage.session,
+      // connectNative exists only once the optional nativeMessaging permission is granted.
+      connectNative: (name) => chrome.runtime.connectNative(name),
+      permissionsContains: (perm) => chrome.permissions.contains({ permissions: [perm] }),
+      lastError: () => chrome.runtime.lastError?.message,
+      runtimeId: chrome.runtime.id,
+      now: () => Date.now(),
+      setTimeout: (fn, ms) => setTimeout(fn, ms),
+      clearTimeout: (handle) => clearTimeout(handle),
+    });
+  }
+  return _sqlManager;
+}
+
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'xray-sql') {
+    // handlePort validates the sender (sql.html of this extension) itself (C-9).
+    const manager = _getSqlManager();
+    if (manager) {
+      manager.handlePort(port);
+      return;
+    }
+    // The manager failed to load: answer every request instead of a silent
+    // disconnect, so the page shows an error rather than waiting.
+    if (port.sender?.id !== chrome.runtime.id) {
+      port.disconnect();
+      return;
+    }
+    port.onMessage.addListener((msg) => {
+      if (!msg || (typeof msg.id !== 'number' && typeof msg.id !== 'string')) return;
+      try {
+        port.postMessage({ id: msg.id, ok: false, error: { code: 'internal', message: 'The SQL connection manager failed to load.' } });
+      } catch {
+        /* the page went away */
+      }
+    });
+    return;
+  }
   if (port.name !== 'xray-devtools') return;
 
   let boundTabId = null;
@@ -699,6 +750,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // sendMessage(null) or sendMessage(undefined) from any surface would otherwise throw
   // inside the listener on the first property access.
   if (!msg || typeof msg !== 'object') return false;
+
+  // The HUD SQL options are owned by the SQL connection manager (Ruling M3-R28): it answers reads
+  // from any surface and refuses writes from a web tab.
+  const hudOptions = _getSqlManager()?.handleMessage(msg, sender);
+  if (hudOptions) {
+    hudOptions.then(sendResponse);
+    return true;
+  }
+
+  // The in-page panel cannot change the HUD SQL options; it links to the options page instead.
+  if (msg.type === 'XRAY_OPEN_OPTIONS') {
+    chrome.runtime.openOptionsPage()
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true;
+  }
 
   if (msg.type === 'XRAY_HUD_TOGGLE_ACTIVE') {
     _toggleHudOnBestTab(sender?.tab)

@@ -19,6 +19,7 @@ import { GlobalSearch } from './components/search/GlobalSearch';
 import { PanelShell } from './components/shell/PanelShell';
 import { ToastRegion } from './components/shell/PanelShell';
 import type { XrayAppMode } from './types';
+import { useSqlHudOptions } from './runtime/sqlHudOptions';
 
 export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElement {
   const activeTab = usePanelStore((state) => state.activeTab);
@@ -32,8 +33,11 @@ export function App({ mode = 'hud' }: { mode?: XrayAppMode }): React.ReactElemen
   const [sqlOpened, setSqlOpened] = React.useState(false);
   const [sqlInlineLatched, setSqlInlineLatched] = React.useState(false);
   if (activeTab === 'sql' && !sqlOpened) setSqlOpened(true);
-  if (mode === 'hud' && settings.sqlInlineInHud && sqlOpened && !sqlInlineLatched) setSqlInlineLatched(true);
-  const hudSqlInline = settings.sqlInlineInHud || sqlInlineLatched;
+  // The inline option lives in the service worker's key, not the panel's settings (Ruling M3-R28).
+  // Only the HUD's SQL tab needs it, so nothing is asked before that tab is first opened there.
+  const sqlHud = useSqlHudOptions(mode === 'hud' && sqlOpened);
+  if (mode === 'hud' && sqlHud.sqlInlineInHud && sqlOpened && !sqlInlineLatched) setSqlInlineLatched(true);
+  const hudSqlInline = sqlHud.sqlInlineInHud || sqlInlineLatched;
   const keepSqlFrame = (mode !== 'hud' || hudSqlInline) && sqlOpened;
 
   // The theme's color tokens (and accent/font/radius) live on this wrapper, not on

@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "XRAY \u2014 API Operations Console",
   "version": "0.3.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwz4UmAcRlgCDjrB1enR4qL1Easw2LN9CsPkho9h/YGEW5JEy4tozgGdUhLW6alDpI0GyXd1iGUpA/bMVcDioEBuB8Vjk3wBteycAecPlidPKRwhLsx0Sy4cDWGoCzeK5UJwZnKeCphxJTTW0bUDyYg5MWeuxwevdYqyvCPrlN/UhYzOj32MDa6zRb8tXwscy4/9T+k+beieiYhPCac8nr5KBgfHIAVkbKP7HLs7J4sDQpc1enXdBZqTQQ3sPGhwdzc3MXOQbzM5enl2cIgG6uWaaz4lte96OJaOuknujp+bXmAMKrUlm78vK86D+VI+Pi632g4gh4w9tPXcpByK64QIDAQAB",
   "description": "Capture, understand, and bend API traffic: fetch/XHR/WebSocket/GraphQL capture, mock rules, replay, schema-drift detection, JWT decoding, and BYOK AI explanations.",
   "permissions": [
     "storage",
@@ -10,6 +11,9 @@
     "clipboardWrite",
     "windows",
     "debugger"
+  ],
+  "optional_permissions": [
+    "nativeMessaging"
   ],
   "host_permissions": [
     "<all_urls>"
