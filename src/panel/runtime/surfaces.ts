@@ -37,6 +37,14 @@ export function openWindowSurface(io: SurfaceMessenger): void {
 }
 
 /**
+ * Open the SQL client in its own extension window. The HUD runs inside the inspected page, so it
+ * never renders database rows itself; the background opens sql.html instead.
+ */
+export function openSqlWindowSurface(io: SurfaceMessenger): void {
+  sendRuntimeMessage({ type: 'XRAY_OPEN_SQL_WINDOW' }, 'The SQL client opens when the extension runtime is loaded.', io);
+}
+
+/**
  * There is no API to open a DevTools panel programmatically — the user has to open
  * DevTools themselves — so this is a hint, not a navigation.
  */

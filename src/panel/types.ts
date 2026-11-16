@@ -1,5 +1,5 @@
 export type EntryType = 'api' | 'log';
-export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights';
+export type ActiveTab = 'console' | 'api' | 'logs' | 'rules' | 'insights' | 'sql';
 export type XrayAppMode = 'devtools' | 'hud' | 'window';
 export type DetailView = 'tree' | 'grid' | 'raw' | 'schema' | 'diff' | 'viz' | 'waterfall' | 'headers';
 export type PanelAccent = 'blue' | 'mauve' | 'teal' | 'green' | 'peach' | 'coral';
@@ -405,6 +405,11 @@ export interface PanelSettings {
    * side-effect-free evaluations through the debugger. Off: no such request and no attach while typing.
    */
   previewWhileTyping: boolean;
+  /**
+   * Frame the SQL client inline in the in-page HUD instead of opening it in its own window. Opt-in:
+   * it makes sql.html web-accessible to pages (dynamic URL only), so any site could embed the client.
+   */
+  sqlInlineInHud: boolean;
 }
 
 export type DockSide = 'left' | 'right';

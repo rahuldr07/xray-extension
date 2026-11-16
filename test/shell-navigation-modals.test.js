@@ -19,6 +19,20 @@ test('React shell navigation and command palette share tab metadata', () => {
   assert.match(tabs, /id:\s*'logs'/);
   assert.match(tabs, /id:\s*'rules'/);
   assert.match(tabs, /id:\s*'insights'/);
+  // SQL frames sql.html in the DevTools panel and pop-out; the HUD opens it in a window unless the
+  // user opted into the inline frame (settings.sqlInlineInHud).
+  assert.match(tabs, /id:\s*'sql', label: 'SQL', icon: <IconDatabase/);
+  // Ruling R16: after the first visit the framed client stays mounted (hidden) across tab switches,
+  // so its open database and unsaved writes survive. In the HUD that applies only when the client
+  // is framed there, i.e. with the inline option on; the window card holds no state.
+  assert.match(app, /if \(activeTab === 'sql' && !sqlOpened\) setSqlOpened\(true\);/);
+  // Once the HUD has framed the client, turning the option off keeps that frame until the HUD is
+  // reopened: unmounting it would drop the open database without a prompt (the R16 hazard).
+  assert.match(app, /if \(mode === 'hud' && settings\.sqlInlineInHud && sqlOpened && !sqlInlineLatched\) setSqlInlineLatched\(true\);/);
+  assert.match(app, /const hudSqlInline = settings\.sqlInlineInHud \|\| sqlInlineLatched;/);
+  assert.match(app, /const keepSqlFrame = \(mode !== 'hud' \|\| hudSqlInline\) && sqlOpened;/);
+  assert.match(app, /\(activeTab === 'sql' \|\| keepSqlFrame\) && <SqlFrame mode=\{mode\} active=\{activeTab === 'sql'\} inlineInHud=\{hudSqlInline\} \/>/);
+  assert.match(read('src/panel/components/sql/SqlFrame.tsx'), /hidden=\{!active\}/);
   // Notebook and Settings are no longer top-level tabs
   assert.doesNotMatch(tabs, /id:\s*'notebook'/);
   assert.doesNotMatch(tabs, /id:\s*'settings'/);

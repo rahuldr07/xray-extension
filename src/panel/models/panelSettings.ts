@@ -197,6 +197,8 @@ export const DEFAULT_PANEL_SETTINGS: PanelSettings = {
   firstRunDismissed: false,
   themeRefreshPending: false,
   previewWhileTyping: true,
+  // Opt-in: off for new installs, Reset and settings stored before the option existed.
+  sqlInlineInHud: false,
 };
 
 function asDetailView(value: unknown, fallback: DetailView): DetailView {
@@ -281,5 +283,6 @@ export function normalizePanelSettings(input: Partial<PanelSettings> | undefined
     firstRunDismissed: Boolean(base.firstRunDismissed),
     themeRefreshPending,
     previewWhileTyping: Boolean(base.previewWhileTyping),
+    sqlInlineInHud: Boolean(base.sqlInlineInHud),
   };
 }

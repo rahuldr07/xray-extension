@@ -21,10 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22.18 is the floor declared in package.json engines (unit tests import .ts
-        # directly, which needs Node's built-in type stripping, on by default from 22.18); 22 is what the repo
-        # is developed against. Both are tested so the floor stays honest.
-        node: ['22.18', '22']
+        # 22.18 is the floor declared in package.json engines: @sqlite.org/sqlite-wasm needs Node 22,
+        # and unit tests import .ts directly (built-in type stripping, on by default from 22.18).
+        # '22' resolves to the latest 22.x; 24 is the current release.
+        node: ['22', '24']
     steps:
       - uses: actions/checkout@v4
 
