@@ -5,7 +5,7 @@ import { bodyDoc, requestBody as capturedRequest, responseBody as capturedRespon
 import { isSensitiveName, MAX_PLAN_BODY, snapshotExperimentNode, snapshotExperimentValue } from './experiments';
 import { boundedItems, ownValue } from './investigations';
 import { parseJson, printJson, toValue, type JsonEntry, type JsonNode, type JsonObjectNode } from './jsonText';
-import { isTypedLog, logPlain } from './logValue';
+import { decodeLegacyLogValue, isTypedLog, logKind, logPlain, type LogKind } from './logValue';
 import { replayBody } from './replayBody';
 
 export type ExportFormat =
@@ -77,7 +77,7 @@ export const exportMeta: Record<ExportFormat, ExportMeta> = {
   'session-json': { title: 'Session JSON', desc: 'Full captured entries for local restore. May include credentials and private payloads.', extension: 'json' },
   'session-csv': { title: 'Session CSV', desc: 'One row per API request (logs excluded), including full URLs.', extension: 'csv' },
   'session-har': { title: 'Session HAR', desc: 'Legacy HTTP Archive export with captured headers and bodies.', extension: 'har' },
-  'session-json-safe': { title: 'Share-safe session JSON', desc: 'Bounded, redacted session with structured stream frames. Opaque text and diagnostics are omitted. Review before sharing.', extension: 'json' },
+  'session-json-safe': { title: 'Share-safe session JSON', desc: 'Bounded, redacted session with structured stream frames. Free-text log arguments, error messages and stack traces are omitted; structured values keep their keys, with sensitive fields redacted. Review before sharing.', extension: 'json' },
   'session-har-safe': { title: 'Share-safe HTTP HAR', desc: 'Bounded, redacted HTTP requests only. Streams and logs are omitted. Review before sharing.', extension: 'har' },
 };
 
@@ -87,6 +87,10 @@ const OMITTED = '[OMITTED]';
 // or WS frames). Error-shaped log values carry message/stack text the user never chose
 // to share, e.g. console.error(new Error('User bob@example.com not found')).
 const DIAGNOSTIC_FIELD = /error|exception|stack|message|provider|config|runtime|diagnostic|internal|^__/i;
+// Typed log values whose text is kept in a share-safe export; every other non-structured kind
+// (Symbol, function, DOM element, cut string) is the page's text and omitted.
+const LOG_TEXT_KINDS = new Set<LogKind>(['number', 'bigint', 'date', 'undefined', 'circular', 'unreadable', 'depth']);
+const LOG_STRUCTURE_KINDS = new Set<LogKind>(['array', 'object', 'map', 'set', 'typedarray', 'error']);
 // Query parameters whose values are not credentials. KEEP IN STEP with QUERY_ALLOW in
 // content/interceptor.js (a plain MAIN-world script that cannot import this module);
 // test/unit/exportCorrectness.test.mjs asserts the two are identical.
@@ -235,6 +239,28 @@ function projectShareSafe(entries: PanelEntry[]): { projection: ShareSafeSession
     }
     return plain(clean(snapshotExperimentValue(value).value, diagnostics));
   }
+  /**
+   * One console argument in the typed model (issue #6). Free text is omitted: a string, unless it is
+   * the JSON text of an object (then its structure, as an object argument), a cut string, and a
+   * Symbol, function or DOM element, whose text is the page's. A number, BigInt, Date, undefined or
+   * a cycle/depth/unreadable marker keeps its text; objects, arrays, Maps, Sets and typed arrays keep
+   * their keys (with key redaction and diagnostic keys dropped); an Error is its name alone.
+   */
+  function logArg(value: unknown, dropped: { omitted: number }): SafeBody {
+    if (value === null || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) return plain(value);
+    if (typeof value === 'string') {
+      if (value.length > MAX_PLAN_BODY) return omitted();
+      const doc = parseJson(value);
+      if (!doc.ok || doc.kind !== 'json' || doc.root.t !== 'obj') return omitted();
+      const node = cleanNode(snapshotExperimentNode(doc.root).node, true);
+      return { value: toValue(node), node };
+    }
+    if (!value || typeof value !== 'object') return omitted();
+    const kind = logKind(value);
+    if (kind && LOG_TEXT_KINDS.has(kind)) return plain(String(logPlain(value, 'share', dropped)));
+    if (kind && !LOG_STRUCTURE_KINDS.has(kind)) return omitted();
+    return plain(clean(snapshotExperimentValue(logPlain(value, 'share', dropped)).value, true));
+  }
   // A captured request body (spec J4) that is not text: FormData arrives as [name, value | file]
   // pairs, and a value under a sensitive name is redacted like a sensitive object key (also for
   // pair-shaped bodies without a kind). A binary descriptor keeps its size only, since its
@@ -367,26 +393,40 @@ function projectShareSafe(entries: PanelEntry[]): { projection: ShareSafeSession
     } else {
       entry.logLevel = choice(field('logLevel'), ['log', 'info', 'warn', 'error', 'debug'], 'log') as PanelEntry['logLevel'];
       if (field('message') != null) entry.message = omit();
+      // A log argument (spec J7; issue #6) is projected by logArg: free text is omitted and
+      // structured values keep their keys. A pre-model value is decoded to the typed model first,
+      // so a legacy Error is its name alone like a typed one.
+      const logData = ownValue(input, 'logData');
+      const argCount = ownValue(input, 'logArgCount');
+      const typedLog = isTypedLog({ logArgCount: argCount as number | undefined });
+      const dropped = { omitted: 0 };
+      // A pre-model value is snapshotted first (inert and bounded: no accessor runs), then decoded.
+      const legacyArg = (item: unknown): SafeBody => logArg(decodeLegacyLogValue(snapshotExperimentValue(item).value), dropped);
+      const arg = (item: unknown): SafeBody => typedLog ? logArg(item, dropped) : legacyArg(item);
       const args = field('args');
       if (Array.isArray(args)) {
         omittedCount += Math.max(0, args.length - 20);
-        const safeArgs = boundedItems(args, 20).map(arg => body(arg, true));
-        entry.args = safeArgs.map((arg) => arg.value);
-        bodies.args = safeArgs.map((arg) => arg.node);
+        const safeArgs = boundedItems(args, 20).map(legacyArg);
+        entry.args = safeArgs.map((item) => item.value);
+        bodies.args = safeArgs.map((item) => item.node);
       }
-      // A typed log (spec J7) is flattened to plain JSON first: every typed value becomes its
-      // text and a class instance or Map an object keyed by its keys, so the key-based
-      // redaction below still sees each key (an envelope lists them inside arrays). An Error,
-      // at any depth, is its name alone (logPlain 'share'); what it drops is counted as omitted.
-      const logData = ownValue(input, 'logData');
-      const typedLog = isTypedLog({ logArgCount: ownValue(input, 'logArgCount') as number | undefined });
       if (field('logData') != null) {
-        const dropped = { omitted: 0 };
-        const safeLog = body(typedLog ? logPlain(logData, 'share', dropped) : logData, true);
-        omittedCount += dropped.omitted;
-        entry.logData = safeLog.value;
-        bodies.logData = safeLog.node;
+        // Several arguments: logData is their list, read as logArgs reads it (a pre-model array is
+        // the list too), and each is projected alone. The first 20 are projected and the rest are
+        // counted markers, so the list keeps its length (content.js carries at most 500).
+        const list = Array.isArray(logData) && (!typedLog || argCount !== 1);
+        if (list) {
+          omittedCount += Math.max(0, number(ownValue(logData, 'length')) - 500);
+          const safeArgs = boundedItems(logData, 500).map((item, index) => index < 20 ? arg(item) : omitted());
+          entry.logData = safeArgs.map((item) => item.value);
+          bodies.logData = { t: 'arr', items: safeArgs.map((item) => item.node) };
+        } else {
+          const safeLog = arg(logData);
+          entry.logData = safeLog.value;
+          bodies.logData = safeLog.node;
+        }
       }
+      omittedCount += dropped.omitted;
     }
     let keys = 0;
     for (const key in input as object) {
